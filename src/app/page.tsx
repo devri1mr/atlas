@@ -49,6 +49,7 @@ export default function Home() {
 
   if (loading) return <div style={{ padding: 24 }}>Loading...</div>;
 
+  // LOGIN SCREEN
   if (!email) {
     return (
       <div
@@ -60,12 +61,7 @@ export default function Home() {
           backgroundColor: "#ffffff",
         }}
       >
-        <div
-          style={{
-            textAlign: "center",
-            transform: "translateY(-40px)", // lifts whole block up
-          }}
-        >
+        <div style={{ textAlign: "center" }}>
           <Image
             src="/atlas-logo.png"
             alt="Atlas Logo"
@@ -76,7 +72,7 @@ export default function Home() {
 
           <p
             style={{
-              marginTop: -70, // pulls it close under InterRivus text
+              marginTop: 6,          // tighter than before
               fontSize: 11,
               color: "#777",
               letterSpacing: 1,
@@ -114,6 +110,7 @@ export default function Home() {
     );
   }
 
+  // AUTHENTICATED VIEW
   return (
     <div style={{ padding: 24 }}>
       <Image
