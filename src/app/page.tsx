@@ -1,34 +1,82 @@
-// atlas/src/app/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default async function Home() {
-  // Simple connectivity test: ask Supabase for the current auth session
-  // (This should not crash even if no user is logged in)
-  const { data, error } = await supabase.auth.getSession();
+export default function Home() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSession() {
+      const { data } = await supabase.auth.getSession();
+      const sessionEmail = data.session?.user?.email ?? null;
+
+      // Enforce @garpielgroup.com only
+      if (sessionEmail && !sessionEmail.endsWith("@garpielgroup.com")) {
+        await supabase.auth.signOut();
+        setEmail(null);
+      } else {
+        setEmail(sessionEmail);
+      }
+
+      setLoading(false);
+    }
+
+    loadSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadSession();
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+  }
+
+  if (loading) return <div style={{ padding: 24 }}>Loading...</div>;
+
+  if (!email) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h1>Atlas</h1>
+        <p>InterRivus Systems — Crafted by MRD</p>
+
+        <button
+          onClick={signInWithGoogle}
+          style={{ padding: "10px 14px", cursor: "pointer" }}
+        >
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ marginBottom: 8 }}>Atlas</h1>
-      <p style={{ color: "#555", marginTop: 0 }}>
-        InterRivus Systems — Crafted by MRD
+    <div style={{ padding: 24 }}>
+      <h1>Atlas</h1>
+      <p>
+        Signed in as: <strong>{email}</strong>
       </p>
 
-      <div style={{ marginTop: 24, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Supabase Connection Test</h2>
-        <p style={{ marginBottom: 8 }}>
-          Status:{" "}
-          <strong>
-            {error ? "Error" : "OK"}
-          </strong>
-        </p>
-        {error ? (
-          <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(error, null, 2)}</pre>
-        ) : (
-          <pre style={{ whiteSpace: "pre-wrap" }}>
-            {JSON.stringify({ hasSession: !!data.session }, null, 2)}
-          </pre>
-        )}
-      </div>
-    </main>
+      <button
+        onClick={signOut}
+        style={{ padding: "10px 14px", cursor: "pointer" }}
+      >
+        Sign out
+      </button>
+    </div>
   );
-}
