@@ -6,168 +6,100 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-/* =========================
-   GET - Load Page Data
-========================= */
+// GET
 export async function GET() {
-  try {
-    const { data: labor_rates, error: lrError } = await supabase
-      .from("division_labor_rates")
-      .select("*")
-      .order("id", { ascending: true });
+  const { data: rates, error: ratesError } = await supabase
+    .from("division_labor_rates")
+    .select(`
+      id,
+      hourly_rate,
+      division_id,
+      job_role_id,
+      divisions (
+        id,
+        name
+      ),
+      job_roles (
+        id,
+        name
+      )
+    `);
 
-    if (lrError) {
-      return NextResponse.json(
-        { error: lrError.message },
-        { status: 500 }
-      );
-    }
+  const { data: divisions, error: divisionsError } = await supabase
+    .from("divisions")
+    .select("id, name, is_active");
 
-    const { data: divisions, error: divError } = await supabase
-      .from("divisions")
-      .select("*")
-      .order("id", { ascending: true });
+  const { data: roles, error: rolesError } = await supabase
+    .from("job_roles")
+    .select("id, name, is_active");
 
-    if (divError) {
-      return NextResponse.json(
-        { error: divError.message },
-        { status: 500 }
-      );
-    }
-
-    const { data: roles, error: roleError } = await supabase
-      .from("job_roles")
-      .select("*")
-      .order("id", { ascending: true });
-
-    if (roleError) {
-      return NextResponse.json(
-        { error: roleError.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      labor_rates,
-      divisions,
-      roles,
-    });
-  } catch (err: any) {
+  if (ratesError || divisionsError || rolesError) {
     return NextResponse.json(
-      { error: err.message || "Failed to load labor rates" },
+      {
+        error:
+          ratesError?.message ||
+          divisionsError?.message ||
+          rolesError?.message,
+      },
       { status: 500 }
     );
   }
+
+  return NextResponse.json({
+    rates,
+    divisions,
+    roles,
+  });
 }
 
-/* =========================
-   POST - Create Labor Rate
-========================= */
+// POST
 export async function POST(req: Request) {
-  try {
-    const { division_id, role_id, hourly_rate } = await req.json();
+  const body = await req.json();
 
-    if (!division_id || !role_id || hourly_rate === undefined) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+  const { data, error } = await supabase
+    .from("division_labor_rates")
+    .insert([body])
+    .select()
+    .single();
 
-    const { data, error } = await supabase
-      .from("division_labor_rates")
-      .insert([
-        {
-          division_id,
-          role_id,
-          hourly_rate,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Failed to create labor rate" },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json(data);
 }
 
-/* =========================
-   PATCH - Update Rate
-========================= */
-export async function PATCH(req: Request) {
-  try {
-    const { id, hourly_rate } = await req.json();
+// PUT
+export async function PUT(req: Request) {
+  const body = await req.json();
+  const { id, ...updates } = body;
 
-    if (!id || hourly_rate === undefined) {
-      return NextResponse.json(
-        { error: "Missing id or hourly_rate" },
-        { status: 400 }
-      );
-    }
+  const { data, error } = await supabase
+    .from("division_labor_rates")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
 
-    const { error } = await supabase
-      .from("division_labor_rates")
-      .update({ hourly_rate })
-      .eq("id", id);
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Failed to update rate" },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json(data);
 }
 
-/* =========================
-   DELETE - Remove Rate
-========================= */
+// DELETE
 export async function DELETE(req: Request) {
-  try {
-    const { id } = await req.json();
+  const body = await req.json();
 
-    if (!id) {
-      return NextResponse.json(
-        { error: "Missing id" },
-        { status: 400 }
-      );
-    }
+  const { error } = await supabase
+    .from("division_labor_rates")
+    .delete()
+    .eq("id", body.id);
 
-    const { error } = await supabase
-      .from("division_labor_rates")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Delete failed" },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true });
 }
