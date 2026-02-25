@@ -1,75 +1,78 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
-
-function getEnv(name: string) {
-  const v = process.env[name];
-  return v && v.trim().length ? v : null;
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET() {
-  const url = getEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const anonKey = getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY"); // optional
+  try {
+    // 1) Load active divisions + roles for dropdowns
+    const [{ data: divisions, error: divErr }, { data: roles, error: roleErr }] =
+      await Promise.all([
+        supabase
+          .from("divisions")
+          .select("id,name,is_active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("job_roles")
+          .select("id,name,is_active")
+          .order("name", { ascending: true }),
+      ]);
 
-  // Prefer service key if present, otherwise fall back to anon key
-  const keyToUse = serviceKey ?? anonKey;
+    if (divErr) throw divErr;
+    if (roleErr) throw roleErr;
 
-  if (!url || !keyToUse) {
+    // 2) Load all rates
+    const { data: rates, error: rateErr } = await supabase
+      .from("division_labor_rates")
+      .select("id,division_id,job_role_id,hourly_rate,created_at")
+      .order("division_id", { ascending: true })
+      .order("job_role_id", { ascending: true });
+
+    if (rateErr) throw rateErr;
+
+    return NextResponse.json({
+      divisions: divisions ?? [],
+      roles: roles ?? [],
+      rates: rates ?? [],
+    });
+  } catch (e: any) {
     return NextResponse.json(
-      {
-        error: "Missing env",
-        hasUrl: !!url,
-        hasAnonKey: !!anonKey,
-        hasServiceRoleKey: !!serviceKey,
-      },
+      { error: e?.message ?? "Unknown error" },
       { status: 500 }
     );
   }
+}
 
-  const supabase = createClient(url, keyToUse, {
-    auth: { persistSession: false },
-  });
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const division_id = Number(body.division_id);
+    const job_role_id = Number(body.job_role_id);
+    const hourly_rate = Number(body.hourly_rate);
 
-  // Pull base data
-  const [{ data: divisions, error: divErr }, { data: roles, error: roleErr }, { data: rates, error: rateErr }] =
-    await Promise.all([
-      supabase.from("divisions").select("id,name").order("name"),
-      supabase.from("job_roles").select("id,name").order("name"),
-      supabase
-        .from("division_labor_rates")
-        .select("id,division_id,job_role_id,hourly_rate")
-        .order("division_id"),
-    ]);
+    if (!division_id || !job_role_id || Number.isNaN(hourly_rate)) {
+      return NextResponse.json(
+        { error: "division_id, job_role_id, hourly_rate required" },
+        { status: 400 }
+      );
+    }
 
-  if (divErr || roleErr || rateErr) {
+    const { data, error } = await supabase
+      .from("division_labor_rates")
+      .insert([{ division_id, job_role_id, hourly_rate }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ rate: data });
+  } catch (e: any) {
     return NextResponse.json(
-      {
-        error: "Supabase query failed",
-        details: {
-          divisions: divErr?.message ?? null,
-          roles: roleErr?.message ?? null,
-          rates: rateErr?.message ?? null,
-        },
-      },
+      { error: e?.message ?? "Unknown error" },
       { status: 500 }
     );
   }
-
-  // Join into the exact shape the UI expects
-  const divisionById = new Map((divisions ?? []).map((d: any) => [d.id, d.name]));
-  const roleById = new Map((roles ?? []).map((r: any) => [r.id, r.name]));
-
-  const rows =
-    (rates ?? []).map((r: any) => ({
-      id: r.id,
-      division: divisionById.get(r.division_id) ?? String(r.division_id),
-      role: roleById.get(r.job_role_id) ?? String(r.job_role_id),
-      hourly_rate: r.hourly_rate,
-      division_id: r.division_id,
-      job_role_id: r.job_role_id,
-    })) ?? [];
-
-  return NextResponse.json({ rows });
 }
