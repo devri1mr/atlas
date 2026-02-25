@@ -6,20 +6,53 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET — simple
+// GET
 export async function GET() {
-  const { data, error } = await supabase
+  const { data: rates, error: ratesError } = await supabase
     .from("division_labor_rates")
-    .select("*");
+    .select(`
+      id,
+      hourly_rate,
+      division_id,
+      job_role_id,
+      divisions (
+        id,
+        name
+      ),
+      job_roles (
+        id,
+        name
+      )
+    `);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data: divisions, error: divisionsError } = await supabase
+    .from("divisions")
+    .select("id, name, is_active");
+
+  const { data: roles, error: rolesError } = await supabase
+    .from("job_roles")
+    .select("id, name, is_active");
+
+  if (ratesError || divisionsError || rolesError) {
+    return NextResponse.json(
+      {
+        error:
+          ratesError?.message ||
+          divisionsError?.message ||
+          rolesError?.message,
+      },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    rates,
+    divisions,
+    roles,
+  });
 }
 
-// POST — simple
+// POST
 export async function POST(req: Request) {
   const body = await req.json();
 
@@ -36,7 +69,7 @@ export async function POST(req: Request) {
   return NextResponse.json(data);
 }
 
-// PUT — simple
+// PUT
 export async function PUT(req: Request) {
   const body = await req.json();
   const { id, ...updates } = body;
@@ -55,7 +88,7 @@ export async function PUT(req: Request) {
   return NextResponse.json(data);
 }
 
-// DELETE — fixed
+// DELETE
 export async function DELETE(req: Request) {
   const body = await req.json();
 
