@@ -1,43 +1,60 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+export async function GET() {
+  const { data, error } = await supabaseAdmin
+    .from("division_labor_rates")
+    .select("id, division_id, role_id, hourly_rate, divisions(name), job_roles(name)")
+    .order("id", { ascending: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const rows = (data ?? []).map((r: any) => ({
+    id: r.id,
+    division: r.divisions?.name ?? "",
+    role: r.job_roles?.name ?? "",
+    hourly_rate: r.hourly_rate ?? 0,
+    division_id: r.division_id,
+    role_id: r.role_id,
+  }));
+
+  return NextResponse.json({ rows });
+}
 
 export async function POST(req: Request) {
-  try {
-    const { id, hourly_rate } = await req.json();
+  const body = await req.json();
+  const { division_id, role_id, hourly_rate } = body;
 
-    if (!id || hourly_rate === undefined || hourly_rate === null) {
-      return NextResponse.json(
-        { error: "Missing id or hourly_rate" },
-        { status: 400 }
-      );
-    }
+  const { error } = await supabaseAdmin
+    .from("division_labor_rates")
+    .insert([{ division_id, role_id, hourly_rate }]);
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
 
-    if (!url || !serviceKey) {
-      return NextResponse.json(
-        { error: "Server env missing (SUPABASE keys)" },
-        { status: 500 }
-      );
-    }
+export async function PUT(req: Request) {
+  const body = await req.json();
+  const { id, hourly_rate } = body;
 
-    const supabase = createClient(url, serviceKey);
+  const { error } = await supabaseAdmin
+    .from("division_labor_rates")
+    .update({ hourly_rate })
+    .eq("id", id);
 
-    const { error } = await supabase
-      .from("division_labor_rates")
-      .update({ hourly_rate })
-      .eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+export async function DELETE(req: Request) {
+  const body = await req.json();
+  const { id } = body;
 
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
-  }
+  const { error } = await supabaseAdmin
+    .from("division_labor_rates")
+    .delete()
+    .eq("id", id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
