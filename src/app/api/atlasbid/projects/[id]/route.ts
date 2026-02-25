@@ -6,15 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-type Context = {
-  params: {
-    id: string;
-  };
-};
-
 export async function GET(
-  _req: Request,
-  { params }: Context
+  request: Request,
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params;
