@@ -1,683 +1,514 @@
 "use client";
 
-import * as React from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Plus, RefreshCcw, Search, Trash2, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type Division = { id: number; name: string };
 type Role = { id: number; name: string };
 
 type LaborRateRow = {
   id: number;
-  division_id?: number | null;
-  division_name?: string | null;
-  job_role_id?: number | null;
-  role_name?: string | null;
-  hourly_rate: number | string | null;
+  division_id: number;
+  division_name: string;
+  job_role_id: number;
+  role_name: string;
+  hourly_rate: number | null;
 };
 
-type ApiGetResponse =
-  | {
-      rates: LaborRateRow[];
-      divisions?: Division[];
-      roles?: Role[];
-    }
-  | LaborRateRow[]; // tolerate older shape
+type ApiGetResponse = {
+  rows: LaborRateRow[];
+  divisions: Division[];
+  roles: Role[];
+};
 
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
-
-function toNumber(input: unknown): number {
-  if (input === null || input === undefined) return 0;
-  if (typeof input === "number") return input;
-  const s = String(input).replace(/[^0-9.-]/g, "");
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
+function toNumberOrNull(v: string): number | null {
+  const cleaned = v.replace(/[^0-9.]/g, "");
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
-function formatMoney(n: number) {
-  return money.format(n);
+function formatCurrency(n: number | null | undefined) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
 }
 
-function classNames(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
+function currencyInputValue(n: number | null) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "";
+  // keep as plain number string so editing is easy
+  return String(n);
 }
-
-type Toast = { id: string; kind: "success" | "error"; title: string; detail?: string };
 
 export default function LaborRatesClient() {
-  const [loading, setLoading] = React.useState(true);
-  const [rates, setRates] = React.useState<LaborRateRow[]>([]);
-  const [divisions, setDivisions] = React.useState<Division[]>([]);
-  const [roles, setRoles] = React.useState<Role[]>([]);
-  const [query, setQuery] = React.useState("");
-  const [savingId, setSavingId] = React.useState<number | null>(null);
-  const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Track per-row edits (spreadsheet style)
-  const [draftRates, setDraftRates] = React.useState<Record<number, string>>({});
-  const [draftDivision, setDraftDivision] = React.useState<Record<number, number>>({});
-  const [draftRole, setDraftRole] = React.useState<Record<number, number>>({});
+  const [rows, setRows] = useState<LaborRateRow[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
 
-  const [toast, setToast] = React.useState<Toast | null>(null);
+  const [query, setQuery] = useState("");
+
+  // Per-row edits
+  const [draftRates, setDraftRates] = useState<Record<number, string>>({});
+  const [savingRowId, setSavingRowId] = useState<number | null>(null);
+  const [savedRowId, setSavedRowId] = useState<number | null>(null);
 
   // Add modal
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [newDivisionId, setNewDivisionId] = React.useState<number | "">("");
-  const [newRoleId, setNewRoleId] = React.useState<number | "">("");
-  const [newRate, setNewRate] = React.useState<string>("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDivisionId, setAddDivisionId] = useState<string>("");
+  const [addRoleId, setAddRoleId] = useState<string>("");
+  const [addHourlyRate, setAddHourlyRate] = useState<string>("");
+  const [adding, setAdding] = useState(false);
 
-  // Delete confirm modal
-  const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const [deleteTarget, setDeleteTarget] = React.useState<LaborRateRow | null>(null);
+  // Delete
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   async function load() {
-    setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/labor-rates", { cache: "no-store" });
-      const json = (await res.json()) as ApiGetResponse;
-
-      const normalized =
-        Array.isArray(json)
-          ? { rates: json, divisions: [], roles: [] }
-          : { rates: json.rates ?? [], divisions: json.divisions ?? [], roles: json.roles ?? [] };
-
-      setRates(normalized.rates);
-
-      // if API provided dimension tables, use them
-      if (normalized.divisions?.length) setDivisions(normalized.divisions);
-      if (normalized.roles?.length) setRoles(normalized.roles);
-
-      // prime drafts so editing feels instant
-      const dr: Record<number, string> = {};
-      const dd: Record<number, number> = {};
-      const drol: Record<number, number> = {};
-
-      for (const r of normalized.rates) {
-        dr[r.id] = String(toNumber(r.hourly_rate));
-        if (typeof r.division_id === "number") dd[r.id] = r.division_id;
-        if (typeof r.job_role_id === "number") drol[r.id] = r.job_role_id;
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `Failed to load (${res.status})`);
       }
-      setDraftRates(dr);
-      setDraftDivision(dd);
-      setDraftRole(drol);
+      const data = (await res.json()) as ApiGetResponse;
+
+      setRows(data.rows ?? []);
+      setDivisions(data.divisions ?? []);
+      setRoles(data.roles ?? []);
+
+      // initialize drafts only for rows we don't have yet
+      setDraftRates((prev) => {
+        const next = { ...prev };
+        for (const r of data.rows ?? []) {
+          if (next[r.id] === undefined) {
+            next[r.id] = currencyInputValue(r.hourly_rate ?? null);
+          }
+        }
+        return next;
+      });
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Failed to load labor rates", detail: String(e?.message ?? e) });
+      setError(e?.message || "Failed to load labor rates.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = React.useMemo(() => {
+  const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rates;
-    return rates.filter((r) => {
-      const d = (r.division_name ?? "").toLowerCase();
-      const role = (r.role_name ?? "").toLowerCase();
-      const amt = String(toNumber(r.hourly_rate));
-      return d.includes(q) || role.includes(q) || amt.includes(q);
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const hay = `${r.division_name} ${r.role_name} ${r.hourly_rate ?? ""}`.toLowerCase();
+      return hay.includes(q);
     });
-  }, [rates, query]);
+  }, [rows, query]);
 
-  function isDirty(row: LaborRateRow) {
-    const id = row.id;
-    const rateNow = toNumber(row.hourly_rate);
-    const rateDraft = toNumber(draftRates[id] ?? rateNow);
-    const divNow = typeof row.division_id === "number" ? row.division_id : undefined;
-    const roleNow = typeof row.job_role_id === "number" ? row.job_role_id : undefined;
-
-    const divDraft = draftDivision[id] ?? divNow;
-    const roleDraft = draftRole[id] ?? roleNow;
-
-    return rateNow !== rateDraft || divNow !== divDraft || roleNow !== roleDraft;
+  function markSaved(rowId: number) {
+    setSavedRowId(rowId);
+    window.setTimeout(() => {
+      setSavedRowId((cur) => (cur === rowId ? null : cur));
+    }, 1200);
   }
 
-  async function saveRow(row: LaborRateRow) {
-    const id = row.id;
-    setSavingId(id);
+  async function saveRow(rowId: number) {
+    setError(null);
+    setSavingRowId(rowId);
     try {
-      const payload: any = {
-        id,
-        hourly_rate: toNumber(draftRates[id] ?? row.hourly_rate),
-      };
-
-      // only send if we actually have ids to send
-      if (typeof (draftDivision[id] ?? row.division_id) === "number") {
-        payload.division_id = draftDivision[id] ?? row.division_id;
-      }
-      if (typeof (draftRole[id] ?? row.job_role_id) === "number") {
-        payload.job_role_id = draftRole[id] ?? row.job_role_id;
+      const raw = draftRates[rowId] ?? "";
+      const hourly_rate = toNumberOrNull(raw);
+      if (hourly_rate === null) {
+        throw new Error("Please enter a valid hourly rate.");
       }
 
       const res = await fetch("/api/labor-rates/update", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-
-      // optimistic update in UI
-      setRates((prev) =>
-        prev.map((r) => {
-          if (r.id !== id) return r;
-          const updated: LaborRateRow = {
-            ...r,
-            hourly_rate: payload.hourly_rate,
-            division_id: payload.division_id ?? r.division_id,
-            job_role_id: payload.job_role_id ?? r.job_role_id,
-            division_name:
-              typeof payload.division_id === "number"
-                ? divisions.find((d) => d.id === payload.division_id)?.name ?? r.division_name
-                : r.division_name,
-            role_name:
-              typeof payload.job_role_id === "number"
-                ? roles.find((x) => x.id === payload.job_role_id)?.name ?? r.role_name
-                : r.role_name,
-          };
-          return updated;
-        })
-      );
-
-      setToast({ id: crypto.randomUUID(), kind: "success", title: "Saved", detail: "Labor rate updated." });
-    } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Save failed", detail: String(e?.message ?? e) });
-    } finally {
-      setSavingId(null);
-    }
-  }
-
-  async function createRow() {
-    // we only allow create if we have ids
-    if (newDivisionId === "" || newRoleId === "") {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Missing fields", detail: "Pick a Division and Role first." });
-      return;
-    }
-
-    const hourly_rate = toNumber(newRate);
-
-    try {
-      const res = await fetch("/api/labor-rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          division_id: newDivisionId,
-          job_role_id: newRoleId,
-          hourly_rate,
-        }),
+        body: JSON.stringify({ id: rowId, hourly_rate }),
       });
 
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `HTTP ${res.status}`);
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `Save failed (${res.status})`);
       }
 
-      const created = (await res.json()) as LaborRateRow;
-
-      // Add to list and prime drafts
-      setRates((prev) => [created, ...prev]);
-      setDraftRates((prev) => ({ ...prev, [created.id]: String(toNumber(created.hourly_rate)) }));
-      if (typeof created.division_id === "number") setDraftDivision((p) => ({ ...p, [created.id]: created.division_id! }));
-      if (typeof created.job_role_id === "number") setDraftRole((p) => ({ ...p, [created.id]: created.job_role_id! }));
-
-      setAddOpen(false);
-      setNewDivisionId("");
-      setNewRoleId("");
-      setNewRate("");
-      setToast({ id: crypto.randomUUID(), kind: "success", title: "Added", detail: "New labor rate created." });
+      // Optimistically update local rows
+      setRows((prev) =>
+        prev.map((r) => (r.id === rowId ? { ...r, hourly_rate } : r))
+      );
+      markSaved(rowId);
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Add failed", detail: String(e?.message ?? e) });
+      setError(e?.message || "Save failed.");
+    } finally {
+      setSavingRowId(null);
     }
   }
 
-  function openDelete(row: LaborRateRow) {
-    setDeleteTarget(row);
-    setDeleteOpen(true);
-  }
-
-  async function confirmDelete() {
-    if (!deleteTarget) return;
-    const id = deleteTarget.id;
-    setDeletingId(id);
+  async function deleteRow(rowId: number) {
+    setError(null);
+    setDeletingId(rowId);
     try {
-      const res = await fetch(`/api/labor-rates?id=${encodeURIComponent(String(id))}`, { method: "DELETE" });
+      const res = await fetch("/api/labor-rates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rowId }),
+      });
+
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `HTTP ${res.status}`);
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `Delete failed (${res.status})`);
       }
-      setRates((prev) => prev.filter((r) => r.id !== id));
-      setToast({ id: crypto.randomUUID(), kind: "success", title: "Deleted", detail: "Labor rate removed." });
-      setDeleteOpen(false);
-      setDeleteTarget(null);
+
+      setRows((prev) => prev.filter((r) => r.id !== rowId));
+      setDraftRates((prev) => {
+        const next = { ...prev };
+        delete next[rowId];
+        return next;
+      });
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Delete failed", detail: String(e?.message ?? e) });
+      setError(e?.message || "Delete failed.");
     } finally {
       setDeletingId(null);
     }
   }
 
-  const canCreate = divisions.length > 0 && roles.length > 0;
+  function resetAddForm() {
+    setAddDivisionId("");
+    setAddRoleId("");
+    setAddHourlyRate("");
+  }
+
+  async function addNewRate() {
+    setError(null);
+    setAdding(true);
+    try {
+      const division_id = Number(addDivisionId);
+      const job_role_id = Number(addRoleId);
+      const hourly_rate = toNumberOrNull(addHourlyRate);
+
+      if (!division_id || !job_role_id) {
+        throw new Error("Please select a division and a role.");
+      }
+      if (hourly_rate === null) {
+        throw new Error("Please enter a valid hourly rate.");
+      }
+
+      const res = await fetch("/api/labor-rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ division_id, job_role_id, hourly_rate }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `Add failed (${res.status})`);
+      }
+
+      // Expect API to return the inserted row (recommended).
+      // If it doesn't, we refresh to be safe.
+      const maybe = await res.json().catch(() => null);
+
+      if (maybe && typeof maybe === "object" && "row" in maybe) {
+        const newRow = (maybe as any).row as LaborRateRow;
+        setRows((prev) => [newRow, ...prev]);
+        setDraftRates((prev) => ({ ...prev, [newRow.id]: currencyInputValue(newRow.hourly_rate) }));
+      } else {
+        setRefreshing(true);
+        await load();
+      }
+
+      setAddOpen(false);
+      resetAddForm();
+    } catch (e: any) {
+      setError(e?.message || "Add failed.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  const canAdd =
+    addDivisionId !== "" && addRoleId !== "" && toNumberOrNull(addHourlyRate) !== null;
 
   return (
-    <div className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-emerald-50/40 to-white">
-      {/* Header */}
-      <div className="border-b border-emerald-100 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-5 py-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-medium text-emerald-700">Operations Center</div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Labor Rates</h1>
-              <div className="mt-1 text-sm text-slate-600">
-                Edit hourly rates like a spreadsheet. Save per row.
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => load()}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                Refresh
-              </button>
-
-              <Dialog.Root open={addOpen} onOpenChange={setAddOpen}>
-                <Dialog.Trigger asChild>
-                  <button
-                    className={classNames(
-                      "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white",
-                      "bg-emerald-600 hover:bg-emerald-700"
-                    )}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add new rate
-                  </button>
-                </Dialog.Trigger>
-
-                <Dialog.Portal>
-                  <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-                  <Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-xl">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <Dialog.Title className="text-lg font-semibold text-slate-900">Add labor rate</Dialog.Title>
-                        <Dialog.Description className="mt-1 text-sm text-slate-600">
-                          Choose a division + role, then set an hourly rate.
-                        </Dialog.Description>
-                      </div>
-                      <Dialog.Close asChild>
-                        <button className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </Dialog.Close>
-                    </div>
-
-                    {!canCreate && (
-                      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                        Add requires <b>divisions</b> and <b>roles</b> lists returned from <code>/api/labor-rates</code>.
-                        Your current API response likely only includes joined names. If you want, I’ll update your route.ts so it returns those lists too.
-                      </div>
-                    )}
-
-                    <div className="mt-4 grid gap-3">
-                      <label className="grid gap-1">
-                        <span className="text-sm font-medium text-slate-700">Division</span>
-                        <select
-                          disabled={!canCreate}
-                          value={newDivisionId}
-                          onChange={(e) => setNewDivisionId(e.target.value === "" ? "" : Number(e.target.value))}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
-                        >
-                          <option value="">Select…</option>
-                          {divisions.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="grid gap-1">
-                        <span className="text-sm font-medium text-slate-700">Role</span>
-                        <select
-                          disabled={!canCreate}
-                          value={newRoleId}
-                          onChange={(e) => setNewRoleId(e.target.value === "" ? "" : Number(e.target.value))}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
-                        >
-                          <option value="">Select…</option>
-                          {roles.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="grid gap-1">
-                        <span className="text-sm font-medium text-slate-700">Hourly rate</span>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                            $
-                          </span>
-                          <input
-                            value={newRate}
-                            onChange={(e) => setNewRate(e.target.value)}
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-7 pr-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                          />
-                        </div>
-                        <div className="text-xs text-slate-500">Preview: {formatMoney(toNumber(newRate))}</div>
-                      </label>
-                    </div>
-
-                    <div className="mt-5 flex justify-end gap-2">
-                      <Dialog.Close asChild>
-                        <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                          Cancel
-                        </button>
-                      </Dialog.Close>
-                      <button
-                        onClick={createRow}
-                        disabled={!canCreate}
-                        className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog.Root>
-            </div>
+    <div className="px-6 py-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-sm text-slate-600">Operations Center</div>
+          <h1 className="text-2xl font-semibold text-slate-900">Labor Rates</h1>
+          <div className="mt-1 text-sm text-slate-600">
+            Edit hourly rates like a spreadsheet. Save per row.
           </div>
+        </div>
 
-          {/* Search */}
-          <div className="mt-4 flex items-center gap-2">
-            <div className="relative w-full max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search division, role, or rate…"
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setRefreshing(true);
+              load();
+            }}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Refresh
+          </button>
 
-            <div className="hidden text-sm text-slate-500 md:block">
-              {filtered.length} / {rates.length}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+          >
+            + Add new rate
+          </button>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="mx-auto max-w-6xl px-5 py-6">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-[900px] w-full border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-50/80 backdrop-blur">
-                <tr className="border-b border-slate-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Division
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Role
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Hourly rate
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Actions
-                  </th>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="relative w-full max-w-md">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search division, role, or rate…"
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          />
+        </div>
+
+        <div className="text-sm text-slate-600">
+          {refreshing ? "Refreshing…" : `${filteredRows.length} row${filteredRows.length === 1 ? "" : "s"}`}
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px] w-full border-collapse">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <th className="px-4 py-3">Division</th>
+                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Hourly Rate</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-600">
+                    Loading…
+                  </td>
                 </tr>
-              </thead>
-
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
-                      Loading…
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
-                      No rows found.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((row) => {
-                    const dirty = isDirty(row);
-                    const divId = draftDivision[row.id] ?? (typeof row.division_id === "number" ? row.division_id : undefined);
-                    const roleId = draftRole[row.id] ?? (typeof row.job_role_id === "number" ? row.job_role_id : undefined);
-
-                    return (
-                      <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                        {/* Division */}
-                        <td className="px-4 py-3 text-sm text-slate-900">
-                          {divisions.length > 0 && typeof divId === "number" ? (
-                            <select
-                              value={divId}
-                              onChange={(e) => setDraftDivision((p) => ({ ...p, [row.id]: Number(e.target.value) }))}
-                              className="w-full max-w-xs rounded-md border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                            >
-                              {divisions.map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.name}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="inline-flex items-center gap-2">
-                              <span>{row.division_name ?? "—"}</span>
-                              {!divisions.length && (
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                                  read-only
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Role */}
-                        <td className="px-4 py-3 text-sm text-slate-900">
-                          {roles.length > 0 && typeof roleId === "number" ? (
-                            <select
-                              value={roleId}
-                              onChange={(e) => setDraftRole((p) => ({ ...p, [row.id]: Number(e.target.value) }))}
-                              className="w-full max-w-xs rounded-md border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                            >
-                              {roles.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="inline-flex items-center gap-2">
-                              <span>{row.role_name ?? "—"}</span>
-                              {!roles.length && (
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                                  read-only
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Hourly rate */}
-                        <td className="px-4 py-3 text-sm text-slate-900">
-                          <div className="flex items-center gap-2">
-                            <div className="relative w-40">
-                              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                                $
-                              </span>
-                              <input
-                                value={draftRates[row.id] ?? String(toNumber(row.hourly_rate))}
-                                onChange={(e) => setDraftRates((p) => ({ ...p, [row.id]: e.target.value }))}
-                                onBlur={() => {
-                                  // normalize on blur
-                                  const n = toNumber(draftRates[row.id] ?? row.hourly_rate);
-                                  setDraftRates((p) => ({ ...p, [row.id]: n.toFixed(2) }));
-                                }}
-                                inputMode="decimal"
-                                className={classNames(
-                                  "w-full rounded-md border bg-white py-1 pl-6 pr-2 text-sm outline-none",
-                                  "border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                                )}
-                              />
-                            </div>
-
-                            <span className="text-xs text-slate-500">{formatMoney(toNumber(draftRates[row.id] ?? row.hourly_rate))}</span>
-
-                            {dirty && (
-                              <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                                Edited
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-4 py-3 text-right text-sm">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => saveRow(row)}
-                              disabled={!dirty || savingId === row.id}
-                              className={classNames(
-                                "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold",
-                                dirty
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                  : "bg-slate-100 text-slate-400",
-                                (savingId === row.id) && "opacity-70"
-                              )}
-                            >
-                              <Check className="h-4 w-4" />
-                              {savingId === row.id ? "Saving…" : "Save"}
-                            </button>
-
-                            <button
-                              onClick={() => openDelete(row)}
-                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                            >
-                              <Trash2 className="h-4 w-4 text-slate-500" />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/40 px-4 py-3 text-xs text-slate-600">
-            <div>
-              Tip: edit cells → click <b>Save</b> on that row.
-            </div>
-            <div className="text-slate-500">
-              {divisions.length === 0 || roles.length === 0 ? (
-                <span>
-                  Add modal is limited until your API returns <code>divisions</code> + <code>roles</code>.
-                </span>
+              ) : filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-600">
+                    No labor rates found.
+                  </td>
+                </tr>
               ) : (
-                <span>All editing enabled.</span>
+                filteredRows.map((r) => {
+                  const draft = draftRates[r.id] ?? currencyInputValue(r.hourly_rate ?? null);
+                  const saved = savedRowId === r.id;
+
+                  return (
+                    <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                      <td className="px-4 py-3 text-sm text-slate-900">{r.division_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-900">{r.role_name}</td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-500">$</span>
+                          <input
+                            inputMode="decimal"
+                            value={draft}
+                            onChange={(e) =>
+                              setDraftRates((prev) => ({ ...prev, [r.id]: e.target.value }))
+                            }
+                            className="w-40 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            placeholder="0.00"
+                          />
+                          <span className="text-xs text-slate-500">
+                            {formatCurrency(toNumberOrNull(draft))}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveRow(r.id)}
+                            disabled={savingRowId === r.id}
+                            className={[
+                              "rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm",
+                              saved
+                                ? "bg-emerald-600 text-white"
+                                : "bg-slate-900 text-white hover:bg-slate-800",
+                              savingRowId === r.id ? "opacity-60 cursor-not-allowed" : "",
+                            ].join(" ")}
+                          >
+                            {savingRowId === r.id ? "Saving…" : saved ? "Saved" : "Save"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("Delete this labor rate?")) deleteRow(r.id);
+                            }}
+                            disabled={deletingId === r.id}
+                            className={[
+                              "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50",
+                              deletingId === r.id ? "opacity-60 cursor-not-allowed" : "",
+                            ].join(" ")}
+                          >
+                            {deletingId === r.id ? "Deleting…" : "Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
-            </div>
-          </div>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+          Tip: edit a rate, then click <span className="font-semibold text-slate-700">Save</span> on that row.
         </div>
       </div>
 
-      {/* Delete confirm dialog */}
-      <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Dialog.Title className="text-lg font-semibold text-slate-900">Delete labor rate?</Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm text-slate-600">
-                  This cannot be undone.
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <button className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
-                  <X className="h-4 w-4" />
+      {/* Add modal (no Radix needed; avoids dependency issues + fixes dropdown clipping) */}
+      {addOpen && (
+        <div className="fixed inset-0 z-[100]">
+          {/* overlay */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => {
+              if (!adding) {
+                setAddOpen(false);
+                resetAddForm();
+              }
+            }}
+          />
+          {/* panel */}
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="relative z-[110] w-full max-w-lg overflow-visible rounded-xl border border-slate-200 bg-white shadow-xl">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Add labor rate</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    Choose a division + role, then set an hourly rate.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  onClick={() => {
+                    if (!adding) {
+                      setAddOpen(false);
+                      resetAddForm();
+                    }
+                  }}
+                  aria-label="Close"
+                >
+                  ✕
                 </button>
-              </Dialog.Close>
-            </div>
-
-            {deleteTarget && (
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
-                <div><b>Division:</b> {deleteTarget.division_name ?? deleteTarget.division_id ?? "—"}</div>
-                <div><b>Role:</b> {deleteTarget.role_name ?? deleteTarget.job_role_id ?? "—"}</div>
-                <div><b>Rate:</b> {formatMoney(toNumber(deleteTarget.hourly_rate))}</div>
               </div>
-            )}
 
-            <div className="mt-5 flex justify-end gap-2">
-              <Dialog.Close asChild>
-                <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <div className="px-5 py-4 overflow-visible">
+                {/* NOTE: overflow-visible + high z-index fixes select dropdown clipping */}
+                <div className="grid gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800">Division</label>
+                    <select
+                      className="relative z-[120] mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                      value={addDivisionId}
+                      onChange={(e) => setAddDivisionId(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {divisions.map((d) => (
+                        <option key={d.id} value={String(d.id)}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800">Role</label>
+                    <select
+                      className="relative z-[120] mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                      value={addRoleId}
+                      onChange={(e) => setAddRoleId(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-800">Hourly rate</label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-sm text-slate-500">$</span>
+                      <input
+                        inputMode="decimal"
+                        value={addHourlyRate}
+                        onChange={(e) => setAddHourlyRate(e.target.value)}
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Preview: {formatCurrency(toNumberOrNull(addHourlyRate))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  onClick={() => {
+                    if (!adding) {
+                      setAddOpen(false);
+                      resetAddForm();
+                    }
+                  }}
+                  disabled={adding}
+                >
                   Cancel
                 </button>
-              </Dialog.Close>
-              <button
-                onClick={confirmDelete}
-                disabled={deletingId !== null}
-                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-              >
-                {deletingId !== null ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 z-50 w-[92vw] max-w-sm">
-          <div
-            className={classNames(
-              "rounded-xl border p-4 shadow-lg",
-              toast.kind === "success"
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-red-200 bg-red-50"
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div
-                  className={classNames(
-                    "text-sm font-semibold",
-                    toast.kind === "success" ? "text-emerald-900" : "text-red-900"
-                  )}
+                <button
+                  type="button"
+                  className={[
+                    "rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700",
+                    !canAdd || adding ? "opacity-60 cursor-not-allowed" : "",
+                  ].join(" ")}
+                  onClick={addNewRate}
+                  disabled={!canAdd || adding}
                 >
-                  {toast.title}
-                </div>
-                {toast.detail && (
-                  <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{toast.detail}</div>
-                )}
+                  {adding ? "Adding…" : "Add"}
+                </button>
               </div>
-
-              <button
-                onClick={() => setToast(null)}
-                className="rounded-md p-2 text-slate-600 hover:bg-white/60"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </div>
           </div>
         </div>
