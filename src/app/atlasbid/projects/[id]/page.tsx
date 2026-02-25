@@ -22,18 +22,23 @@ type LaborRow = {
 };
 
 type BidSettings = {
-  division_id: number;
-  margin_default: number; // GP%
-  contingency_pct: number; // %
-  round_up_increment: number; // e.g. 100
-  prepay_discount_pct: number; // %
+  contingency_pct?: number;
+  round_up_increment?: number; // dollars
+  prepay_discount_pct?: number;
+  margin_default?: number;
 };
 
-function roundUpToIncrement(n: number, increment: number) {
-  if (!Number.isFinite(n)) return 0;
-  const inc = Number(increment);
-  if (!Number.isFinite(inc) || inc <= 0) return n;
-  return Math.ceil(n / inc) * inc;
+const money = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+    Number.isFinite(n) ? n : 0
+  );
+
+function roundUpToIncrement(n: number, inc: number) {
+  const num = Number(n);
+  const step = Number(inc);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  if (!Number.isFinite(step) || step <= 0) return num;
+  return Math.ceil(num / step) * step;
 }
 
 export default function ProjectDetailPage() {
@@ -45,18 +50,14 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [blendedRate, setBlendedRate] = useState<number>(0);
 
-  // Ops Center bid settings (locked)
-  const [settings, setSettings] = useState<BidSettings>({
-    division_id: 0,
-    margin_default: 50,
-    contingency_pct: 3,
-    round_up_increment: 100,
-    prepay_discount_pct: 3,
-  });
+  // Sales-input only
+  const [targetGpPct, setTargetGpPct] = useState<number>(50);
+  const [prepayEnabled, setPrepayEnabled] = useState<boolean>(false);
 
-  // Sales controls (Option B)
-  const [targetGpPct, setTargetGpPct] = useState<number>(50); // ONLY thing sales can edit
-  const [prepayEnabled, setPrepayEnabled] = useState<boolean>(false); // toggle only
+  // Ops-controlled (hidden from sales UI)
+  const [contingencyPct, setContingencyPct] = useState<number>(3);
+  const [roundUpIncrement, setRoundUpIncrement] = useState<number>(100);
+  const [prepayDiscountPct, setPrepayDiscountPct] = useState<number>(3);
 
   // Labor input
   const [task, setTask] = useState("");
@@ -69,52 +70,53 @@ export default function ProjectDetailPage() {
     if (!projectId) return;
 
     async function load() {
-      setLoading(true);
       try {
         // 1) Load project
-        const pRes = await fetch(`/api/atlasbid/projects/${projectId}`, { cache: "no-store" });
+        const pRes = await fetch(`/api/atlasbid/projects/${projectId}`, {
+          cache: "no-store",
+        });
         const pJson = await pRes.json();
-        const proj: Project | null = pJson.project || null;
-        setProject(proj);
+        setProject(pJson.project);
 
-        const divisionId = proj?.division_id;
+        const divisionId = pJson.project?.division_id;
 
-        // 2) Load blended rate for division
+        // 2) Load blended labor rate for division
         if (divisionId) {
-          const rateRes = await fetch(`/api/atlasbid/blended-rate?division_id=${divisionId}`, {
-            cache: "no-store",
-          });
-          const rateJson = await rateRes.json();
-          setBlendedRate(Number(rateJson.blended_rate || 0));
-        } else {
-          setBlendedRate(0);
-        }
+          try {
+            const rateRes = await fetch(
+              `/api/atlasbid/blended-rate?division_id=${divisionId}`,
+              { cache: "no-store" }
+            );
+            const rateJson = await rateRes.json();
+            setBlendedRate(Number(rateJson.blended_rate || 0));
+          } catch {
+            setBlendedRate(0);
+          }
 
-        // 3) Load bid settings for division (Ops Center)
-        if (divisionId) {
-          const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
-            cache: "no-store",
-          });
-          const sJson = await sRes.json();
-
-          const row = sJson?.settings as Partial<BidSettings> | undefined;
-
-          const merged: BidSettings = {
-            division_id: divisionId,
-            margin_default: Number(row?.margin_default ?? 50),
-            contingency_pct: Number(row?.contingency_pct ?? 3),
-            round_up_increment: Number(row?.round_up_increment ?? 100),
-            prepay_discount_pct: Number(row?.prepay_discount_pct ?? 3),
-          };
-
-          setSettings(merged);
-
-          // Set sales GP% default from Ops Center (but sales can still change it)
-          setTargetGpPct(Number(merged.margin_default || 0));
+          // 3) OPTIONAL: Load Ops bid settings for division (won’t break if route doesn’t exist)
+          // If you later create /api/atlasbid/bid-settings, this will auto-start working.
+          try {
+            const sRes = await fetch(
+              `/api/atlasbid/bid-settings?division_id=${divisionId}`,
+              { cache: "no-store" }
+            );
+            if (sRes.ok) {
+              const sJson: { settings?: BidSettings } = await sRes.json();
+              const s = sJson.settings || {};
+              if (typeof s.contingency_pct === "number") setContingencyPct(s.contingency_pct);
+              if (typeof s.round_up_increment === "number") setRoundUpIncrement(s.round_up_increment);
+              if (typeof s.prepay_discount_pct === "number") setPrepayDiscountPct(s.prepay_discount_pct);
+              if (typeof s.margin_default === "number") setTargetGpPct(s.margin_default);
+            }
+          } catch {
+            // keep defaults
+          }
         }
 
         // 4) Load labor rows
-        const lRes = await fetch(`/api/atlasbid/labor?project_id=${projectId}`, { cache: "no-store" });
+        const lRes = await fetch(`/api/atlasbid/labor?project_id=${projectId}`, {
+          cache: "no-store",
+        });
         const lJson = await lRes.json();
         setLabor(lJson.rows || []);
       } finally {
@@ -126,7 +128,12 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   const laborSubtotal = useMemo(() => {
-    return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
+    return labor.reduce(
+      (sum, r) =>
+        sum +
+        (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+      0
+    );
   }, [labor]);
 
   async function addLabor() {
@@ -162,48 +169,36 @@ export default function ProjectDetailPage() {
     if (res.ok) {
       setLabor((prev) => prev.filter((r) => r.id !== rowId));
     } else {
-      // helpful debug
-      let msg = "Failed to delete labor row";
-      try {
-        const j = await res.json();
-        msg = j?.error?.message || j?.error || msg;
-      } catch {}
-      alert(msg);
+      alert("Failed to delete labor row");
     }
   }
 
-  // ---- PRICING CALCS (Ops settings locked) ----
+  // ---- PRICING CALCS (Ops rules applied silently) ----
   const contingencyCost = useMemo(() => {
-    const pct = (Number(settings.contingency_pct) || 0) / 100;
+    const pct = (Number(contingencyPct) || 0) / 100;
     return laborSubtotal * pct;
-  }, [laborSubtotal, settings.contingency_pct]);
+  }, [laborSubtotal, contingencyPct]);
 
-  const totalCost = useMemo(() => {
-    return laborSubtotal + contingencyCost;
-  }, [laborSubtotal, contingencyCost]);
+  const totalCost = useMemo(() => laborSubtotal + contingencyCost, [laborSubtotal, contingencyCost]);
 
-  const targetSell = useMemo(() => {
+  const sellBeforePrepay = useMemo(() => {
     const gp = (Number(targetGpPct) || 0) / 100;
-    // Sell = Cost / (1 - GP)
     if (gp >= 1) return 0;
-    return totalCost / (1 - gp);
-  }, [totalCost, targetGpPct]);
-
-  const sellRounded = useMemo(() => {
-    return roundUpToIncrement(targetSell, settings.round_up_increment);
-  }, [targetSell, settings.round_up_increment]);
+    const rawSell = totalCost / (1 - gp);
+    return roundUpToIncrement(rawSell, roundUpIncrement);
+  }, [totalCost, targetGpPct, roundUpIncrement]);
 
   const sellWithPrepay = useMemo(() => {
-    if (!prepayEnabled) return sellRounded;
-    const disc = (Number(settings.prepay_discount_pct) || 0) / 100;
-    return sellRounded * (1 - disc);
-  }, [sellRounded, prepayEnabled, settings.prepay_discount_pct]);
+    if (!prepayEnabled) return sellBeforePrepay;
+    const disc = (Number(prepayDiscountPct) || 0) / 100;
+    return sellBeforePrepay * (1 - disc);
+  }, [sellBeforePrepay, prepayEnabled, prepayDiscountPct]);
 
   const effectiveGpPct = useMemo(() => {
-    const sell = prepayEnabled ? sellWithPrepay : sellRounded;
+    const sell = prepayEnabled ? sellWithPrepay : sellBeforePrepay;
     if (sell <= 0) return 0;
     return ((sell - totalCost) / sell) * 100;
-  }, [sellRounded, sellWithPrepay, prepayEnabled, totalCost]);
+  }, [sellBeforePrepay, sellWithPrepay, prepayEnabled, totalCost]);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (!project) return <div className="p-6 text-red-500">Project not found.</div>;
@@ -221,7 +216,7 @@ export default function ProjectDetailPage() {
           <h2 className="text-xl font-semibold">Labor Builder</h2>
           <div className="text-sm text-gray-500">
             Blended labor rate (excludes trucking):{" "}
-            <span className="font-semibold">${blendedRate.toFixed(2)} / hr</span>
+            <span className="font-semibold">{money(blendedRate)} / hr</span>
           </div>
         </div>
 
@@ -278,16 +273,20 @@ export default function ProjectDetailPage() {
           <p className="text-gray-400">No labor added yet.</p>
         ) : (
           labor.map((row) => {
-            const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+            const rowTotal =
+              (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
             return (
-              <div key={row.id} className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center">
+              <div
+                key={row.id}
+                className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center"
+              >
                 <div>{row.task}</div>
                 <div>{row.item}</div>
                 <div>{row.quantity}</div>
                 <div>{row.unit}</div>
                 <div>{row.man_hours}</div>
-                <div>${Number(row.hourly_rate).toFixed(2)}</div>
-                <div>${rowTotal.toFixed(2)}</div>
+                <div>{money(Number(row.hourly_rate) || 0)}</div>
+                <div>{money(rowTotal)}</div>
                 <button
                   onClick={() => deleteLaborRow(row.id)}
                   className="text-red-600 hover:underline text-right"
@@ -300,7 +299,7 @@ export default function ProjectDetailPage() {
         )}
 
         <div className="text-right font-semibold pt-4 border-t">
-          Labor Subtotal: ${laborSubtotal.toFixed(2)}
+          Labor Subtotal: {money(laborSubtotal)}
         </div>
       </div>
 
@@ -309,22 +308,23 @@ export default function ProjectDetailPage() {
         <h2 className="text-xl font-semibold">Pricing</h2>
 
         <div className="grid grid-cols-2 gap-6">
-          {/* LEFT: what sales can touch */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600">Target Gross Profit % (Sales editable)</label>
-              <input
-                className="border p-2 rounded w-full"
-                type="number"
-                value={targetGpPct}
-                onChange={(e) => setTargetGpPct(Number(e.target.value))}
-              />
-              <div className="text-xs text-gray-500 mt-1">
-                Default comes from Ops Center ({Number(settings.margin_default || 0).toFixed(2)}%).
-              </div>
-            </div>
+          {/* LEFT: Sales controls only */}
+          <div className="space-y-3">
+            <label className="block text-sm text-gray-600">Target Gross Profit %</label>
+            <input
+              className="border p-2 rounded w-full"
+              type="number"
+              min={0}
+              max={99}
+              step={0.1}
+              value={targetGpPct}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTargetGpPct(v === "" ? 0 : Number(v));
+              }}
+            />
 
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
               <input
                 type="checkbox"
                 checked={prepayEnabled}
@@ -333,48 +333,33 @@ export default function ProjectDetailPage() {
               Apply prepay discount
             </label>
 
-            {/* locked settings shown for transparency */}
-            <div className="rounded border p-3 text-sm text-gray-700 bg-gray-50 space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Contingency (Ops)</span>
-                <span className="font-semibold">{Number(settings.contingency_pct || 0).toFixed(2)}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Round-up increment (Ops)</span>
-                <span className="font-semibold">${Number(settings.round_up_increment || 0).toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Prepay discount (Ops)</span>
-                <span className="font-semibold">{Number(settings.prepay_discount_pct || 0).toFixed(2)}%</span>
-              </div>
+            <div className="text-xs text-gray-500 pt-2">
+              Pricing rules (contingency + rounding + prepay %) are controlled by Ops Center.
             </div>
           </div>
 
-          {/* RIGHT: results */}
+          {/* RIGHT: Results */}
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Labor cost</span>
-              <span className="font-semibold">${laborSubtotal.toFixed(2)}</span>
+              <span className="font-semibold">{money(laborSubtotal)}</span>
             </div>
 
             <div className="flex justify-between">
-              <span className="text-gray-600">Contingency</span>
-              <span className="font-semibold">${contingencyCost.toFixed(2)}</span>
-            </div>
-
-            <div className="flex justify-between border-t pt-2">
-              <span className="text-gray-800">Total cost</span>
-              <span className="font-bold">${totalCost.toFixed(2)}</span>
+              <span className="text-gray-600">Total cost</span>
+              <span className="font-bold">{money(totalCost)}</span>
             </div>
 
             <div className="flex justify-between pt-4">
               <span className="text-gray-800">Sell price (rounded)</span>
-              <span className="font-bold text-emerald-700">${sellRounded.toFixed(2)}</span>
+              <span className="font-bold text-emerald-700">
+                {money(sellBeforePrepay)}
+              </span>
             </div>
 
             <div className="flex justify-between">
               <span className="text-gray-800">Sell price (with prepay)</span>
-              <span className="font-bold text-emerald-700">${sellWithPrepay.toFixed(2)}</span>
+              <span className="font-bold text-emerald-700">{money(sellWithPrepay)}</span>
             </div>
 
             <div className="flex justify-between border-t pt-2">
