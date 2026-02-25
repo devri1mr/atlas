@@ -1,29 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-type Ctx = { params: { id: string } };
-
-function supabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-  if (!url || !key) {
-    throw new Error("Missing Supabase environment variables.");
-  }
-
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  });
-}
-
-export async function GET(_req: Request, { params }: Ctx) {
+export async function GET(
+  _req: Request,
+  context: { params: { id: string } }
+) {
   try {
-    const id = Number(params.id);
+    const id = Number(context.params.id);
+
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
 
-    const supabase = supabaseAdmin();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data, error } = await supabase
       .from("atlas_projects")
@@ -44,16 +36,23 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
 }
 
-export async function PATCH(_req: Request, { params }: Ctx) {
+export async function PATCH(
+  req: Request,
+  context: { params: { id: string } }
+) {
   try {
-    const id = Number(params.id);
+    const id = Number(context.params.id);
+
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
 
-    const body = await _req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
 
-    const supabase = supabaseAdmin();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data, error } = await supabase
       .from("atlas_projects")
