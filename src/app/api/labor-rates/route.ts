@@ -1,85 +1,83 @@
-// src/app/api/labor-rates/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export async function GET() {
+  const { data: rows } = await supabase
+    .from("labor_rates")
+    .select("*")
+    .order("id");
 
-  if (!url || !anonKey) {
-    throw new Error(
-      "Missing env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY"
-    );
-  }
+  const { data: divisions } = await supabase
+    .from("divisions")
+    .select("*")
+    .order("name");
 
-  return createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const { data: roles } = await supabase
+    .from("job_roles")
+    .select("*")
+    .order("name");
+
+  return NextResponse.json({
+    rows: rows ?? [],
+    divisions: divisions ?? [],
+    roles: roles ?? [],
   });
 }
 
-export async function GET() {
-  try {
-    const supabase = getSupabase();
+export async function POST(req: Request) {
+  const body = await req.json();
 
-    // Divisions
-    const { data: divisions, error: divErr } = await supabase
-      .from("divisions")
-      .select("id,name,is_active")
-      .order("name", { ascending: true });
+  const { division_id, job_role_id, hourly_rate } = body;
 
-    if (divErr) {
-      return NextResponse.json(
-        { error: `Divisions query failed: ${divErr.message}` },
-        { status: 500 }
-      );
-    }
+  const { error } = await supabase.from("labor_rates").insert([
+    {
+      division_id,
+      job_role_id,
+      hourly_rate,
+    },
+  ]);
 
-    // Roles (job_roles)
-    const { data: roles, error: roleErr } = await supabase
-      .from("job_roles")
-      .select("id,name,is_active")
-      .order("name", { ascending: true });
-
-    if (roleErr) {
-      return NextResponse.json(
-        { error: `Roles query failed: ${roleErr.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Rates (division_labor_rates)
-    const { data: rates, error: rateErr } = await supabase
-      .from("division_labor_rates")
-      .select("id,created_at,division_id,job_role_id,hourly_rate")
-      .order("division_id", { ascending: true })
-      .order("job_role_id", { ascending: true });
-
-    if (rateErr) {
-      return NextResponse.json(
-        { error: `Rates query failed: ${rateErr.message}` },
-        { status: 500 }
-      );
-    }
-
-    // IMPORTANT: client expects `rows`, not `rates`
-    return NextResponse.json(
-      {
-        rows: rates ?? [],
-        divisions: divisions ?? [],
-        roles: roles ?? [],
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      }
-    );
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown server error" },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  return NextResponse.json({ success: true });
+}
+
+export async function PUT(req: Request) {
+  const body = await req.json();
+
+  const { id, hourly_rate } = body;
+
+  const { error } = await supabase
+    .from("labor_rates")
+    .update({ hourly_rate })
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
+export async function DELETE(req: Request) {
+  const body = await req.json();
+  const { id } = body;
+
+  const { error } = await supabase
+    .from("labor_rates")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
 }
