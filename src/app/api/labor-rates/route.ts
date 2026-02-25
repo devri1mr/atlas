@@ -6,9 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET — fetch with joins so names show
+// GET — return rates + divisions + roles
 export async function GET() {
-  const { data, error } = await supabase
+  const { data: rates, error: ratesError } = await supabase
     .from("division_labor_rates")
     .select(`
       id,
@@ -25,34 +25,36 @@ export async function GET() {
       )
     `);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data: divisions, error: divisionsError } = await supabase
+    .from("divisions")
+    .select("id, name");
+
+  const { data: roles, error: rolesError } = await supabase
+    .from("job_roles")
+    .select("id, name");
+
+  if (ratesError || divisionsError || rolesError) {
+    return NextResponse.json(
+      { error: ratesError?.message || divisionsError?.message || rolesError?.message },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    rates,
+    divisions,
+    roles,
+  });
 }
 
-// POST — create new rate
+// POST
 export async function POST(req: Request) {
   const body = await req.json();
 
   const { data, error } = await supabase
     .from("division_labor_rates")
     .insert([body])
-    .select(`
-      id,
-      hourly_rate,
-      division_id,
-      job_role_id,
-      divisions (
-        id,
-        name
-      ),
-      job_roles (
-        id,
-        name
-      )
-    `)
+    .select()
     .single();
 
   if (error) {
@@ -62,7 +64,7 @@ export async function POST(req: Request) {
   return NextResponse.json(data);
 }
 
-// PUT — update rate (fixes 405)
+// PUT
 export async function PUT(req: Request) {
   const body = await req.json();
   const { id, ...updates } = body;
@@ -71,20 +73,7 @@ export async function PUT(req: Request) {
     .from("division_labor_rates")
     .update(updates)
     .eq("id", id)
-    .select(`
-      id,
-      hourly_rate,
-      division_id,
-      job_role_id,
-      divisions (
-        id,
-        name
-      ),
-      job_roles (
-        id,
-        name
-      )
-    `)
+    .select()
     .single();
 
   if (error) {
