@@ -6,69 +6,97 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// GET — fetch with joins so names show
 export async function GET() {
-  const { data: rows } = await supabase
+  const { data, error } = await supabase
     .from("division_labor_rates")
-    .select("*")
-    .order("id");
+    .select(`
+      id,
+      hourly_rate,
+      division_id,
+      job_role_id,
+      divisions (
+        id,
+        name
+      ),
+      job_roles (
+        id,
+        name
+      )
+    `);
 
-  const { data: divisions } = await supabase
-    .from("divisions")
-    .select("*")
-    .order("name");
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  const { data: roles } = await supabase
-    .from("job_roles")
-    .select("*")
-    .order("name");
-
-  return NextResponse.json({
-    rows: rows ?? [],
-    divisions: divisions ?? [],
-    roles: roles ?? [],
-  });
+  return NextResponse.json(data);
 }
 
+// POST — create new rate
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const { division_id, job_role_id, hourly_rate } = body;
-
-  const { error } = await supabase.from("division_labor_rates").insert([
-    {
+  const { data, error } = await supabase
+    .from("division_labor_rates")
+    .insert([body])
+    .select(`
+      id,
+      hourly_rate,
       division_id,
       job_role_id,
-      hourly_rate,
-    },
-  ]);
+      divisions (
+        id,
+        name
+      ),
+      job_roles (
+        id,
+        name
+      )
+    `)
+    .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json(data);
 }
 
+// PUT — update rate (fixes 405)
 export async function PUT(req: Request) {
   const body = await req.json();
+  const { id, ...updates } = body;
 
-  const { id, hourly_rate } = body;
-
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("division_labor_rates")
-    .update({ hourly_rate })
-    .eq("id", id);
+    .update(updates)
+    .eq("id", id)
+    .select(`
+      id,
+      hourly_rate,
+      division_id,
+      job_role_id,
+      divisions (
+        id,
+        name
+      ),
+      job_roles (
+        id,
+        name
+      )
+    `)
+    .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json(data);
 }
 
+// DELETE
 export async function DELETE(req: Request) {
-  const body = await req.json();
-  const { id } = body;
+  const { id } = await req.json();
 
   const { error } = await supabase
     .from("division_labor_rates")
@@ -76,7 +104,7 @@ export async function DELETE(req: Request) {
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
