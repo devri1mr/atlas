@@ -8,7 +8,7 @@ const supabase = createClient(
 
 export async function GET() {
   const { data: rows } = await supabase
-    .from("labor_rates")
+    .from("division_labor_rates")
     .select("*")
     .order("id");
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
   const { division_id, job_role_id, hourly_rate } = body;
 
-  const { error } = await supabase.from("labor_rates").insert([
+  const { error } = await supabase.from("division_labor_rates").insert([
     {
       division_id,
       job_role_id,
@@ -55,7 +55,7 @@ export async function PUT(req: Request) {
   const { id, hourly_rate } = body;
 
   const { error } = await supabase
-    .from("labor_rates")
+    .from("division_labor_rates")
     .update({ hourly_rate })
     .eq("id", id);
 
@@ -71,7 +71,7 @@ export async function DELETE(req: Request) {
   const { id } = body;
 
   const { error } = await supabase
-    .from("labor_rates")
+    .from("division_labor_rates")
     .delete()
     .eq("id", id);
 
