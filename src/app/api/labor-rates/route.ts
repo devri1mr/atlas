@@ -1,77 +1,84 @@
+// src/app/api/labor-rates/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = "force-dynamic";
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error(
+      "Missing env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    );
+  }
+
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 export async function GET() {
   try {
-    // 1) Load active divisions + roles for dropdowns
-    const [{ data: divisions, error: divErr }, { data: roles, error: roleErr }] =
-      await Promise.all([
-        supabase
-          .from("divisions")
-          .select("id,name,is_active")
-          .order("name", { ascending: true }),
-        supabase
-          .from("job_roles")
-          .select("id,name,is_active")
-          .order("name", { ascending: true }),
-      ]);
+    const supabase = getSupabase();
 
-    if (divErr) throw divErr;
-    if (roleErr) throw roleErr;
+    // Divisions
+    const { data: divisions, error: divErr } = await supabase
+      .from("divisions")
+      .select("id,name,is_active")
+      .order("name", { ascending: true });
 
-    // 2) Load all rates
-    const { data: rates, error: rateErr } = await supabase
-      .from("division_labor_rates")
-      .select("id,division_id,job_role_id,hourly_rate,created_at")
-      .order("division_id", { ascending: true })
-      .order("job_role_id", { ascending: true });
-
-    if (rateErr) throw rateErr;
-
-    return NextResponse.json({
-      divisions: divisions ?? [],
-      roles: roles ?? [],
-      rates: rates ?? [],
-    });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const division_id = Number(body.division_id);
-    const job_role_id = Number(body.job_role_id);
-    const hourly_rate = Number(body.hourly_rate);
-
-    if (!division_id || !job_role_id || Number.isNaN(hourly_rate)) {
+    if (divErr) {
       return NextResponse.json(
-        { error: "division_id, job_role_id, hourly_rate required" },
-        { status: 400 }
+        { error: `Divisions query failed: ${divErr.message}` },
+        { status: 500 }
       );
     }
 
-    const { data, error } = await supabase
+    // Roles (job_roles)
+    const { data: roles, error: roleErr } = await supabase
+      .from("job_roles")
+      .select("id,name,is_active")
+      .order("name", { ascending: true });
+
+    if (roleErr) {
+      return NextResponse.json(
+        { error: `Roles query failed: ${roleErr.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Rates (division_labor_rates)
+    const { data: rates, error: rateErr } = await supabase
       .from("division_labor_rates")
-      .insert([{ division_id, job_role_id, hourly_rate }])
-      .select()
-      .single();
+      .select("id,created_at,division_id,job_role_id,hourly_rate")
+      .order("division_id", { ascending: true })
+      .order("job_role_id", { ascending: true });
 
-    if (error) throw error;
+    if (rateErr) {
+      return NextResponse.json(
+        { error: `Rates query failed: ${rateErr.message}` },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ rate: data });
+    // IMPORTANT: client expects `rows`, not `rates`
+    return NextResponse.json(
+      {
+        rows: rates ?? [],
+        divisions: divisions ?? [],
+        roles: roles ?? [],
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch (e: any) {
     return NextResponse.json(
-      { error: e?.message ?? "Unknown error" },
+      { error: e?.message ?? "Unknown server error" },
       { status: 500 }
     );
   }
