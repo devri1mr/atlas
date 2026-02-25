@@ -7,22 +7,23 @@ const supabase = createClient(
 );
 
 export async function DELETE(
-  request: NextRequest,
-  context: { params: { id: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
-  const id = Number(context.params.id);
+  const { id } = await context.params;
+  const rowId = Number(id);
 
-  if (!id) {
-    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (!Number.isFinite(rowId)) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
   const { error } = await supabase
-    .from("atlas_project_labor")
+    .from("atlas_project_labor") // <-- MUST match your Supabase table name
     .delete()
-    .eq("id", id);
+    .eq("id", rowId);
 
   if (error) {
-    console.error(error);
+    console.error("DELETE labor error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
