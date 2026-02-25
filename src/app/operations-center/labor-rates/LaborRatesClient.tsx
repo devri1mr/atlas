@@ -604,8 +604,8 @@ export default function LaborRatesClient() {
       {/* Delete confirm dialog */}
       <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-xl">
+          <Dialog.Overlay className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[9999] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-x1 bg-white p-5 shadow-2x1 focus:outline-none">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <Dialog.Title className="text-lg font-semibold text-slate-900">Delete labor rate?</Dialog.Title>
