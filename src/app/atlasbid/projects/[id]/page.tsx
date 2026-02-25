@@ -21,6 +21,11 @@ type LaborRow = {
   hourly_rate: number;
 };
 
+function roundUpTo100(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.ceil(n / 100) * 100;
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = Number(params?.id);
@@ -30,11 +35,19 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [blendedRate, setBlendedRate] = useState<number>(0);
 
+  // Labor input
   const [task, setTask] = useState("");
   const [item, setItem] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
   const [unit, setUnit] = useState("");
   const [hours, setHours] = useState<number>(0);
+
+  // Pricing inputs (Phase 1 defaults)
+  const [targetGpPct, setTargetGpPct] = useState<number>(50); // editable
+  const [contingencyPct, setContingencyPct] = useState<number>(3); // editable (later from OC)
+  const [roundUpEnabled, setRoundUpEnabled] = useState<boolean>(true);
+  const [prepayEnabled, setPrepayEnabled] = useState<boolean>(false);
+  const [prepayDiscountPct, setPrepayDiscountPct] = useState<number>(3); // editable (later from OC)
 
   useEffect(() => {
     if (!projectId) return;
@@ -106,6 +119,41 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // ---- PRICING CALCS ----
+  const contingencyCost = useMemo(() => {
+    const pct = (Number(contingencyPct) || 0) / 100;
+    return laborSubtotal * pct;
+  }, [laborSubtotal, contingencyPct]);
+
+  const totalCost = useMemo(() => {
+    return laborSubtotal + contingencyCost;
+  }, [laborSubtotal, contingencyCost]);
+
+  const targetGp = useMemo(() => {
+    const gp = (Number(targetGpPct) || 0) / 100;
+    // Sell = Cost / (1 - GP)
+    if (gp >= 1) return 0;
+    return totalCost / (1 - gp);
+  }, [totalCost, targetGpPct]);
+
+  const sellBeforePrepay = useMemo(() => {
+    const raw = targetGp;
+    const rounded = roundUpEnabled ? roundUpTo100(raw) : raw;
+    return rounded;
+  }, [targetGp, roundUpEnabled]);
+
+  const sellWithPrepay = useMemo(() => {
+    if (!prepayEnabled) return sellBeforePrepay;
+    const disc = (Number(prepayDiscountPct) || 0) / 100;
+    return sellBeforePrepay * (1 - disc);
+  }, [sellBeforePrepay, prepayEnabled, prepayDiscountPct]);
+
+  const effectiveGpPct = useMemo(() => {
+    const sell = prepayEnabled ? sellWithPrepay : sellBeforePrepay;
+    if (sell <= 0) return 0;
+    return ((sell - totalCost) / sell) * 100;
+  }, [sellBeforePrepay, sellWithPrepay, prepayEnabled, totalCost]);
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (!project) return <div className="p-6 text-red-500">Project not found.</div>;
 
@@ -116,6 +164,7 @@ export default function ProjectDetailPage() {
         <p className="text-gray-500">Client: {project.client_name || "—"}</p>
       </div>
 
+      {/* LABOR BUILDER */}
       <div className="border rounded-lg p-6 space-y-6">
         <div>
           <h2 className="text-xl font-semibold">Labor Builder</h2>
@@ -163,11 +212,92 @@ export default function ProjectDetailPage() {
         <div className="text-right font-semibold pt-4 border-t">Labor Subtotal: ${laborSubtotal.toFixed(2)}</div>
       </div>
 
+      {/* PRICING */}
+      <div className="border rounded-lg p-6 space-y-5">
+        <h2 className="text-xl font-semibold">Pricing</h2>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <label className="block text-sm text-gray-600">Target Gross Profit %</label>
+            <input
+              className="border p-2 rounded w-full"
+              type="number"
+              value={targetGpPct}
+              onChange={(e) => setTargetGpPct(Number(e.target.value))}
+            />
+
+            <label className="block text-sm text-gray-600">Contingency %</label>
+            <input
+              className="border p-2 rounded w-full"
+              type="number"
+              value={contingencyPct}
+              onChange={(e) => setContingencyPct(Number(e.target.value))}
+            />
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={roundUpEnabled} onChange={(e) => setRoundUpEnabled(e.target.checked)} />
+              Round up to nearest $100
+            </label>
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={prepayEnabled} onChange={(e) => setPrepayEnabled(e.target.checked)} />
+              Apply prepay discount
+            </label>
+
+            {prepayEnabled && (
+              <>
+                <label className="block text-sm text-gray-600">Prepay discount %</label>
+                <input
+                  className="border p-2 rounded w-full"
+                  type="number"
+                  value={prepayDiscountPct}
+                  onChange={(e) => setPrepayDiscountPct(Number(e.target.value))}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Labor cost</span>
+              <span className="font-semibold">${laborSubtotal.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-600">Contingency</span>
+              <span className="font-semibold">${contingencyCost.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-gray-800">Total cost</span>
+              <span className="font-bold">${totalCost.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between pt-4">
+              <span className="text-gray-800">Sell price (before prepay)</span>
+              <span className="font-bold text-emerald-700">${sellBeforePrepay.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-800">Sell price (with prepay)</span>
+              <span className="font-bold text-emerald-700">${sellWithPrepay.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-gray-800">Effective GP%</span>
+              <span className="font-bold">{effectiveGpPct.toFixed(2)}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MATERIALS */}
       <div className="border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Materials</h2>
         <p className="text-gray-400">Materials builder coming next.</p>
       </div>
 
+      {/* PROPOSAL */}
       <div className="border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Proposal</h2>
         <p className="text-gray-400">Proposal engine coming in Phase 2.</p>
