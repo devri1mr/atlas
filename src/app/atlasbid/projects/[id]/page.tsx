@@ -4,28 +4,31 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 type Project = {
-  id: string;
-  name: string;
+  id: number;
+  project_name: string;
   client_name: string;
+  division_id: number;
 };
 
 type LaborRow = {
   id: number;
-  project_id: string;
+  project_id: number;
   task: string;
   item: string;
   quantity: number;
   unit: string;
   man_hours: number;
+  hourly_rate: number;
 };
 
 export default function ProjectDetailPage() {
   const params = useParams();
-  const id = params?.id as string;
+  const id = Number(params?.id);
 
   const [project, setProject] = useState<Project | null>(null);
   const [labor, setLabor] = useState<LaborRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blendedRate, setBlendedRate] = useState<number>(0);
 
   const [task, setTask] = useState("");
   const [item, setItem] = useState("");
@@ -33,14 +36,28 @@ export default function ProjectDetailPage() {
   const [unit, setUnit] = useState("");
   const [hours, setHours] = useState<number>(0);
 
+  // Load project + labor
   useEffect(() => {
+    if (!id) return;
+
     async function load() {
       try {
-        const p = await fetch(`/api/atlasbid/projects/${id}`).then(r => r.json());
-        const l = await fetch(`/api/atlasbid/labor?project_id=${id}`).then(r => r.json());
+        const pRes = await fetch(`/api/atlasbid/projects/${id}`);
+        const pJson = await pRes.json();
+        setProject(pJson.project);
 
-        setProject(p.project || null);
-        setLabor(l.labor || []);
+        // Fetch blended rate for this division
+        if (pJson.project?.division_id) {
+          const rateRes = await fetch(
+            `/api/atlasbid/blended-rate?division_id=${pJson.project.division_id}`
+          );
+          const rateJson = await rateRes.json();
+          setBlendedRate(Number(rateJson.blended_rate || 0));
+        }
+
+        const lRes = await fetch(`/api/atlasbid/labor?project_id=${id}`);
+        const lJson = await lRes.json();
+        setLabor(lJson.rows || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -48,7 +65,7 @@ export default function ProjectDetailPage() {
       }
     }
 
-    if (id) load();
+    load();
   }, [id]);
 
   async function addLabor() {
@@ -62,6 +79,7 @@ export default function ProjectDetailPage() {
         quantity,
         unit,
         man_hours: hours,
+        hourly_rate: blendedRate, // <-- AUTO BLENDED RATE
       }),
     });
 
@@ -79,13 +97,8 @@ export default function ProjectDetailPage() {
     }
   }
 
-  if (loading) {
-    return <div className="p-6">Loading...</div>;
-  }
-
-  if (!project) {
-    return <div className="p-6 text-red-500">Project not found.</div>;
-  }
+  if (loading) return <div className="p-6">Loading...</div>;
+  if (!project) return <div className="p-6 text-red-500">Project not found.</div>;
 
   return (
     <div className="p-8 space-y-10">
@@ -93,7 +106,7 @@ export default function ProjectDetailPage() {
       {/* HEADER */}
       <div>
         <h1 className="text-3xl font-bold">
-          {project.name || "Untitled Project"}
+          {project.project_name || "Untitled Project"}
         </h1>
         <p className="text-gray-500">
           Client: {project.client_name || "—"}
@@ -103,6 +116,13 @@ export default function ProjectDetailPage() {
       {/* LABOR BUILDER */}
       <div className="border rounded-lg p-6 space-y-6">
         <h2 className="text-xl font-semibold">Labor Builder</h2>
+
+        <div className="text-sm text-gray-500">
+          Blended labor rate (excludes trucking):{" "}
+          <span className="font-semibold">
+            ${blendedRate.toFixed(2)} / hr
+          </span>
+        </div>
 
         {/* ADD ROW */}
         <div className="grid grid-cols-6 gap-4">
@@ -162,13 +182,13 @@ export default function ProjectDetailPage() {
               <div>{row.quantity}</div>
               <div>{row.unit}</div>
               <div>{row.man_hours}</div>
-              <div></div>
+              <div>${row.hourly_rate}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* MATERIALS PLACEHOLDER */}
+      {/* MATERIALS */}
       <div className="border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Materials</h2>
         <p className="text-gray-400">
@@ -176,7 +196,7 @@ export default function ProjectDetailPage() {
         </p>
       </div>
 
-      {/* PROPOSAL PLACEHOLDER */}
+      {/* PROPOSAL */}
       <div className="border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Proposal</h2>
         <p className="text-gray-400">
