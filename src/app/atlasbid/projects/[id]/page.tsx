@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 type Project = {
@@ -23,7 +23,7 @@ type LaborRow = {
 
 export default function ProjectDetailPage() {
   const params = useParams();
-  const id = Number(params?.id);
+  const projectId = Number(params?.id);
 
   const [project, setProject] = useState<Project | null>(null);
   const [labor, setLabor] = useState<LaborRow[]>([]);
@@ -37,44 +37,44 @@ export default function ProjectDetailPage() {
   const [hours, setHours] = useState<number>(0);
 
   useEffect(() => {
-    if (!id) return;
+    if (!projectId) return;
 
     async function load() {
       try {
-        // Load project
-        const pRes = await fetch(`/api/atlasbid/projects/${id}`);
+        const pRes = await fetch(`/api/atlasbid/projects/${projectId}`, { cache: "no-store" });
         const pJson = await pRes.json();
         setProject(pJson.project);
 
-        // Load blended rate
-        if (pJson.project?.division_id) {
-          const rateRes = await fetch(
-            `/api/atlasbid/blended-rate?division_id=${pJson.project.division_id}`
-          );
+        const divisionId = pJson.project?.division_id;
+        if (divisionId) {
+          const rateRes = await fetch(`/api/atlasbid/blended-rate?division_id=${divisionId}`, {
+            cache: "no-store",
+          });
           const rateJson = await rateRes.json();
           setBlendedRate(Number(rateJson.blended_rate || 0));
         }
 
-        // Load labor rows
-        const lRes = await fetch(`/api/atlasbid/labor?project_id=${id}`);
+        const lRes = await fetch(`/api/atlasbid/labor?project_id=${projectId}`, { cache: "no-store" });
         const lJson = await lRes.json();
         setLabor(lJson.rows || []);
-      } catch (err) {
-        console.error(err);
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, [id]);
+  }, [projectId]);
+
+  const laborSubtotal = useMemo(() => {
+    return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
+  }, [labor]);
 
   async function addLabor() {
     const res = await fetch("/api/atlasbid/labor", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        project_id: id,
+        project_id: projectId,
         task,
         item,
         quantity,
@@ -85,134 +85,93 @@ export default function ProjectDetailPage() {
     });
 
     const json = await res.json();
-
     if (res.ok) {
-      setLabor(prev => [...prev, json.row]);
+      setLabor((prev) => [...prev, json.row]);
       setTask("");
       setItem("");
       setQuantity(0);
       setUnit("");
       setHours(0);
     } else {
-      alert(json.error || "Error adding labor");
+      alert(json?.error?.message || json?.error || "Error adding labor");
     }
   }
 
   async function deleteLaborRow(rowId: number) {
-    const res = await fetch(`/api/atlasbid/labor/${rowId}`, {
-      method: "DELETE",
-    });
-
+    const res = await fetch(`/api/atlasbid/labor/${rowId}`, { method: "DELETE" });
     if (res.ok) {
-      setLabor(prev => prev.filter(r => r.id !== rowId));
+      setLabor((prev) => prev.filter((r) => r.id !== rowId));
     } else {
       alert("Failed to delete labor row");
     }
   }
-
-  const laborSubtotal = labor.reduce(
-    (sum, row) => sum + row.man_hours * row.hourly_rate,
-    0
-  );
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (!project) return <div className="p-6 text-red-500">Project not found.</div>;
 
   return (
     <div className="p-8 space-y-10">
-
-      {/* HEADER */}
       <div>
-        <h1 className="text-3xl font-bold">
-          {project.project_name || "Untitled Project"}
-        </h1>
-        <p className="text-gray-500">
-          Client: {project.client_name || "—"}
-        </p>
+        <h1 className="text-3xl font-bold">{project.project_name || "Untitled Project"}</h1>
+        <p className="text-gray-500">Client: {project.client_name || "—"}</p>
       </div>
 
-      {/* LABOR BUILDER */}
       <div className="border rounded-lg p-6 space-y-6">
-        <h2 className="text-xl font-semibold">Labor Builder</h2>
-
-        <div className="text-sm text-gray-500">
-          Blended labor rate (excludes trucking):{" "}
-          <span className="font-semibold">
-            ${blendedRate.toFixed(2)} / hr
-          </span>
+        <div>
+          <h2 className="text-xl font-semibold">Labor Builder</h2>
+          <div className="text-sm text-gray-500">
+            Blended labor rate (excludes trucking):{" "}
+            <span className="font-semibold">${blendedRate.toFixed(2)} / hr</span>
+          </div>
         </div>
 
-        {/* INPUT ROW */}
         <div className="grid grid-cols-6 gap-4">
-          <input
-            placeholder="Task"
-            className="border p-2 rounded"
-            value={task}
-            onChange={e => setTask(e.target.value)}
-          />
-          <input
-            placeholder="Item"
-            className="border p-2 rounded"
-            value={item}
-            onChange={e => setItem(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Qty"
-            className="border p-2 rounded"
-            value={quantity}
-            onChange={e => setQuantity(Number(e.target.value))}
-          />
-          <input
-            placeholder="Unit"
-            className="border p-2 rounded"
-            value={unit}
-            onChange={e => setUnit(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Hours"
-            className="border p-2 rounded"
-            value={hours}
-            onChange={e => setHours(Number(e.target.value))}
-          />
-          <button
-            onClick={addLabor}
-            className="bg-emerald-700 text-white rounded px-4"
-          >
-            Add
-          </button>
+          <input className="border p-2 rounded" placeholder="Task" value={task} onChange={(e) => setTask(e.target.value)} />
+          <input className="border p-2 rounded" placeholder="Item" value={item} onChange={(e) => setItem(e.target.value)} />
+          <input className="border p-2 rounded" type="number" placeholder="Qty" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+          <input className="border p-2 rounded" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          <input className="border p-2 rounded" type="number" placeholder="Hours" value={hours} onChange={(e) => setHours(Number(e.target.value))} />
+          <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4">Add</button>
         </div>
 
-        {/* TABLE HEADER */}
         <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2">
-          <div>Task</div>
-          <div>Item</div>
-          <div>Qty</div>
-          <div>Unit</div>
-          <div>Hours</div>
-          <div>Rate</div>
-          <div>Total</div>
-          <div></div>
+          <div>Task</div><div>Item</div><div>Qty</div><div>Unit</div><div>Hours</div><div>Rate</div><div>Total</div><div></div>
         </div>
 
-        {/* ROWS */}
-        {labor.length === 0 && (
+        {labor.length === 0 ? (
           <p className="text-gray-400">No labor added yet.</p>
+        ) : (
+          labor.map((row) => {
+            const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+            return (
+              <div key={row.id} className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center">
+                <div>{row.task}</div>
+                <div>{row.item}</div>
+                <div>{row.quantity}</div>
+                <div>{row.unit}</div>
+                <div>{row.man_hours}</div>
+                <div>${Number(row.hourly_rate).toFixed(2)}</div>
+                <div>${rowTotal.toFixed(2)}</div>
+                <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-right">
+                  Delete
+                </button>
+              </div>
+            );
+          })
         )}
 
-        {labor.map(row => {
-          const rowTotal = row.man_hours * row.hourly_rate;
+        <div className="text-right font-semibold pt-4 border-t">Labor Subtotal: ${laborSubtotal.toFixed(2)}</div>
+      </div>
 
-          return (
-            <div
-              key={row.id}
-              className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center"
-            >
-              <div>{row.task}</div>
-              <div>{row.item}</div>
-              <div>{row.quantity}</div>
-              <div>{row.unit}</div>
-              <div>{row.man_hours}</div>
-              <div>${row.hourly_rate.toFixed(2)}</div>
-              <div>${rowTotal.to
+      <div className="border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Materials</h2>
+        <p className="text-gray-400">Materials builder coming next.</p>
+      </div>
+
+      <div className="border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Proposal</h2>
+        <p className="text-gray-400">Proposal engine coming in Phase 2.</p>
+      </div>
+    </div>
+  );
+}
