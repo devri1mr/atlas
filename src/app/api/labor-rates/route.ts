@@ -103,3 +103,34 @@ export async function DELETE(req: Request) {
 
   return NextResponse.json({ success: true });
 }
+export async function PATCH(req: Request) {
+  try {
+    const { id, hourly_rate } = await req.json();
+
+    if (!id || hourly_rate === undefined) {
+      return NextResponse.json(
+        { error: "Missing id or hourly_rate" },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase
+      .from("division_labor_rates")
+      .update({ hourly_rate })
+      .eq("id", id);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    );
+  }
+}
