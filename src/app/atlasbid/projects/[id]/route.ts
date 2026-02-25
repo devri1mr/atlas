@@ -1,43 +1,76 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  try {
-    const supabase = supabaseAdmin();
-    const id = Number(params.id);
-    if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+type Ctx = { params: { id: string } };
 
-    const { data, error } = await supabase.from("atlas_projects").select("*").eq("id", id).single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    return NextResponse.json({ project: data });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  if (!url || !key) {
+    throw new Error("Missing Supabase environment variables.");
   }
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+  });
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: Ctx) {
   try {
-    const supabase = supabaseAdmin();
     const id = Number(params.id);
-    if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
 
-    const body = await req.json();
-    const patch: any = {};
-
-    if (body?.status) patch.status = String(body.status);
-    patch.updated_at = new Date().toISOString();
+    const supabase = supabaseAdmin();
 
     const { data, error } = await supabase
       .from("atlas_projects")
-      .update(patch)
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ project: data });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message ?? "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(_req: Request, { params }: Ctx) {
+  try {
+    const id = Number(params.id);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
+
+    const body = await _req.json().catch(() => ({}));
+
+    const supabase = supabaseAdmin();
+
+    const { data, error } = await supabase
+      .from("atlas_projects")
+      .update({ ...body, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select("*")
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ project: data });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message ?? "Server error" },
+      { status: 500 }
+    );
   }
 }
