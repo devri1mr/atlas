@@ -36,17 +36,17 @@ export default function ProjectDetailPage() {
   const [unit, setUnit] = useState("");
   const [hours, setHours] = useState<number>(0);
 
-  // Load project + labor
   useEffect(() => {
     if (!id) return;
 
     async function load() {
       try {
+        // Load project
         const pRes = await fetch(`/api/atlasbid/projects/${id}`);
         const pJson = await pRes.json();
         setProject(pJson.project);
 
-        // Fetch blended rate for this division
+        // Load blended rate
         if (pJson.project?.division_id) {
           const rateRes = await fetch(
             `/api/atlasbid/blended-rate?division_id=${pJson.project.division_id}`
@@ -55,6 +55,7 @@ export default function ProjectDetailPage() {
           setBlendedRate(Number(rateJson.blended_rate || 0));
         }
 
+        // Load labor rows
         const lRes = await fetch(`/api/atlasbid/labor?project_id=${id}`);
         const lJson = await lRes.json();
         setLabor(lJson.rows || []);
@@ -79,7 +80,7 @@ export default function ProjectDetailPage() {
         quantity,
         unit,
         man_hours: hours,
-        hourly_rate: blendedRate, // <-- AUTO BLENDED RATE
+        hourly_rate: blendedRate,
       }),
     });
 
@@ -96,6 +97,23 @@ export default function ProjectDetailPage() {
       alert(json.error || "Error adding labor");
     }
   }
+
+  async function deleteLaborRow(rowId: number) {
+    const res = await fetch(`/api/atlasbid/labor/${rowId}`, {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      setLabor(prev => prev.filter(r => r.id !== rowId));
+    } else {
+      alert("Failed to delete labor row");
+    }
+  }
+
+  const laborSubtotal = labor.reduce(
+    (sum, row) => sum + row.man_hours * row.hourly_rate,
+    0
+  );
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (!project) return <div className="p-6 text-red-500">Project not found.</div>;
@@ -124,7 +142,7 @@ export default function ProjectDetailPage() {
           </span>
         </div>
 
-        {/* ADD ROW */}
+        {/* INPUT ROW */}
         <div className="grid grid-cols-6 gap-4">
           <input
             placeholder="Task"
@@ -166,44 +184,35 @@ export default function ProjectDetailPage() {
           </button>
         </div>
 
-        {/* TABLE */}
-        <div className="space-y-2">
-          {labor.length === 0 && (
-            <p className="text-gray-400">No labor added yet.</p>
-          )}
+        {/* TABLE HEADER */}
+        <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2">
+          <div>Task</div>
+          <div>Item</div>
+          <div>Qty</div>
+          <div>Unit</div>
+          <div>Hours</div>
+          <div>Rate</div>
+          <div>Total</div>
+          <div></div>
+        </div>
 
-          {labor.map(row => (
+        {/* ROWS */}
+        {labor.length === 0 && (
+          <p className="text-gray-400">No labor added yet.</p>
+        )}
+
+        {labor.map(row => {
+          const rowTotal = row.man_hours * row.hourly_rate;
+
+          return (
             <div
               key={row.id}
-              className="grid grid-cols-6 gap-4 border p-2 rounded text-sm"
+              className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center"
             >
               <div>{row.task}</div>
               <div>{row.item}</div>
               <div>{row.quantity}</div>
               <div>{row.unit}</div>
               <div>{row.man_hours}</div>
-              <div>${row.hourly_rate}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* MATERIALS */}
-      <div className="border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Materials</h2>
-        <p className="text-gray-400">
-          Materials builder coming next.
-        </p>
-      </div>
-
-      {/* PROPOSAL */}
-      <div className="border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Proposal</h2>
-        <p className="text-gray-400">
-          Proposal engine coming in Phase 2.
-        </p>
-      </div>
-
-    </div>
-  );
-}
+              <div>${row.hourly_rate.toFixed(2)}</div>
+              <div>${rowTotal.to
