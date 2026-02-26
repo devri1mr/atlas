@@ -2,19 +2,25 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function Home() {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession();
+    const sb = getSupabaseClient();
+    if (!sb) {
+      setLoading(false);
+      return;
+    }
+
+    async function loadSession(client: NonNullable<typeof sb>) {
+      const { data } = await client.auth.getSession();
       const sessionEmail = data.session?.user?.email ?? null;
 
       if (sessionEmail && !sessionEmail.endsWith("@garpielgroup.com")) {
-        await supabase.auth.signOut();
+        await client.auth.signOut();
         setEmail(null);
       } else {
         setEmail(sessionEmail);
@@ -23,19 +29,24 @@ export default function Home() {
       setLoading(false);
     }
 
-    loadSession();
+    loadSession(sb);
 
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      loadSession();
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange(() => {
+      loadSession(sb);
     });
 
     return () => {
-      listener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
   async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
+    const sb = getSupabaseClient();
+    if (!sb) return;
+
+    await sb.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
@@ -44,7 +55,10 @@ export default function Home() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    const sb = getSupabaseClient();
+    if (!sb) return;
+
+    await sb.auth.signOut();
   }
 
   if (loading) return <div style={{ padding: 24 }}>Loading...</div>;
@@ -72,7 +86,7 @@ export default function Home() {
 
           <p
             style={{
-              marginTop: 6,          // tighter than before
+              marginTop: 6,
               fontSize: 11,
               color: "#777",
               letterSpacing: 1,
