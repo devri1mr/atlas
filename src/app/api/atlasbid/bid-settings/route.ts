@@ -1,65 +1,80 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+/**
+ * Safely create Supabase client at runtime
+ * (Prevents build-time crashes in Next 16 / Turbopack)
+ */
+function getSupabase() {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL
 
-// GET /api/atlasbid/bid-settings?division_id=3
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const divisionId = Number(searchParams.get("division_id"));
+  const supabaseKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!divisionId) {
-    return NextResponse.json({ error: "division_id is required" }, { status: 400 });
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase environment variables are missing.')
   }
 
-  const { data, error } = await supabase
-    .from("atlas_bid_settings")
-    .select("division_id, margin_default, contingency_pct, round_up_increment, prepay_discount_pct")
-    .eq("division_id", divisionId)
-    .maybeSingle();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  // fallback defaults if a row doesn't exist yet
-  const settings =
-    data ?? {
-      division_id: divisionId,
-      margin_default: 50,
-      contingency_pct: 3,
-      round_up_increment: 100,
-      prepay_discount_pct: 3,
-    };
-
-  return NextResponse.json({ settings });
+  return createClient(supabaseUrl, supabaseKey)
 }
 
-// POST /api/atlasbid/bid-settings
-// body: { division_id, margin_default, contingency_pct, round_up_increment, prepay_discount_pct }
-export async function POST(req: NextRequest) {
-  const body = await req.json();
+/**
+ * GET — Fetch bid settings
+ */
+export async function GET() {
+  try {
+    const supabase = getSupabase()
 
-  const division_id = Number(body.division_id);
-  if (!division_id) {
-    return NextResponse.json({ error: "division_id is required" }, { status: 400 });
+    const { data, error } = await supabase
+      .from('bid_settings')
+      .select('*')
+      .single()
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(data)
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
+}
 
-  const payload = {
-    division_id,
-    margin_default: Number(body.margin_default ?? 50),
-    contingency_pct: Number(body.contingency_pct ?? 3),
-    round_up_increment: Number(body.round_up_increment ?? 100),
-    prepay_discount_pct: Number(body.prepay_discount_pct ?? 3),
-  };
+/**
+ * POST — Update bid settings
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const supabase = getSupabase()
 
-  const { data, error } = await supabase
-    .from("atlas_bid_settings")
-    .upsert(payload, { onConflict: "division_id" })
-    .select("division_id, margin_default, contingency_pct, round_up_increment, prepay_discount_pct")
-    .single();
+    const { data, error } = await supabase
+      .from('bid_settings')
+      .upsert(body)
+      .select()
+      .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ settings: data });
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(data)
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
+  }
 }
