@@ -1,31 +1,45 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
+/**
+ * Safely create Supabase client at runtime
+ */
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
 
-  if (!url || !key) {
-    throw new Error('Supabase env vars missing')
-  }
+  const supabaseKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  return createClient(url, key)
+  if (!supabaseUrl) throw new Error('supabaseUrl is required.')
+  if (!supabaseKey) throw new Error('supabaseKey is required.')
+
+  return createClient(supabaseUrl, supabaseKey)
 }
 
+/**
+ * GET — fetch one labor row by id
+ */
 export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = getSupabase()
 
     const { data, error } = await supabase
       .from('labor')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
-    if (error) throw error
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json(data)
   } catch (err: any) {
@@ -33,22 +47,28 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
+/**
+ * PATCH — update one labor row by id
+ */
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const body = await req.json()
     const supabase = getSupabase()
 
     const { data, error } = await supabase
       .from('labor')
       .update(body)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json(data)
   } catch (err: any) {
@@ -56,21 +76,24 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE — delete one labor row by id
+ */
 export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = getSupabase()
 
-    const { error } = await supabase
-      .from('labor')
-      .delete()
-      .eq('id', params.id)
+    const { error } = await supabase.from('labor').delete().eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
