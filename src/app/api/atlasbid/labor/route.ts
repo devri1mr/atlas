@@ -1,90 +1,47 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// GET all labor for a project
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const project_id = searchParams.get("project_id");
-
-  if (!project_id) {
-    return NextResponse.json({ error: "Missing project_id" }, { status: 400 });
+  if (!url || !key) {
+    throw new Error('Supabase env vars missing')
   }
 
-  const { data, error } = await supabase
-    .from("atlas_project_labor")
-    .select("*")
-    .eq("project_id", project_id)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error }, { status: 500 });
-  }
-
-  return NextResponse.json({ rows: data });
+  return createClient(url, key)
 }
 
-// POST new labor row
-export async function POST(req: NextRequest) {
-  const body = await req.json();
+export async function GET() {
+  try {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('labor')
+      .select('*')
 
-  const { data, error } = await supabase
-    .from("atlas_project_labor")
-    .insert([body])
-    .select()
-    .single();
+    if (error) throw error
 
-  if (error) {
-    return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json(data)
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
-
-  return NextResponse.json({ row: data });
 }
 
-// PATCH update labor row
-export async function PATCH(req: NextRequest) {
-  const body = await req.json();
-  const { id, ...updates } = body;
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const supabase = getSupabase()
 
-  if (!id) {
-    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const { data, error } = await supabase
+      .from('labor')
+      .insert(body)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return NextResponse.json(data)
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
-
-  const { data, error } = await supabase
-    .from("atlas_project_labor")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error }, { status: 500 });
-  }
-
-  return NextResponse.json({ row: data });
-}
-
-// DELETE labor row
-export async function DELETE(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  }
-
-  const { error } = await supabase
-    .from("atlas_project_labor")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }
