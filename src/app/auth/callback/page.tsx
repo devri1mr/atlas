@@ -1,45 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// Prevent Next from trying to prerender this at build time
+// 🚨 This is the important line.
+// It prevents Next from prerendering this page at build time.
 export const dynamic = "force-dynamic";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const [msg, setMsg] = useState("Finishing sign-in...");
 
   useEffect(() => {
-    async function run() {
-      try {
-        const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
+    async function handleAuth() {
+      const { error } = await supabase.auth.exchangeCodeForSession(
+        window.location.href
+      );
 
-        if (!code) {
-          setMsg("Missing OAuth code. Try signing in again.");
-          return;
-        }
-
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setMsg(`Auth error: ${error.message}`);
-          return;
-        }
-
+      if (!error) {
         router.replace("/");
-      } catch (e: any) {
-        setMsg(`Unexpected error: ${e?.message ?? "Unknown"}`);
+      } else {
+        console.error(error);
       }
     }
 
-    run();
+    handleAuth();
   }, [router]);
 
-  return (
-    <div style={{ padding: 24 }}>
-      <p>{msg}</p>
-    </div>
-  );
+  return <div style={{ padding: 24 }}>Completing sign-in...</div>;
 }
