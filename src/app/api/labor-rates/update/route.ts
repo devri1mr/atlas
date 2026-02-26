@@ -1,73 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL
 
-/**
- * GET - Fetch all labor rates with division + role names
- */
-export async function GET() {
-  try {
-    const { data, error } = await supabase
-      .from("division_labor_rates")
-      .select(`
-        id,
-        division_id,
-        job_role_id,
-        hourly_rate,
-        divisions (
-          id,
-          name
-        ),
-        job_roles (
-          id,
-          name
-        )
-      `)
-      .order("division_id", { ascending: true });
+  const key =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+  if (!url) throw new Error('supabaseUrl is required.')
+  if (!key) throw new Error('supabaseKey is required.')
 
-    return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+  return createClient(url, key)
 }
 
-/**
- * POST - Update hourly rate
- */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-
-    const { id, hourly_rate } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "Missing id" },
-        { status: 400 }
-      );
-    }
+    const body = await req.json()
+    const supabase = getSupabase()
 
     const { data, error } = await supabase
-      .from("division_labor_rates")
-      .update({ hourly_rate })
-      .eq("id", id)
+      .from('labor_rates')
+      .upsert(body)
       .select()
-      .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data)
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
