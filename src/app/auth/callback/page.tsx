@@ -1,34 +1,45 @@
-// src/app/auth/callback/page.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 // Prevent Next from trying to prerender this at build time
 export const dynamic = "force-dynamic";
 
-export default function AuthCallback() {
+export default function AuthCallbackPage() {
   const router = useRouter();
+  const [msg, setMsg] = useState("Finishing sign-in...");
 
   useEffect(() => {
-    const run = async () => {
-      const sb = getSupabaseClient();
+    async function run() {
+      try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
 
-      // If env vars aren't present, don’t crash — just route away.
-      if (!sb) {
-        router.replace("/auth?error=supabase_env_missing");
-        return;
+        if (!code) {
+          setMsg("Missing OAuth code. Try signing in again.");
+          return;
+        }
+
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setMsg(`Auth error: ${error.message}`);
+          return;
+        }
+
+        router.replace("/");
+      } catch (e: any) {
+        setMsg(`Unexpected error: ${e?.message ?? "Unknown"}`);
       }
-
-      // Finishes the OAuth code exchange / session detection
-      await sb.auth.getSession();
-
-      router.replace("/");
-    };
+    }
 
     run();
   }, [router]);
 
-  return <p>Signing you in…</p>;
+  return (
+    <div style={{ padding: 24 }}>
+      <p>{msg}</p>
+    </div>
+  );
 }
