@@ -9,7 +9,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleAuth = async () => {
-      await supabase.auth.getSession();
+      await supabase!.auth.getSession();
       router.push("/");
     };
 
