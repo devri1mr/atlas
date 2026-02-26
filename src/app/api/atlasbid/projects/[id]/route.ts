@@ -1,52 +1,78 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL
 
-/* ===========================
-   GET PROJECT BY ID
-=========================== */
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params;
+  const key =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const { data, error } = await supabase
-    .from("atlas_projects")
-    .select("*")
-    .eq("id", Number(id))
-    .single();
+  if (!url) throw new Error('supabaseUrl is required.')
+  if (!key) throw new Error('supabaseKey is required.')
 
-  if (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ project: data });
+  return createClient(url, key)
 }
 
-/* ===========================
-   DELETE PROJECT (optional)
-=========================== */
-export async function DELETE(
-  request: NextRequest,
+export async function GET(
+  _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await context.params
+  const supabase = getSupabase()
 
-  const { error } = await supabase
-    .from("atlas_projects")
-    .delete()
-    .eq("id", Number(id));
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', id)
+    .single()
 
   if (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json(data)
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
+  const body = await req.json()
+  const supabase = getSupabase()
+
+  const { data, error } = await supabase
+    .from('projects')
+    .update(body)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json(data)
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
+  const supabase = getSupabase()
+
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
 }
