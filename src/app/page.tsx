@@ -2,26 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function Home() {
+  const supabase = getSupabaseClient();
+
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If supabase is typed as possibly null, we must guard.
-    if (!supabase) {
-      console.error(
-        "Supabase client is null. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
-      );
-      setLoading(false);
-      return;
-    }
-
     async function loadSession() {
       const { data } = await supabase.auth.getSession();
       const sessionEmail = data.session?.user?.email ?? null;
 
+      // Optional domain restriction
       if (sessionEmail && !sessionEmail.endsWith("@garpielgroup.com")) {
         await supabase.auth.signOut();
         setEmail(null);
@@ -41,46 +35,22 @@ export default function Home() {
     return () => {
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   async function signInWithGoogle() {
-    if (!supabase) {
-      alert("Supabase is not configured. Check your Vercel env vars.");
-      return;
-    }
-
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Use location.origin (works on Vercel + custom domains)
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
   }
 
   async function signOut() {
-    if (!supabase) return;
     await supabase.auth.signOut();
   }
 
   if (loading) return <div style={{ padding: 24 }}>Loading...</div>;
-
-  // If Supabase client is missing, show a clear message
-  if (!supabase) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h2>Supabase not configured</h2>
-        <p>
-          Your Supabase client is <strong>null</strong>. This is almost always
-          missing environment variables in Vercel:
-        </p>
-        <ul>
-          <li>NEXT_PUBLIC_SUPABASE_URL</li>
-          <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
-        </ul>
-      </div>
-    );
-  }
 
   // LOGIN SCREEN
   if (!email) {
