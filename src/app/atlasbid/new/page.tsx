@@ -1,295 +1,229 @@
-'use client'
+"use client";
 
-export const dynamic = 'force-dynamic'
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+type Status = { id: number; name: string };
 
-type BidSettings = {
-  id?: string | number
-  created_at?: string
-  updated_at?: string
+type BidRow = {
+  id: number;
+  client_name: string | null;
+  client_last_name: string | null;
+  created_at: string;
+  status_id: number | null;
+  bid_statuses?: { name: string } | null;
+};
 
-  // Common settings your app likely uses — keep flexible
-  company_name?: string
-  default_division?: string
-  default_contingency_pct?: number
-  round_to_100?: boolean
-  prepay_discount_enabled?: boolean
-  prepay_discount_pct?: number
-  [key: string]: any
+function fmtDate(s: string) {
+  try {
+    return new Date(s).toLocaleString();
+  } catch {
+    return s;
+  }
 }
 
-type CreateProjectPayload = {
-  client_name: string
-  project_name?: string
-  division?: string
-  notes?: string
-  source?: string
-}
+export default function NewBidPage() {
+  const router = useRouter();
 
-export default function NewAtlasBidPage() {
-  const router = useRouter()
+  const [statuses, setStatuses] = useState<Status[]>([]);
+  const [bids, setBids] = useState<BidRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [statusId, setStatusId] = useState<number | "">("");
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
-  const [settings, setSettings] = useState<BidSettings | null>(null)
+  async function load() {
+    setLoading(true);
+    setErrorMsg("");
 
-  // Minimal inputs for creating a new bid/project
-  const [clientName, setClientName] = useState('')
-  const [projectName, setProjectName] = useState('')
-  const [division, setDivision] = useState('')
-  const [notes, setNotes] = useState('')
+    const [sRes, bRes] = await Promise.all([
+      fetch("/api/bid-statuses", { cache: "no-store" }),
+      fetch("/api/bids", { cache: "no-store" }),
+    ]);
 
-  const canSubmit = useMemo(() => {
-    return clientName.trim().length > 0 && !saving
-  }, [clientName, saving])
+    const sJson = await sRes.json();
+    const bJson = await bRes.json();
+
+    setStatuses(Array.isArray(sJson?.data) ? sJson.data : []);
+    setBids(Array.isArray(bJson?.data) ? bJson.data : []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    let cancelled = false
+    load();
+  }, []);
 
-    async function init() {
-      setLoading(true)
-      setError(null)
+  const canSave = useMemo(() => {
+    return firstName.trim().length > 0 && lastName.trim().length > 0 && !saving;
+  }, [firstName, lastName, saving]);
 
-      try {
-        // IMPORTANT:
-        // Do NOT import/use supabase client here.
-        // Fetch settings via your API route so build-time prerender never evaluates env vars.
-        const res = await fetch('/api/atlasbid/bid-settings', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          cache: 'no-store',
-        })
+  async function createBid() {
+    if (!canSave) return;
 
-        if (!res.ok) {
-          const j = await safeJson(res)
-          throw new Error(j?.error || `Failed to load bid settings (${res.status})`)
-        }
-
-        const data = (await res.json()) as BidSettings
-
-        if (cancelled) return
-        setSettings(data || null)
-
-        // Set defaults if present
-        if (data?.default_division && !division) setDivision(String(data.default_division))
-        if (data?.company_name) {
-          // no-op, but available for future UI
-        }
-      } catch (e: any) {
-        if (cancelled) return
-        setError(e?.message || 'Failed to initialize')
-      } finally {
-        if (cancelled) return
-        setLoading(false)
-      }
-    }
-
-    init()
-
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  async function handleCreate() {
-    if (!canSubmit) return
-
-    setSaving(true)
-    setError(null)
+    setSaving(true);
+    setErrorMsg("");
 
     try {
-      const payload: CreateProjectPayload = {
-        client_name: clientName.trim(),
-        project_name: projectName.trim() || undefined,
-        division: division.trim() || undefined,
-        notes: notes.trim() || undefined,
-        source: 'atlasbid/new',
-      }
+      const res = await fetch("/api/bids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: firstName.trim(),
+          client_last_name: lastName.trim(),
+          status_id: statusId === "" ? null : statusId,
+        }),
+      });
 
-      // Try the likely project-create route first.
-      // If your route is different, you can change this ONE endpoint without touching any Supabase logic.
-      const res = await fetch('/api/atlasbid/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      const json = await res.json();
 
       if (!res.ok) {
-        const j = await safeJson(res)
-        throw new Error(j?.error || `Failed to create project (${res.status})`)
+        setErrorMsg(json?.error || "Failed to create bid");
+        setSaving(false);
+        return;
       }
 
-      const created = await safeJson(res)
-
-      // If API returns an id, route to it; otherwise fallback to bid list/home
-      const newId =
-        created?.id ??
-        created?.project_id ??
-        created?.data?.id ??
-        created?.data?.project_id
-
-      if (newId) {
-        router.push(`/atlasbid/projects/${newId}`)
-      } else {
-        router.push('/atlasbid')
-      }
+      const newBid: BidRow = json.data;
+      // send them straight into the bid workspace
+      router.push(`/atlasbid/bids/${newBid.id}`);
     } catch (e: any) {
-      setError(e?.message || 'Failed to create project')
-    } finally {
-      setSaving(false)
+      setErrorMsg(e?.message || "Failed to create bid");
+      setSaving(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 920, margin: '0 auto', padding: '18px 14px' }}>
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 12,
-          padding: 16,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.2 }}>New Atlas Bid</h1>
-            <div style={{ marginTop: 6, color: '#64748b', fontSize: 13 }}>
-              {loading ? 'Loading settings…' : settings ? 'Ready' : 'Ready (no settings loaded)'}
-            </div>
-          </div>
+    <div className="p-8 space-y-8">
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-bold">AtlasBid</h1>
+          <p className="text-gray-500">New Bid (Draft)</p>
+        </div>
 
+        <Link
+          href="/"
+          className="text-sm text-emerald-800 hover:underline"
+        >
+          Back to home
+        </Link>
+      </div>
+
+      {/* CREATE */}
+      <div className="border rounded-xl p-6 bg-white shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Create Draft</h2>
           <button
-            type="button"
-            onClick={() => router.push('/atlasbid')}
-            style={{
-              border: '1px solid #e5e7eb',
-              background: '#fff',
-              borderRadius: 10,
-              padding: '8px 12px',
-              cursor: 'pointer',
-            }}
+            onClick={load}
+            className="text-sm px-3 py-2 rounded-lg border hover:bg-gray-50"
           >
-            Back
+            Refresh
           </button>
         </div>
 
-        {error ? (
-          <div
-            style={{
-              marginTop: 14,
-              padding: 12,
-              borderRadius: 10,
-              background: '#fff1f2',
-              border: '1px solid #fecdd3',
-              color: '#9f1239',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {error}
+        {errorMsg ? (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+            {errorMsg}
           </div>
         ) : null}
 
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field
-            label="Client name *"
-            value={clientName}
-            onChange={setClientName}
-            placeholder="e.g., Smith"
-          />
-          <Field
-            label="Project name"
-            value={projectName}
-            onChange={setProjectName}
-            placeholder="e.g., Smith 1"
-          />
-          <Field
-            label="Division"
-            value={division}
-            onChange={setDivision}
-            placeholder="e.g., Landscaping"
-          />
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ display: 'block', fontSize: 13, color: '#0f172a', marginBottom: 6 }}>
-              Notes
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional internal notes…"
-              rows={4}
-              style={{
-                width: '100%',
-                borderRadius: 10,
-                border: '1px solid #e5e7eb',
-                padding: 10,
-                fontSize: 14,
-                outline: 'none',
-              }}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <label className="text-sm text-gray-600">Client First Name</label>
+            <input
+              className="w-full border rounded-lg p-2"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="John"
             />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-gray-600">Client Last Name</label>
+            <input
+              className="w-full border rounded-lg p-2"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Smith"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-gray-600">Status</label>
+            <select
+              className="w-full border rounded-lg p-2 bg-white"
+              value={statusId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setStatusId(v === "" ? "" : Number(v));
+              }}
+            >
+              <option value="">(Optional)</option>
+              {statuses.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <div className="pt-2">
           <button
-            type="button"
-            disabled={!canSubmit}
-            onClick={handleCreate}
-            style={{
-              border: '1px solid #111827',
-              background: canSubmit ? '#111827' : '#94a3b8',
-              color: '#fff',
-              borderRadius: 10,
-              padding: '10px 14px',
-              cursor: canSubmit ? 'pointer' : 'not-allowed',
-              minWidth: 160,
-            }}
+            onClick={createBid}
+            disabled={!canSave}
+            className="bg-emerald-700 disabled:bg-emerald-300 text-white rounded-lg px-4 py-2 font-medium"
           >
-            {saving ? 'Creating…' : 'Create Bid'}
+            {saving ? "Saving..." : "Create Draft"}
           </button>
         </div>
       </div>
-    </div>
-  )
-}
 
-function Field(props: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-}) {
-  return (
-    <div>
-      <label style={{ display: 'block', fontSize: 13, color: '#0f172a', marginBottom: 6 }}>
-        {props.label}
-      </label>
-      <input
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        placeholder={props.placeholder}
-        style={{
-          width: '100%',
-          borderRadius: 10,
-          border: '1px solid #e5e7eb',
-          padding: '10px 10px',
-          fontSize: 14,
-          outline: 'none',
-        }}
-      />
-    </div>
-  )
-}
+      {/* LIST */}
+      <div className="border rounded-xl p-6 bg-white shadow-sm space-y-4">
+        <h2 className="text-lg font-semibold">Drafts & Recent Bids</h2>
 
-async function safeJson(res: Response): Promise<any | null> {
-  try {
-    return await res.json()
-  } catch {
-    return null
-  }
+        {loading ? (
+          <div className="text-gray-500">Loading…</div>
+        ) : bids.length === 0 ? (
+          <div className="text-gray-500">No bids yet.</div>
+        ) : (
+          <div className="overflow-auto">
+            <div className="min-w-[780px] grid grid-cols-12 gap-3 text-xs font-semibold text-gray-600 border-b pb-2">
+              <div className="col-span-1">ID</div>
+              <div className="col-span-4">Client</div>
+              <div className="col-span-3">Status</div>
+              <div className="col-span-3">Created</div>
+              <div className="col-span-1 text-right">Open</div>
+            </div>
+
+            <div className="divide-y">
+              {bids.map((b) => (
+                <div key={b.id} className="min-w-[780px] grid grid-cols-12 gap-3 py-3 text-sm items-center">
+                  <div className="col-span-1 text-gray-700">{b.id}</div>
+                  <div className="col-span-4 font-medium">
+                    {(b.client_name || "").trim()} {(b.client_last_name || "").trim()}
+                  </div>
+                  <div className="col-span-3 text-gray-700">
+                    {b.bid_statuses?.name || "—"}
+                  </div>
+                  <div className="col-span-3 text-gray-500">{fmtDate(b.created_at)}</div>
+                  <div className="col-span-1 text-right">
+                    <Link
+                      className="text-emerald-800 hover:underline"
+                      href={`/atlasbid/bids/${b.id}`}
+                    >
+                      Open
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
