@@ -1,313 +1,316 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type DivisionRow = {
-  id: string; // UUID
+type Division = {
+  id: string;
   name: string;
   labor_rate: number;
   target_gross_profit_percent: number;
   allow_overtime: boolean;
   active: boolean;
+  created_at: string;
 };
 
-type ClientRow = {
-  id: string; // UUID
-  display_name: string;
+type Client = {
+  id: string;
+  name: string;
+  created_at: string;
 };
 
-type CreateProjectPayload = {
-  client_id?: string | null;
-  division_id?: string | null;
-  // sales can override margin on bid (default comes from ops/division but can change later)
-  margin_percent?: number | null;
-  prepay_selected?: boolean | null;
-  // optional fields if your API supports them
-  notes?: string | null;
-};
-
-function asNumberOrNull(v: string): number | null {
-  const trimmed = v.trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed);
-  if (Number.isNaN(n)) return null;
-  return n;
-}
-
-function extractIdFromResponse(json: any): string | null {
-  // supports: { id: "uuid" } or { data: { id: "uuid" } } or { data: [{ id: "uuid" }] }
-  if (!json) return null;
-  if (typeof json.id === "string") return json.id;
-  if (json.data && typeof json.data.id === "string") return json.data.id;
-  if (Array.isArray(json.data) && json.data.length && typeof json.data[0]?.id === "string") return json.data[0].id;
-  return null;
-}
-
-export default function NewBidPage() {
+export default function CreateBidPage() {
   const router = useRouter();
 
-  const [divisions, setDivisions] = useState<DivisionRow[]>([]);
-  const [clients, setClients] = useState<ClientRow[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadingLists, setLoadingLists] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Form fields (minimal “create” — we can add more later)
-  const [clientId, setClientId] = useState<string>("");
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  // Form state
   const [divisionId, setDivisionId] = useState<string>("");
-  const [marginPercent, setMarginPercent] = useState<string>(""); // store as string for input
-  const [prepaySelected, setPrepaySelected] = useState<boolean>(false);
-  const [notes, setNotes] = useState<string>("");
+  const [clientId, setClientId] = useState<string>("");
+  const [newClientName, setNewClientName] = useState<string>("");
 
-  const selectedDivision = useMemo(
-    () => divisions.find((d) => d.id === divisionId) ?? null,
-    [divisions, divisionId]
+  const [marginPercent, setMarginPercent] = useState<number>(0);
+
+  // optional: local user email storage (until Google login is wired)
+  const [creatorEmail, setCreatorEmail] = useState<string>("");
+
+  const activeDivisions = useMemo(
+    () => divisions.filter((d) => d.active),
+    [divisions]
   );
 
-  async function loadLists() {
-    setLoadingLists(true);
-    try {
-      // Divisions
-      const divRes = await fetch("/api/operations-center/divisions", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-      });
-      const divJson = await divRes.json().catch(() => ({}));
-      if (!divRes.ok) {
-        throw new Error(divJson?.error || divJson?.message || "Failed to load divisions.");
-      }
-      const divData: DivisionRow[] = Array.isArray(divJson?.data) ? divJson.data : Array.isArray(divJson) ? divJson : [];
-      setDivisions(divData.filter((d) => d.active));
+  async function loadData() {
+    setLoading(true);
+    setError(null);
 
-      // Clients (optional — if you don’t have clients endpoint yet, comment this block out)
-      const clientRes = await fetch("/api/clients", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-      });
-      const clientJson = await clientRes.json().catch(() => ({}));
-      if (clientRes.ok) {
-        const clientData: ClientRow[] = Array.isArray(clientJson?.data)
-          ? clientJson.data
-          : Array.isArray(clientJson)
-            ? clientJson
-            : [];
-        setClients(clientData);
+    try {
+      const [dRes, cRes] = await Promise.all([
+        fetch("/api/divisions", { cache: "no-store" }),
+        fetch("/api/clients", { cache: "no-store" }).catch(() => null as any),
+      ]);
+
+      const dJson = await dRes.json();
+      if (!dRes.ok) throw new Error(dJson?.error ?? "Failed to load divisions");
+      setDivisions(dJson.data ?? []);
+
+      // clients route might not exist yet
+      if (cRes && (cRes as Response).ok) {
+        const cJson = await (cRes as Response).json();
+        setClients(cJson.data ?? []);
       } else {
-        // Don’t hard-fail creation if clients aren’t ready yet
         setClients([]);
       }
-    } catch (e: any) {
-      alert(e?.message || "Failed to load lists.");
-    } finally {
-      setLoadingLists(false);
-    }
-  }
 
-  React.useEffect(() => {
-    // Auto-load lists when page opens
-    loadLists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleCreate() {
-    if (!divisionId) {
-      alert("Please select a division.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload: CreateProjectPayload = {
-        client_id: clientId ? clientId : null,
-        division_id: divisionId,
-        margin_percent: asNumberOrNull(marginPercent),
-        prepay_selected: prepaySelected,
-        notes: notes?.trim() ? notes.trim() : null,
-      };
-
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        // surface most likely fields
-        const msg =
-          json?.error ||
-          json?.message ||
-          (typeof json === "string" ? json : null) ||
-          "Create failed.";
-        throw new Error(msg);
+      // try to pull email from localStorage (temporary until Google auth)
+      try {
+        const saved = window.localStorage.getItem("atlas_user_email") || "";
+        setCreatorEmail(saved);
+      } catch {
+        // ignore
       }
-
-      const newId = extractIdFromResponse(json);
-      if (!newId) {
-        throw new Error("Create succeeded but no project id was returned from /api/projects.");
-      }
-
-      // ✅ IMPORTANT: UUID is a string
-      router.push(`/atlasbid/bid/${newId}`);
     } catch (e: any) {
-      alert(e?.message || "Create failed.");
+      setError(e?.message ?? "Unknown error");
     } finally {
       setLoading(false);
     }
   }
 
+  // Step 5: default GP% to selected division target
+  useEffect(() => {
+    if (!divisionId) return;
+    const selected = divisions.find((d) => d.id === divisionId);
+    if (selected) setMarginPercent(Number(selected.target_gross_profit_percent));
+  }, [divisionId, divisions]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function addClient() {
+    setError(null);
+
+    const name = newClientName.trim();
+    if (!name) {
+      setError("Client name is required to add a client.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Failed to create client");
+
+      const created: Client = json.data;
+      setClients((prev) => [created, ...prev]);
+      setClientId(created.id);
+      setNewClientName("");
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to add client");
+    }
+  }
+
+  async function createBid() {
+    setError(null);
+
+    if (!divisionId) {
+      setError("Division is required.");
+      return;
+    }
+
+    // store email (temporary approach)
+    try {
+      if (creatorEmail.trim()) {
+        window.localStorage.setItem("atlas_user_email", creatorEmail.trim());
+      }
+    } catch {
+      // ignore
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // temporary until we wire Google auth:
+          ...(creatorEmail.trim() ? { "x-user-email": creatorEmail.trim() } : {}),
+        },
+        body: JSON.stringify({
+          division_id: divisionId,
+          client_id: clientId || null,
+          margin_percent: marginPercent,
+          // notes should be on bid list only; do NOT ask here
+          internal_notes: null,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "Failed to create bid");
+
+      const newBid = json.data;
+      router.push(`/atlasbid/bids/${newBid.id}`);
+    } catch (e: any) {
+      setError(e?.message ?? "Create bid failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Create Bid</h1>
-          <div style={{ marginTop: 6, opacity: 0.75 }}>
-            Create a bid shell first — then you’ll build labor/material lines inside the bid.
+    <div className="min-h-screen bg-[#f6f8f6] px-6 py-6">
+      <div className="mx-auto max-w-3xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-[#123b1f]">Create Bid</h1>
+            <p className="mt-1 text-sm text-[#3d5a45]">
+              Select division + (optional) client, then create the bid.
+            </p>
           </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            type="button"
-            onClick={loadLists}
-            disabled={loadingLists || loading}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              background: "white",
-              cursor: loadingLists || loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loadingLists ? "Refreshing…" : "Refresh lists"}
-          </button>
 
           <button
-            type="button"
             onClick={() => router.push("/atlasbid")}
-            disabled={loading}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid #ddd",
-              background: "white",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
           >
             Back to bids
           </button>
         </div>
-      </div>
 
-      <div style={{ marginTop: 18, border: "1px solid #e5e5e5", borderRadius: 12, padding: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Bid setup</h2>
-
-        {/* Client (optional) */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontWeight: 600 }}>Client (optional)</div>
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-          >
-            <option value="">— Select client —</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Division */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontWeight: 600 }}>Division (required)</div>
-          <select
-            value={divisionId}
-            onChange={(e) => {
-              setDivisionId(e.target.value);
-              // default margin to division target GP% as a starting point (sales can change later too)
-              const next = divisions.find((d) => d.id === e.target.value);
-              if (next) setMarginPercent(String(next.target_gross_profit_percent));
-            }}
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-          >
-            <option value="">— Select division —</option>
-            {divisions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Margin % */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontWeight: 600 }}>Gross profit % (override)</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input
-              value={marginPercent}
-              onChange={(e) => setMarginPercent(e.target.value)}
-              placeholder={selectedDivision ? String(selectedDivision.target_gross_profit_percent) : "e.g. 50"}
-              inputMode="decimal"
-              style={{ width: 140, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-            <div style={{ opacity: 0.75 }}>%</div>
-            {selectedDivision ? (
-              <div style={{ marginLeft: 10, opacity: 0.75 }}>
-                Division target: {selectedDivision.target_gross_profit_percent}%
-              </div>
-            ) : null}
+        {error && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
           </div>
-        </div>
+        )}
 
-        {/* Prepay */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontWeight: 600 }}>Prepay</div>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-            <input type="checkbox" checked={prepaySelected} onChange={(e) => setPrepaySelected(e.target.checked)} />
-            <span>Offer prepay discount (toggle)</span>
-          </label>
-        </div>
+        <div className="mt-6 rounded-xl border border-[#d7e6db] bg-white p-5 shadow-sm">
+          {loading ? (
+            <div className="py-10 text-sm text-[#3d5a45]">Loading…</div>
+          ) : (
+            <div className="space-y-5">
+              {/* Creator email (temporary until Google auth) */}
+              <div>
+                <label className="block text-sm font-medium text-[#123b1f]">
+                  Created by (email) — temporary
+                </label>
+                <input
+                  value={creatorEmail}
+                  onChange={(e) => setCreatorEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="mt-1 w-full rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                />
+                <p className="mt-1 text-xs text-[#6b7f71]">
+                  We’ll replace this with Google login capture. For now it feeds the bid list “Created By”.
+                </p>
+              </div>
 
-        {/* Notes */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "start", marginBottom: 14 }}>
-          <div style={{ fontWeight: 600 }}>Notes (optional)</div>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd", width: "100%" }}
-            placeholder="Internal notes (optional)"
-          />
-        </div>
+              {/* Division */}
+              <div>
+                <label className="block text-sm font-medium text-[#123b1f]">
+                  Division (required)
+                </label>
+                <select
+                  value={divisionId}
+                  onChange={(e) => setDivisionId(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-[#cfe2d3] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                >
+                  <option value="">— Select division —</option>
+                  {activeDivisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={loading}
-            style={{
-              padding: "12px 16px",
-              borderRadius: 10,
-              border: "1px solid #1b5e20",
-              background: loading ? "#c8e6c9" : "#2e7d32",
-              color: "white",
-              fontWeight: 700,
-              cursor: loading ? "not-allowed" : "pointer",
-              minWidth: 140,
-            }}
-          >
-            {loading ? "Creating…" : "Create bid"}
-          </button>
-        </div>
-      </div>
+              {/* GP% */}
+              <div>
+                <label className="block text-sm font-medium text-[#123b1f]">
+                  Gross Profit % (defaults from division, editable)
+                </label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={Number.isFinite(marginPercent) ? marginPercent : 0}
+                    onChange={(e) => setMarginPercent(Number(e.target.value))}
+                    className="w-32 rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                  />
+                  <span className="text-sm text-[#3d5a45]">%</span>
+                </div>
+                <p className="mt-1 text-xs text-[#6b7f71]">
+                  This will warn later if below division target (on bid pricing screen).
+                </p>
+              </div>
 
-      <div style={{ marginTop: 14, opacity: 0.7, fontSize: 13 }}>
-        Next step after this: the bid detail page (labor/material lines, pricing calc, and export text).
+              {/* Client select + add */}
+              <div>
+                <label className="block text-sm font-medium text-[#123b1f]">
+                  Client (optional)
+                </label>
+
+                <select
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-[#cfe2d3] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                >
+                  <option value="">— No client selected —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Add new client name…"
+                    className="flex-1 rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                  />
+                  <button
+                    type="button"
+                    onClick={addClient}
+                    className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
+                  >
+                    Add Client
+                  </button>
+                </div>
+
+                <p className="mt-1 text-xs text-[#6b7f71]">
+                  If Add Client fails, you likely don’t have <code>/api/clients</code> yet.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2">
+                <button
+                  disabled={saving}
+                  onClick={createBid}
+                  className="rounded-md bg-[#1e7a3a] px-4 py-2 text-sm font-medium text-white hover:bg-[#16602d] disabled:opacity-60"
+                >
+                  {saving ? "Creating…" : "Create bid"}
+                </button>
+
+                <p className="mt-3 text-xs text-[#6b7f71]">
+                  Prepay is intentionally NOT here anymore — it will be selected at the end of the bid.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
