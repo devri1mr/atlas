@@ -41,12 +41,22 @@ export default function DivisionsClient() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [showModal, setShowModal] = useState(false);
+  // Create modal
+  const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [laborRate, setLaborRate] = useState<string>("30");
   const [targetGp, setTargetGp] = useState<string>("50");
   const [allowOt, setAllowOt] = useState(true);
   const [active, setActive] = useState(true);
+
+  // Edit modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editId, setEditId] = useState<string>("");
+  const [editName, setEditName] = useState("");
+  const [editLaborRate, setEditLaborRate] = useState<string>("0");
+  const [editTargetGp, setEditTargetGp] = useState<string>("0");
+  const [editAllowOt, setEditAllowOt] = useState(true);
+  const [editActive, setEditActive] = useState(true);
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
@@ -67,12 +77,23 @@ export default function DivisionsClient() {
     load();
   }, []);
 
-  function resetForm() {
+  function resetCreateForm() {
     setName("");
     setLaborRate("30");
     setTargetGp("50");
     setAllowOt(true);
     setActive(true);
+  }
+
+  function openEdit(row: Division) {
+    setError(null);
+    setEditId(row.id);
+    setEditName(row.name ?? "");
+    setEditLaborRate(String(row.labor_rate ?? 0));
+    setEditTargetGp(String(row.target_gross_profit_percent ?? 0));
+    setEditAllowOt(Boolean(row.allow_overtime));
+    setEditActive(Boolean(row.active));
+    setShowEdit(true);
   }
 
   async function createDivision() {
@@ -99,12 +120,11 @@ export default function DivisionsClient() {
         }),
       });
 
-      // optimistic insert (keep sort by name)
       const next = [...rows, out.data].sort((a, b) => a.name.localeCompare(b.name));
       setRows(next);
 
-      setShowModal(false);
-      resetForm();
+      setShowCreate(false);
+      resetCreateForm();
     } catch (e: any) {
       setError(e?.message ?? "Failed to create division");
     } finally {
@@ -112,15 +132,49 @@ export default function DivisionsClient() {
     }
   }
 
-  async function toggleActive(row: Division) {
+  async function saveEdit() {
+    setError(null);
+
+    const n = editName.trim();
+    const lr = Number(editLaborRate);
+    const gp = Number(editTargetGp);
+
+    if (!editId) return setError("Missing division id.");
+    if (!n) return setError("Division name is required.");
+    if (!Number.isFinite(lr)) return setError("Labor rate must be a number.");
+    if (!Number.isFinite(gp)) return setError("Target GP% must be a number.");
+
+    try {
+      setBusyId(editId);
+      const out = await api<{ data: Division }>("/api/operations-center/divisions", {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: editId,
+          name: n,
+          labor_rate: lr,
+          target_gross_profit_percent: gp,
+          allow_overtime: editAllowOt,
+          active: editActive,
+        }),
+      });
+
+      setRows((prev) => prev.map((r) => (r.id === editId ? out.data : r)).sort((a, b) => a.name.localeCompare(b.name)));
+      setShowEdit(false);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update division");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function setDivisionActive(row: Division, nextActive: boolean) {
     setError(null);
     try {
       setBusyId(row.id);
       const out = await api<{ data: Division }>("/api/operations-center/divisions", {
         method: "PATCH",
-        body: JSON.stringify({ id: row.id, active: !row.active }),
+        body: JSON.stringify({ id: row.id, active: nextActive }),
       });
-
       setRows((prev) => prev.map((r) => (r.id === row.id ? out.data : r)));
     } catch (e: any) {
       setError(e?.message ?? "Failed to update active flag");
@@ -129,15 +183,14 @@ export default function DivisionsClient() {
     }
   }
 
-  async function toggleOt(row: Division) {
+  async function setDivisionOt(row: Division, nextOt: boolean) {
     setError(null);
     try {
       setBusyId(row.id);
       const out = await api<{ data: Division }>("/api/operations-center/divisions", {
         method: "PATCH",
-        body: JSON.stringify({ id: row.id, allow_overtime: !row.allow_overtime }),
+        body: JSON.stringify({ id: row.id, allow_overtime: nextOt }),
       });
-
       setRows((prev) => prev.map((r) => (r.id === row.id ? out.data : r)));
     } catch (e: any) {
       setError(e?.message ?? "Failed to update OT flag");
@@ -147,8 +200,6 @@ export default function DivisionsClient() {
   }
 
   async function deleteDivision(row: Division) {
-    // You asked for delete OR set active = no; we’ll support both.
-    // This is hard delete. Use carefully.
     const ok = window.confirm(`Delete "${row.name}" permanently? (This cannot be undone.)`);
     if (!ok) return;
 
@@ -191,8 +242,8 @@ export default function DivisionsClient() {
             <button
               onClick={() => {
                 setError(null);
-                resetForm();
-                setShowModal(true);
+                resetCreateForm();
+                setShowCreate(true);
               }}
               className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800"
             >
@@ -212,7 +263,7 @@ export default function DivisionsClient() {
         <div className="mt-6 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
           <div className="border-b border-emerald-100 bg-emerald-50/60 px-4 py-3">
             <div className="text-sm font-semibold text-emerald-950">Division Settings</div>
-            <div className="text-xs text-emerald-900/70">Click actions to toggle OT/Active or delete.</div>
+            <div className="text-xs text-emerald-900/70">Edit rates, set Active, and control OT allowance.</div>
           </div>
 
           {loading ? (
@@ -227,33 +278,37 @@ export default function DivisionsClient() {
                     <th className="px-4 py-3 font-semibold">Division</th>
                     <th className="px-4 py-3 font-semibold">Labor Rate</th>
                     <th className="px-4 py-3 font-semibold">Target GP%</th>
-                    <th className="px-4 py-3 font-semibold">OT Allowed</th>
+                    <th className="px-4 py-3 font-semibold">Allow OT</th>
                     <th className="px-4 py-3 font-semibold">Active</th>
                     <th className="px-4 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => {
-                    const busy = busyId === r.id;
+                    const busy = busyId === r.id || busyId === "create";
                     return (
                       <tr key={r.id} className="border-t border-emerald-100 hover:bg-emerald-50/40">
                         <td className="px-4 py-3">
                           <div className="font-medium text-emerald-950">{r.name}</div>
-                          <div className="text-xs text-emerald-900/60">{r.id.slice(0, 8)}…</div>
                         </td>
 
                         <td className="px-4 py-3 text-emerald-950">{money.format(Number(r.labor_rate ?? 0))}</td>
-                        <td className="px-4 py-3 text-emerald-950">{asPercentFromWholeNumber(Number(r.target_gross_profit_percent ?? 0))}</td>
+
+                        <td className="px-4 py-3 text-emerald-950">
+                          {asPercentFromWholeNumber(Number(r.target_gross_profit_percent ?? 0))}
+                        </td>
 
                         <td className="px-4 py-3">
-                          <span
-                            className={[
-                              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-                              r.allow_overtime ? "bg-emerald-100 text-emerald-900" : "bg-slate-100 text-slate-700",
-                            ].join(" ")}
-                          >
-                            {r.allow_overtime ? "Yes" : "No"}
-                          </span>
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-emerald-950">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-emerald-700"
+                              checked={Boolean(r.allow_overtime)}
+                              disabled={busy}
+                              onChange={(e) => setDivisionOt(r, e.target.checked)}
+                            />
+                            Allow OT
+                          </label>
                         </td>
 
                         <td className="px-4 py-3">
@@ -270,23 +325,23 @@ export default function DivisionsClient() {
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-2">
                             <button
-                              disabled={busy || busyId === "create"}
-                              onClick={() => toggleOt(r)}
+                              disabled={busy}
+                              onClick={() => openEdit(r)}
                               className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
                             >
-                              Toggle OT
+                              Edit
                             </button>
 
                             <button
-                              disabled={busy || busyId === "create"}
-                              onClick={() => toggleActive(r)}
+                              disabled={busy}
+                              onClick={() => setDivisionActive(r, !r.active)}
                               className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
                             >
                               {r.active ? "Deactivate" : "Activate"}
                             </button>
 
                             <button
-                              disabled={busy || busyId === "create"}
+                              disabled={busy}
                               onClick={() => deleteDivision(r)}
                               className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                             >
@@ -303,8 +358,8 @@ export default function DivisionsClient() {
           )}
         </div>
 
-        {/* Modal */}
-        {showModal && (
+        {/* Create Modal */}
+        {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-lg overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-xl">
               <div className="border-b border-emerald-100 bg-emerald-50/70 px-5 py-4">
@@ -355,7 +410,7 @@ export default function DivisionsClient() {
                       onChange={(e) => setAllowOt(e.target.checked)}
                       className="h-4 w-4 accent-emerald-700"
                     />
-                    OT Allowed (1.5x)
+                    Allow OT (1.5x)
                   </label>
 
                   <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
@@ -373,7 +428,7 @@ export default function DivisionsClient() {
               <div className="flex items-center justify-end gap-2 border-t border-emerald-100 bg-white px-5 py-4">
                 <button
                   onClick={() => {
-                    setShowModal(false);
+                    setShowCreate(false);
                     setError(null);
                   }}
                   className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
@@ -392,9 +447,91 @@ export default function DivisionsClient() {
           </div>
         )}
 
-        <div className="mt-6 text-xs text-emerald-900/60">
-          Note: “Deactivate” is the safest way to remove divisions (keeps history). “Delete” is permanent.
-        </div>
+        {/* Edit Modal */}
+        {showEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-xl">
+              <div className="border-b border-emerald-100 bg-emerald-50/70 px-5 py-4">
+                <div className="text-lg font-semibold text-emerald-950">Edit Division</div>
+                <div className="mt-1 text-xs text-emerald-900/70">Edits affect future bids. Existing projects should use stored snapshots.</div>
+              </div>
+
+              <div className="space-y-4 px-5 py-5">
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">Division Name</label>
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
+                    <input
+                      value={editLaborRate}
+                      onChange={(e) => setEditLaborRate(e.target.value)}
+                      inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Target Gross Profit (%)</label>
+                    <input
+                      value={editTargetGp}
+                      onChange={(e) => setEditTargetGp(e.target.value)}
+                      inputMode="numeric"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={editAllowOt}
+                      onChange={(e) => setEditAllowOt(e.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    Allow OT (1.5x)
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={editActive}
+                      onChange={(e) => setEditActive(e.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    Active
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-emerald-100 bg-white px-5 py-4">
+                <button
+                  onClick={() => {
+                    setShowEdit(false);
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={busyId === editId}
+                  onClick={saveEdit}
+                  className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                >
+                  {busyId === editId ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
