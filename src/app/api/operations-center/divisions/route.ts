@@ -1,148 +1,141 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function supabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+function getSupabaseAdmin() {
+  if (!supabaseUrl) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
   if (!serviceKey) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
-
-  return createClient(url, serviceKey, {
-    auth: { persistSession: false },
+  return createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-/**
- * GET /api/operations-center/divisions
- * Returns divisions for the Operations Center.
- */
+type DivisionRow = {
+  id: string;
+  name: string;
+  labor_rate: number;
+  target_gross_profit_percent: number;
+  allow_overtime: boolean;
+  active: boolean;
+  created_at?: string;
+};
+
+function json(data: unknown, init?: ResponseInit) {
+  return NextResponse.json(data, init);
+}
+
 export async function GET() {
   try {
-    const supabase = supabaseAdmin();
+    const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase
       .from("divisions")
       .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
       .order("name", { ascending: true });
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message, details: error },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ divisions: data ?? [] }, { status: 200 });
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ data: data ?? [] });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown server error" },
-      { status: 500 }
-    );
+    return json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
 
-/**
- * POST /api/operations-center/divisions
- * Creates a division.
- *
- * Accepts BOTH:
- * - snake_case: labor_rate, target_gross_profit_percent
- * - camelCase: laborRate, targetGrossProfitPercent
- */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const supabase = supabaseAdmin();
+    const supabase = getSupabaseAdmin();
+    const body = await req.json().catch(() => null);
 
-    const body = await req.json();
+    if (!body) return json({ error: "Invalid JSON body" }, { status: 400 });
 
-    // Name
-    const name = body?.name?.toString?.().trim?.() ?? "";
+    const name = String(body.name ?? "").trim();
+    const labor_rate = Number(body.labor_rate);
+    const target_gross_profit_percent = Number(body.target_gross_profit_percent);
+    const allow_overtime = Boolean(body.allow_overtime ?? true);
+    const active = body.active === undefined ? true : Boolean(body.active);
 
-    // Accept snake_case OR camelCase from the UI
-    const laborRateRaw = body?.labor_rate ?? body?.laborRate;
-    const targetGpRaw =
-      body?.target_gross_profit_percent ??
-      body?.targetGrossProfitPercent ??
-      body?.target_gp_pct ??
-      body?.targetGpPct;
+    if (!name) return json({ error: "name is required" }, { status: 400 });
+    if (!Number.isFinite(labor_rate)) return json({ error: "labor_rate must be a number" }, { status: 400 });
+    if (!Number.isFinite(target_gross_profit_percent))
+      return json({ error: "target_gross_profit_percent must be a number" }, { status: 400 });
 
-    const allowOvertimeRaw = body?.allow_overtime ?? body?.allowOvertime;
-    const activeRaw = body?.active;
-
-    if (!name) {
-      return NextResponse.json(
-        { error: "Division name required" },
-        { status: 400 }
-      );
-    }
-
-    if (laborRateRaw === undefined || laborRateRaw === null || laborRateRaw === "") {
-      return NextResponse.json(
-        { error: "Labor rate required" },
-        { status: 400 }
-      );
-    }
-
-    if (targetGpRaw === undefined || targetGpRaw === null || targetGpRaw === "") {
-      return NextResponse.json(
-        { error: "Target Gross Profit % required" },
-        { status: 400 }
-      );
-    }
-
-    const labor_rate = Number(laborRateRaw);
-    const target_gross_profit_percent = Number(targetGpRaw);
-
-    if (Number.isNaN(labor_rate)) {
-      return NextResponse.json(
-        { error: "Labor rate must be a number" },
-        { status: 400 }
-      );
-    }
-
-    if (Number.isNaN(target_gross_profit_percent)) {
-      return NextResponse.json(
-        { error: "Target Gross Profit % must be a number" },
-        { status: 400 }
-      );
-    }
-
-    const allow_overtime =
-      allowOvertimeRaw === undefined || allowOvertimeRaw === null
-        ? true
-        : Boolean(allowOvertimeRaw);
-
-    const active =
-      activeRaw === undefined || activeRaw === null ? true : Boolean(activeRaw);
+    const insertPayload = {
+      name,
+      labor_rate,
+      target_gross_profit_percent,
+      allow_overtime,
+      active,
+    };
 
     const { data, error } = await supabase
       .from("divisions")
-      .insert([
-        {
-          name,
-          labor_rate,
-          target_gross_profit_percent,
-          allow_overtime,
-          active,
-        },
-      ])
+      .insert(insertPayload)
       .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
       .single();
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message, details: error },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ division: data }, { status: 201 });
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ data });
   } catch (e: any) {
-    // This catches JSON parse errors too
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown server error" },
-      { status: 500 }
-    );
+    return json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const body = await req.json().catch(() => null);
+
+    if (!body) return json({ error: "Invalid JSON body" }, { status: 400 });
+
+    const id = String(body.id ?? "").trim();
+    if (!id) return json({ error: "id is required" }, { status: 400 });
+
+    // Only allow updating specific fields
+    const patch: Partial<DivisionRow> = {};
+    if (body.name !== undefined) patch.name = String(body.name).trim();
+    if (body.labor_rate !== undefined) patch.labor_rate = Number(body.labor_rate);
+    if (body.target_gross_profit_percent !== undefined)
+      patch.target_gross_profit_percent = Number(body.target_gross_profit_percent);
+    if (body.allow_overtime !== undefined) patch.allow_overtime = Boolean(body.allow_overtime);
+    if (body.active !== undefined) patch.active = Boolean(body.active);
+
+    if (patch.name !== undefined && !patch.name) return json({ error: "name cannot be blank" }, { status: 400 });
+    if (patch.labor_rate !== undefined && !Number.isFinite(patch.labor_rate))
+      return json({ error: "labor_rate must be a number" }, { status: 400 });
+    if (
+      patch.target_gross_profit_percent !== undefined &&
+      !Number.isFinite(patch.target_gross_profit_percent)
+    )
+      return json({ error: "target_gross_profit_percent must be a number" }, { status: 400 });
+
+    const { data, error } = await supabase
+      .from("divisions")
+      .update(patch)
+      .eq("id", id)
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
+      .single();
+
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ data });
+  } catch (e: any) {
+    return json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { searchParams } = new URL(req.url);
+    const id = String(searchParams.get("id") ?? "").trim();
+    if (!id) return json({ error: "id is required" }, { status: 400 });
+
+    const { error } = await supabase.from("divisions").delete().eq("id", id);
+    if (error) return json({ error: error.message }, { status: 500 });
+
+    return json({ ok: true });
+  } catch (e: any) {
+    return json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
