@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 type Bid = {
-  id: number;
+  id: string; // UUID
   client_name: string | null;
   client_last_name: string | null;
   status_id: number | null;
@@ -14,7 +14,7 @@ type Bid = {
 
 export default function BidDetailPage() {
   const params = useParams();
-  const bidId = Number(params?.id);
+  const bidId = (params?.id as string) || "";
 
   const [bid, setBid] = useState<Bid | null>(null);
   const [loading, setLoading] = useState(true);
