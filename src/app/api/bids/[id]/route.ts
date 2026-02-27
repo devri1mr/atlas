@@ -9,11 +9,13 @@ function getSupabase() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
+type ParamsMaybePromise = { id: string } | Promise<{ id: string }>;
+
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: ParamsMaybePromise }
 ) {
-  const { id } = params;
+  const { id } = await Promise.resolve(context.params);
 
   const supabase = getSupabase();
 
