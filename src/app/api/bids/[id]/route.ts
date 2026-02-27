@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -9,11 +9,32 @@ function getSupabase() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params;
+// Accept both possible Next typings for params (object OR Promise<object>)
+async function getIdFromContext(context: any): Promise<string | null> {
+  if (!context) return null;
+
+  const p = context.params;
+
+  // common case: params is an object
+  if (p && typeof p === "object" && typeof p.id === "string") return p.id;
+
+  // other case: params is a Promise
+  try {
+    const awaited = await p;
+    if (awaited && typeof awaited.id === "string") return awaited.id;
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+export async function GET(req: Request, context: any) {
+  const id = await getIdFromContext(context);
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id param" }, { status: 400 });
+  }
 
   const supabase = getSupabase();
 
