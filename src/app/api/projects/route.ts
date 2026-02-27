@@ -9,13 +9,23 @@ function supabaseAdmin() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
-// Short readable bid code (not the UUID)
+// Short human-friendly code you show users
 function makeBidCode() {
-  // ex: B-7K3P2Q
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "B-";
   for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
+}
+
+// Project code (required by DB). Keep it short & readable, but unique enough.
+// Example: P-20260227-7K3P2Q
+function makeProjectCode() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const suffix = makeBidCode().replace("B-", ""); // reuse same charset
+  return `P-${y}${m}${day}-${suffix}`;
 }
 
 export async function GET() {
@@ -24,7 +34,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("projects")
       .select(
-        "id,bid_code,display_name,division_id,client_id,margin_percent,internal_notes,created_by_email,created_at,is_deleted"
+        "id,project_code,bid_code,display_name,division_id,client_id,margin_percent,internal_notes,created_by_email,created_at,is_deleted"
       )
       .eq("is_deleted", false)
       .order("created_at", { ascending: false });
@@ -51,57 +61,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "division_id is required" }, { status: 400 });
     }
 
-    // Ensure bid_code exists
-    let bid_code = body?.bid_code ?? null;
-    if (!bid_code) bid_code = makeBidCode();
-
-    // REQUIRED: display_name cannot be null in your schema.
-    // Use a placeholder that does NOT “name the project” (you can change it later on Accepted).
+    // Always set required columns:
+    // - project_code (DB requires NOT NULL)
+    // - bid_code (your short code)
+    // - display_name (safe placeholder)
+    const bid_code = body?.bid_code ?? makeBidCode();
+    const project_code = body?.project_code ?? makeProjectCode();
     const display_name = body?.display_name ?? `Bid ${bid_code}`;
 
-    // Try insert; if bid_code collision happens (rare), retry once.
-    const attemptInsert = async () =>
-      supabase
-        .from("projects")
-        .insert([
-          {
-            bid_code,
-            display_name,
-            division_id,
-            client_id,
-            margin_percent,
-            internal_notes,
-            created_by_email,
-            is_deleted: false,
-          },
-        ])
-        .select("id,bid_code,display_name")
-        .single();
-
-    let { data, error } = await attemptInsert();
-
-    if (error && String(error.message || "").toLowerCase().includes("duplicate")) {
-      bid_code = makeBidCode();
-      const retry = await supabase
-        .from("projects")
-        .insert([
-          {
-            bid_code,
-            display_name: `Bid ${bid_code}`,
-            division_id,
-            client_id,
-            margin_percent,
-            internal_notes,
-            created_by_email,
-            is_deleted: false,
-          },
-        ])
-        .select("id,bid_code,display_name")
-        .single();
-
-      data = retry.data;
-      error = retry.error;
-    }
+    // Insert and return the new row
+    const { data, error } = await supabase
+      .from("projects")
+      .insert([
+        {
+          project_code,
+          bid_code,
+          display_name,
+          division_id,
+          client_id,
+          margin_percent,
+          internal_notes,
+          created_by_email,
+          is_deleted: false,
+        },
+      ])
+      .select("id,project_code,bid_code,display_name")
+      .single();
 
     if (error) throw error;
 
