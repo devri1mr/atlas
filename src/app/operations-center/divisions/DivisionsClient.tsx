@@ -7,55 +7,57 @@ type Division = {
   name: string;
   labor_rate: number;
   target_gross_profit_percent: number;
-  allow_overtime?: boolean;
-  active?: boolean;
+  allow_overtime: boolean;
+  active: boolean;
   created_at?: string;
 };
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    Number.isFinite(n) ? n : 0
-  );
+const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 });
+
+function asPercentFromWholeNumber(n: number) {
+  // DB stores "50" meaning 50%, display as 50%
+  return percent.format((n ?? 0) / 100);
 }
 
-function formatPercent(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 }).format(
-    (Number.isFinite(n) ? n : 0) / 100
-  );
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    cache: "no-store",
+  });
+
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = payload?.error || payload?.message || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return payload as T;
 }
 
 export default function DivisionsClient() {
-  const [divisions, setDivisions] = useState<Division[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [err, setErr] = useState<string>("");
+  const [rows, setRows] = useState<Division[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [open, setOpen] = useState<boolean>(false);
-
-  // Form
+  const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
-  const [laborRate, setLaborRate] = useState<number>(30);
-  const [targetGp, setTargetGp] = useState<number>(50);
-  const [active, setActive] = useState<boolean>(true);
-  const [allowOvertime, setAllowOvertime] = useState<boolean>(true);
+  const [laborRate, setLaborRate] = useState<string>("30");
+  const [targetGp, setTargetGp] = useState<string>("50");
+  const [allowOt, setAllowOt] = useState(true);
+  const [active, setActive] = useState(true);
 
-  const canSubmit = useMemo(() => {
-    return name.trim().length > 0 && Number.isFinite(laborRate) && Number.isFinite(targetGp);
-  }, [name, laborRate, targetGp]);
+  const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
   async function load() {
+    setError(null);
     setLoading(true);
-    setErr("");
     try {
-      const res = await fetch("/api/operations-center/divisions", { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(json?.error || `Request failed (${res.status})`);
-      }
-
-      setDivisions(Array.isArray(json?.divisions) ? json.divisions : []);
+      const out = await api<{ data: Division[] }>("/api/operations-center/divisions", { method: "GET" });
+      setRows(out.data ?? []);
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to load divisions");
+      setError(e?.message ?? "Failed to load divisions");
     } finally {
       setLoading(false);
     }
@@ -65,203 +67,335 @@ export default function DivisionsClient() {
     load();
   }, []);
 
-  async function createDivision() {
-    setErr("");
+  function resetForm() {
+    setName("");
+    setLaborRate("30");
+    setTargetGp("50");
+    setAllowOt(true);
+    setActive(true);
+  }
 
-    if (!canSubmit) {
-      setErr("Please fill out Division Name, Labor Rate, and Target GP%.");
-      return;
-    }
+  async function createDivision() {
+    setError(null);
+
+    const n = name.trim();
+    const lr = Number(laborRate);
+    const gp = Number(targetGp);
+
+    if (!n) return setError("Division name is required.");
+    if (!Number.isFinite(lr)) return setError("Labor rate must be a number.");
+    if (!Number.isFinite(gp)) return setError("Target GP% must be a number.");
 
     try {
-      const payload = {
-        // send snake_case to match DB + API expectations
-        name: name.trim(),
-        labor_rate: Number(laborRate),
-        target_gross_profit_percent: Number(targetGp),
-        active: Boolean(active),
-        allow_overtime: Boolean(allowOvertime),
-      };
-
-      const res = await fetch("/api/operations-center/divisions", {
+      setBusyId("create");
+      const out = await api<{ data: Division }>("/api/operations-center/divisions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: n,
+          labor_rate: lr,
+          target_gross_profit_percent: gp,
+          allow_overtime: allowOt,
+          active,
+        }),
       });
 
-      const json = await res.json().catch(() => ({}));
+      // optimistic insert (keep sort by name)
+      const next = [...rows, out.data].sort((a, b) => a.name.localeCompare(b.name));
+      setRows(next);
 
-      if (!res.ok) {
-        throw new Error(json?.error || `Create failed (${res.status})`);
-      }
-
-      // optimistic update
-      if (json?.division) {
-        setDivisions((prev) => [json.division, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
-      } else {
-        // fallback: reload
-        await load();
-      }
-
-      // reset & close
-      setName("");
-      setLaborRate(30);
-      setTargetGp(50);
-      setActive(true);
-      setAllowOvertime(true);
-      setOpen(false);
+      setShowModal(false);
+      resetForm();
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to create division");
+      setError(e?.message ?? "Failed to create division");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function toggleActive(row: Division) {
+    setError(null);
+    try {
+      setBusyId(row.id);
+      const out = await api<{ data: Division }>("/api/operations-center/divisions", {
+        method: "PATCH",
+        body: JSON.stringify({ id: row.id, active: !row.active }),
+      });
+
+      setRows((prev) => prev.map((r) => (r.id === row.id ? out.data : r)));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update active flag");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function toggleOt(row: Division) {
+    setError(null);
+    try {
+      setBusyId(row.id);
+      const out = await api<{ data: Division }>("/api/operations-center/divisions", {
+        method: "PATCH",
+        body: JSON.stringify({ id: row.id, allow_overtime: !row.allow_overtime }),
+      });
+
+      setRows((prev) => prev.map((r) => (r.id === row.id ? out.data : r)));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update OT flag");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteDivision(row: Division) {
+    // You asked for delete OR set active = no; we’ll support both.
+    // This is hard delete. Use carefully.
+    const ok = window.confirm(`Delete "${row.name}" permanently? (This cannot be undone.)`);
+    if (!ok) return;
+
+    setError(null);
+    try {
+      setBusyId(row.id);
+      await api<{ ok: boolean }>(`/api/operations-center/divisions?id=${encodeURIComponent(row.id)}`, {
+        method: "DELETE",
+      });
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to delete division");
+    } finally {
+      setBusyId(null);
     }
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Divisions</h1>
-          <div style={{ opacity: 0.8, marginTop: 6 }}>
-            Manage division labor rate + target gross profit. (UI shows $ and %, DB stores numbers)
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        {/* Header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-emerald-950">Divisions</h1>
+            <p className="mt-1 text-sm text-emerald-900/70">
+              Manage division labor rate + target gross profit. <span className="font-medium">UI shows $ and %</span>, DB stores numbers.
+            </p>
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900">
+              Active divisions: {activeCount} / {rows.length}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={load}
+              className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-900 shadow-sm hover:bg-emerald-50"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => {
+                setError(null);
+                resetForm();
+                setShowModal(true);
+              }}
+              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800"
+            >
+              Add Division
+            </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => load()} disabled={loading} style={{ padding: "10px 14px" }}>
-            Refresh
-          </button>
-          <button onClick={() => setOpen(true)} style={{ padding: "10px 14px" }}>
-            Add Division
-          </button>
-        </div>
-      </div>
-
-      {err ? (
-        <div style={{ marginTop: 14, padding: 12, border: "1px solid #f5a", borderRadius: 8 }}>
-          <strong>Error:</strong> {err}
-        </div>
-      ) : null}
-
-      <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", padding: 12, fontWeight: 700, background: "#fafafa" }}>
-          <div>Division</div>
-          <div>Labor Rate</div>
-          <div>Target GP%</div>
-          <div>OT Allowed</div>
-          <div>Active</div>
-        </div>
-
-        {loading ? (
-          <div style={{ padding: 12 }}>Loading…</div>
-        ) : divisions.length === 0 ? (
-          <div style={{ padding: 12 }}>No divisions found.</div>
-        ) : (
-          divisions.map((d) => (
-            <div
-              key={d.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
-                padding: 12,
-                borderTop: "1px solid #eee",
-              }}
-            >
-              <div>{d.name}</div>
-              <div>{formatCurrency(d.labor_rate)}</div>
-              <div>{formatPercent(d.target_gross_profit_percent)}</div>
-              <div>{d.allow_overtime ? "Yes" : "No"}</div>
-              <div>{d.active ? "Yes" : "No"}</div>
-            </div>
-          ))
+        {/* Error */}
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </div>
         )}
-      </div>
 
-      {/* Modal */}
-      {open ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={() => setOpen(false)}
-        >
-          <div
-            style={{ width: "min(720px, 100%)", background: "white", borderRadius: 12, padding: 18 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0 }}>Add Division</h2>
+        {/* Table */}
+        <div className="mt-6 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
+          <div className="border-b border-emerald-100 bg-emerald-50/60 px-4 py-3">
+            <div className="text-sm font-semibold text-emerald-950">Division Settings</div>
+            <div className="text-xs text-emerald-900/70">Click actions to toggle OT/Active or delete.</div>
+          </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span>Division Name</span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Landscaping"
-                  style={{ padding: 10 }}
-                />
-              </label>
+          {loading ? (
+            <div className="px-4 py-10 text-center text-sm text-emerald-900/70">Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-emerald-900/70">No divisions yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="text-left text-emerald-900/70">
+                    <th className="px-4 py-3 font-semibold">Division</th>
+                    <th className="px-4 py-3 font-semibold">Labor Rate</th>
+                    <th className="px-4 py-3 font-semibold">Target GP%</th>
+                    <th className="px-4 py-3 font-semibold">OT Allowed</th>
+                    <th className="px-4 py-3 font-semibold">Active</th>
+                    <th className="px-4 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const busy = busyId === r.id;
+                    return (
+                      <tr key={r.id} className="border-t border-emerald-100 hover:bg-emerald-50/40">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-emerald-950">{r.name}</div>
+                          <div className="text-xs text-emerald-900/60">{r.id.slice(0, 8)}…</div>
+                        </td>
 
-              <label style={{ display: "grid", gap: 6 }}>
-                <span>Labor Rate ($/hr)</span>
-                <input
-                  value={laborRate}
-                  type="number"
-                  step="0.01"
-                  onChange={(e) => setLaborRate(Number(e.target.value))}
-                  style={{ padding: 10 }}
-                />
-              </label>
+                        <td className="px-4 py-3 text-emerald-950">{money.format(Number(r.labor_rate ?? 0))}</td>
+                        <td className="px-4 py-3 text-emerald-950">{asPercentFromWholeNumber(Number(r.target_gross_profit_percent ?? 0))}</td>
 
-              <label style={{ display: "grid", gap: 6 }}>
-                <span>Target Gross Profit (%)</span>
-                <input
-                  value={targetGp}
-                  type="number"
-                  step="0.01"
-                  onChange={(e) => setTargetGp(Number(e.target.value))}
-                  style={{ padding: 10 }}
-                />
-              </label>
+                        <td className="px-4 py-3">
+                          <span
+                            className={[
+                              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+                              r.allow_overtime ? "bg-emerald-100 text-emerald-900" : "bg-slate-100 text-slate-700",
+                            ].join(" ")}
+                          >
+                            {r.allow_overtime ? "Yes" : "No"}
+                          </span>
+                        </td>
 
-              <div style={{ display: "grid", gap: 10, paddingTop: 26 }}>
-                <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <td className="px-4 py-3">
+                          <span
+                            className={[
+                              "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+                              r.active ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900",
+                            ].join(" ")}
+                          >
+                            {r.active ? "Yes" : "No"}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              disabled={busy || busyId === "create"}
+                              onClick={() => toggleOt(r)}
+                              className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              Toggle OT
+                            </button>
+
+                            <button
+                              disabled={busy || busyId === "create"}
+                              onClick={() => toggleActive(r)}
+                              className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              {r.active ? "Deactivate" : "Activate"}
+                            </button>
+
+                            <button
+                              disabled={busy || busyId === "create"}
+                              onClick={() => deleteDivision(r)}
+                              className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Modal */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-xl">
+              <div className="border-b border-emerald-100 bg-emerald-50/70 px-5 py-4">
+                <div className="text-lg font-semibold text-emerald-950">Add Division</div>
+                <div className="mt-1 text-xs text-emerald-900/70">Stores numbers only. UI shows $ and %.</div>
+              </div>
+
+              <div className="space-y-4 px-5 py-5">
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">Division Name</label>
                   <input
-                    type="checkbox"
-                    checked={allowOvertime}
-                    onChange={(e) => setAllowOvertime(e.target.checked)}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                    placeholder="e.g., Landscaping"
                   />
-                  <span>Allow Overtime (1.5x)</span>
-                </label>
+                </div>
 
-                <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                  <span>Active</span>
-                </label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
+                    <input
+                      value={laborRate}
+                      onChange={(e) => setLaborRate(e.target.value)}
+                      inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                      placeholder="30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Target Gross Profit (%)</label>
+                    <input
+                      value={targetGp}
+                      onChange={(e) => setTargetGp(e.target.value)}
+                      inputMode="numeric"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                      placeholder="50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={allowOt}
+                      onChange={(e) => setAllowOt(e.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    OT Allowed (1.5x)
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={(e) => setActive(e.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    Active
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-emerald-100 bg-white px-5 py-4">
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={busyId === "create"}
+                  onClick={createDivision}
+                  className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                >
+                  {busyId === "create" ? "Creating…" : "Create"}
+                </button>
               </div>
             </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-              <button onClick={() => setOpen(false)} style={{ padding: "10px 14px" }}>
-                Cancel
-              </button>
-              <button
-                onClick={() => createDivision()}
-                disabled={!canSubmit}
-                style={{ padding: "10px 14px" }}
-              >
-                Create
-              </button>
-            </div>
           </div>
+        )}
+
+        <div className="mt-6 text-xs text-emerald-900/60">
+          Note: “Deactivate” is the safest way to remove divisions (keeps history). “Delete” is permanent.
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
