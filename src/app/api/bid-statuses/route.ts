@@ -1,3 +1,4 @@
+// src/app/api/bid-statuses/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -14,9 +15,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("bid_statuses")
-    .select("id,name")
-    .order("id", { ascending: true });
+    .select("id, name")
+    .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  return NextResponse.json({ data });
 }
