@@ -1,228 +1,313 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Status = { id: number; name: string };
-
-type BidRow = {
-  id: number;
-  client_name: string | null;
-  client_last_name: string | null;
-  created_at: string;
-  status_id: number | null;
-  bid_statuses?: { name: string } | null;
+type DivisionRow = {
+  id: string; // UUID
+  name: string;
+  labor_rate: number;
+  target_gross_profit_percent: number;
+  allow_overtime: boolean;
+  active: boolean;
 };
 
-function fmtDate(s: string) {
-  try {
-    return new Date(s).toLocaleString();
-  } catch {
-    return s;
-  }
+type ClientRow = {
+  id: string; // UUID
+  display_name: string;
+};
+
+type CreateProjectPayload = {
+  client_id?: string | null;
+  division_id?: string | null;
+  // sales can override margin on bid (default comes from ops/division but can change later)
+  margin_percent?: number | null;
+  prepay_selected?: boolean | null;
+  // optional fields if your API supports them
+  notes?: string | null;
+};
+
+function asNumberOrNull(v: string): number | null {
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (Number.isNaN(n)) return null;
+  return n;
+}
+
+function extractIdFromResponse(json: any): string | null {
+  // supports: { id: "uuid" } or { data: { id: "uuid" } } or { data: [{ id: "uuid" }] }
+  if (!json) return null;
+  if (typeof json.id === "string") return json.id;
+  if (json.data && typeof json.data.id === "string") return json.data.id;
+  if (Array.isArray(json.data) && json.data.length && typeof json.data[0]?.id === "string") return json.data[0].id;
+  return null;
 }
 
 export default function NewBidPage() {
   const router = useRouter();
 
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [bids, setBids] = useState<BidRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [divisions, setDivisions] = useState<DivisionRow[]>([]);
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingLists, setLoadingLists] = useState<boolean>(false);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [statusId, setStatusId] = useState<number | "">("");
-  const [saving, setSaving] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  // Form fields (minimal “create” — we can add more later)
+  const [clientId, setClientId] = useState<string>("");
+  const [divisionId, setDivisionId] = useState<string>("");
+  const [marginPercent, setMarginPercent] = useState<string>(""); // store as string for input
+  const [prepaySelected, setPrepaySelected] = useState<boolean>(false);
+  const [notes, setNotes] = useState<string>("");
 
-  async function load() {
-    setLoading(true);
-    setErrorMsg("");
+  const selectedDivision = useMemo(
+    () => divisions.find((d) => d.id === divisionId) ?? null,
+    [divisions, divisionId]
+  );
 
-    const [sRes, bRes] = await Promise.all([
-      fetch("/api/bid-statuses", { cache: "no-store" }),
-      fetch("/api/bids", { cache: "no-store" }),
-    ]);
+  async function loadLists() {
+    setLoadingLists(true);
+    try {
+      // Divisions
+      const divRes = await fetch("/api/operations-center/divisions", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      });
+      const divJson = await divRes.json().catch(() => ({}));
+      if (!divRes.ok) {
+        throw new Error(divJson?.error || divJson?.message || "Failed to load divisions.");
+      }
+      const divData: DivisionRow[] = Array.isArray(divJson?.data) ? divJson.data : Array.isArray(divJson) ? divJson : [];
+      setDivisions(divData.filter((d) => d.active));
 
-    const sJson = await sRes.json();
-    const bJson = await bRes.json();
-
-    setStatuses(Array.isArray(sJson?.data) ? sJson.data : []);
-    setBids(Array.isArray(bJson?.data) ? bJson.data : []);
-    setLoading(false);
+      // Clients (optional — if you don’t have clients endpoint yet, comment this block out)
+      const clientRes = await fetch("/api/clients", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      });
+      const clientJson = await clientRes.json().catch(() => ({}));
+      if (clientRes.ok) {
+        const clientData: ClientRow[] = Array.isArray(clientJson?.data)
+          ? clientJson.data
+          : Array.isArray(clientJson)
+            ? clientJson
+            : [];
+        setClients(clientData);
+      } else {
+        // Don’t hard-fail creation if clients aren’t ready yet
+        setClients([]);
+      }
+    } catch (e: any) {
+      alert(e?.message || "Failed to load lists.");
+    } finally {
+      setLoadingLists(false);
+    }
   }
 
-  useEffect(() => {
-    load();
+  React.useEffect(() => {
+    // Auto-load lists when page opens
+    loadLists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canSave = useMemo(() => {
-    return firstName.trim().length > 0 && lastName.trim().length > 0 && !saving;
-  }, [firstName, lastName, saving]);
+  async function handleCreate() {
+    if (!divisionId) {
+      alert("Please select a division.");
+      return;
+    }
 
-  async function createBid() {
-    if (!canSave) return;
-
-    setSaving(true);
-    setErrorMsg("");
-
+    setLoading(true);
     try {
-      const res = await fetch("/api/bids", {
+      const payload: CreateProjectPayload = {
+        client_id: clientId ? clientId : null,
+        division_id: divisionId,
+        margin_percent: asNumberOrNull(marginPercent),
+        prepay_selected: prepaySelected,
+        notes: notes?.trim() ? notes.trim() : null,
+      };
+
+      const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_name: firstName.trim(),
-          client_last_name: lastName.trim(),
-          status_id: statusId === "" ? null : statusId,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setErrorMsg(json?.error || "Failed to create bid");
-        setSaving(false);
-        return;
+        // surface most likely fields
+        const msg =
+          json?.error ||
+          json?.message ||
+          (typeof json === "string" ? json : null) ||
+          "Create failed.";
+        throw new Error(msg);
       }
 
-      const newBid: BidRow = json.data;
-      // send them straight into the bid workspace
-      router.push(`/atlasbid/bids/${newBid.id}`);
+      const newId = extractIdFromResponse(json);
+      if (!newId) {
+        throw new Error("Create succeeded but no project id was returned from /api/projects.");
+      }
+
+      // ✅ IMPORTANT: UUID is a string
+      router.push(`/atlasbid/bid/${newId}`);
     } catch (e: any) {
-      setErrorMsg(e?.message || "Failed to create bid");
-      setSaving(false);
+      alert(e?.message || "Create failed.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-end justify-between gap-6">
+    <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <div>
-          <h1 className="text-3xl font-bold">AtlasBid</h1>
-          <p className="text-gray-500">New Bid (Draft)</p>
+          <h1 style={{ margin: 0 }}>Create Bid</h1>
+          <div style={{ marginTop: 6, opacity: 0.75 }}>
+            Create a bid shell first — then you’ll build labor/material lines inside the bid.
+          </div>
         </div>
 
-        <Link
-          href="/"
-          className="text-sm text-emerald-800 hover:underline"
-        >
-          Back to home
-        </Link>
-      </div>
-
-      {/* CREATE */}
-      <div className="border rounded-xl p-6 bg-white shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Create Draft</h2>
+        <div style={{ display: "flex", gap: 10 }}>
           <button
-            onClick={load}
-            className="text-sm px-3 py-2 rounded-lg border hover:bg-gray-50"
+            type="button"
+            onClick={loadLists}
+            disabled={loadingLists || loading}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              background: "white",
+              cursor: loadingLists || loading ? "not-allowed" : "pointer",
+            }}
           >
-            Refresh
+            {loadingLists ? "Refreshing…" : "Refresh lists"}
           </button>
-        </div>
 
-        {errorMsg ? (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-            {errorMsg}
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm text-gray-600">Client First Name</label>
-            <input
-              className="w-full border rounded-lg p-2"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="John"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm text-gray-600">Client Last Name</label>
-            <input
-              className="w-full border rounded-lg p-2"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Smith"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm text-gray-600">Status</label>
-            <select
-              className="w-full border rounded-lg p-2 bg-white"
-              value={statusId}
-              onChange={(e) => {
-                const v = e.target.value;
-                setStatusId(v === "" ? "" : Number(v));
-              }}
-            >
-              <option value="">(Optional)</option>
-              {statuses.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="pt-2">
           <button
-            onClick={createBid}
-            disabled={!canSave}
-            className="bg-emerald-700 disabled:bg-emerald-300 text-white rounded-lg px-4 py-2 font-medium"
+            type="button"
+            onClick={() => router.push("/atlasbid")}
+            disabled={loading}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              background: "white",
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
           >
-            {saving ? "Saving..." : "Create Draft"}
+            Back to bids
           </button>
         </div>
       </div>
 
-      {/* LIST */}
-      <div className="border rounded-xl p-6 bg-white shadow-sm space-y-4">
-        <h2 className="text-lg font-semibold">Drafts & Recent Bids</h2>
+      <div style={{ marginTop: 18, border: "1px solid #e5e5e5", borderRadius: 12, padding: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Bid setup</h2>
 
-        {loading ? (
-          <div className="text-gray-500">Loading…</div>
-        ) : bids.length === 0 ? (
-          <div className="text-gray-500">No bids yet.</div>
-        ) : (
-          <div className="overflow-auto">
-            <div className="min-w-[780px] grid grid-cols-12 gap-3 text-xs font-semibold text-gray-600 border-b pb-2">
-              <div className="col-span-1">ID</div>
-              <div className="col-span-4">Client</div>
-              <div className="col-span-3">Status</div>
-              <div className="col-span-3">Created</div>
-              <div className="col-span-1 text-right">Open</div>
-            </div>
+        {/* Client (optional) */}
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>Client (optional)</div>
+          <select
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          >
+            <option value="">— Select client —</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-            <div className="divide-y">
-              {bids.map((b) => (
-                <div key={b.id} className="min-w-[780px] grid grid-cols-12 gap-3 py-3 text-sm items-center">
-                  <div className="col-span-1 text-gray-700">{b.id}</div>
-                  <div className="col-span-4 font-medium">
-                    {(b.client_name || "").trim()} {(b.client_last_name || "").trim()}
-                  </div>
-                  <div className="col-span-3 text-gray-700">
-                    {b.bid_statuses?.name || "—"}
-                  </div>
-                  <div className="col-span-3 text-gray-500">{fmtDate(b.created_at)}</div>
-                  <div className="col-span-1 text-right">
-                    <Link
-                      className="text-emerald-800 hover:underline"
-                      href={`/atlasbid/bids/${b.id}`}
-                    >
-                      Open
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Division */}
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>Division (required)</div>
+          <select
+            value={divisionId}
+            onChange={(e) => {
+              setDivisionId(e.target.value);
+              // default margin to division target GP% as a starting point (sales can change later too)
+              const next = divisions.find((d) => d.id === e.target.value);
+              if (next) setMarginPercent(String(next.target_gross_profit_percent));
+            }}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          >
+            <option value="">— Select division —</option>
+            {divisions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Margin % */}
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>Gross profit % (override)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              value={marginPercent}
+              onChange={(e) => setMarginPercent(e.target.value)}
+              placeholder={selectedDivision ? String(selectedDivision.target_gross_profit_percent) : "e.g. 50"}
+              inputMode="decimal"
+              style={{ width: 140, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+            />
+            <div style={{ opacity: 0.75 }}>%</div>
+            {selectedDivision ? (
+              <div style={{ marginLeft: 10, opacity: 0.75 }}>
+                Division target: {selectedDivision.target_gross_profit_percent}%
+              </div>
+            ) : null}
           </div>
-        )}
+        </div>
+
+        {/* Prepay */}
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>Prepay</div>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            <input type="checkbox" checked={prepaySelected} onChange={(e) => setPrepaySelected(e.target.checked)} />
+            <span>Offer prepay discount (toggle)</span>
+          </label>
+        </div>
+
+        {/* Notes */}
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 10, alignItems: "start", marginBottom: 14 }}>
+          <div style={{ fontWeight: 600 }}>Notes (optional)</div>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd", width: "100%" }}
+            placeholder="Internal notes (optional)"
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={loading}
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: "1px solid #1b5e20",
+              background: loading ? "#c8e6c9" : "#2e7d32",
+              color: "white",
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              minWidth: 140,
+            }}
+          >
+            {loading ? "Creating…" : "Create bid"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14, opacity: 0.7, fontSize: 13 }}>
+        Next step after this: the bid detail page (labor/material lines, pricing calc, and export text).
       </div>
     </div>
   );
