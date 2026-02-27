@@ -14,14 +14,13 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const bidId = Number(id);
 
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from("bids")
     .select("id, client_name, client_last_name, status_id, created_at")
-    .eq("id", bidId)
+    .eq("id", id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
