@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Division = {
   id: string;
@@ -13,158 +14,116 @@ type Division = {
   created_at: string;
 };
 
-type Client = {
-  id: string;
-  name: string;
-  created_at: string;
-};
-
-export default function CreateBidPage() {
+export default function NewBidPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [divisions, setDivisions] = useState<Division[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
 
-  // Form state
+  // Form fields
   const [divisionId, setDivisionId] = useState<string>("");
-  const [clientId, setClientId] = useState<string>("");
-  const [newClientName, setNewClientName] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
+  const [clientLastName, setClientLastName] = useState<string>("");
+  const [internalNotes, setInternalNotes] = useState<string>("");
 
-  const [marginPercent, setMarginPercent] = useState<number>(0);
+  const selectedDivision = useMemo(() => {
+    return divisions.find((d) => d.id === divisionId) ?? null;
+  }, [divisions, divisionId]);
 
-  // optional: local user email storage (until Google login is wired)
-  const [creatorEmail, setCreatorEmail] = useState<string>("");
+  const defaultGpDisplay = useMemo(() => {
+    if (!selectedDivision) return "—";
+    const n = Number(selectedDivision.target_gross_profit_percent);
+    if (!Number.isFinite(n)) return "—";
+    return `${n.toFixed(0)}%`;
+  }, [selectedDivision]);
 
-  const activeDivisions = useMemo(
-    () => divisions.filter((d) => d.active),
-    [divisions]
-  );
-
-  async function loadData() {
+  async function loadDivisions() {
     setLoading(true);
     setError(null);
 
     try {
-      const [dRes, cRes] = await Promise.all([
-        fetch("/api/divisions", { cache: "no-store" }),
-        fetch("/api/clients", { cache: "no-store" }).catch(() => null as any),
-      ]);
+      const res = await fetch("/api/divisions", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
 
-      const dJson = await dRes.json();
-      if (!dRes.ok) throw new Error(dJson?.error ?? "Failed to load divisions");
-      setDivisions(dJson.data ?? []);
-
-      // clients route might not exist yet
-      if (cRes && (cRes as Response).ok) {
-        const cJson = await (cRes as Response).json();
-        setClients(cJson.data ?? []);
-      } else {
-        setClients([]);
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Failed to load divisions");
       }
 
-      // try to pull email from localStorage (temporary until Google auth)
-      try {
-        const saved = window.localStorage.getItem("atlas_user_email") || "";
-        setCreatorEmail(saved);
-      } catch {
-        // ignore
+      const rows: Division[] = (json?.data ?? []).filter((d: Division) => d.active !== false);
+
+      setDivisions(rows);
+
+      // Auto-select first division if none selected
+      if (!divisionId && rows.length > 0) {
+        setDivisionId(rows[0].id);
       }
     } catch (e: any) {
-      setError(e?.message ?? "Unknown error");
+      setError(e?.message ?? "Unknown error loading divisions");
     } finally {
       setLoading(false);
     }
   }
 
-  // Step 5: default GP% to selected division target
   useEffect(() => {
-    if (!divisionId) return;
-    const selected = divisions.find((d) => d.id === divisionId);
-    if (selected) setMarginPercent(Number(selected.target_gross_profit_percent));
-  }, [divisionId, divisions]);
-
-  useEffect(() => {
-    loadData();
+    loadDivisions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function addClient() {
+  async function onCreate() {
     setError(null);
 
-    const name = newClientName.trim();
-    if (!name) {
-      setError("Client name is required to add a client.");
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error ?? "Failed to create client");
-
-      const created: Client = json.data;
-      setClients((prev) => [created, ...prev]);
-      setClientId(created.id);
-      setNewClientName("");
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to add client");
-    }
-  }
-
-  async function createBid() {
-    setError(null);
+    const first = clientName.trim();
+    const last = clientLastName.trim();
 
     if (!divisionId) {
       setError("Division is required.");
       return;
     }
-
-    // store email (temporary approach)
-    try {
-      if (creatorEmail.trim()) {
-        window.localStorage.setItem("atlas_user_email", creatorEmail.trim());
-      }
-    } catch {
-      // ignore
+    if (!first || !last) {
+      setError("Client first + last name are required.");
+      return;
     }
 
-    setSaving(true);
+    setSubmitting(true);
 
     try {
-      const res = await fetch("/api/projects", {
+      const res = await fetch("/api/bids", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // temporary until we wire Google auth:
-          ...(creatorEmail.trim() ? { "x-user-email": creatorEmail.trim() } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          client_name: first,
+          client_last_name: last,
           division_id: divisionId,
-          client_id: clientId || null,
-          margin_percent: marginPercent,
-          // notes should be on bid list only; do NOT ask here
-          internal_notes: null,
+          internal_notes: internalNotes?.trim() || null,
+          // status_id is optional here; if your DB default handles it, leave null
+          status_id: null,
         }),
       });
 
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error ?? "Failed to create bid");
 
-      const newBid = json.data;
-      router.push(`/atlasbid/bids/${newBid.id}`);
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Failed to create bid");
+      }
+
+      // ✅ IMPORTANT: your API returns { data: { id: ... } }
+      const newId = json?.data?.id;
+
+      if (!newId) {
+        throw new Error("Create succeeded but no id returned from API.");
+      }
+
+      router.push(`/atlasbid/bids/${newId}`);
     } catch (e: any) {
-      setError(e?.message ?? "Create bid failed");
-    } finally {
-      setSaving(false);
+      setError(e?.message ?? "Create failed");
+      setSubmitting(false);
+      return;
     }
+
+    // leave submitting true while navigation happens
   }
 
   return (
@@ -174,16 +133,25 @@ export default function CreateBidPage() {
           <div>
             <h1 className="text-2xl font-semibold text-[#123b1f]">Create Bid</h1>
             <p className="mt-1 text-sm text-[#3d5a45]">
-              Select division + (optional) client, then create the bid.
+              Choose a division, enter the client, add internal notes (optional), then create.
             </p>
           </div>
 
-          <button
-            onClick={() => router.push("/atlasbid")}
-            className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
-          >
-            Back to bids
-          </button>
+          <div className="flex gap-2">
+            <Link
+              href="/atlasbid/bids"
+              className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
+            >
+              Back to Bids
+            </Link>
+
+            <button
+              onClick={loadDivisions}
+              className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -192,121 +160,84 @@ export default function CreateBidPage() {
           </div>
         )}
 
-        <div className="mt-6 rounded-xl border border-[#d7e6db] bg-white p-5 shadow-sm">
+        <div className="mt-6 rounded-xl border border-[#d7e6db] bg-white p-6 shadow-sm">
           {loading ? (
-            <div className="py-10 text-sm text-[#3d5a45]">Loading…</div>
+            <div className="text-sm text-[#3d5a45]">Loading…</div>
           ) : (
-            <div className="space-y-5">
-              {/* Creator email (temporary until Google auth) */}
-              <div>
-                <label className="block text-sm font-medium text-[#123b1f]">
-                  Created by (email) — temporary
-                </label>
-                <input
-                  value={creatorEmail}
-                  onChange={(e) => setCreatorEmail(e.target.value)}
-                  placeholder="name@company.com"
-                  className="mt-1 w-full rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
-                />
-                <p className="mt-1 text-xs text-[#6b7f71]">
-                  We’ll replace this with Google login capture. For now it feeds the bid list “Created By”.
-                </p>
-              </div>
-
+            <div className="space-y-6">
               {/* Division */}
-              <div>
-                <label className="block text-sm font-medium text-[#123b1f]">
-                  Division (required)
-                </label>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[#123b1f]">Division</label>
                 <select
                   value={divisionId}
                   onChange={(e) => setDivisionId(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-[#cfe2d3] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                  className="w-full rounded-md border border-[#cfe1d4] bg-white px-3 py-2 text-sm text-[#123b1f] focus:outline-none focus:ring-2 focus:ring-[#1e7a3a]"
                 >
-                  <option value="">— Select division —</option>
-                  {activeDivisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* GP% */}
-              <div>
-                <label className="block text-sm font-medium text-[#123b1f]">
-                  Gross Profit % (defaults from division, editable)
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={Number.isFinite(marginPercent) ? marginPercent : 0}
-                    onChange={(e) => setMarginPercent(Number(e.target.value))}
-                    className="w-32 rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
-                    min={0}
-                    max={100}
-                    step={0.1}
-                  />
-                  <span className="text-sm text-[#3d5a45]">%</span>
-                </div>
-                <p className="mt-1 text-xs text-[#6b7f71]">
-                  This will warn later if below division target (on bid pricing screen).
-                </p>
-              </div>
-
-              {/* Client select + add */}
-              <div>
-                <label className="block text-sm font-medium text-[#123b1f]">
-                  Client (optional)
-                </label>
-
-                <select
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-[#cfe2d3] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
-                >
-                  <option value="">— No client selected —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  {divisions.length === 0 ? (
+                    <option value="">No divisions available</option>
+                  ) : (
+                    divisions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))
+                  )}
                 </select>
 
-                <div className="mt-3 flex gap-2">
+                <div className="text-xs text-[#6b7f71]">
+                  Default GP% for this division:{" "}
+                  <span className="font-semibold text-[#123b1f]">{defaultGpDisplay}</span>
+                </div>
+              </div>
+
+              {/* Client */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-[#123b1f]">Client First Name</label>
                   <input
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder="Add new client name…"
-                    className="flex-1 rounded-md border border-[#cfe2d3] px-3 py-2 text-sm outline-none focus:border-[#1e7a3a]"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="e.g., John"
+                    className="w-full rounded-md border border-[#cfe1d4] bg-white px-3 py-2 text-sm text-[#123b1f] placeholder:text-[#92a69a] focus:outline-none focus:ring-2 focus:ring-[#1e7a3a]"
                   />
-                  <button
-                    type="button"
-                    onClick={addClient}
-                    className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
-                  >
-                    Add Client
-                  </button>
                 </div>
 
-                <p className="mt-1 text-xs text-[#6b7f71]">
-                  If Add Client fails, you likely don’t have <code>/api/clients</code> yet.
-                </p>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-[#123b1f]">Client Last Name</label>
+                  <input
+                    value={clientLastName}
+                    onChange={(e) => setClientLastName(e.target.value)}
+                    placeholder="e.g., Smith"
+                    className="w-full rounded-md border border-[#cfe1d4] bg-white px-3 py-2 text-sm text-[#123b1f] placeholder:text-[#92a69a] focus:outline-none focus:ring-2 focus:ring-[#1e7a3a]"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[#123b1f]">Internal Notes (optional)</label>
+                <textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  placeholder="Internal notes only (shows on bid list)."
+                  rows={3}
+                  className="w-full rounded-md border border-[#cfe1d4] bg-white px-3 py-2 text-sm text-[#123b1f] placeholder:text-[#92a69a] focus:outline-none focus:ring-2 focus:ring-[#1e7a3a]"
+                />
               </div>
 
               {/* Actions */}
-              <div className="pt-2">
+              <div className="flex items-center justify-end gap-2 border-t border-[#edf3ee] pt-4">
                 <button
-                  disabled={saving}
-                  onClick={createBid}
-                  className="rounded-md bg-[#1e7a3a] px-4 py-2 text-sm font-medium text-white hover:bg-[#16602d] disabled:opacity-60"
+                  onClick={onCreate}
+                  disabled={submitting || loading}
+                  className="rounded-md bg-[#1e7a3a] px-4 py-2 text-sm font-medium text-white hover:bg-[#16602d] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? "Creating…" : "Create bid"}
+                  {submitting ? "Creating…" : "Create Bid"}
                 </button>
+              </div>
 
-                <p className="mt-3 text-xs text-[#6b7f71]">
-                  Prepay is intentionally NOT here anymore — it will be selected at the end of the bid.
-                </p>
+              <div className="text-xs text-[#6b7f71]">
+                Prepay is selected at the end of the bid (not here).
               </div>
             </div>
           )}
