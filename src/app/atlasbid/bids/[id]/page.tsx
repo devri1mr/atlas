@@ -2,21 +2,20 @@ import BidDetailClient from "./BidDetailClient";
 
 export const dynamic = "force-dynamic";
 
-export default function Page({
-  params,
-}: {
-  params: { id: string };
-}) {
-  if (!params?.id) {
+export default function Page(props: any) {
+  console.log("PAGE PROPS:", props);
+
+  const id = props?.params?.id;
+
+  if (!id) {
     return (
       <div style={{ padding: 24 }}>
         <div style={{ color: "red" }}>
-          Invalid bid id. This page must be opened at
-          /atlasbid/bids/&lt;uuid&gt;
+          Invalid bid id. Debug: {JSON.stringify(props)}
         </div>
       </div>
     );
   }
 
-  return <BidDetailClient bidId={params.id} />;
+  return <BidDetailClient bidId={id} />;
 }
