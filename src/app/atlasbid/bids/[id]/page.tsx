@@ -2,6 +2,12 @@ import BidDetailClient from "./BidDetailClient";
 
 export const dynamic = "force-dynamic";
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <BidDetailClient bidId={params.id} />;
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  return <BidDetailClient bidId={id} />;
 }
