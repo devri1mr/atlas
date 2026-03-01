@@ -19,9 +19,9 @@ function isUuid(v: string) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const { id } = params;
+  const id = context.params?.id;
 
   if (!id || !isUuid(id)) {
     return NextResponse.json({ error: "Invalid bid id" }, { status: 400 });
@@ -46,9 +46,9 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const { id } = params;
+  const id = context.params?.id;
 
   if (!id || !isUuid(id)) {
     return NextResponse.json({ error: "Invalid bid id" }, { status: 400 });
@@ -127,7 +127,9 @@ export async function PATCH(
     .from("bids")
     .update(updates)
     .eq("id", id)
-    .select("id, client_name, client_last_name, status_id, internal_notes, created_at")
+    .select(
+      "id, client_name, client_last_name, status_id, internal_notes, created_at"
+    )
     .single();
 
   if (error) {
