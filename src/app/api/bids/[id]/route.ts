@@ -19,9 +19,9 @@ function isUuid(v: string) {
 
 export async function GET(
   _req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const id = context.params?.id;
+  const { id } = await context.params;
 
   if (!id || !isUuid(id)) {
     return NextResponse.json({ error: "Invalid bid id" }, { status: 400 });
@@ -46,15 +46,15 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const id = context.params?.id;
+  const { id } = await context.params;
 
   if (!id || !isUuid(id)) {
     return NextResponse.json({ error: "Invalid bid id" }, { status: 400 });
   }
 
-  let body: any = null;
+  let body: any;
   try {
     body = await req.json();
   } catch {
@@ -66,10 +66,7 @@ export async function PATCH(
   if (body.client_name !== undefined) updates.client_name = body.client_name;
   if (body.client_last_name !== undefined)
     updates.client_last_name = body.client_last_name;
-
-  // status_id can be null to clear
   if (body.status_id !== undefined) updates.status_id = body.status_id;
-
   if (body.internal_notes !== undefined)
     updates.internal_notes = body.internal_notes;
 
@@ -78,47 +75,6 @@ export async function PATCH(
       { error: "No fields provided to update" },
       { status: 400 }
     );
-  }
-
-  // Basic validation
-  if (
-    updates.client_name !== undefined &&
-    typeof updates.client_name !== "string"
-  ) {
-    return NextResponse.json(
-      { error: "client_name must be a string" },
-      { status: 400 }
-    );
-  }
-
-  if (
-    updates.client_last_name !== undefined &&
-    typeof updates.client_last_name !== "string"
-  ) {
-    return NextResponse.json(
-      { error: "client_last_name must be a string" },
-      { status: 400 }
-    );
-  }
-
-  if (
-    updates.internal_notes !== undefined &&
-    updates.internal_notes !== null &&
-    typeof updates.internal_notes !== "string"
-  ) {
-    return NextResponse.json(
-      { error: "internal_notes must be a string or null" },
-      { status: 400 }
-    );
-  }
-
-  if (updates.status_id !== undefined && updates.status_id !== null) {
-    if (typeof updates.status_id !== "number") {
-      return NextResponse.json(
-        { error: "status_id must be a number or null" },
-        { status: 400 }
-      );
-    }
   }
 
   const supabase = getSupabase();
