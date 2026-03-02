@@ -15,37 +15,58 @@ type Bid = {
 export default function BidDetailClient({ bidId }: { bidId: string }) {
   const [bid, setBid] = useState<Bid | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
+        setLoading(true);
+
         const res = await fetch(`/api/bids/${bidId}`);
         const json = await res.json();
 
         if (!res.ok) {
           setError(json.error || "Failed to load bid");
+          setLoading(false);
           return;
         }
 
-        setBid(json);
-      } catch {
+        // IMPORTANT: your API returns { data: {...} }
+        setBid(json.data);
+      } catch (err) {
         setError("Network error");
+      } finally {
+        setLoading(false);
       }
     }
 
-    load();
+    if (bidId) {
+      load();
+    }
   }, [bidId]);
+
+  if (loading) {
+    return <div style={{ padding: 24 }}>Loading...</div>;
+  }
 
   if (error) {
     return (
       <div style={{ padding: 24 }}>
         <div style={{ color: "red" }}>{error}</div>
+        <br />
+        <Link href="/atlasbid/bids">Back to bids</Link>
       </div>
     );
   }
 
   if (!bid) {
-    return <div style={{ padding: 24 }}>Loading...</div>;
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ color: "red" }}>Bid not found</div>
+        <br />
+        <Link href="/atlasbid/bids">Back to bids</Link>
+      </div>
+    );
   }
 
   return (
@@ -64,8 +85,12 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
       </p>
 
-      <br />
+      <p>
+        <strong>Created At:</strong>{" "}
+        {new Date(bid.created_at).toLocaleString()}
+      </p>
 
+      <br />
       <Link href="/atlasbid/bids">Back to bids</Link>
     </div>
   );
