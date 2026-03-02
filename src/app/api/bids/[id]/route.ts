@@ -6,14 +6,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+type Ctx = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+
   const { data, error } = await supabase
     .from("bids")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error) {
@@ -23,17 +26,16 @@ export async function GET(
   return NextResponse.json({ data });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+
   try {
     const body = await req.json();
 
     const { data, error } = await supabase
       .from("bids")
       .update(body)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -41,11 +43,11 @@ export async function PATCH(
       return NextResponse.json({ error }, { status: 500 });
     }
 
-    // ✅ THIS IS WHAT YOU WERE MISSING
+    // ✅ always return JSON
     return NextResponse.json({ data });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Update failed" },
+      { error: err?.message || "Update failed" },
       { status: 500 }
     );
   }
