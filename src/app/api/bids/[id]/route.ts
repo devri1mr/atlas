@@ -42,8 +42,7 @@ export async function GET(
       statuses:status_id (
         id,
         name,
-        color,
-        sort_order
+        color
       )
       `
     )
@@ -107,8 +106,7 @@ export async function PATCH(
       statuses:status_id (
         id,
         name,
-        color,
-        sort_order
+        color
       )
       `
     )
