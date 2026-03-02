@@ -29,8 +29,7 @@ export async function GET() {
       statuses:status_id (
         id,
         name,
-        color,
-        sort_order
+        color
       )
       `
     )
@@ -59,14 +58,9 @@ export async function POST(req: NextRequest) {
   const client_name = body?.client_name;
   const client_last_name = body?.client_last_name;
 
-  // Optional fields
   const status_id = body?.status_id ?? null;
   const internal_notes = body?.internal_notes ?? null;
   const division_id = body?.division_id ?? null;
-
-  /* =========================
-     VALIDATION
-  ========================= */
 
   if (!client_name || !client_last_name) {
     return NextResponse.json(
@@ -102,10 +96,6 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-
-  /* =========================
-     INSERT
-  ========================= */
 
   const { data, error } = await supabase
     .from("bids")
