@@ -9,6 +9,9 @@ function getSupabase() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
+/* =========================
+   GET ALL BIDS
+========================= */
 export async function GET() {
   const supabase = getSupabase();
 
@@ -22,8 +25,12 @@ export async function GET() {
       created_at,
       status_id,
       internal_notes,
-      bid_statuses(name)
-    `
+      statuses (
+        id,
+        name,
+        color
+      )
+      `
     )
     .order("created_at", { ascending: false });
 
@@ -34,6 +41,9 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
+/* =========================
+   CREATE NEW BID
+========================= */
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
 
@@ -51,6 +61,10 @@ export async function POST(req: NextRequest) {
   const status_id = body?.status_id ?? null;
   const internal_notes = body?.internal_notes ?? null;
   const division_id = body?.division_id ?? null;
+
+  /* =========================
+     VALIDATION
+  ========================= */
 
   if (!client_name || !client_last_name) {
     return NextResponse.json(
@@ -87,6 +101,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /* =========================
+     INSERT
+  ========================= */
+
   const { data, error } = await supabase
     .from("bids")
     .insert({
@@ -97,7 +115,14 @@ export async function POST(req: NextRequest) {
       division_id,
     })
     .select(
-      "id, client_name, client_last_name, status_id, internal_notes, created_at"
+      `
+      id,
+      client_name,
+      client_last_name,
+      status_id,
+      internal_notes,
+      created_at
+      `
     )
     .single();
 
