@@ -3,12 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type StatusJoin = {
+  id: string | number;
+  name: string | null;
+  color?: string | null;
+};
+
 type BidRow = {
   id: string;
   client_name: string | null;
   client_last_name: string | null;
   created_at: string | null;
-  status_id: string | null;
+  status_id: string | number | null;
+  // joined status (from /api/bids select statuses(...))
+  statuses?: StatusJoin | null;
 };
 
 function fmtDate(iso: string | null) {
@@ -18,6 +26,19 @@ function fmtDate(iso: string | null) {
   } catch {
     return iso;
   }
+}
+
+function safeCssColor(c?: string | null) {
+  if (!c) return null;
+  const s = String(c).trim();
+  // allow hex like #RRGGBB / #RGB
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return s;
+  // allow rgb/rgba
+  if (/^rgba?\(/i.test(s)) return s;
+  // allow hsl/hsla
+  if (/^hsla?\(/i.test(s)) return s;
+  // otherwise don't trust it for inline styles
+  return null;
 }
 
 export default function BidsPage() {
@@ -60,14 +81,14 @@ export default function BidsPage() {
           <div className="flex gap-2">
             <button
               onClick={load}
-              className="rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
+              className="cursor-pointer rounded-md border border-[#9cc4a6] bg-white px-3 py-2 text-sm font-medium text-[#123b1f] hover:bg-[#eef6f0]"
             >
               Refresh
             </button>
 
             <Link
               href="/atlasbid/new"
-              className="rounded-md bg-[#1e7a3a] px-3 py-2 text-sm font-medium text-white hover:bg-[#16602d]"
+              className="cursor-pointer rounded-md bg-[#1e7a3a] px-3 py-2 text-sm font-medium text-white hover:bg-[#16602d]"
             >
               Create Bid
             </Link>
@@ -86,7 +107,7 @@ export default function BidsPage() {
               <thead>
                 <tr className="bg-[#eef6f0] text-left text-[#123b1f]">
                   <th className="px-4 py-3 font-semibold">Client</th>
-                  <th className="px-4 py-3 font-semibold">Status ID</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Created</th>
                   <th className="px-4 py-3 font-semibold text-right">Action</th>
                 </tr>
@@ -106,24 +127,56 @@ export default function BidsPage() {
                     </td>
                   </tr>
                 ) : (
-                  rows.map((b) => (
-                    <tr key={b.id} className="border-t border-[#edf3ee]">
-                      <td className="px-4 py-3 font-medium text-[#123b1f]">
-                        {(b.client_name ?? "").trim()}{" "}
-                        {(b.client_last_name ?? "").trim() || ""}
-                      </td>
-                      <td className="px-4 py-3">{b.status_id ?? "—"}</td>
-                      <td className="px-4 py-3">{fmtDate(b.created_at)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/atlasbid/bids/${b.id}`}
-                          className="rounded-md border border-[#9cc4a6] bg-white px-2.5 py-1.5 text-xs font-medium text-[#123b1f] hover:bg-[#eef6f0]"
-                        >
-                          Open
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                  rows.map((b) => {
+                    const statusName =
+                      (b.statuses?.name ?? "").trim() ||
+                      (b.status_id !== null && b.status_id !== undefined
+                        ? String(b.status_id)
+                        : "—");
+
+                    const badgeColor = safeCssColor(b.statuses?.color);
+
+                    return (
+                      <tr key={b.id} className="border-t border-[#edf3ee]">
+                        <td className="px-4 py-3 font-medium text-[#123b1f]">
+                          {(b.client_name ?? "").trim()}{" "}
+                          {(b.client_last_name ?? "").trim() || ""}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center gap-2 rounded-full border border-[#d7e6db] bg-white px-2.5 py-1 text-xs font-medium text-[#123b1f]"
+                            style={
+                              badgeColor
+                                ? {
+                                    borderColor: badgeColor,
+                                    color: badgeColor,
+                                  }
+                                : undefined
+                            }
+                            title={
+                              b.statuses?.id !== undefined && b.statuses?.id !== null
+                                ? `Status ID: ${b.statuses.id}`
+                                : undefined
+                            }
+                          >
+                            {statusName || "—"}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3">{fmtDate(b.created_at)}</td>
+
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/atlasbid/bids/${b.id}`}
+                            className="cursor-pointer rounded-md border border-[#9cc4a6] bg-white px-2.5 py-1.5 text-xs font-medium text-[#123b1f] hover:bg-[#eef6f0]"
+                          >
+                            Open
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
