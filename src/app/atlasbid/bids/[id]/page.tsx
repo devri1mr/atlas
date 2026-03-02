@@ -1,4 +1,4 @@
-import BidDetailClient from "@/components/BidDetailClient";
+import BidDetailClient from "./BidDetailClient";
 
 export default async function BidOverviewPage({
   params,
@@ -6,6 +6,5 @@ export default async function BidOverviewPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
   return <BidDetailClient bidId={id} />;
 }
