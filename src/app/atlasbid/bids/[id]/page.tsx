@@ -1,11 +1,11 @@
-import BidDetailClient from "./BidDetailClient";
+import BidDetailClient from "@/components/BidDetailClient";
 
-export const dynamic = "force-dynamic";
-
-export default async function Page({
+export default async function BidOverviewPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  return <BidDetailClient bidId={params.id} />;
+  const { id } = await params;
+
+  return <BidDetailClient bidId={id} />;
 }
