@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Division = {
@@ -62,7 +62,7 @@ export default function NewBidPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          division_id: Number(divisionId), // 🔥 Critical fix
+          division_id: Number(divisionId), // critical
           client_name: clientFirstName,
           client_last_name: clientLastName,
           internal_notes: internalNotes || null,
@@ -75,7 +75,6 @@ export default function NewBidPage() {
         throw new Error(json.error || "Failed to create bid");
       }
 
-      // Redirect to new bid page
       router.push(`/atlasbid/bids/${json.data.id}`);
     } catch (err: any) {
       setError(err.message);
@@ -84,103 +83,225 @@ export default function NewBidPage() {
     }
   }
 
-  const selectedDivision = divisions.find(
-    (d) => d.id === Number(divisionId)
+  const selectedDivision = useMemo(
+    () => divisions.find((d) => d.id === Number(divisionId)),
+    [divisions, divisionId]
   );
 
+  const styles: Record<string, React.CSSProperties> = {
+    page: {
+      minHeight: "calc(100vh - 40px)",
+      padding: 24,
+      background: "#f6f7f9",
+    },
+    shell: {
+      maxWidth: 860,
+      margin: "24px auto",
+    },
+    card: {
+      background: "#fff",
+      border: "1px solid #e6e8ee",
+      borderRadius: 12,
+      padding: 24,
+      boxShadow: "0 6px 18px rgba(16, 24, 40, 0.06)",
+    },
+    header: {
+      marginBottom: 18,
+    },
+    title: {
+      margin: 0,
+      fontSize: 22,
+      fontWeight: 700,
+      letterSpacing: "-0.02em",
+      color: "#111827",
+    },
+    subtitle: {
+      marginTop: 8,
+      marginBottom: 0,
+      color: "#4b5563",
+      fontSize: 14,
+      lineHeight: 1.4,
+    },
+    error: {
+      background: "#fff1f2",
+      color: "#9f1239",
+      border: "1px solid #fecdd3",
+      padding: 12,
+      marginTop: 16,
+      borderRadius: 10,
+      fontSize: 14,
+    },
+    form: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 16,
+      marginTop: 18,
+    },
+    row2: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 16,
+    },
+    field: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: 600,
+      color: "#111827",
+    },
+    input: {
+      width: "100%",
+      padding: "10px 12px",
+      border: "1px solid #d1d5db",
+      borderRadius: 10,
+      outline: "none",
+      fontSize: 14,
+      background: "#fff",
+    },
+    select: {
+      width: "100%",
+      padding: "10px 12px",
+      border: "1px solid #d1d5db",
+      borderRadius: 10,
+      outline: "none",
+      fontSize: 14,
+      background: "#fff",
+      cursor: "pointer", // hand cursor (clickable)
+    },
+    textarea: {
+      width: "100%",
+      padding: "10px 12px",
+      border: "1px solid #d1d5db",
+      borderRadius: 10,
+      outline: "none",
+      fontSize: 14,
+      background: "#fff",
+      resize: "vertical",
+    },
+    helper: {
+      fontSize: 13,
+      color: "#6b7280",
+      marginTop: 6,
+    },
+    helperStrong: {
+      color: "#111827",
+      fontWeight: 700,
+    },
+    actions: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginTop: 8,
+    },
+    button: {
+      background: "#2e7d32",
+      color: "white",
+      padding: "12px 16px",
+      border: "none",
+      borderRadius: 10,
+      cursor: "pointer",
+      fontSize: 14,
+      fontWeight: 700,
+      minWidth: 160,
+    },
+    buttonDisabled: {
+      opacity: 0.65,
+      cursor: "not-allowed",
+    },
+  };
+
   return (
-    <div style={{ maxWidth: 700, margin: "40px auto" }}>
-      <h1>Create Bid</h1>
-      <p>
-        Choose a division, enter the client, add internal notes (optional),
-        then create.
-      </p>
+    <div style={styles.page}>
+      <div style={styles.shell}>
+        <div style={styles.card}>
+          <div style={styles.header}>
+            <h1 style={styles.title}>Create Bid</h1>
+            <p style={styles.subtitle}>
+              Choose a division, enter the client, add internal notes (optional), then create.
+            </p>
 
-      {error && (
-        <div
-          style={{
-            background: "#ffe6e6",
-            color: "#a80000",
-            padding: 12,
-            marginBottom: 16,
-            borderRadius: 4,
-          }}
-        >
-          {error}
-        </div>
-      )}
+            {error && <div style={styles.error}>{error}</div>}
+          </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Division */}
-        <div>
-          <label>Division</label>
-          <select
-            value={divisionId}
-            onChange={(e) => setDivisionId(e.target.value)}
-            style={{ width: "100%", padding: 8 }}
-          >
-            <option value="">Select Division</option>
-            {divisions.map((division) => (
-              <option key={division.id} value={division.id}>
-                {division.name}
-              </option>
-            ))}
-          </select>
+          <div style={styles.form}>
+            {/* Division */}
+            <div style={styles.field}>
+              <label style={styles.label}>Division</label>
+              <select
+                value={divisionId}
+                onChange={(e) => setDivisionId(e.target.value)}
+                style={styles.select}
+              >
+                <option value="">Select Division</option>
+                {divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
+                  </option>
+                ))}
+              </select>
 
-          {selectedDivision && (
-            <div style={{ marginTop: 8, fontSize: 14, color: "#666" }}>
-              Default GP% for this division:{" "}
-              <strong>{selectedDivision.default_gp_percent}%</strong>
+              {selectedDivision && (
+                <div style={styles.helper}>
+                  Default GP% for this division:{" "}
+                  <span style={styles.helperStrong}>
+                    {selectedDivision.default_gp_percent}%
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Client Name */}
-        <div style={{ display: "flex", gap: 16 }}>
-          <div style={{ flex: 1 }}>
-            <label>Client First Name</label>
-            <input
-              value={clientFirstName}
-              onChange={(e) => setClientFirstName(e.target.value)}
-              style={{ width: "100%", padding: 8 }}
-            />
+            {/* Client Name */}
+            <div style={styles.row2}>
+              <div style={styles.field}>
+                <label style={styles.label}>Client First Name</label>
+                <input
+                  value={clientFirstName}
+                  onChange={(e) => setClientFirstName(e.target.value)}
+                  style={styles.input}
+                  placeholder="First name"
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Client Last Name</label>
+                <input
+                  value={clientLastName}
+                  onChange={(e) => setClientLastName(e.target.value)}
+                  style={styles.input}
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+
+            {/* Internal Notes */}
+            <div style={styles.field}>
+              <label style={styles.label}>Internal Notes (optional)</label>
+              <textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                rows={5}
+                style={styles.textarea}
+                placeholder="Anything the crew / ops team should know…"
+              />
+            </div>
+
+            {/* Actions */}
+            <div style={styles.actions}>
+              <button
+                onClick={handleCreateBid}
+                disabled={loading}
+                style={{
+                  ...styles.button,
+                  ...(loading ? styles.buttonDisabled : null),
+                }}
+              >
+                {loading ? "Creating..." : "Create Bid"}
+              </button>
+            </div>
           </div>
-
-          <div style={{ flex: 1 }}>
-            <label>Client Last Name</label>
-            <input
-              value={clientLastName}
-              onChange={(e) => setClientLastName(e.target.value)}
-              style={{ width: "100%", padding: 8 }}
-            />
-          </div>
         </div>
-
-        {/* Internal Notes */}
-        <div>
-          <label>Internal Notes (optional)</label>
-          <textarea
-            value={internalNotes}
-            onChange={(e) => setInternalNotes(e.target.value)}
-            rows={4}
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
-
-        <button
-          onClick={handleCreateBid}
-          disabled={loading}
-          style={{
-            background: "#2e7d32",
-            color: "white",
-            padding: "10px 16px",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-          }}
-        >
-          {loading ? "Creating..." : "Create Bid"}
-        </button>
       </div>
     </div>
   );
