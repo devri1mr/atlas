@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 type Bid = {
   id: string;
@@ -12,17 +13,31 @@ type Bid = {
   created_at: string;
 };
 
-export default function BidDetailClient({ bidId }: { bidId: string }) {
+export default function BidDetailClient({ bidId }: { bidId?: string }) {
+  const params = useParams();
+
+  // Grab id from either prop OR URL
+  const idFromUrl = useMemo(() => {
+    const raw = (params as any)?.id;
+
+    // Next can give string | string[]
+    if (Array.isArray(raw)) return raw[0] ?? "";
+    return typeof raw === "string" ? raw : "";
+  }, [params]);
+
+  const effectiveBidId = bidId && bidId.trim().length > 0 ? bidId.trim() : idFromUrl;
+
   const [bid, setBid] = useState<Bid | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("BidDetailClient bidId =", bidId);
+    console.log("BidDetailClient bidId prop =", bidId);
+    console.log("BidDetailClient idFromUrl   =", idFromUrl);
+    console.log("BidDetailClient effective   =", effectiveBidId);
 
-    // If bidId is missing, don't hang forever
-    if (!bidId) {
-      setError("Missing bid id in the URL (params.id is empty).");
+    if (!effectiveBidId) {
+      setError("Missing bid id in the URL (id is empty).");
       setLoading(false);
       return;
     }
@@ -34,14 +49,13 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/bids/${bidId}`, {
+        const res = await fetch(`/api/bids/${effectiveBidId}`, {
           cache: "no-store",
           signal: controller.signal,
         });
 
-        // If API returns HTML (like a redirect page), this makes it obvious
         const text = await res.text();
-        let json: any = null;
+        let json: any;
 
         try {
           json = JSON.parse(text);
@@ -68,9 +82,8 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     }
 
     load();
-
     return () => controller.abort();
-  }, [bidId]);
+  }, [bidId, idFromUrl, effectiveBidId]);
 
   if (loading) {
     return <div style={{ padding: 24 }}>Loading...</div>;
@@ -113,7 +126,8 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       </p>
 
       <p>
-        <strong>Created At:</strong> {new Date(bid.created_at).toLocaleString()}
+        <strong>Created At:</strong>{" "}
+        {new Date(bid.created_at).toLocaleString()}
       </p>
 
       <br />
