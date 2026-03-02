@@ -1,75 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, serviceKey, { auth: { persistSession: false } });
-}
-
-/**
- * GET /api/bids/:id
- * NOTE: Some Next.js/Vercel builds type ctx.params as a Promise.
- * Use Promise<{id:string}> to avoid TS build failures.
- */
 export async function GET(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  { params }: { params: { id: string } }
 ) {
-  const supabase = getSupabase();
-
-  const { id } = await ctx.params;
-
   const { data, error } = await supabase
     .from("bids")
-    .select(
-      `
-      id,
-      client_name,
-      client_last_name,
-      created_at,
-      status_id,
-      internal_notes,
-      division_id,
-      statuses (
-        id,
-        name,
-        color
-      )
-      `
-    )
-    .eq("id", id)
+    .select("*")
+    .eq("id", params.id)
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   return NextResponse.json({ data });
 }
 
-/**
- * DELETE /api/bids/:id
- * Soft delete if you have is_deleted; otherwise hard delete.
- * Keep this minimal and safe.
- */
-export async function DELETE(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
 ) {
-  const supabase = getSupabase();
-  const { id } = await ctx.params;
+  try {
+    const body = await req.json();
 
-  // If you have soft-delete column, prefer it:
-  // const { error } = await supabase.from("bids").update({ is_deleted: true }).eq("id", id);
+    const { data, error } = await supabase
+      .from("bids")
+      .update(body)
+      .eq("id", params.id)
+      .select()
+      .single();
 
-  const { error } = await supabase.from("bids").delete().eq("id", id);
+    if (error) {
+      return NextResponse.json({ error }, { status: 500 });
+    }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // ✅ THIS IS WHAT YOU WERE MISSING
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Update failed" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ ok: true });
 }
