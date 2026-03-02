@@ -21,28 +21,33 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     async function load() {
       try {
         setLoading(true);
+        setError(null);
 
-        const res = await fetch(`/api/bids/${bidId}`);
+        // ✅ Use absolute URL in production to avoid App Router hydration fetch quirks
+        const res = await fetch(
+          `${window.location.origin}/api/bids/${bidId}`,
+          { cache: "no-store" }
+        );
+
         const json = await res.json();
 
         if (!res.ok) {
           setError(json.error || "Failed to load bid");
-          setLoading(false);
+          setBid(null);
           return;
         }
 
-        // IMPORTANT: your API returns { data: {...} }
+        // API returns { data: {...} }
         setBid(json.data);
       } catch (err) {
         setError("Network error");
+        setBid(null);
       } finally {
         setLoading(false);
       }
     }
 
-    if (bidId) {
-      load();
-    }
+    if (bidId) load();
   }, [bidId]);
 
   if (loading) {
@@ -86,8 +91,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       </p>
 
       <p>
-        <strong>Created At:</strong>{" "}
-        {new Date(bid.created_at).toLocaleString()}
+        <strong>Created At:</strong> {new Date(bid.created_at).toLocaleString()}
       </p>
 
       <br />
