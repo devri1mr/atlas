@@ -10,6 +10,14 @@ type Project = {
   division_id: number;
 };
 
+type ComplexityLevel = {
+  id: string; // uuid
+  name: string;
+  multiplier: number; // ex: 1, 1.12, 1.22...
+  display_order?: number | null;
+  is_active?: boolean | null;
+};
+
 type LaborRow = {
   id: number;
   project_id: number;
@@ -19,6 +27,15 @@ type LaborRow = {
   unit: string;
   man_hours: number;
   hourly_rate: number;
+
+  // NEW
+  complexity_level_id?: string | null;
+
+  // Optional joined info if your API returns it
+  complexity_levels?: {
+    name?: string | null;
+    multiplier?: number | null;
+  } | null;
 };
 
 type BidSettings = {
@@ -45,6 +62,11 @@ function roundUpToIncrement(n: number, inc: number) {
   return Math.ceil(value / increment) * increment;
 }
 
+function safeNum(n: any, fallback = 0) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : fallback;
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = Number(params?.id);
@@ -55,12 +77,19 @@ export default function ProjectDetailPage() {
 
   const [blendedRate, setBlendedRate] = useState<number>(0);
 
+  // Complexity
+  const [complexityLevels, setComplexityLevels] = useState<ComplexityLevel[]>([]);
+  const [complexityError, setComplexityError] = useState<string | null>(null);
+
   // Labor input
   const [task, setTask] = useState("");
   const [item, setItem] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
   const [unit, setUnit] = useState("");
   const [hours, setHours] = useState<number>(0);
+
+  // NEW: selected complexity for new row
+  const [complexityLevelId, setComplexityLevelId] = useState<string>("");
 
   // Sales-editable
   const [targetGpPct, setTargetGpPct] = useState<number>(50);
@@ -72,6 +101,36 @@ export default function ProjectDetailPage() {
 
   // Sales toggle only
   const [prepayEnabled, setPrepayEnabled] = useState<boolean>(false);
+
+  // Load complexity levels (global)
+  useEffect(() => {
+    async function loadComplexity() {
+      setComplexityError(null);
+      try {
+        const res = await fetch("/api/complexity-levels", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error ?? "Failed to load complexity levels");
+
+        const rows: ComplexityLevel[] = Array.isArray(json?.data) ? json.data : [];
+        // Only active, sorted by display_order then name
+        const filtered = rows
+          .filter((r) => r?.is_active !== false)
+          .sort((a, b) => {
+            const ao = safeNum(a.display_order, 9999);
+            const bo = safeNum(b.display_order, 9999);
+            if (ao !== bo) return ao - bo;
+            return String(a.name || "").localeCompare(String(b.name || ""));
+          });
+
+        setComplexityLevels(filtered);
+      } catch (e: any) {
+        setComplexityLevels([]);
+        setComplexityError(e?.message ?? "Failed to load complexity levels");
+      }
+    }
+
+    loadComplexity();
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -135,9 +194,40 @@ export default function ProjectDetailPage() {
     load();
   }, [projectId]);
 
+  const complexityMultiplierById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of complexityLevels) {
+      map.set(c.id, safeNum(c.multiplier, 1));
+    }
+    return map;
+  }, [complexityLevels]);
+
+  function getRowMultiplier(row: LaborRow) {
+    // Prefer joined multiplier if present, otherwise map lookup, else 1
+    const joined = row?.complexity_levels?.multiplier;
+    if (joined !== undefined && joined !== null) return safeNum(joined, 1);
+    const id = row?.complexity_level_id || "";
+    if (!id) return 1;
+    return safeNum(complexityMultiplierById.get(id), 1);
+  }
+
+  function getRowComplexityLabel(row: LaborRow) {
+    const joinedName = row?.complexity_levels?.name;
+    if (joinedName) return String(joinedName);
+    const id = row?.complexity_level_id || "";
+    if (!id) return "—";
+    const found = complexityLevels.find((c) => c.id === id);
+    return found?.name ?? "—";
+  }
+
   const laborSubtotal = useMemo(() => {
-    return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
-  }, [labor]);
+    return labor.reduce((sum, r) => {
+      const hrs = safeNum(r.man_hours, 0);
+      const rate = safeNum(r.hourly_rate, 0);
+      const mult = getRowMultiplier(r);
+      return sum + hrs * rate * mult;
+    }, 0);
+  }, [labor, complexityMultiplierById]); // multiplierById affects totals
 
   async function addLabor() {
     const res = await fetch("/api/atlasbid/labor", {
@@ -151,6 +241,9 @@ export default function ProjectDetailPage() {
         unit,
         man_hours: hours,
         hourly_rate: blendedRate,
+
+        // NEW
+        complexity_level_id: complexityLevelId || null,
       }),
     });
 
@@ -162,6 +255,7 @@ export default function ProjectDetailPage() {
       setQuantity(0);
       setUnit("");
       setHours(0);
+      setComplexityLevelId("");
     } else {
       alert(json?.error?.message || json?.error || "Error adding labor");
     }
@@ -174,6 +268,36 @@ export default function ProjectDetailPage() {
     } else {
       alert("Failed to delete labor row");
     }
+  }
+
+  // Optional: allow changing complexity on an existing row
+  async function updateLaborComplexity(rowId: number, newId: string) {
+    const res = await fetch(`/api/atlasbid/labor/${rowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        complexity_level_id: newId || null,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(json?.error?.message || json?.error || "Failed to update complexity");
+      return;
+    }
+
+    setLabor((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              complexity_level_id: newId || null,
+              // Clear joined object so UI reuses map until next reload
+              complexity_levels: r.complexity_levels ? { ...r.complexity_levels } : r.complexity_levels,
+            }
+          : r
+      )
+    );
   }
 
   // ---- PRICING CALCS ----
@@ -226,36 +350,125 @@ export default function ProjectDetailPage() {
             Blended labor rate (excludes trucking):{" "}
             <span className="font-semibold">${blendedRate.toFixed(2)} / hr</span>
           </div>
+          {complexityError && (
+            <div className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+              Failed to load complexity levels: {complexityError}
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-6 gap-4">
-          <input className="border p-2 rounded" placeholder="Task" value={task} onChange={(e) => setTask(e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Item" value={item} onChange={(e) => setItem(e.target.value)} />
-          <input className="border p-2 rounded" type="number" placeholder="Qty" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-          <input className="border p-2 rounded" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
-          <input className="border p-2 rounded" type="number" placeholder="Hours" value={hours} onChange={(e) => setHours(Number(e.target.value))} />
-          <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4">Add</button>
+        {/* Add Labor Row */}
+        <div className="grid grid-cols-7 gap-4">
+          <input
+            className="border p-2 rounded"
+            placeholder="Task"
+            value={task}
+            onChange={(e) => setTask(e.target.value)}
+          />
+          <input
+            className="border p-2 rounded"
+            placeholder="Item"
+            value={item}
+            onChange={(e) => setItem(e.target.value)}
+          />
+          <input
+            className="border p-2 rounded"
+            type="number"
+            placeholder="Qty"
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+          />
+          <input
+            className="border p-2 rounded"
+            placeholder="Unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <input
+            className="border p-2 rounded"
+            type="number"
+            placeholder="Hours"
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+          />
+
+          {/* NEW: Complexity select */}
+          <select
+            className="border p-2 rounded bg-white"
+            value={complexityLevelId}
+            onChange={(e) => setComplexityLevelId(e.target.value)}
+          >
+            <option value="">Standard Complexity (1.00)</option>
+            {complexityLevels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({safeNum(c.multiplier, 1).toFixed(2)})
+              </option>
+            ))}
+          </select>
+
+          <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4">
+            Add
+          </button>
         </div>
 
-        <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2">
-          <div>Task</div><div>Item</div><div>Qty</div><div>Unit</div><div>Hours</div><div>Rate</div><div>Total</div><div></div>
+        {/* Header */}
+        <div className="grid grid-cols-10 gap-4 font-semibold text-sm border-b pb-2">
+          <div>Task</div>
+          <div>Item</div>
+          <div>Qty</div>
+          <div>Unit</div>
+          <div>Hours</div>
+          <div>Rate</div>
+          <div>Complexity</div>
+          <div>Mult</div>
+          <div>Total</div>
+          <div></div>
         </div>
 
         {labor.length === 0 ? (
           <p className="text-gray-400">No labor added yet.</p>
         ) : (
           labor.map((row) => {
-            const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+            const hrs = safeNum(row.man_hours, 0);
+            const rate = safeNum(row.hourly_rate, 0);
+            const mult = getRowMultiplier(row);
+            const rowTotal = hrs * rate * mult;
+
             return (
-              <div key={row.id} className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center">
+              <div
+                key={row.id}
+                className="grid grid-cols-10 gap-4 border p-2 rounded text-sm items-center"
+              >
                 <div>{row.task}</div>
                 <div>{row.item}</div>
                 <div>{row.quantity}</div>
                 <div>{row.unit}</div>
-                <div>{row.man_hours}</div>
-                <div>${Number(row.hourly_rate).toFixed(2)}</div>
+                <div>{hrs}</div>
+                <div>${rate.toFixed(2)}</div>
+
+                {/* Complexity selector per row */}
+                <div>
+                  <select
+                    className="border rounded p-1 bg-white w-full"
+                    value={row.complexity_level_id || ""}
+                    onChange={(e) => updateLaborComplexity(row.id, e.target.value)}
+                  >
+                    <option value="">Standard Complexity</option>
+                    {complexityLevels.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>{mult.toFixed(2)}</div>
                 <div>${rowTotal.toFixed(2)}</div>
-                <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-right">
+
+                <button
+                  onClick={() => deleteLaborRow(row.id)}
+                  className="text-red-600 hover:underline text-right"
+                >
                   Delete
                 </button>
               </div>
@@ -263,7 +476,9 @@ export default function ProjectDetailPage() {
           })
         )}
 
-        <div className="text-right font-semibold pt-4 border-t">Labor Subtotal: ${laborSubtotal.toFixed(2)}</div>
+        <div className="text-right font-semibold pt-4 border-t">
+          Labor Subtotal: ${laborSubtotal.toFixed(2)}
+        </div>
       </div>
 
       {/* PRICING */}
@@ -273,7 +488,9 @@ export default function ProjectDetailPage() {
         <div className="grid grid-cols-2 gap-6">
           {/* Left controls */}
           <div className="space-y-3">
-            <label className="block text-sm text-gray-600">Target Gross Profit % (Sales editable)</label>
+            <label className="block text-sm text-gray-600">
+              Target Gross Profit % (Sales editable)
+            </label>
             <input
               className="border p-2 rounded w-full"
               type="number"
@@ -283,7 +500,11 @@ export default function ProjectDetailPage() {
             <div className="text-xs text-gray-500">Default comes from Ops Center.</div>
 
             <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
-              <input type="checkbox" checked={prepayEnabled} onChange={(e) => setPrepayEnabled(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={prepayEnabled}
+                onChange={(e) => setPrepayEnabled(e.target.checked)}
+              />
               Apply prepay discount
             </label>
 
