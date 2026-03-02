@@ -1,3 +1,4 @@
+// src/app/api/bids/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -25,10 +26,11 @@ export async function GET() {
       created_at,
       status_id,
       internal_notes,
-      statuses (
+      statuses:status_id (
         id,
         name,
-        color
+        color,
+        sort_order
       )
       `
     )
