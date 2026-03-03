@@ -571,7 +571,7 @@ export default function BidScopePage() {
 
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
                   <input type="checkbox" checked={prepayEnabled} onChange={(e) => setPrepayEnabled(e.target.checked)} />
-                  Apply prepay discount (100% upfront check)
+                  Apply prepay discount (100% payment via check up-front)
                 </label>
 
                 <div className="text-xs text-gray-500">
@@ -595,12 +595,12 @@ export default function BidScopePage() {
                 </div>
 
                 <div className="flex justify-between pt-4">
-                  <span className="text-gray-800">Sell price</span>
+                  <span className="text-gray-800">Project price</span>
                   <span className="font-bold text-emerald-700">{money(sellRounded)}</span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-gray-800">Sell price (with prepay)</span>
+                  <span className="text-gray-800">Project price (with prepay)</span>
                   <span className="font-bold text-emerald-700">{money(sellWithPrepay)}</span>
                 </div>
 
