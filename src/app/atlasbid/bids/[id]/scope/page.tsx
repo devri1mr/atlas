@@ -1,3 +1,4 @@
+// src/app/atlasbid/bids/[id]/scope/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -9,6 +10,7 @@ type Bid = {
   client_last_name?: string | null;
   division_id?: string | null; // uuid
   status_id?: string | null;
+  trucking_hours?: number | null; // ✅ persisted
 };
 
 type Division = {
@@ -59,7 +61,7 @@ function money(n: number) {
 
 export default function BidScopePage() {
   const params = useParams();
-  const bidId = String(params?.id || "");
+  const bidId = String((params as any)?.id || "");
 
   const [loading, setLoading] = useState(true);
   const [bid, setBid] = useState<Bid | null>(null);
@@ -89,17 +91,21 @@ export default function BidScopePage() {
   // Trucking (Landscaping only, uses same division rate)
   const [truckingHours, setTruckingHours] = useState<number>(0);
 
+  // ✅ Trucking autosave UX
+  const [savingTrucking, setSavingTrucking] = useState(false);
+  const [truckingSaveError, setTruckingSaveError] = useState<string | null>(
+    null
+  );
+
   async function loadAll() {
     if (!bidId) return;
     setLoading(true);
     setError("");
 
     try {
-      // 1) Load bid (IMPORTANT: API returns { data }, not { bid })
+      // 1) Load bid (API returns { data })
       const bRes = await fetch(`/api/bids/${bidId}`, { cache: "no-store" });
       const bJson = await bRes.json();
-
-      // ✅ Step 1 fix:
       const b: Bid | null = bJson?.data ?? null;
 
       if (!b) {
@@ -110,19 +116,20 @@ export default function BidScopePage() {
 
       setBid(b);
 
-      // 2) Load divisions for gate (only needed if division_id is null OR for showing name)
-      // If your divisions endpoint differs, change here.
+      // ✅ hydrate trucking hours from DB
+      setTruckingHours(Number(b.trucking_hours ?? 0));
+
+      // 2) Load divisions for gate
       const dRes = await fetch(`/api/divisions`, { cache: "no-store" });
       const dJson = await dRes.json();
       const divs: Division[] = dJson?.divisions ?? dJson?.data ?? dJson ?? [];
-      // Prefer active ones if that flag exists
       const cleaned = Array.isArray(divs) ? divs : [];
       setDivisions(cleaned);
 
       // Preselect
-     if (b.division_id && !divisionPick) setDivisionPick(b.division_id);
+      if (b.division_id) setDivisionPick(b.division_id);
 
-      // Stop here if division not chosen yet (Step 2 B)
+      // Stop here if division not chosen yet
       if (!b.division_id) {
         setLoading(false);
         return;
@@ -130,18 +137,22 @@ export default function BidScopePage() {
 
       const divisionId = b.division_id;
 
-     // 3) 1 standard rate per division
-const rateRes = await fetch(
-  `/api/atlasbid/blended-rate?division_id=${divisionId}`,
-  { cache: "no-store" }
-);
-const rateJson = await rateRes.json();
-setDivisionRate(Number(rateJson?.blended_rate || 0));
+      // 3) ✅ Pull 1 division rate from NEW endpoint
+      const rateRes = await fetch(`/api/labor-rates`, { cache: "no-store" });
+      const rateJson = await rateRes.json();
+
+      const rateRow =
+        Array.isArray(rateJson?.rates) && rateJson.rates.length > 0
+          ? (rateJson.rates as any[]).find((r) => r.division_id === divisionId)
+          : null;
+
+      setDivisionRate(Number(rateRow?.hourly_rate ?? 0));
 
       // 4) Bid settings (ops)
-      const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
-        cache: "no-store",
-      });
+      const sRes = await fetch(
+        `/api/atlasbid/bid-settings?division_id=${divisionId}`,
+        { cache: "no-store" }
+      );
       const sJson = await sRes.json();
       const settings: BidSettings | null = sJson?.settings ?? sJson?.data ?? null;
 
@@ -163,7 +174,9 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
       }
 
       // 5) Labor rows for this bid
-      const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, { cache: "no-store" });
+      const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
+        cache: "no-store",
+      });
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
     } catch (e: any) {
@@ -178,9 +191,47 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidId]);
 
+  // ✅ Debounced autosave for trucking hours (persists to bids.trucking_hours)
+  useEffect(() => {
+    if (!bid?.id) return;
+
+    // If you want to avoid autosave during initial load, this helps:
+    // only autosave when bid exists AND loading is false
+    if (loading) return;
+
+    const t = setTimeout(async () => {
+      setSavingTrucking(true);
+      setTruckingSaveError(null);
+      try {
+        const res = await fetch(`/api/bids/${bid.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trucking_hours: Number(truckingHours) || 0 }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json?.error?.message || json?.error || "Failed to save trucking hours");
+        }
+        // keep bid in sync
+        setBid(json?.data ?? bid);
+      } catch (e: any) {
+        setTruckingSaveError(e?.message || "Failed to save trucking hours");
+      } finally {
+        setSavingTrucking(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [truckingHours, bid?.id, loading]);
+
   // ---- Labor calcs ----
   const laborSubtotal = useMemo(() => {
-    return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
+    return labor.reduce(
+      (sum, r) =>
+        sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+      0
+    );
   }, [labor]);
 
   const truckingCost = useMemo(() => {
@@ -191,6 +242,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
     return laborSubtotal + truckingCost;
   }, [laborSubtotal, truckingCost]);
 
+  // ✅ contingency still calculated but hidden in UI
   const contingencyCost = useMemo(() => {
     const pct = (Number(contingencyPct) || 0) / 100;
     return laborPlusTrucking * pct;
@@ -206,6 +258,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
     return totalCost / (1 - gp);
   }, [totalCost, targetGpPct]);
 
+  // ✅ rounding still applied but wording removed
   const sellRounded = useMemo(() => {
     return roundUpToIncrement(targetSell, roundUpIncrement);
   }, [targetSell, roundUpIncrement]);
@@ -228,7 +281,6 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
     setError("");
 
     try {
-      // ✅ IMPORTANT: If your endpoint differs, change THIS line only.
       const res = await fetch(`/api/bids/${bidId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -240,7 +292,6 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
         throw new Error(json?.error?.message || json?.error || "Failed to save division.");
       }
 
-      // reload everything now that division is set
       await loadAll();
     } catch (e: any) {
       setError(e?.message || "Failed to save division.");
@@ -252,11 +303,11 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
   async function addLabor() {
     setError("");
 
-    // Basic validation to avoid “0” junk
     if (!task.trim()) return setError("Task is required.");
     if (!item.trim()) return setError("Item is required.");
     if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
-    if ((Number(divisionRate) || 0) <= 0) return setError("Division rate is 0. Set the division + rate first.");
+    if ((Number(divisionRate) || 0) <= 0)
+      return setError("Division rate is 0. Set the division + rate first.");
 
     const res = await fetch(`/api/atlasbid/bid-labor`, {
       method: "POST",
@@ -324,7 +375,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
         <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">{error}</div>
       ) : null}
 
-      {/* ✅ Step 2 (B): Gate Scope until division selected */}
+      {/* Division Gate */}
       {!bid.division_id ? (
         <div className="border rounded-lg p-6 space-y-4">
           <h2 className="text-xl font-semibold">Select Division to Continue</h2>
@@ -377,7 +428,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
               </div>
             </div>
 
-            {/* Column headers ABOVE inputs (your request) */}
+            {/* Column headers ABOVE inputs */}
             <div className="grid grid-cols-6 gap-4 text-xs font-semibold text-gray-600">
               <div>Task</div>
               <div>Item</div>
@@ -427,7 +478,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
               </div>
             </div>
 
-            {/* Table headers (with $ context) */}
+            {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
               <div>Task</div>
               <div>Item</div>
@@ -465,12 +516,23 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
             )}
           </div>
 
-          {/* TRUCKING (single entry) */}
+          {/* TRUCKING (persisted) */}
           <div className="border rounded-lg p-6 space-y-3">
-            <h2 className="text-xl font-semibold">Trucking</h2>
-            <div className="text-sm text-gray-500">
-              Single trucking entry (Landscaping only). Uses the same division rate.
+            <div className="flex items-start justify-between gap-6">
+              <div>
+                <h2 className="text-xl font-semibold">Trucking</h2>
+                <div className="text-sm text-gray-500">
+                  Single trucking entry (Landscaping only). Uses the same division rate.
+                </div>
+              </div>
+              <div className="text-right text-sm">
+                {savingTrucking ? <span className="text-gray-500">Saving…</span> : null}
+              </div>
             </div>
+
+            {truckingSaveError ? (
+              <div className="text-sm text-red-600">{truckingSaveError}</div>
+            ) : null}
 
             <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
               <div>
@@ -493,7 +555,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
             </div>
           </div>
 
-          {/* PRICING PREVIEW */}
+          {/* PRICING PREVIEW (contingency hidden, rounded label removed) */}
           <div className="border rounded-lg p-6 space-y-5">
             <h2 className="text-xl font-semibold">Pricing Preview</h2>
 
@@ -526,10 +588,6 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
                   <span className="text-gray-600">Trucking cost</span>
                   <span className="font-semibold">{money(truckingCost)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Contingency</span>
-                  <span className="font-semibold">{money(contingencyCost)}</span>
-                </div>
 
                 <div className="flex justify-between border-t pt-2">
                   <span className="text-gray-800">Total cost</span>
@@ -537,7 +595,7 @@ setDivisionRate(Number(rateJson?.blended_rate || 0));
                 </div>
 
                 <div className="flex justify-between pt-4">
-                  <span className="text-gray-800">Sell price (rounded)</span>
+                  <span className="text-gray-800">Sell price</span>
                   <span className="font-bold text-emerald-700">{money(sellRounded)}</span>
                 </div>
 
