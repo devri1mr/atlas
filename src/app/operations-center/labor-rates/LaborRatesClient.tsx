@@ -1,23 +1,21 @@
+// src/app/operations-center/labor-rates/LaborRatesClient.tsx
 "use client";
 
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X, Trash2, RefreshCw, Check } from "lucide-react";
 
-type Division = { id: number; name: string };
+type Division = { id: string; name: string };
 
-type LaborRateRow = {
-  id: number;
-  division_id: number | null;
-  job_role_id: number | null; // legacy column (we will ignore it)
-  hourly_rate: number | null;
+type DivisionRateRow = {
+  division_id: string;
+  hourly_rate: number;
+  updated_at?: string;
 };
 
 type ApiGetResponse = {
-  rates: LaborRateRow[];
+  rates: DivisionRateRow[];
   divisions: Division[];
-  // roles may still exist in API response, but UI no longer uses them
-  roles?: any[];
 };
 
 function toNumber(v: any): number {
@@ -31,36 +29,47 @@ function toNumber(v: any): number {
 }
 
 function money(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
 }
 
-type Toast = { id: string; kind: "success" | "error"; title: string; detail?: string };
+type Toast = {
+  id: string;
+  kind: "success" | "error";
+  title: string;
+  detail?: string;
+};
 
 export default function LaborRatesClient() {
   const [loading, setLoading] = React.useState(false);
-  const [rates, setRates] = React.useState<LaborRateRow[]>([]);
+  const [rates, setRates] = React.useState<DivisionRateRow[]>([]);
   const [divisions, setDivisions] = React.useState<Division[]>([]);
   const [q, setQ] = React.useState("");
 
-  // per-row drafts (keep spreadsheet feel)
-  const [draftRates, setDraftRates] = React.useState<Record<number, string>>({});
-  const [draftDivision, setDraftDivision] = React.useState<Record<number, number | "">>({});
-  const [savingId, setSavingId] = React.useState<number | null>(null);
+  // per-row drafts (spreadsheet feel)
+  const [draftRate, setDraftRate] = React.useState<Record<string, string>>({});
+  const [savingDivisionId, setSavingDivisionId] = React.useState<string | null>(
+    null
+  );
 
   // add modal
   const [addOpen, setAddOpen] = React.useState(false);
-  const [newDivisionId, setNewDivisionId] = React.useState<number | "">("");
+  const [newDivisionId, setNewDivisionId] = React.useState<string>("");
   const [newRate, setNewRate] = React.useState<string>("");
 
   // delete modal
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const [deleteTarget, setDeleteTarget] = React.useState<LaborRateRow | null>(null);
-  const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<DivisionRateRow | null>(
+    null
+  );
+  const [deleting, setDeleting] = React.useState(false);
 
   const [toast, setToast] = React.useState<Toast | null>(null);
 
   const divisionName = React.useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<string, string>();
     divisions.forEach((d) => map.set(d.id, d.name));
     return map;
   }, [divisions]);
@@ -69,15 +78,19 @@ export default function LaborRatesClient() {
     setLoading(true);
     try {
       const res = await fetch("/api/labor-rates", { cache: "no-store" });
-      const txt = await res.text();
-      const json = (txt ? JSON.parse(txt) : {}) as ApiGetResponse;
+      const json = (await res.json()) as ApiGetResponse;
 
       if (!res.ok) throw new Error((json as any)?.error || `HTTP ${res.status}`);
 
       setRates(Array.isArray(json.rates) ? json.rates : []);
       setDivisions(Array.isArray(json.divisions) ? json.divisions : []);
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Load failed", detail: e?.message });
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "error",
+        title: "Load failed",
+        detail: e?.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -92,43 +105,35 @@ export default function LaborRatesClient() {
     if (!query) return rates;
 
     return rates.filter((r) => {
-      const dName = r.division_id ? divisionName.get(r.division_id) ?? "" : "";
+      const dName = divisionName.get(r.division_id) ?? "";
       const rateStr = r.hourly_rate != null ? String(r.hourly_rate) : "";
-      return dName.toLowerCase().includes(query) || rateStr.toLowerCase().includes(query);
+      return (
+        dName.toLowerCase().includes(query) ||
+        rateStr.toLowerCase().includes(query)
+      );
     });
   }, [q, rates, divisionName]);
 
-  function isRowEdited(row: LaborRateRow) {
-    const id = row.id;
-    const rateDraft = draftRates[id];
-    const divDraft = draftDivision[id];
-
-    const rateChanged = rateDraft !== undefined && toNumber(rateDraft) !== (row.hourly_rate ?? 0);
-    const divChanged = divDraft !== undefined && (divDraft === "" ? null : divDraft) !== row.division_id;
-
-    return rateChanged || divChanged;
+  function isRowEdited(row: DivisionRateRow) {
+    const draft = draftRate[row.division_id];
+    return (
+      draft !== undefined && toNumber(draft) !== (Number(row.hourly_rate) || 0)
+    );
   }
 
-  async function saveRow(row: LaborRateRow) {
-    const id = row.id;
-    setSavingId(id);
+  async function saveRow(row: DivisionRateRow) {
+    const division_id = row.division_id;
+    setSavingDivisionId(division_id);
 
     try {
-      const payload: any = { id };
-
-      const rateDraft = draftRates[id];
-      if (rateDraft !== undefined) payload.hourly_rate = toNumber(rateDraft);
-
-      const divDraft = draftDivision[id];
-      if (divDraft !== undefined && divDraft !== "") payload.division_id = divDraft;
-
-      // If user never touched dropdown, preserve existing
-      if (payload.division_id === undefined && typeof row.division_id === "number") payload.division_id = row.division_id;
+      const rateDraft = draftRate[division_id];
+      const hourly_rate =
+        rateDraft !== undefined ? toNumber(rateDraft) : Number(row.hourly_rate);
 
       const res = await fetch("/api/labor-rates", {
-        method: "PATCH",
+        method: "PATCH", // API accepts PATCH (upsert)
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ division_id, hourly_rate }),
       });
 
       const txt = await res.text();
@@ -136,32 +141,38 @@ export default function LaborRatesClient() {
 
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-      const updated: LaborRateRow = data.rate;
+      const updated: DivisionRateRow = data.rate;
 
-      setRates((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      setRates((prev) =>
+        prev.map((r) => (r.division_id === division_id ? updated : r))
+      );
       setToast({ id: crypto.randomUUID(), kind: "success", title: "Saved" });
 
-      // clear drafts for that row
-      setDraftRates((prev) => {
+      // clear draft for that division
+      setDraftRate((prev) => {
         const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
-      setDraftDivision((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
+        delete copy[division_id];
         return copy;
       });
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Save failed", detail: e?.message });
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "error",
+        title: "Save failed",
+        detail: e?.message,
+      });
     } finally {
-      setSavingId(null);
+      setSavingDivisionId(null);
     }
   }
 
   async function createRow() {
-    if (newDivisionId === "") {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Select a division" });
+    if (!newDivisionId) {
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "error",
+        title: "Select a division",
+      });
       return;
     }
 
@@ -169,14 +180,9 @@ export default function LaborRatesClient() {
 
     try {
       const res = await fetch("/api/labor-rates", {
-        method: "POST",
+        method: "POST", // API upserts by division_id
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          division_id: newDivisionId,
-          // IMPORTANT: roles removed — send null for legacy compatibility
-          job_role_id: null,
-          hourly_rate,
-        }),
+        body: JSON.stringify({ division_id: newDivisionId, hourly_rate }),
       });
 
       const txt = await res.text();
@@ -185,36 +191,51 @@ export default function LaborRatesClient() {
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
       if (data?.rate) {
-        setRates((prev) => [data.rate as LaborRateRow, ...prev]);
+        const rate: DivisionRateRow = data.rate;
+
+        setRates((prev) => {
+          const exists = prev.some((r) => r.division_id === rate.division_id);
+          if (exists) return prev.map((r) => (r.division_id === rate.division_id ? rate : r));
+          return [rate, ...prev];
+        });
       } else {
-        await load(); // safe fallback
+        await load();
       }
 
-      setToast({ id: crypto.randomUUID(), kind: "success", title: "Added", detail: "Division rate created." });
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "success",
+        title: "Added",
+        detail: "Division rate saved.",
+      });
 
       setAddOpen(false);
       setNewDivisionId("");
       setNewRate("");
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Add failed", detail: e?.message });
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "error",
+        title: "Add failed",
+        detail: e?.message,
+      });
     }
   }
 
-  function openDelete(row: LaborRateRow) {
+  function openDelete(row: DivisionRateRow) {
     setDeleteTarget(row);
     setDeleteOpen(true);
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
-    const id = deleteTarget.id;
-    setDeletingId(id);
+    setDeleting(true);
 
     try {
       const res = await fetch("/api/labor-rates", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ division_id: deleteTarget.division_id }),
       });
 
       const txt = await res.text();
@@ -222,26 +243,42 @@ export default function LaborRatesClient() {
 
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-      setRates((prev) => prev.filter((r) => r.id !== id));
+      setRates((prev) =>
+        prev.filter((r) => r.division_id !== deleteTarget.division_id)
+      );
+
       setToast({ id: crypto.randomUUID(), kind: "success", title: "Deleted" });
 
       setDeleteOpen(false);
       setDeleteTarget(null);
     } catch (e: any) {
-      setToast({ id: crypto.randomUUID(), kind: "error", title: "Delete failed", detail: e?.message });
+      setToast({
+        id: crypto.randomUUID(),
+        kind: "error",
+        title: "Delete failed",
+        detail: e?.message,
+      });
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
     }
   }
+
+  // For the add dropdown: only show divisions that do NOT already have a rate row
+  const divisionsWithoutRate = React.useMemo(() => {
+    const existing = new Set(rates.map((r) => r.division_id));
+    return divisions.filter((d) => !existing.has(d.id));
+  }, [divisions, rates]);
 
   return (
     <div className="max-w-[1120px] mx-auto px-4 py-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-sm text-slate-500">Operations Center</div>
-          <h1 className="text-3xl font-semibold text-slate-900">Labor Rates</h1>
+          <h1 className="text-3xl font-semibold text-slate-900">
+            Division Rates
+          </h1>
           <p className="text-slate-600 mt-1">
-            One hourly rate per division. Edit like a spreadsheet. Save per row.
+            One hourly rate per division (used for labor + trucking).
           </p>
         </div>
 
@@ -267,7 +304,9 @@ export default function LaborRatesClient() {
               <Dialog.Content className="fixed left-1/2 top-1/2 z-[99999] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-2xl focus:outline-none">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <Dialog.Title className="text-lg font-semibold text-slate-900">Add division rate</Dialog.Title>
+                    <Dialog.Title className="text-lg font-semibold text-slate-900">
+                      Add division rate
+                    </Dialog.Title>
                     <Dialog.Description className="mt-1 text-sm text-slate-600">
                       Choose a division, then set the hourly rate.
                     </Dialog.Description>
@@ -281,23 +320,32 @@ export default function LaborRatesClient() {
 
                 <div className="mt-4 space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-slate-700">Division</label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Division
+                    </label>
                     <select
                       value={newDivisionId}
-                      onChange={(e) => setNewDivisionId(e.target.value === "" ? "" : Number(e.target.value))}
+                      onChange={(e) => setNewDivisionId(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                     >
                       <option value="">Select…</option>
-                      {divisions.map((d) => (
+                      {divisionsWithoutRate.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}
                         </option>
                       ))}
                     </select>
+                    {divisionsWithoutRate.length === 0 ? (
+                      <div className="mt-1 text-xs text-slate-500">
+                        All divisions already have a rate. Edit an existing row instead.
+                      </div>
+                    ) : null}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-slate-700">Hourly rate</label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Hourly rate
+                    </label>
                     <div className="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
                       <span className="text-slate-500">$</span>
                       <input
@@ -308,7 +356,9 @@ export default function LaborRatesClient() {
                         placeholder="0.00"
                       />
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">Preview: {money(toNumber(newRate))}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Preview: {money(toNumber(newRate))}
+                    </div>
                   </div>
                 </div>
 
@@ -320,7 +370,12 @@ export default function LaborRatesClient() {
                   </Dialog.Close>
                   <button
                     onClick={createRow}
-                    className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+                    disabled={!newDivisionId}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                      !newDivisionId
+                        ? "bg-emerald-300"
+                        : "bg-emerald-700 hover:bg-emerald-800"
+                    }`}
                   >
                     Add
                   </button>
@@ -346,55 +401,42 @@ export default function LaborRatesClient() {
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1.5fr_1fr_220px] gap-0 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-600">
+        <div className="grid grid-cols-[1.6fr_1fr_220px] gap-0 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-600">
           <div>Division</div>
           <div>Hourly Rate</div>
           <div className="text-right">Actions</div>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-slate-500">No rows found.</div>
+          <div className="px-4 py-8 text-center text-sm text-slate-500">
+            No rows found.
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {filtered.map((row) => {
-              const id = row.id;
-
-              const divValue =
-                draftDivision[id] !== undefined
-                  ? draftDivision[id]
-                  : typeof row.division_id === "number"
-                    ? row.division_id
-                    : "";
+              const divisionId = row.division_id;
 
               const rateValue =
-                draftRates[id] !== undefined
-                  ? draftRates[id]
+                draftRate[divisionId] !== undefined
+                  ? draftRate[divisionId]
                   : row.hourly_rate != null
-                    ? String(row.hourly_rate)
-                    : "";
+                  ? String(row.hourly_rate)
+                  : "";
 
               const edited = isRowEdited(row);
 
               return (
-                <div key={id} className="grid grid-cols-[1.5fr_1fr_220px] items-center gap-0 px-4 py-3">
+                <div
+                  key={divisionId}
+                  className="grid grid-cols-[1.6fr_1fr_220px] items-center gap-0 px-4 py-3"
+                >
                   <div className="pr-3">
-                    <select
-                      value={divValue as any}
-                      onChange={(e) =>
-                        setDraftDivision((prev) => ({
-                          ...prev,
-                          [id]: e.target.value === "" ? "" : Number(e.target.value),
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      <option value="">—</option>
-                      {divisions.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="text-sm font-medium text-slate-900">
+                      {divisionName.get(divisionId) ?? divisionId}
+                    </div>
+                    <div className="text-xs text-slate-500 font-mono">
+                      {divisionId}
+                    </div>
                   </div>
 
                   <div className="pr-3">
@@ -402,30 +444,37 @@ export default function LaborRatesClient() {
                       <span className="text-slate-500">$</span>
                       <input
                         value={rateValue}
-                        onChange={(e) => setDraftRates((prev) => ({ ...prev, [id]: e.target.value }))}
+                        onChange={(e) =>
+                          setDraftRate((prev) => ({
+                            ...prev,
+                            [divisionId]: e.target.value,
+                          }))
+                        }
                         inputMode="decimal"
                         className="w-full text-sm outline-none"
                       />
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">{money(toNumber(rateValue))}</div>
-                    {edited && (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {money(toNumber(rateValue))}
+                    </div>
+                    {edited ? (
                       <div className="mt-1 inline-flex rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800">
                         Edited
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => saveRow(row)}
-                      disabled={savingId === id}
+                      disabled={savingDivisionId === divisionId}
                       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
-                        savingId === id
+                        savingDivisionId === divisionId
                           ? "bg-emerald-200 text-emerald-900"
                           : "bg-emerald-700 text-white hover:bg-emerald-800"
                       }`}
                     >
-                      {savingId === id ? (
+                      {savingDivisionId === divisionId ? (
                         <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
                         <Check className="h-4 w-4" />
@@ -449,7 +498,7 @@ export default function LaborRatesClient() {
 
         <div className="flex items-center justify-between px-4 py-3 text-xs text-slate-500">
           <div>
-            Tip: edit cells → click <b>Save</b> on that row.
+            Tip: edit the rate → click <b>Save</b> on that row.
           </div>
           <div>One rate per division.</div>
         </div>
@@ -462,7 +511,9 @@ export default function LaborRatesClient() {
           <Dialog.Content className="fixed left-1/2 top-1/2 z-[99999] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-2xl focus:outline-none">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <Dialog.Title className="text-lg font-semibold text-slate-900">Delete division rate?</Dialog.Title>
+                <Dialog.Title className="text-lg font-semibold text-slate-900">
+                  Delete division rate?
+                </Dialog.Title>
                 <Dialog.Description className="mt-1 text-sm text-slate-600">
                   This cannot be undone.
                 </Dialog.Description>
@@ -474,6 +525,18 @@ export default function LaborRatesClient() {
               </Dialog.Close>
             </div>
 
+            {deleteTarget ? (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                <div className="font-medium text-slate-900">
+                  {divisionName.get(deleteTarget.division_id) ??
+                    deleteTarget.division_id}
+                </div>
+                <div className="text-slate-600">
+                  Current rate: {money(Number(deleteTarget.hourly_rate) || 0)}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-5 flex items-center justify-end gap-2">
               <Dialog.Close asChild>
                 <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
@@ -483,12 +546,12 @@ export default function LaborRatesClient() {
 
               <button
                 onClick={confirmDelete}
-                disabled={deletingId != null}
+                disabled={deleting}
                 className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                  deletingId != null ? "bg-red-300" : "bg-red-600 hover:bg-red-700"
+                  deleting ? "bg-red-300" : "bg-red-600 hover:bg-red-700"
                 }`}
               >
-                {deletingId != null ? "Deleting…" : "Delete"}
+                {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </Dialog.Content>
@@ -496,7 +559,7 @@ export default function LaborRatesClient() {
       </Dialog.Root>
 
       {/* Toast */}
-      {toast && (
+      {toast ? (
         <div className="fixed bottom-6 right-6 z-[100000] w-[360px] max-w-[90vw] rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -507,14 +570,19 @@ export default function LaborRatesClient() {
               >
                 {toast.title}
               </div>
-              {toast.detail && <div className="mt-1 text-xs text-slate-600">{toast.detail}</div>}
+              {toast.detail ? (
+                <div className="mt-1 text-xs text-slate-600">{toast.detail}</div>
+              ) : null}
             </div>
-            <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100" onClick={() => setToast(null)}>
+            <button
+              className="rounded-md p-1 text-slate-500 hover:bg-slate-100"
+              onClick={() => setToast(null)}
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
