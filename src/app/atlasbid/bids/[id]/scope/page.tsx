@@ -130,14 +130,13 @@ export default function BidScopePage() {
 
       const divisionId = b.division_id;
 
-      // 3) 1 standard rate per division (use your existing endpoint)
-      // NOTE: earlier you had blended-rate, but you want ONE division rate.
-      // If your endpoint is still called blended-rate, keep it — just treat it as division rate.
-      const rateRes = await fetch(`/api/atlasbid/blended-rate?division_id=${divisionId}`, {
-        cache: "no-store",
-      });
-      const rateJson = await rateRes.json();
-      setDivisionRate(Number(rateJson?.blended_rate || rateJson?.rate || 0));
+     // 3) 1 standard rate per division
+const rateRes = await fetch(
+  `/api/atlasbid/blended-rate?division_id=${divisionId}`,
+  { cache: "no-store" }
+);
+const rateJson = await rateRes.json();
+setDivisionRate(Number(rateJson?.blended_rate || 0));
 
       // 4) Bid settings (ops)
       const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
