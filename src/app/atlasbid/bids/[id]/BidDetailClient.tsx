@@ -12,6 +12,28 @@ type LaborRatesGet = {
   error?: string;
 };
 
+type Status = {
+  id: number;
+  name: string;
+  color?: string | null;
+};
+
+type BidRowFromApi = {
+  id: string;
+  client_name?: string | null;
+  client_last_name?: string | null;
+  created_at?: string | null;
+  status_id?: number | null;
+  internal_notes?: string | null;
+  division_id?: string | null;
+  statuses?: Status | null; // because your /api/bids selects: statuses:status_id (...)
+};
+
+type BidsListResponse = {
+  data?: BidRowFromApi[];
+  error?: string;
+};
+
 type BidRecord = {
   id: string;
   client_name?: string | null;
@@ -24,14 +46,10 @@ type BidRecord = {
   created_at?: string | null;
 };
 
-type MaybeBidResponse = {
-  bid?: BidRecord;
-  data?: BidRecord; // some endpoints use {data}
-  error?: string;
-};
-
 function safeJoinName(first?: string | null, last?: string | null) {
-  const parts = [first ?? "", last ?? ""].map((s) => String(s).trim()).filter(Boolean);
+  const parts = [first ?? "", last ?? ""]
+    .map((s) => String(s).trim())
+    .filter(Boolean);
   return parts.length ? parts.join(" ") : "—";
 }
 
@@ -52,7 +70,9 @@ async function readJsonOrThrow(res: Response) {
 
   if (!res.ok) {
     if (looksLikeHtml) {
-      throw new Error(`Request failed (HTTP ${res.status}) and returned HTML. Likely a bad API route or redirect.`);
+      throw new Error(
+        `Request failed (HTTP ${res.status}) and returned HTML. Likely a bad API route or redirect.`
+      );
     }
     try {
       const j = JSON.parse(text || "{}");
@@ -64,8 +84,11 @@ async function readJsonOrThrow(res: Response) {
 
   if (!text) return {};
   if (looksLikeHtml) {
-    throw new Error(`Expected JSON but got HTML. Likely a bad API route or redirect.`);
+    throw new Error(
+      `Expected JSON but got HTML. Likely a bad API route or redirect.`
+    );
   }
+
   try {
     return JSON.parse(text);
   } catch {
@@ -74,35 +97,33 @@ async function readJsonOrThrow(res: Response) {
 }
 
 /**
- * We try a couple common endpoints so you don't get stuck on a single route mismatch.
- * If one works, we use it. If not, you'll see a clear error.
+ * IMPORTANT:
+ * You currently ONLY have GET /api/bids (list).
+ * So we load all bids and find the one matching bidId.
  */
-async function fetchBidWithFallback(bidId: string): Promise<BidRecord> {
-  const candidates = [
-    `/api/atlasbid/bids/${bidId}`, // common REST style
-    `/api/atlasbid/bid?id=${encodeURIComponent(bidId)}`, // common query style
-    `/api/bids/${bidId}`, // fallback
-    `/api/bid?id=${encodeURIComponent(bidId)}`, // fallback
-  ];
+async function fetchBidFromList(bidId: string): Promise<BidRecord> {
+  const res = await fetch("/api/bids", { cache: "no-store" });
+  const json = (await readJsonOrThrow(res)) as BidsListResponse;
 
-  let lastErr: any = null;
+  const rows = Array.isArray(json?.data) ? json.data : [];
+  const hit = rows.find((b) => String(b.id) === String(bidId));
 
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-      const json = (await readJsonOrThrow(res)) as MaybeBidResponse;
-
-      const bid = json?.bid ?? (json as any)?.data ?? (json as any);
-      if (bid?.id) return bid as BidRecord;
-
-      // If endpoint returns something else but 200, treat as mismatch
-      lastErr = new Error(`Endpoint returned JSON but not a bid shape: ${url}`);
-    } catch (e: any) {
-      lastErr = e;
-    }
+  if (!hit) {
+    throw new Error("Bid not found.");
   }
 
-  throw lastErr ?? new Error("Unable to load bid.");
+  // normalize to BidRecord shape used by UI
+  const normalized: BidRecord = {
+    id: hit.id,
+    client_name: hit.client_name ?? null,
+    client_last_name: hit.client_last_name ?? null,
+    division_id: hit.division_id ?? null,
+    internal_notes: hit.internal_notes ?? null,
+    created_at: hit.created_at ?? null,
+    status_name: hit.statuses?.name ?? null,
+  };
+
+  return normalized;
 }
 
 export default function BidDetailClient({ bidId }: { bidId: string }) {
@@ -130,8 +151,8 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
 
-      // Load bid
-      const b = await fetchBidWithFallback(bidId);
+      // Load bid via list route (because you don't have /api/bids/[id])
+      const b = await fetchBidFromList(bidId);
       setBid(b);
     } catch (e: any) {
       setError(e?.message || "Load failed");
@@ -196,7 +217,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
 
   const clientFull = safeJoinName(bid.client_name, bid.client_last_name);
   const divId = bid.division_id ?? "";
-  const divName = divId ? (divisionNameById.get(divId) ?? divId) : "—";
+  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
 
   const tabWrapStyle: React.CSSProperties = {
     display: "flex",
@@ -278,7 +299,10 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
           <strong>Created At:</strong> {fmtDate(bid.created_at)}
         </p>
 
-        <Link href="/atlasbid/bids" style={{ textDecoration: "none", color: "#111827" }}>
+        <Link
+          href="/atlasbid/bids"
+          style={{ textDecoration: "none", color: "#111827" }}
+        >
           Back to bids
         </Link>
       </div>
