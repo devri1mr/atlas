@@ -120,7 +120,7 @@ export default function BidScopePage() {
       setDivisions(cleaned);
 
       // Preselect
-      if (b.division_id) setDivisionPick(b.division_id);
+     if (b.division_id && !divisionPick) setDivisionPick(b.division_id);
 
       // Stop here if division not chosen yet (Step 2 B)
       if (!b.division_id) {
