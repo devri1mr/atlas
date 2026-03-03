@@ -12,38 +12,24 @@ type LaborRatesGet = {
   error?: string;
 };
 
-type Status = {
-  id: number;
-  name: string;
-  color?: string | null;
-};
-
-type BidRowFromApi = {
-  id: string;
-  client_name?: string | null;
-  client_last_name?: string | null;
-  created_at?: string | null;
-  status_id?: number | null;
-  internal_notes?: string | null;
-  division_id?: string | null;
-  statuses?: Status | null; // because your /api/bids selects: statuses:status_id (...)
-};
-
-type BidsListResponse = {
-  data?: BidRowFromApi[];
-  error?: string;
-};
-
 type BidRecord = {
   id: string;
   client_name?: string | null;
   client_last_name?: string | null;
   division_id?: string | null;
 
+  status_id?: number | null;
   status_name?: string | null;
-  internal_notes?: string | null;
 
+  internal_notes?: string | null;
   created_at?: string | null;
+
+  trucking_hours?: number | null;
+};
+
+type BidByIdResponse = {
+  data?: BidRecord;
+  error?: string;
 };
 
 function safeJoinName(first?: string | null, last?: string | null) {
@@ -88,7 +74,6 @@ async function readJsonOrThrow(res: Response) {
       `Expected JSON but got HTML. Likely a bad API route or redirect.`
     );
   }
-
   try {
     return JSON.parse(text);
   } catch {
@@ -96,34 +81,18 @@ async function readJsonOrThrow(res: Response) {
   }
 }
 
-/**
- * IMPORTANT:
- * You currently ONLY have GET /api/bids (list).
- * So we load all bids and find the one matching bidId.
- */
-async function fetchBidFromList(bidId: string): Promise<BidRecord> {
-  const res = await fetch("/api/bids", { cache: "no-store" });
-  const json = (await readJsonOrThrow(res)) as BidsListResponse;
+async function fetchBidById(bidId: string): Promise<BidRecord> {
+  const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, {
+    cache: "no-store",
+  });
 
-  const rows = Array.isArray(json?.data) ? json.data : [];
-  const hit = rows.find((b) => String(b.id) === String(bidId));
+  const json = (await readJsonOrThrow(res)) as BidByIdResponse;
 
-  if (!hit) {
+  const bid = json?.data;
+  if (!bid?.id) {
     throw new Error("Bid not found.");
   }
-
-  // normalize to BidRecord shape used by UI
-  const normalized: BidRecord = {
-    id: hit.id,
-    client_name: hit.client_name ?? null,
-    client_last_name: hit.client_last_name ?? null,
-    division_id: hit.division_id ?? null,
-    internal_notes: hit.internal_notes ?? null,
-    created_at: hit.created_at ?? null,
-    status_name: hit.statuses?.name ?? null,
-  };
-
-  return normalized;
+  return bid;
 }
 
 export default function BidDetailClient({ bidId }: { bidId: string }) {
@@ -151,11 +120,12 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
 
-      // Load bid via list route (because you don't have /api/bids/[id])
-      const b = await fetchBidFromList(bidId);
+      // Load bid (single source of truth)
+      const b = await fetchBidById(bidId);
       setBid(b);
     } catch (e: any) {
       setError(e?.message || "Load failed");
+      setBid(null);
     } finally {
       setLoading(false);
     }
@@ -166,16 +136,60 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidId]);
 
+  const tabWrapStyle: React.CSSProperties = {
+    display: "flex",
+    gap: 10,
+    border: "1px solid #e5e7eb",
+    padding: 10,
+    borderRadius: 12,
+    width: "fit-content",
+    marginBottom: 18,
+    background: "#fafafa",
+  };
+
+  const tabStyle: React.CSSProperties = {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    background: "white",
+    textDecoration: "none",
+    color: "#111827",
+    fontSize: 14,
+  };
+
+  const cardStyle: React.CSSProperties = {
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 18,
+    background: "white",
+  };
+
   if (loading) {
     return <div style={{ padding: 24 }}>Loading…</div>;
   }
 
+  // Error state (keep tabs so you can still navigate)
   if (error) {
     return (
       <div style={{ padding: 24, maxWidth: 980 }}>
         <h1 style={{ marginBottom: 6 }}>AtlasBid</h1>
         <div style={{ color: "#6b7280", marginBottom: 14 }}>
           Bid ID: <span style={{ fontFamily: "monospace" }}>{bidId}</span>
+        </div>
+
+        <div style={tabWrapStyle}>
+          <Link href={base} style={tabStyle}>
+            Overview
+          </Link>
+          <Link href={`${base}/scope`} style={tabStyle}>
+            Scope
+          </Link>
+          <Link href={`${base}/pricing`} style={tabStyle}>
+            Pricing
+          </Link>
+          <Link href={`${base}/proposal`} style={tabStyle}>
+            Proposal
+          </Link>
         </div>
 
         <div
@@ -219,34 +233,6 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   const divId = bid.division_id ?? "";
   const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
 
-  const tabWrapStyle: React.CSSProperties = {
-    display: "flex",
-    gap: 10,
-    border: "1px solid #e5e7eb",
-    padding: 10,
-    borderRadius: 12,
-    width: "fit-content",
-    marginBottom: 18,
-    background: "#fafafa",
-  };
-
-  const tabStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    borderRadius: 10,
-    border: "1px solid #e5e7eb",
-    background: "white",
-    textDecoration: "none",
-    color: "#111827",
-    fontSize: 14,
-  };
-
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: 18,
-    background: "white",
-  };
-
   return (
     <div style={{ padding: 24, maxWidth: 980 }}>
       {/* Header */}
@@ -287,12 +273,18 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
           ) : null}
         </p>
 
+        {/* Keep status simple; if you later want status name, we’ll join statuses in the [id] route */}
         <p>
-          <strong>Status:</strong> {bid.status_name ?? "(None)"}
+          <strong>Status:</strong>{" "}
+          {bid.status_name ?? (bid.status_id ?? null) ?? "(None)"}
         </p>
 
         <p>
           <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
+        </p>
+
+        <p>
+          <strong>Trucking Hours:</strong> {bid.trucking_hours ?? 0}
         </p>
 
         <p style={{ marginBottom: 14 }}>
