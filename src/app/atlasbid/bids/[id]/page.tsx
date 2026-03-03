@@ -1,10 +1,9 @@
 import BidDetailClient from "./BidDetailClient";
 
-export default async function BidOverviewPage({
+export default function ScopePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
-  return <BidDetailClient bidId={id} />;
+  return <BidDetailClient bidId={params.id} />;
 }
