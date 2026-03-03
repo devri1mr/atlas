@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 type Division = { id: string; name: string };
 
@@ -18,17 +19,15 @@ type BidRecord = {
   client_last_name?: string | null;
   division_id?: string | null;
 
-  status_id?: number | null;
   status_name?: string | null;
-
   internal_notes?: string | null;
-  created_at?: string | null;
 
-  trucking_hours?: number | null;
+  created_at?: string | null;
 };
 
-type BidByIdResponse = {
-  data?: BidRecord;
+type MaybeBidResponse = {
+  bid?: BidRecord;
+  data?: BidRecord; // some endpoints use {data}
   error?: string;
 };
 
@@ -81,24 +80,58 @@ async function readJsonOrThrow(res: Response) {
   }
 }
 
-async function fetchBidById(bidId: string): Promise<BidRecord> {
-  const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, {
-    cache: "no-store",
-  });
+/**
+ * We try a couple common endpoints so you don't get stuck on a single route mismatch.
+ * If one works, we use it. If not, you'll see a clear error.
+ */
+async function fetchBidWithFallback(bidId: string): Promise<BidRecord> {
+  const candidates = [
+    `/api/bids/${bidId}`, // ✅ this exists in your repo
+    `/api/atlasbid/bids/${bidId}`,
+    `/api/atlasbid/bid?id=${encodeURIComponent(bidId)}`,
+    `/api/bid?id=${encodeURIComponent(bidId)}`,
+  ];
 
-  const json = (await readJsonOrThrow(res)) as BidByIdResponse;
+  let lastErr: any = null;
 
-  const bid = json?.data;
-  if (!bid?.id) {
-    throw new Error("Bid not found.");
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      const json = (await readJsonOrThrow(res)) as MaybeBidResponse;
+
+      const bid = json?.bid ?? (json as any)?.data ?? (json as any);
+      if (bid?.id) return bid as BidRecord;
+
+      lastErr = new Error(`Endpoint returned JSON but not a bid shape: ${url}`);
+    } catch (e: any) {
+      lastErr = e;
+    }
   }
-  return bid;
+
+  throw lastErr ?? new Error("Unable to load bid.");
 }
 
-export default function BidDetailClient({ bidId }: { bidId: string }) {
+export default function BidDetailClient({ bidId }: { bidId?: string }) {
+  // ✅ Fallback: read [id] directly from the URL if prop is missing/empty
+  const params = useParams() as { id?: string | string[] } | null;
+
+  const effectiveBidId = React.useMemo(() => {
+    const fromProp = typeof bidId === "string" ? bidId.trim() : "";
+    if (fromProp) return fromProp;
+
+    const raw = params?.id;
+    const fromUrl =
+      typeof raw === "string"
+        ? raw.trim()
+        : Array.isArray(raw)
+        ? (raw[0] ?? "").trim()
+        : "";
+
+    return fromUrl;
+  }, [bidId, params?.id]);
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-
   const [bid, setBid] = React.useState<BidRecord | null>(null);
 
   const [divisions, setDivisions] = React.useState<Division[]>([]);
@@ -108,98 +141,50 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     return m;
   }, [divisions]);
 
-  const base = `/atlasbid/bids/${bidId}`;
+  const base = `/atlasbid/bids/${effectiveBidId}`;
 
   async function loadAll() {
     setLoading(true);
     setError(null);
 
     try {
+      if (!effectiveBidId) {
+        throw new Error(`Invalid bid id: "(empty)"`);
+      }
+
       // Load divisions (for displaying division name)
       const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
 
-      // Load bid (single source of truth)
-      const b = await fetchBidById(bidId);
+      // Load bid
+      const b = await fetchBidWithFallback(effectiveBidId);
       setBid(b);
     } catch (e: any) {
       setError(e?.message || "Load failed");
-      setBid(null);
     } finally {
       setLoading(false);
     }
   }
 
   React.useEffect(() => {
-  const id = String(bidId ?? "").trim();
-
-  // Prevent /api/bids/undefined
-  if (!id || id === "undefined" || id === "null") {
-    setLoading(false);
-    setBid(null);
-    setError(`Invalid bid id: "${id || "(empty)"}"`);
-    return;
-  }
-
-  loadAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [bidId]);
-
-  const tabWrapStyle: React.CSSProperties = {
-    display: "flex",
-    gap: 10,
-    border: "1px solid #e5e7eb",
-    padding: 10,
-    borderRadius: 12,
-    width: "fit-content",
-    marginBottom: 18,
-    background: "#fafafa",
-  };
-
-  const tabStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    borderRadius: 10,
-    border: "1px solid #e5e7eb",
-    background: "white",
-    textDecoration: "none",
-    color: "#111827",
-    fontSize: 14,
-  };
-
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: 18,
-    background: "white",
-  };
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveBidId]);
 
   if (loading) {
     return <div style={{ padding: 24 }}>Loading…</div>;
   }
 
-  // Error state (keep tabs so you can still navigate)
   if (error) {
     return (
       <div style={{ padding: 24, maxWidth: 980 }}>
         <h1 style={{ marginBottom: 6 }}>AtlasBid</h1>
         <div style={{ color: "#6b7280", marginBottom: 14 }}>
-          Bid ID: <span style={{ fontFamily: "monospace" }}>{bidId}</span>
-        </div>
-
-        <div style={tabWrapStyle}>
-          <Link href={base} style={tabStyle}>
-            Overview
-          </Link>
-          <Link href={`${base}/scope`} style={tabStyle}>
-            Scope
-          </Link>
-          <Link href={`${base}/pricing`} style={tabStyle}>
-            Pricing
-          </Link>
-          <Link href={`${base}/proposal`} style={tabStyle}>
-            Proposal
-          </Link>
+          Bid ID:{" "}
+          <span style={{ fontFamily: "monospace" }}>
+            {effectiveBidId || "(empty)"}
+          </span>
         </div>
 
         <div
@@ -243,6 +228,34 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   const divId = bid.division_id ?? "";
   const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
 
+  const tabWrapStyle: React.CSSProperties = {
+    display: "flex",
+    gap: 10,
+    border: "1px solid #e5e7eb",
+    padding: 10,
+    borderRadius: 12,
+    width: "fit-content",
+    marginBottom: 18,
+    background: "#fafafa",
+  };
+
+  const tabStyle: React.CSSProperties = {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    background: "white",
+    textDecoration: "none",
+    color: "#111827",
+    fontSize: 14,
+  };
+
+  const cardStyle: React.CSSProperties = {
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 18,
+    background: "white",
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 980 }}>
       {/* Header */}
@@ -275,26 +288,14 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
 
         <p>
           <strong>Division:</strong> {divName}
-          {divId ? (
-            <span style={{ color: "#6b7280" }}>
-              {" "}
-              (<span style={{ fontFamily: "monospace" }}>{divId}</span>)
-            </span>
-          ) : null}
         </p>
 
-        {/* Keep status simple; if you later want status name, we’ll join statuses in the [id] route */}
         <p>
-          <strong>Status:</strong>{" "}
-          {bid.status_name ?? (bid.status_id ?? null) ?? "(None)"}
+          <strong>Status:</strong> {bid.status_name ?? "(None)"}
         </p>
 
         <p>
           <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
-        </p>
-
-        <p>
-          <strong>Trucking Hours:</strong> {bid.trucking_hours ?? 0}
         </p>
 
         <p style={{ marginBottom: 14 }}>
