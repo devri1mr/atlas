@@ -1,5 +1,8 @@
-import { NextResponse } from "next/server";
+// src/app/api/labor-rates/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -11,26 +14,74 @@ const TABLE_ROLES = "job_roles";
 
 function supabaseAdmin() {
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)");
+    throw new Error(
+      "Missing Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
+    );
   }
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
 }
 
-export async function GET() {
+function num(v: any): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * ONE RATE PER DIVISION:
+ * We treat job_role_id as optional and default it to null.
+ * We will store ONE row per division where job_role_id is null.
+ *
+ * Later we can remove roles from UI and (optionally) drop the column in DB.
+ */
+
+/* =========================
+   GET
+   - If division_id query param is provided: return the SINGLE division rate
+   - Otherwise: return full admin payload (rates + divisions + roles)
+========================= */
+export async function GET(req: NextRequest) {
   try {
     const supabase = supabaseAdmin();
 
-    const [{ data: rates, error: ratesError }, { data: divisions, error: divErr }, { data: roles, error: roleErr }] =
-      await Promise.all([
-        supabase
-          .from(TABLE_RATES)
-          .select("id, division_id, job_role_id, hourly_rate")
-          .order("id", { ascending: true }),
-        supabase.from(TABLE_DIVISIONS).select("id, name").order("name", { ascending: true }),
-        supabase.from(TABLE_ROLES).select("id, name").order("name", { ascending: true }),
-      ]);
+    const url = new URL(req.url);
+    const divisionId = num(url.searchParams.get("division_id"));
+
+    // ✅ single-rate mode (what Scope should use)
+    if (divisionId != null) {
+      const { data, error } = await supabase
+        .from(TABLE_RATES)
+        .select("id, division_id, job_role_id, hourly_rate")
+        .eq("division_id", divisionId)
+        .is("job_role_id", null)
+        .maybeSingle();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      // If nothing set yet, return 0 (Scope can show warning)
+      const hourly_rate = Number(data?.hourly_rate ?? 0);
+
+      return NextResponse.json({
+        division_id: divisionId,
+        hourly_rate,
+        row: data ?? null,
+      });
+    }
+
+    // ✅ admin grid mode (keeps existing page working)
+    const [
+      { data: rates, error: ratesError },
+      { data: divisions, error: divErr },
+      { data: roles, error: roleErr },
+    ] = await Promise.all([
+      supabase
+        .from(TABLE_RATES)
+        .select("id, division_id, job_role_id, hourly_rate")
+        .order("id", { ascending: true }),
+      supabase.from(TABLE_DIVISIONS).select("id, name").order("name", { ascending: true }),
+      supabase.from(TABLE_ROLES).select("id, name").order("name", { ascending: true }),
+    ]);
 
     if (ratesError) return NextResponse.json({ error: ratesError.message }, { status: 500 });
     if (divErr) return NextResponse.json({ error: divErr.message }, { status: 500 });
@@ -46,22 +97,53 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+/* =========================
+   CREATE / UPSERT DIVISION RATE
+   POST will create OR update the single row for that division (job_role_id null)
+========================= */
+export async function POST(req: NextRequest) {
   try {
     const supabase = supabaseAdmin();
     const body = await req.json();
 
-    const division_id = Number(body?.division_id);
-    const job_role_id = Number(body?.job_role_id);
-    const hourly_rate = Number(body?.hourly_rate);
+    const division_id = num(body?.division_id);
+    const hourly_rate = num(body?.hourly_rate);
 
-    if (!Number.isFinite(division_id) || !Number.isFinite(job_role_id) || !Number.isFinite(hourly_rate)) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    // job_role_id is optional — ignored for “one rate per division”
+    if (division_id == null || hourly_rate == null) {
+      return NextResponse.json(
+        { error: "Missing required fields: division_id, hourly_rate" },
+        { status: 400 }
+      );
     }
 
+    // Check if row already exists for this division (job_role_id null)
+    const { data: existing, error: findErr } = await supabase
+      .from(TABLE_RATES)
+      .select("id")
+      .eq("division_id", division_id)
+      .is("job_role_id", null)
+      .maybeSingle();
+
+    if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
+
+    // Update if exists
+    if (existing?.id) {
+      const { data, error } = await supabase
+        .from(TABLE_RATES)
+        .update({ hourly_rate })
+        .eq("id", existing.id)
+        .select("id, division_id, job_role_id, hourly_rate")
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ rate: data }, { status: 200 });
+    }
+
+    // Insert if not
     const { data, error } = await supabase
       .from(TABLE_RATES)
-      .insert([{ division_id, job_role_id, hourly_rate }])
+      .insert([{ division_id, job_role_id: null, hourly_rate }])
       .select("id, division_id, job_role_id, hourly_rate")
       .single();
 
@@ -73,45 +155,67 @@ export async function POST(req: Request) {
   }
 }
 
-// Per-row Save uses PATCH (NOT PUT) to avoid 405
-export async function PATCH(req: Request) {
+/* =========================
+   PATCH
+   - Supports:
+     { id, hourly_rate }  (existing behavior)
+     OR { division_id, hourly_rate } (preferred for “one rate per division”)
+========================= */
+export async function PATCH(req: NextRequest) {
   try {
     const supabase = supabaseAdmin();
     const body = await req.json();
 
-    const id = Number(body?.id);
-    if (!Number.isFinite(id)) {
-      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = num(body?.id);
+    const division_id = num(body?.division_id);
+    const hourly_rate = body?.hourly_rate !== undefined ? num(body.hourly_rate) : null;
+
+    if (hourly_rate == null) {
+      return NextResponse.json({ error: "Invalid or missing hourly_rate" }, { status: 400 });
     }
 
-    const patch: Record<string, any> = {};
+    // ✅ preferred: patch by division_id (job_role_id null)
+    if (division_id != null) {
+      const { data: existing, error: findErr } = await supabase
+        .from(TABLE_RATES)
+        .select("id")
+        .eq("division_id", division_id)
+        .is("job_role_id", null)
+        .maybeSingle();
 
-    // allow updating any of these, but only if provided
-    if (body?.hourly_rate !== undefined) {
-      const hourly_rate = Number(body.hourly_rate);
-      if (!Number.isFinite(hourly_rate)) return NextResponse.json({ error: "Invalid hourly_rate" }, { status: 400 });
-      patch.hourly_rate = hourly_rate;
+      if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
+
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from(TABLE_RATES)
+          .update({ hourly_rate })
+          .eq("id", existing.id)
+          .select("id, division_id, job_role_id, hourly_rate")
+          .single();
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ rate: data }, { status: 200 });
+      }
+
+      // create if missing
+      const { data, error } = await supabase
+        .from(TABLE_RATES)
+        .insert([{ division_id, job_role_id: null, hourly_rate }])
+        .select("id, division_id, job_role_id, hourly_rate")
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ rate: data }, { status: 201 });
     }
 
-    if (body?.division_id !== undefined) {
-      const division_id = Number(body.division_id);
-      if (!Number.isFinite(division_id)) return NextResponse.json({ error: "Invalid division_id" }, { status: 400 });
-      patch.division_id = division_id;
-    }
-
-    if (body?.job_role_id !== undefined) {
-      const job_role_id = Number(body.job_role_id);
-      if (!Number.isFinite(job_role_id)) return NextResponse.json({ error: "Invalid job_role_id" }, { status: 400 });
-      patch.job_role_id = job_role_id;
-    }
-
-    if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    // ✅ fallback: patch by id (keeps older grid behaviors working)
+    if (id == null) {
+      return NextResponse.json({ error: "Missing id or division_id" }, { status: 400 });
     }
 
     const { data, error } = await supabase
       .from(TABLE_RATES)
-      .update(patch)
+      .update({ hourly_rate })
       .eq("id", id)
       .select("id, division_id, job_role_id, hourly_rate")
       .single();
@@ -124,29 +228,31 @@ export async function PATCH(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+/* =========================
+   DELETE
+========================= */
+export async function DELETE(req: NextRequest) {
   try {
     const supabase = supabaseAdmin();
 
-    // support either ?id=123 OR JSON body { id: 123 }
     const url = new URL(req.url);
     const qsId = url.searchParams.get("id");
-    let id: number | null = qsId ? Number(qsId) : null;
+    let id = qsId ? num(qsId) : null;
 
-    if (!Number.isFinite(id as number)) {
+    if (id == null) {
       try {
         const body = await req.json();
-        id = Number(body?.id);
+        id = num(body?.id);
       } catch {
         id = null;
       }
     }
 
-    if (!Number.isFinite(id as number)) {
+    if (id == null) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    const { error } = await supabase.from(TABLE_RATES).delete().eq("id", id as number);
+    const { error } = await supabase.from(TABLE_RATES).delete().eq("id", id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
