@@ -253,12 +253,6 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
 
       <p>
         <strong>Division:</strong> {divName}
-        {divId ? (
-          <span style={{ color: "#6b7280" }}>
-            {" "}
-            (<span style={{ fontFamily: "monospace" }}>{divId}</span>)
-          </span>
-        ) : null}
       </p>
 
       {/* Status dropdown (FULL WIDTH) */}
