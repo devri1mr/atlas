@@ -8,6 +8,7 @@ type Bid = {
   id: string;
   client_name: string;
   client_last_name: string;
+  division_id: number | null; // ✅ add this so we can display it + drive scope behavior later
   status_id: number | null;
   internal_notes: string | null;
   created_at: string;
@@ -159,82 +160,156 @@ export default function BidDetailClient({ bidId }: { bidId?: string }) {
     );
   }
 
+  const base = `/atlasbid/bids/${bid.id}`;
+
   return (
-    <div style={{ padding: 24, maxWidth: 900 }}>
-      <h1>Bid Detail</h1>
-
-      <p>
-        <strong>Client:</strong> {bid.client_name} {bid.client_last_name}
-      </p>
-
-      {/* Status Dropdown */}
-      <div style={{ marginTop: 16, marginBottom: 16 }}>
-        <div style={{ marginBottom: 6 }}>
-          <strong>Status</strong>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <select
-            value={bid.status_id ?? ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              updateStatus(v === "" ? null : Number(v));
-            }}
-            disabled={savingStatus}
-            style={{
-              padding: "8px 10px",
-              minWidth: 240,
-              cursor: savingStatus ? "not-allowed" : "pointer",
-            }}
-          >
-            <option value="">(None)</option>
-            {statuses.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Badge */}
-          {currentStatus && (
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: currentStatus.color,
-                color: "white",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-              title={currentStatus.color}
-            >
-              {currentStatus.name}
-            </span>
-          )}
-
-          {savingStatus && (
-            <span style={{ fontSize: 13, color: "#666" }}>Saving…</span>
-          )}
-        </div>
-
-        {statusSaveError && (
-          <div style={{ marginTop: 8, color: "red" }}>{statusSaveError}</div>
-        )}
+    <div style={{ padding: 24, maxWidth: 980 }}>
+      <h1 style={{ marginBottom: 6 }}>AtlasBid</h1>
+      <div style={{ color: "#6b7280", marginBottom: 14 }}>
+        Bid ID: <span style={{ fontFamily: "monospace" }}>{bid.id}</span>
       </div>
 
-      <p>
-        <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
-      </p>
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          border: "1px solid #e5e7eb",
+          padding: 10,
+          borderRadius: 12,
+          width: "fit-content",
+          marginBottom: 18,
+          background: "#fafafa",
+        }}
+      >
+        <Link
+          href={base}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            background: "white",
+          }}
+        >
+          Overview
+        </Link>
 
-      <p>
-        <strong>Created At:</strong>{" "}
-        {new Date(bid.created_at).toLocaleString()}
-      </p>
+        <Link
+          href={`${base}/scope`}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            background: "white",
+          }}
+        >
+          Scope
+        </Link>
 
-      <br />
-      <Link href="/atlasbid/bids" style={{ cursor: "pointer" }}>
-        Back to bids
-      </Link>
+        <Link
+          href={`${base}/pricing`}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            background: "white",
+          }}
+        >
+          Pricing
+        </Link>
+
+        <Link
+          href={`${base}/proposal`}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            background: "white",
+          }}
+        >
+          Proposal
+        </Link>
+      </div>
+
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 18, background: "white" }}>
+        <p style={{ marginTop: 0 }}>
+          <strong>Client:</strong> {bid.client_name} {bid.client_last_name}
+        </p>
+
+        <p>
+          <strong>Division ID:</strong> {bid.division_id ?? "—"}
+        </p>
+
+        {/* Status Dropdown */}
+        <div style={{ marginTop: 16, marginBottom: 16 }}>
+          <div style={{ marginBottom: 6 }}>
+            <strong>Status</strong>
+          </div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <select
+              value={bid.status_id ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                updateStatus(v === "" ? null : Number(v));
+              }}
+              disabled={savingStatus}
+              style={{
+                padding: "8px 10px",
+                minWidth: 240,
+                cursor: savingStatus ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="">(None)</option>
+              {statuses.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Badge */}
+            {currentStatus && (
+              <span
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: currentStatus.color,
+                  color: "white",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+                title={currentStatus.color}
+              >
+                {currentStatus.name}
+              </span>
+            )}
+
+            {savingStatus && (
+              <span style={{ fontSize: 13, color: "#666" }}>Saving…</span>
+            )}
+          </div>
+
+          {statusSaveError && (
+            <div style={{ marginTop: 8, color: "red" }}>{statusSaveError}</div>
+          )}
+        </div>
+
+        <p>
+          <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
+        </p>
+
+        <p>
+          <strong>Created At:</strong>{" "}
+          {new Date(bid.created_at).toLocaleString()}
+        </p>
+
+        <div style={{ marginTop: 18 }}>
+          <Link href="/atlasbid/bids" style={{ cursor: "pointer" }}>
+            Back to bids
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
