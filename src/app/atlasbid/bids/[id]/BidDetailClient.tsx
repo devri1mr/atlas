@@ -132,9 +132,19 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   }
 
   React.useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bidId]);
+  const id = String(bidId ?? "").trim();
+
+  // Prevent /api/bids/undefined
+  if (!id || id === "undefined" || id === "null") {
+    setLoading(false);
+    setBid(null);
+    setError(`Invalid bid id: "${id || "(empty)"}"`);
+    return;
+  }
+
+  loadAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [bidId]);
 
   const tabWrapStyle: React.CSSProperties = {
     display: "flex",
