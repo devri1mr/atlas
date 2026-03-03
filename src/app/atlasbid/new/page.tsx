@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Division = {
-  id: number;
+  id: string; // ✅ uuid
   name: string;
   default_gp_percent: number;
 };
@@ -20,30 +20,17 @@ export default function NewBidPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Load divisions
   useEffect(() => {
     async function loadDivisions() {
       try {
-        setError(null);
-        const res = await fetch("/api/divisions", { cache: "no-store" });
-
-        let json: any = null;
-        try {
-          json = await res.json();
-        } catch {
-          throw new Error("Failed to parse divisions response.");
-        }
-
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load divisions");
-        }
-
-        setDivisions(json?.data || []);
+        const res = await fetch("/api/divisions");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Failed to load divisions");
+        setDivisions(json.data || []);
       } catch (err: any) {
-        setError(err?.message || "Failed to load divisions");
+        setError(err.message);
       }
     }
-
     loadDivisions();
   }, []);
 
@@ -63,57 +50,36 @@ export default function NewBidPage() {
     try {
       setLoading(true);
 
-      // IMPORTANT: use AtlasBid bids API (NOT /api/bids)
-      const res = await fetch("/api/atlasbid/bids", {
+      const res = await fetch("/api/bids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        cache: "no-store",
         body: JSON.stringify({
-          division_id: Number(divisionId),
+          division_id: divisionId, // ✅ UUID STRING (critical fix)
           client_name: clientFirstName,
           client_last_name: clientLastName,
           internal_notes: internalNotes || null,
         }),
       });
 
-      let json: any = null;
-      try {
-        json = await res.json();
-      } catch {
-        throw new Error("Server did not return valid JSON.");
-      }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to create bid");
 
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to create bid");
-      }
-
-      const bidId = json?.data?.id;
-      if (!bidId) throw new Error("Bid created but no id returned.");
-
-      // Go straight to scope
-      router.push(`/atlasbid/bids/${bidId}/scope`);
+      router.push(`/atlasbid/bids/${json.data.id}`);
     } catch (err: any) {
-      setError(err?.message || "Failed to create bid");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
   const selectedDivision = useMemo(
-    () => divisions.find((d) => d.id === Number(divisionId)),
+    () => divisions.find((d) => d.id === divisionId),
     [divisions, divisionId]
   );
 
   const styles: Record<string, React.CSSProperties> = {
-    page: {
-      minHeight: "calc(100vh - 40px)",
-      padding: 24,
-      background: "#f6f7f9",
-    },
-    shell: {
-      maxWidth: 860,
-      margin: "24px auto",
-    },
+    page: { minHeight: "calc(100vh - 40px)", padding: 24, background: "#f6f7f9" },
+    shell: { maxWidth: 860, margin: "24px auto" },
     card: {
       background: "#fff",
       border: "1px solid #e6e8ee",
@@ -121,23 +87,9 @@ export default function NewBidPage() {
       padding: 24,
       boxShadow: "0 6px 18px rgba(16, 24, 40, 0.06)",
     },
-    header: {
-      marginBottom: 18,
-    },
-    title: {
-      margin: 0,
-      fontSize: 22,
-      fontWeight: 700,
-      letterSpacing: "-0.02em",
-      color: "#111827",
-    },
-    subtitle: {
-      marginTop: 8,
-      marginBottom: 0,
-      color: "#4b5563",
-      fontSize: 14,
-      lineHeight: 1.4,
-    },
+    header: { marginBottom: 18 },
+    title: { margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", color: "#111827" },
+    subtitle: { marginTop: 8, marginBottom: 0, color: "#4b5563", fontSize: 14, lineHeight: 1.4 },
     error: {
       background: "#fff1f2",
       color: "#9f1239",
@@ -147,27 +99,10 @@ export default function NewBidPage() {
       borderRadius: 10,
       fontSize: 14,
     },
-    form: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 16,
-      marginTop: 18,
-    },
-    row2: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 16,
-    },
-    field: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8,
-    },
-    label: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "#111827",
-    },
+    form: { display: "flex", flexDirection: "column", gap: 16, marginTop: 18 },
+    row2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 },
+    field: { display: "flex", flexDirection: "column", gap: 8 },
+    label: { fontSize: 13, fontWeight: 600, color: "#111827" },
     input: {
       width: "100%",
       padding: "10px 12px",
@@ -197,20 +132,9 @@ export default function NewBidPage() {
       background: "#fff",
       resize: "vertical",
     },
-    helper: {
-      fontSize: 13,
-      color: "#6b7280",
-      marginTop: 6,
-    },
-    helperStrong: {
-      color: "#111827",
-      fontWeight: 700,
-    },
-    actions: {
-      display: "flex",
-      justifyContent: "flex-end",
-      marginTop: 8,
-    },
+    helper: { fontSize: 13, color: "#6b7280", marginTop: 6 },
+    helperStrong: { color: "#111827", fontWeight: 700 },
+    actions: { display: "flex", justifyContent: "flex-end", marginTop: 8 },
     button: {
       background: "#2e7d32",
       color: "white",
@@ -222,10 +146,7 @@ export default function NewBidPage() {
       fontWeight: 700,
       minWidth: 160,
     },
-    buttonDisabled: {
-      opacity: 0.65,
-      cursor: "not-allowed",
-    },
+    buttonDisabled: { opacity: 0.65, cursor: "not-allowed" },
   };
 
   return (
@@ -242,14 +163,9 @@ export default function NewBidPage() {
           </div>
 
           <div style={styles.form}>
-            {/* Division */}
             <div style={styles.field}>
               <label style={styles.label}>Division</label>
-              <select
-                value={divisionId}
-                onChange={(e) => setDivisionId(e.target.value)}
-                style={styles.select}
-              >
+              <select value={divisionId} onChange={(e) => setDivisionId(e.target.value)} style={styles.select}>
                 <option value="">Select Division</option>
                 {divisions.map((division) => (
                   <option key={division.id} value={division.id}>
@@ -261,14 +177,11 @@ export default function NewBidPage() {
               {selectedDivision && (
                 <div style={styles.helper}>
                   Default GP% for this division:{" "}
-                  <span style={styles.helperStrong}>
-                    {selectedDivision.default_gp_percent}%
-                  </span>
+                  <span style={styles.helperStrong}>{selectedDivision.default_gp_percent}%</span>
                 </div>
               )}
             </div>
 
-            {/* Client Name */}
             <div style={styles.row2}>
               <div style={styles.field}>
                 <label style={styles.label}>Client First Name</label>
@@ -291,7 +204,6 @@ export default function NewBidPage() {
               </div>
             </div>
 
-            {/* Internal Notes */}
             <div style={styles.field}>
               <label style={styles.label}>Internal Notes (optional)</label>
               <textarea
@@ -303,15 +215,11 @@ export default function NewBidPage() {
               />
             </div>
 
-            {/* Actions */}
             <div style={styles.actions}>
               <button
                 onClick={handleCreateBid}
                 disabled={loading}
-                style={{
-                  ...styles.button,
-                  ...(loading ? styles.buttonDisabled : null),
-                }}
+                style={{ ...styles.button, ...(loading ? styles.buttonDisabled : null) }}
               >
                 {loading ? "Creating..." : "Create Bid"}
               </button>
