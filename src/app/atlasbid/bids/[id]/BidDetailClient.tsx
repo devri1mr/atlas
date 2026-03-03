@@ -3,7 +3,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 
 type Division = { id: string; name: string };
 
@@ -92,9 +91,7 @@ async function fetchBidById(bidId: string): Promise<BidRecord> {
   const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
 
   const bid = json?.data;
-  if (!bid?.id) {
-    throw new Error("Bid not found.");
-  }
+  if (!bid?.id) throw new Error("Bid not found.");
   return bid;
 }
 
@@ -115,14 +112,8 @@ async function patchBidStatus(
   return bid;
 }
 
-export default function BidDetailClient({ bidId }: { bidId?: string }) {
-  // ✅ bulletproof: if a page forgets to pass bidId, we still read it from the URL
-  const params = useParams<{ id?: string }>();
-  const effectiveBidId = React.useMemo(() => {
-    const fromProp = String(bidId ?? "").trim();
-    const fromParams = String(params?.id ?? "").trim();
-    return fromProp || fromParams;
-  }, [bidId, params]);
+export default function BidDetailClient({ bidId }: { bidId: string }) {
+  const effectiveBidId = React.useMemo(() => String(bidId || "").trim(), [bidId]);
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -145,6 +136,41 @@ export default function BidDetailClient({ bidId }: { bidId?: string }) {
 
   const [savingStatus, setSavingStatus] = React.useState(false);
 
+  const cardStyle: React.CSSProperties = {
+    border: "1px solid #d7e6db",
+    borderRadius: 12,
+    padding: 18,
+    background: "white",
+  };
+
+  const btnStyle: React.CSSProperties = {
+    border: "1px solid #e5e7eb",
+    background: "white",
+    padding: "10px 14px",
+    borderRadius: 10,
+    cursor: "pointer",
+  };
+
+  const backBtnStyle: React.CSSProperties = {
+    ...btnStyle,
+    border: "1px solid #16a34a",
+    background: "#16a34a",
+    color: "white",
+    textDecoration: "none",
+    display: "inline-block",
+    fontWeight: 600,
+  };
+
+  const nextBtnStyle: React.CSSProperties = {
+    ...btnStyle,
+    border: "1px solid #123b1f",
+    background: "#123b1f",
+    color: "white",
+    textDecoration: "none",
+    display: "inline-block",
+    fontWeight: 600,
+  };
+
   const base = `/atlasbid/bids/${effectiveBidId}`;
 
   async function loadAll() {
@@ -152,11 +178,9 @@ export default function BidDetailClient({ bidId }: { bidId?: string }) {
     setError(null);
 
     try {
-      if (!effectiveBidId) {
-        throw new Error(`Invalid bid id: "(empty)"`);
-      }
+      if (!effectiveBidId) throw new Error(`Invalid bid id.`);
 
-      // Load divisions (for displaying division name)
+      // Load divisions (for division name display)
       const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
@@ -182,175 +206,131 @@ export default function BidDetailClient({ bidId }: { bidId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveBidId]);
 
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: 18,
-    background: "white",
-  };
+  if (loading) return <div>Loading…</div>;
 
-  const btnStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    background: "white",
-    padding: "8px 12px",
-    borderRadius: 10,
-    cursor: "pointer",
-  };
-
-  const backBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #16a34a",
-    background: "#16a34a",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-  };
-
-  const nextBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #111827",
-    background: "#111827",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-  };
-
-  if (loading) {
-    return <div style={{ padding: 24 }}>Loading…</div>;
+  // Error state
+  if (error) {
+    return (
+      <div style={cardStyle}>
+        <div
+          style={{
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            color: "#991b1b",
+            padding: 14,
+            borderRadius: 12,
+          }}
+        >
+          {error}
+          <div style={{ marginTop: 10 }}>
+            <button onClick={loadAll} style={btnStyle}>
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  // No bid
+  if (!bid) {
+    return (
+      <div style={{ ...cardStyle, color: "#b91c1c" }}>
+        Bid not found.
+      </div>
+    );
+  }
+
+  const divId = bid.division_id ?? "";
+  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
+
   return (
-    <div style={{ maxWidth: 980 }}>
-      {/* Error state */}
-      {error ? (
-        <div style={{ maxWidth: 980 }}>
-          <div
-            style={{
-              border: "1px solid #fecaca",
-              background: "#fef2f2",
-              color: "#991b1b",
-              padding: 14,
-              borderRadius: 12,
-            }}
-          >
-            {error}
-            <div style={{ marginTop: 10 }}>
-              <button onClick={loadAll} style={btnStyle}>
-                Retry
-              </button>
-            </div>
-          </div>
+    <div style={cardStyle}>
+      <p style={{ marginTop: 0 }}>
+        <strong>Client:</strong>{" "}
+        {safeJoinName(bid.client_name, bid.client_last_name)}
+      </p>
+
+      <p>
+        <strong>Division:</strong> {divName}
+        {divId ? (
+          <span style={{ color: "#6b7280" }}>
+            {" "}
+            (<span style={{ fontFamily: "monospace" }}>{divId}</span>)
+          </span>
+        ) : null}
+      </p>
+
+      {/* Status dropdown (FULL WIDTH) */}
+      <div style={{ marginTop: 12, marginBottom: 12 }}>
+        <div style={{ marginBottom: 6 }}>
+          <strong>Status:</strong>
         </div>
-      ) : null}
 
-      {/* No bid */}
-      {!error && !bid ? (
-        <div style={{ marginTop: 14, ...cardStyle, color: "#b91c1c" }}>
-          Bid not found.
+        <select
+          value={bid.status_id ?? ""}
+          disabled={savingStatus}
+          onChange={async (e) => {
+            const v = e.target.value;
+            const nextStatus = v === "" ? null : Number(v);
+
+            // optimistic update
+            setBid((prev) => (prev ? { ...prev, status_id: nextStatus } : prev));
+
+            try {
+              setSavingStatus(true);
+              const updated = await patchBidStatus(effectiveBidId, nextStatus);
+              setBid(updated);
+            } catch (err: any) {
+              setError(err?.message || "Status update failed");
+            } finally {
+              setSavingStatus(false);
+            }
+          }}
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            padding: "10px 12px",
+            background: "white",
+          }}
+        >
+          <option value="">(None)</option>
+          {statuses.map((s) => (
+            <option key={s.id} value={String(s.id)}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ marginTop: 6, color: "#6b7280", fontSize: 13 }}>
+          Current:{" "}
+          {bid.status_id
+            ? statusNameById.get(bid.status_id) ?? `#${bid.status_id}`
+            : "(None)"}
+          {savingStatus ? " — saving…" : ""}
         </div>
-      ) : null}
+      </div>
 
-      {/* Overview card */}
-      {!error && bid ? (
-        <div style={cardStyle}>
-          <p style={{ marginTop: 0 }}>
-            <strong>Client:</strong>{" "}
-            {safeJoinName(bid.client_name, bid.client_last_name)}
-          </p>
+      <p>
+        <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
+      </p>
 
-          {(() => {
-            const divId = bid.division_id ?? "";
-            const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
-            return (
-              <p>
-                <strong>Division:</strong> {divName}
-                {divId ? (
-                  <span style={{ color: "#6b7280" }}>
-                    {" "}
-                    (<span style={{ fontFamily: "monospace" }}>{divId}</span>)
-                  </span>
-                ) : null}
-              </p>
-            );
-          })()}
+      <p style={{ marginBottom: 14 }}>
+        <strong>Created At:</strong> {fmtDate(bid.created_at)}
+      </p>
 
-          {/* Status dropdown */}
-          <div style={{ marginTop: 12, marginBottom: 12 }}>
-            <div style={{ marginBottom: 6 }}>
-              <strong>Status:</strong>
-            </div>
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+        <Link href="/atlasbid/bids" style={backBtnStyle}>
+          Back to bids
+        </Link>
 
-            <select
-              value={bid.status_id ?? ""}
-              disabled={savingStatus}
-              onChange={async (e) => {
-                const v = e.target.value;
-                const nextStatus = v === "" ? null : Number(v);
-
-                // optimistic update
-                setBid((prev) =>
-                  prev ? { ...prev, status_id: nextStatus } : prev
-                );
-
-                try {
-                  setSavingStatus(true);
-                  const updated = await patchBidStatus(
-                    effectiveBidId,
-                    nextStatus
-                  );
-                  setBid(updated);
-                } catch (err: any) {
-                  setError(err?.message || "Status update failed");
-                } finally {
-                  setSavingStatus(false);
-                }
-              }}
-              style={{
-                width: 320,
-                maxWidth: "100%",
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-                padding: "10px 12px",
-                background: "white",
-              }}
-            >
-              <option value="">(None)</option>
-              {statuses.map((s) => (
-                <option key={s.id} value={String(s.id)}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-
-            <div style={{ marginTop: 6, color: "#6b7280", fontSize: 13 }}>
-              Current:{" "}
-              {bid.status_id
-                ? statusNameById.get(bid.status_id) ?? `#${bid.status_id}`
-                : "(None)"}
-              {savingStatus ? " — saving…" : ""}
-            </div>
-          </div>
-
-          <p>
-            <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
-          </p>
-
-          <p style={{ marginBottom: 14 }}>
-            <strong>Created At:</strong> {fmtDate(bid.created_at)}
-          </p>
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <Link href="/atlasbid/bids" style={backBtnStyle}>
-              Back to bids
-            </Link>
-
-            <Link href={`${base}/scope`} style={nextBtnStyle}>
-              Next →
-            </Link>
-          </div>
-        </div>
-      ) : null}
+        <Link href={`${base}/scope`} style={nextBtnStyle}>
+          Next → Scope
+        </Link>
+      </div>
     </div>
   );
 }
