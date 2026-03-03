@@ -24,16 +24,23 @@ export default function NewBidPage() {
   useEffect(() => {
     async function loadDivisions() {
       try {
-        const res = await fetch("/api/divisions");
-        const json = await res.json();
+        setError(null);
+        const res = await fetch("/api/divisions", { cache: "no-store" });
 
-        if (!res.ok) {
-          throw new Error(json.error || "Failed to load divisions");
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          throw new Error("Failed to parse divisions response.");
         }
 
-        setDivisions(json.data || []);
+        if (!res.ok) {
+          throw new Error(json?.error || "Failed to load divisions");
+        }
+
+        setDivisions(json?.data || []);
       } catch (err: any) {
-        setError(err.message);
+        setError(err?.message || "Failed to load divisions");
       }
     }
 
@@ -56,28 +63,37 @@ export default function NewBidPage() {
     try {
       setLoading(true);
 
-      const res = await fetch("/api/bids", {
+      // IMPORTANT: use AtlasBid bids API (NOT /api/bids)
+      const res = await fetch("/api/atlasbid/bids", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
-          division_id: Number(divisionId), // critical
+          division_id: Number(divisionId),
           client_name: clientFirstName,
           client_last_name: clientLastName,
           internal_notes: internalNotes || null,
         }),
       });
 
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to create bid");
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error("Server did not return valid JSON.");
       }
 
-      router.push(`/atlasbid/bids/${json.data.id}`);
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to create bid");
+      }
+
+      const bidId = json?.data?.id;
+      if (!bidId) throw new Error("Bid created but no id returned.");
+
+      // Go straight to scope
+      router.push(`/atlasbid/bids/${bidId}/scope`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || "Failed to create bid");
     } finally {
       setLoading(false);
     }
@@ -169,7 +185,7 @@ export default function NewBidPage() {
       outline: "none",
       fontSize: 14,
       background: "#fff",
-      cursor: "pointer", // hand cursor (clickable)
+      cursor: "pointer",
     },
     textarea: {
       width: "100%",
