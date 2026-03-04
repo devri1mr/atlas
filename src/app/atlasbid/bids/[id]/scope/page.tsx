@@ -359,7 +359,7 @@ export default function BidScopePage() {
 
   return (
     <div className="p-8 space-y-8">
-     {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1" && (
+    {new URLSearchParams(window.location.search).get("debug") === "1" && (
   <DebugPanel bidId={bidId} />
 )}
       
