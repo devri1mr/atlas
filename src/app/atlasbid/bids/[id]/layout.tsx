@@ -1,12 +1,11 @@
 // src/app/atlasbid/bids/[id]/layout.tsx
-import type { ReactNode } from "react";
 import BidTabs from "./BidTabs";
 
 export default async function BidLayout({
   children,
   params,
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
