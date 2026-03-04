@@ -22,9 +22,9 @@ export async function DELETE(
   const supabase = getSupabase();
 
   const { id } = await ctx.params;
-  const rowId = Number(id);
+  const rowId = String(id || "").trim();
 
-  if (!Number.isFinite(rowId)) {
+  if (!rowId) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
