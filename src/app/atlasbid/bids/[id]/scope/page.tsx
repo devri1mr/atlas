@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import DebugPanel from "./DebugPanel";
 
 type Bid = {
   id: string;
@@ -358,6 +359,8 @@ export default function BidScopePage() {
 
   return (
     <div className="p-8 space-y-8">
+      <DebugPanel bidId={bidId} />
+      
       {/* Header */}
       <div>
         <div className="text-sm text-gray-500">
