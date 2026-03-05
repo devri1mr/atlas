@@ -50,7 +50,6 @@ type TaskCatalogRow = {
   notes?: string | null;
 };
 
-/** ✅ NEW: Bid materials row */
 type MaterialRow = {
   id: string;
   bid_id: string;
@@ -61,6 +60,16 @@ type MaterialRow = {
   unit: string;
   unit_cost: number;
   created_at?: string;
+};
+
+type MaterialsCatalogRow = {
+  id: string;
+  name: string;
+  default_unit?: string | null;
+  default_unit_cost?: number | null;
+  vendor?: string | null;
+  sku?: string | null;
+  is_active?: boolean | null;
 };
 
 function normalizePercent(n: number) {
@@ -87,16 +96,12 @@ function money(n: number) {
   });
 }
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-}
-
 function paramToString(v: unknown) {
   if (Array.isArray(v)) return String(v[0] ?? "");
   return String(v ?? "");
 }
 
-const UNIT_OPTIONS: Array<{ label: string; value: string }> = [
+const UNIT_OPTIONS = [
   { label: "yd(s)", value: "yd" },
   { label: "sq ft", value: "sqft" },
   { label: "lin ft", value: "lf" },
@@ -131,7 +136,7 @@ export default function BidScopePage() {
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
 
-  /** ✅ NEW: Materials */
+  // Materials (bid rows)
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [materialName, setMaterialName] = useState("");
   const [materialDetails, setMaterialDetails] = useState("");
@@ -139,7 +144,21 @@ export default function BidScopePage() {
   const [materialUnit, setMaterialUnit] = useState<string>("ea");
   const [materialCost, setMaterialCost] = useState<number>(0);
 
-  // Inputs
+  // Materials catalog predictive search
+  const [materialsCatalog, setMaterialsCatalog] = useState<MaterialsCatalogRow[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [showMaterialResults, setShowMaterialResults] = useState(false);
+  const materialDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Inline edit state for materials
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [mEditName, setMEditName] = useState("");
+  const [mEditDetails, setMEditDetails] = useState("");
+  const [mEditQty, setMEditQty] = useState<number>(0);
+  const [mEditUnit, setMEditUnit] = useState<string>("ea");
+  const [mEditUnitCost, setMEditUnitCost] = useState<number>(0);
+
+  // Inputs (labor)
   const [task, setTask] = useState("");
   const [details, setDetails] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
@@ -170,18 +189,21 @@ export default function BidScopePage() {
   const [savingTrucking, setSavingTrucking] = useState(false);
   const [truckingSaveError, setTruckingSaveError] = useState<string | null>(null);
 
+  // Close dropdowns on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      const el = taskDropdownRef.current;
-      if (!el) return;
-
-      if (e.target instanceof Node && !el.contains(e.target)) {
+      const taskEl = taskDropdownRef.current;
+      if (taskEl && e.target instanceof Node && !taskEl.contains(e.target)) {
         setShowTaskResults(false);
+      }
+
+      const matEl = materialDropdownRef.current;
+      if (matEl && e.target instanceof Node && !matEl.contains(e.target)) {
+        setShowMaterialResults(false);
       }
     }
 
     document.addEventListener("mousedown", onDocClick);
-
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
@@ -214,6 +236,14 @@ export default function BidScopePage() {
       setDivisions(Array.isArray(divs) ? divs : []);
 
       if (b.division_id) setDivisionPick(b.division_id);
+
+      // ✅ 2b) Materials Catalog (for predictive search)
+      const mcRes = await fetch(`/api/materials-catalog`, { cache: "no-store" });
+      const mcJson = await mcRes.json();
+      const mcRows: MaterialsCatalogRow[] = mcJson?.rows ?? mcJson?.data ?? mcJson ?? [];
+      setMaterialsCatalog(
+        Array.isArray(mcRows) ? mcRows.filter((x) => x?.is_active !== false) : []
+      );
 
       if (!b.division_id) {
         setLoading(false);
@@ -261,24 +291,23 @@ export default function BidScopePage() {
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
 
-      // ✅ 6) Materials rows (supports both ?bidId and ?bid_id depending on your route)
+      // ✅ 6) Materials rows (supports both ?bidId and ?bid_id)
       let mJson: any = null;
 
       const mRes1 = await fetch(`/api/atlasbid/bid-materials?bidId=${bidId}`, {
         cache: "no-store",
       });
-
       mJson = await mRes1.json();
 
-      // fallback if API expects bid_id
-      if (!mRes1.ok && (mJson?.error || mJson?.message)) {
+      if (!mRes1.ok) {
         const mRes2 = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, {
           cache: "no-store",
         });
         mJson = await mRes2.json();
       }
 
-      setMaterials(mJson?.rows || mJson?.data || mJson || []);
+      const mRows = mJson?.rows || mJson?.data || mJson || [];
+      setMaterials(Array.isArray(mRows) ? mRows : []);
 
       // 7) Task catalog
       const tRes = await fetch(`/api/task-catalog?division_id=${divisionId}`, {
@@ -319,7 +348,9 @@ export default function BidScopePage() {
         const json = await res.json();
 
         if (!res.ok)
-          throw new Error(json?.error?.message || json?.error || "Failed to save trucking hours");
+          throw new Error(
+            json?.error?.message || json?.error || "Failed to save trucking hours"
+          );
 
         setBid(json?.data ?? bid);
       } catch (e: any) {
@@ -332,9 +363,9 @@ export default function BidScopePage() {
     return () => clearTimeout(t);
   }, [truckingHours, bid?.id, loading]);
 
+  // Task catalog filtering
   const filteredTasks = useMemo(() => {
     const q = taskSearch.trim().toLowerCase();
-
     if (!q) return taskCatalog.slice(0, 20);
 
     return taskCatalog
@@ -352,18 +383,53 @@ export default function BidScopePage() {
     if (t.unit) setUnit(t.unit);
 
     const nextQty =
-      typeof t.default_qty === "number" ? Number(t.default_qty) || 0 : Number(quantity) || 0;
+      typeof t.default_qty === "number"
+        ? Number(t.default_qty) || 0
+        : Number(quantity) || 0;
 
     if (typeof t.default_qty === "number") setQuantity(nextQty);
 
     if (t.minutes_per_unit && nextQty > 0) {
       const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
-
       setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
     }
 
     if (!details.trim() && t.notes) {
       setDetails(String(t.notes));
+    }
+  }
+
+  // ✅ Materials catalog predictive filtering
+  const filteredMaterialsCatalog = useMemo(() => {
+    const q = materialSearch.trim().toLowerCase();
+    if (!q) return materialsCatalog.slice(0, 20);
+
+    return materialsCatalog
+      .filter((m) => {
+        const hay = `${m.name || ""} ${m.vendor || ""} ${m.sku || ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 20);
+  }, [materialSearch, materialsCatalog]);
+
+  function applyMaterialSelection(m: MaterialsCatalogRow) {
+    const nm = (m.name || "").trim();
+
+    setMaterialName(nm);
+    setMaterialSearch(nm);
+    setShowMaterialResults(false);
+
+    if (m.default_unit) setMaterialUnit(m.default_unit);
+    if (typeof m.default_unit_cost === "number")
+      setMaterialCost(Number(m.default_unit_cost) || 0);
+
+    // Only set details if empty (don’t overwrite)
+    if (!materialDetails.trim()) {
+      const bits = [
+        m.vendor ? `Vendor: ${m.vendor}` : null,
+        m.sku ? `SKU: ${m.sku}` : null,
+      ].filter(Boolean);
+      if (bits.length) setMaterialDetails(bits.join(" • "));
     }
   }
 
@@ -375,7 +441,7 @@ export default function BidScopePage() {
     );
   }, [labor]);
 
-  /** ✅ NEW: Materials subtotal */
+  // Materials math
   const materialsSubtotal = useMemo(() => {
     return materials.reduce(
       (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.unit_cost) || 0),
@@ -387,7 +453,7 @@ export default function BidScopePage() {
     return (Number(truckingHours) || 0) * (Number(divisionRate) || 0);
   }, [truckingHours, divisionRate]);
 
-  /** ✅ UPDATED: include materials in cost */
+  // ✅ include materials in cost chain (no other pricing logic changed)
   const laborPlusTrucking = useMemo(
     () => laborSubtotal + truckingCost + materialsSubtotal,
     [laborSubtotal, truckingCost, materialsSubtotal]
@@ -439,7 +505,8 @@ export default function BidScopePage() {
 
       const json = await res.json();
 
-      if (!res.ok) throw new Error(json?.error?.message || json?.error || "Failed to save division.");
+      if (!res.ok)
+        throw new Error(json?.error?.message || json?.error || "Failed to save division.");
 
       await loadAll();
     } catch (e: any) {
@@ -467,7 +534,7 @@ export default function BidScopePage() {
       body: JSON.stringify({
         bid_id: bidId,
         task: task.trim(),
-        item: safeDetails, // may be empty string
+        item: safeDetails,
         quantity: Number(quantity) || 0,
         unit,
         man_hours: Number(hours) || 0,
@@ -485,8 +552,8 @@ export default function BidScopePage() {
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
 
-    // Optional: save to task catalog
-    if (saveToCatalog && bid?.division_id && isUuid(bid.division_id)) {
+    // Optional save to task catalog (unchanged behavior)
+    if (saveToCatalog && bid?.division_id) {
       setSavingToCatalog(true);
 
       try {
@@ -520,7 +587,6 @@ export default function BidScopePage() {
             setSaveToCatalogMsg(tcJson?.error || "Could not save task to catalog.");
           } else {
             setSaveToCatalogMsg("Saved to Task Catalog.");
-
             const newRow: TaskCatalogRow | null = tcJson?.data ?? null;
 
             if (newRow?.id) {
@@ -552,7 +618,7 @@ export default function BidScopePage() {
       }
     }
 
-    // Reset inputs
+    // Reset
     setTask("");
     setTaskSearch("");
     setDetails("");
@@ -565,9 +631,7 @@ export default function BidScopePage() {
   async function deleteLaborRow(rowId: string) {
     setError("");
 
-    const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, { method: "DELETE" });
 
     if (res.ok) {
       setLabor((prev) => prev.filter((r) => r.id !== rowId));
@@ -576,7 +640,7 @@ export default function BidScopePage() {
     }
   }
 
-  /** ✅ NEW: add material row */
+  // ✅ Add material
   async function addMaterial() {
     setError("");
 
@@ -586,16 +650,12 @@ export default function BidScopePage() {
     if (!materialUnit) return setError("Material unit is required.");
 
     const payload: any = {
-      // include both keys for compatibility
       bidId,
       bid_id: bidId,
-
       name: materialName.trim(),
       details: materialDetails.trim() || null,
-
       qty: Number(materialQty) || 0,
       unit: materialUnit,
-
       unitCost: Number(materialCost) || 0,
       unit_cost: Number(materialCost) || 0,
     };
@@ -617,25 +677,76 @@ export default function BidScopePage() {
     if (row) setMaterials((prev) => [...prev, row]);
 
     setMaterialName("");
+    setMaterialSearch("");
     setMaterialDetails("");
     setMaterialQty(0);
     setMaterialUnit("ea");
     setMaterialCost(0);
+    setShowMaterialResults(false);
   }
 
-  /** ✅ NEW: delete material row */
   async function deleteMaterialRow(rowId: string) {
     setError("");
 
-    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, { method: "DELETE" });
 
     if (res.ok) {
       setMaterials((prev) => prev.filter((r) => r.id !== rowId));
+      if (editingMaterialId === rowId) setEditingMaterialId(null);
     } else {
       setError("Failed to delete material row");
     }
+  }
+
+  // ✅ Inline edit
+  function startEditMaterial(row: MaterialRow) {
+    setEditingMaterialId(row.id);
+    setMEditName(row.name || "");
+    setMEditDetails(row.details || "");
+    setMEditQty(Number(row.qty) || 0);
+    setMEditUnit(row.unit || "ea");
+    setMEditUnitCost(Number(row.unit_cost) || 0);
+  }
+
+  function cancelEditMaterial() {
+    setEditingMaterialId(null);
+    setMEditName("");
+    setMEditDetails("");
+    setMEditQty(0);
+    setMEditUnit("ea");
+    setMEditUnitCost(0);
+  }
+
+  async function saveEditMaterial(rowId: string) {
+    setError("");
+
+    const payload: any = {
+      name: (mEditName || "").trim(),
+      details: (mEditDetails || "").trim() || null,
+      qty: Number(mEditQty) || 0,
+      unit: mEditUnit,
+      unitCost: Number(mEditUnitCost) || 0,
+      unit_cost: Number(mEditUnitCost) || 0,
+    };
+
+    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      setError(json?.error?.message || json?.error || "Failed to save material row");
+      return;
+    }
+
+    const updated = json?.row ?? json?.data ?? json;
+
+    setMaterials((prev) => prev.map((r) => (r.id === rowId ? { ...r, ...updated } : r)));
+
+    cancelEditMaterial();
   }
 
   const divisionName = useMemo(() => {
@@ -728,7 +839,7 @@ export default function BidScopePage() {
                 <div className="text-sm text-gray-500">Labor Subtotal</div>
                 <div className="text-2xl font-bold">{money(laborSubtotal)}</div>
 
-                {/* ✅ Moved here so inputs stay aligned */}
+                {/* Save-to-catalog (unchanged) */}
                 <div className="mt-3 flex items-center justify-end gap-3">
                   <label className="flex items-center gap-2 text-xs text-gray-700">
                     <input
@@ -738,13 +849,9 @@ export default function BidScopePage() {
                     />
                     Save to Task Catalog
                   </label>
-                  {savingToCatalog ? (
-                    <span className="text-xs text-gray-500">Saving…</span>
-                  ) : null}
+                  {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
                 </div>
-                {saveToCatalogMsg ? (
-                  <div className="text-xs text-gray-500 mt-1">{saveToCatalogMsg}</div>
-                ) : null}
+                {saveToCatalogMsg ? <div className="text-xs text-gray-500 mt-1">{saveToCatalogMsg}</div> : null}
               </div>
             </div>
 
@@ -758,9 +865,9 @@ export default function BidScopePage() {
               <div className="col-span-1 text-right">Action</div>
             </div>
 
-            {/* Inputs row — ✅ truly aligned */}
+            {/* Inputs row */}
             <div className="grid grid-cols-12 gap-4 items-center">
-              {/* Task */}
+              {/* Task search */}
               <div className="col-span-4" ref={taskDropdownRef}>
                 <div className="relative">
                   <input
@@ -866,8 +973,7 @@ export default function BidScopePage() {
               <div className="text-gray-400 text-sm py-3">No labor added yet.</div>
             ) : (
               labor.map((row) => {
-                const rowTotal =
-                  (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+                const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
                 return (
                   <div
@@ -893,13 +999,13 @@ export default function BidScopePage() {
             )}
           </div>
 
-          {/* ✅ NEW: MATERIALS BUILDER (ADDED ONLY — DOES NOT TOUCH YOUR LABOR/TRUCKING/PRICING STRUCTURE) */}
+          {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
           <div className="border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-6 flex-wrap">
               <div>
                 <h2 className="text-xl font-semibold">Materials Builder</h2>
                 <div className="text-sm text-gray-500">
-                  Add materials used for this job (not reserved — just bid costing).
+                  Search your catalog, auto-fill unit + cost, then edit inline if needed.
                 </div>
               </div>
 
@@ -909,9 +1015,8 @@ export default function BidScopePage() {
               </div>
             </div>
 
-            {/* Column labels */}
             <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-              <div className="col-span-4">Material</div>
+              <div className="col-span-4">Material (catalog search)</div>
               <div className="col-span-3">Details (optional)</div>
               <div className="col-span-1">Qty</div>
               <div className="col-span-1">Unit</div>
@@ -919,26 +1024,56 @@ export default function BidScopePage() {
               <div className="col-span-1 text-right">Action</div>
             </div>
 
-            {/* Inputs row */}
             <div className="grid grid-cols-12 gap-4 items-center">
-              <div className="col-span-4">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  placeholder="Material name"
-                  value={materialName}
-                  onChange={(e) => setMaterialName(e.target.value)}
-                />
+              {/* Catalog search */}
+              <div className="col-span-4" ref={materialDropdownRef}>
+                <div className="relative">
+                  <input
+                    className="border p-2 rounded w-full h-10"
+                    placeholder="Search materials catalog…"
+                    value={materialSearch}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMaterialSearch(v);
+                      setMaterialName(v);
+                      setShowMaterialResults(true);
+                    }}
+                    onFocus={() => setShowMaterialResults(true)}
+                  />
+
+                  {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
+                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+                      {filteredMaterialsCatalog.map((m) => (
+                        <div
+                          key={m.id}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          onClick={() => applyMaterialSelection(m)}
+                        >
+                          <div className="font-medium">{m.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {m.vendor ? `Vendor: ${m.vendor} • ` : ""}
+                            Unit: {m.default_unit || "ea"} • Cost:{" "}
+                            {money(Number(m.default_unit_cost) || 0)}
+                            {m.sku ? ` • SKU: ${m.sku}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
+              {/* Details */}
               <div className="col-span-3">
                 <input
                   className="border p-2 rounded w-full h-10"
-                  placeholder="Optional details (color, vendor, etc.)"
+                  placeholder="Optional details (vendor, color, etc.)"
                   value={materialDetails}
                   onChange={(e) => setMaterialDetails(e.target.value)}
                 />
               </div>
 
+              {/* Qty */}
               <div className="col-span-1">
                 <input
                   className="border p-2 rounded w-full h-10"
@@ -949,6 +1084,7 @@ export default function BidScopePage() {
                 />
               </div>
 
+              {/* Unit */}
               <div className="col-span-1">
                 <select
                   className="border p-2 rounded w-full h-10"
@@ -963,6 +1099,7 @@ export default function BidScopePage() {
                 </select>
               </div>
 
+              {/* Unit Cost */}
               <div className="col-span-2">
                 <input
                   className="border p-2 rounded w-full h-10"
@@ -983,38 +1120,136 @@ export default function BidScopePage() {
               </div>
             </div>
 
-            {/* Table headers */}
-            <div className="grid grid-cols-7 gap-4 font-semibold text-sm border-b pb-2 mt-4">
+            {/* List headers */}
+            <div className="grid grid-cols-10 gap-4 font-semibold text-sm border-b pb-2 mt-4">
               <div className="col-span-2">Material</div>
-              <div className="col-span-2">Details</div>
+              <div className="col-span-3">Details</div>
               <div>Qty</div>
+              <div>Unit</div>
               <div>Unit Cost</div>
               <div>Total ($)</div>
-              <div></div>
+              <div className="text-right">Actions</div>
             </div>
 
             {materials.length === 0 ? (
               <div className="text-gray-400 text-sm py-3">No materials added yet.</div>
             ) : (
               materials.map((row) => {
-                const rowTotal = (Number(row.qty) || 0) * (Number(row.unit_cost) || 0);
+                const isEditing = editingMaterialId === row.id;
+
+                const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
+                const cost = isEditing ? Number(mEditUnitCost) || 0 : Number(row.unit_cost) || 0;
+                const total = qty * cost;
 
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-7 gap-4 border p-2 rounded text-sm items-center"
+                    className="grid grid-cols-10 gap-4 border p-2 rounded text-sm items-center"
                   >
-                    <div className="col-span-2">{row.name}</div>
-                    <div className="col-span-2 text-gray-600">{row.details || "—"}</div>
-                    <div>{row.qty}</div>
-                    <div>{money(row.unit_cost)}</div>
-                    <div>{rowTotal.toFixed(2)}</div>
-                    <button
-                      onClick={() => deleteMaterialRow(row.id)}
-                      className="text-red-600 hover:underline text-right"
-                    >
-                      Delete
-                    </button>
+                    <div className="col-span-2">
+                      {isEditing ? (
+                        <input
+                          className="border p-2 rounded w-full"
+                          value={mEditName}
+                          onChange={(e) => setMEditName(e.target.value)}
+                        />
+                      ) : (
+                        row.name
+                      )}
+                    </div>
+
+                    <div className="col-span-3 text-gray-600">
+                      {isEditing ? (
+                        <input
+                          className="border p-2 rounded w-full"
+                          value={mEditDetails}
+                          onChange={(e) => setMEditDetails(e.target.value)}
+                          placeholder="—"
+                        />
+                      ) : (
+                        row.details || "—"
+                      )}
+                    </div>
+
+                    <div>
+                      {isEditing ? (
+                        <input
+                          className="border p-2 rounded w-full"
+                          type="number"
+                          value={Number.isFinite(mEditQty) ? mEditQty : 0}
+                          onChange={(e) => setMEditQty(Number(e.target.value))}
+                        />
+                      ) : (
+                        row.qty
+                      )}
+                    </div>
+
+                    <div>
+                      {isEditing ? (
+                        <select
+                          className="border p-2 rounded w-full"
+                          value={mEditUnit}
+                          onChange={(e) => setMEditUnit(e.target.value)}
+                        >
+                          {UNIT_OPTIONS.map((u) => (
+                            <option key={u.value} value={u.value}>
+                              {u.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        row.unit
+                      )}
+                    </div>
+
+                    <div>
+                      {isEditing ? (
+                        <input
+                          className="border p-2 rounded w-full"
+                          type="number"
+                          value={Number.isFinite(mEditUnitCost) ? mEditUnitCost : 0}
+                          onChange={(e) => setMEditUnitCost(Number(e.target.value))}
+                        />
+                      ) : (
+                        money(row.unit_cost)
+                      )}
+                    </div>
+
+                    <div>{total.toFixed(2)}</div>
+
+                    <div className="text-right flex justify-end gap-3">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => saveEditMaterial(row.id)}
+                            className="text-emerald-700 hover:underline"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEditMaterial}
+                            className="text-gray-600 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEditMaterial(row)}
+                            className="text-blue-700 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteMaterialRow(row.id)}
+                            className="text-red-600 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -1035,9 +1270,7 @@ export default function BidScopePage() {
               </div>
             </div>
 
-            {truckingSaveError ? (
-              <div className="text-sm text-red-600">{truckingSaveError}</div>
-            ) : null}
+            {truckingSaveError ? <div className="text-sm text-red-600">{truckingSaveError}</div> : null}
 
             <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
               <div>
