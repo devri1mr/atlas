@@ -1,7 +1,7 @@
 // src/app/atlasbid/bids/[id]/scope/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import DebugPanel from "./DebugPanel";
 
@@ -24,7 +24,7 @@ type LaborRow = {
   id: string;
   bid_id: string;
   task: string;
-  item: string | null; // ✅ now treated as optional "Details"
+  item: string;
   quantity: number;
   unit: string;
   man_hours: number;
@@ -38,6 +38,22 @@ type BidSettings = {
   contingency_pct: number; // could be 3 or 0.03
   round_up_increment: number; // typically 100
   prepay_discount_pct: number; // could be 3 or 0.03
+};
+
+type TaskCatalogRow = {
+  id: string;
+  division_id: string;
+  name: string;
+  unit: string | null;
+  minutes_per_unit: number | null;
+  default_qty: number | null;
+  notes?: string | null;
+  min_qty?: number | null;
+  round_qty_to?: number | null;
+  seasonal_multiplier?: number | null;
+  difficulty_multiplier?: number | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 function normalizePercent(n: number) {
@@ -74,6 +90,21 @@ const UNIT_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "hours", value: "hr" },
 ];
 
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+function guessItemFromTaskName(name: string) {
+  // Safe, deterministic guess: if the task name looks like "Mulch — Install" or "Mulch - Install"
+  // we’ll use "Mulch" as item ONLY when item is currently blank.
+  const n = (name || "").trim();
+  if (!n) return "";
+  if (n.includes("—")) return n.split("—")[0].trim();
+  if (n.includes(" - ")) return n.split(" - ")[0].trim();
+  if (n.includes("-")) return n.split("-")[0].trim();
+  return "";
+}
+
 export default function BidScopePage() {
   const params = useParams();
   const bidId = String((params as any)?.id || "");
@@ -90,8 +121,7 @@ export default function BidScopePage() {
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
   const [task, setTask] = useState("");
-  // ✅ Rename UI concept: "Details" (still maps to DB column "item")
-  const [details, setDetails] = useState("");
+  const [item, setItem] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
 
   // ✅ Unit now controlled
@@ -113,6 +143,28 @@ export default function BidScopePage() {
   // Trucking autosave UX
   const [savingTrucking, setSavingTrucking] = useState(false);
   const [truckingSaveError, setTruckingSaveError] = useState<string | null>(null);
+
+  // ---- Task Catalog predictive search + optional save ----
+  const [taskCatalog, setTaskCatalog] = useState<TaskCatalogRow[]>([]);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [showTaskResults, setShowTaskResults] = useState(false);
+  const [saveToCatalog, setSaveToCatalog] = useState(false);
+  const [savingToCatalog, setSavingToCatalog] = useState(false);
+  const [saveToCatalogMsg, setSaveToCatalogMsg] = useState<string>("");
+
+  const taskDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      const el = taskDropdownRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setShowTaskResults(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   async function loadAll() {
     if (!bidId) return;
@@ -193,6 +245,11 @@ export default function BidScopePage() {
       const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, { cache: "no-store" });
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
+
+      // 6) Task catalog rows for division (predictive search)
+      const tRes = await fetch(`/api/task-catalog?division_id=${divisionId}`, { cache: "no-store" });
+      const tJson = await tRes.json();
+      setTaskCatalog(Array.isArray(tJson?.data) ? tJson.data : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load scope.");
     } finally {
@@ -280,6 +337,14 @@ export default function BidScopePage() {
     return ((sell - totalCost) / sell) * 100;
   }, [sellRounded, sellWithPrepay, prepayEnabled, totalCost]);
 
+  const filteredTasks = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return taskCatalog.slice(0, 20);
+    return taskCatalog
+      .filter((t) => (t.name || "").toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [taskSearch, taskCatalog]);
+
   async function saveDivision() {
     if (!divisionPick) return;
     setSavingDivision(true);
@@ -305,20 +370,22 @@ export default function BidScopePage() {
 
   async function addLabor() {
     setError("");
+    setSaveToCatalogMsg("");
 
     if (!task.trim()) return setError("Task is required.");
-    // ✅ Details are OPTIONAL (no duplication with task naming)
+    if (!item.trim()) return setError("Item is required.");
     if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
     if ((Number(divisionRate) || 0) <= 0) return setError("Division rate is 0. Set the division + rate first.");
     if (!unit) return setError("Unit is required.");
 
+    // 1) Add labor row
     const res = await fetch(`/api/atlasbid/bid-labor`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         bid_id: bidId,
         task: task.trim(),
-        item: details.trim() || null, // ✅ stored in DB column "item"
+        item: item.trim(),
         quantity: Number(quantity) || 0,
         unit: unit, // ✅ standardized
         man_hours: Number(hours) || 0,
@@ -327,17 +394,68 @@ export default function BidScopePage() {
     });
 
     const json = await res.json();
-    if (res.ok) {
-      const row = json?.row ?? json?.data;
-      if (row) setLabor((prev) => [...prev, row]);
-      setTask("");
-      setDetails("");
-      setQuantity(0);
-      setUnit("yd"); // ✅ reset to yd(s)
-      setHours(0);
-    } else {
+
+    if (!res.ok) {
       setError(json?.error?.message || json?.error || "Error adding labor");
+      return;
     }
+
+    const row = json?.row ?? json?.data;
+    if (row) setLabor((prev) => [...prev, row]);
+
+    // 2) Optional: save to task catalog
+    if (saveToCatalog && bid?.division_id && isUuid(bid.division_id)) {
+      setSavingToCatalog(true);
+      try {
+        const qtyNum = Number(quantity) || 0;
+        const hoursNum = Number(hours) || 0;
+
+        // minutes_per_unit = (hours * 60) / qty  (only if qty > 0)
+        const minutesPerUnit = qtyNum > 0 ? (hoursNum * 60) / qtyNum : null;
+
+        const tcRes = await fetch(`/api/task-catalog`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            division_id: bid.division_id,
+            name: task.trim(),
+            unit: unit || null,
+            minutes_per_unit: minutesPerUnit,
+            default_qty: qtyNum > 0 ? qtyNum : null,
+          }),
+        });
+
+        const tcJson = await tcRes.json();
+        if (!tcRes.ok) {
+          // Don’t block sales flow — show a non-fatal message
+          setSaveToCatalogMsg(tcJson?.error || "Could not save task to catalog.");
+        } else {
+          setSaveToCatalogMsg("Saved to Task Catalog.");
+          // Refresh local catalog list so it appears immediately in search
+          const newRow: TaskCatalogRow | null = tcJson?.data ?? null;
+          if (newRow?.id) {
+            setTaskCatalog((prev) => {
+              const exists = prev.some((p) => p.id === newRow.id);
+              if (exists) return prev;
+              return [...prev, newRow].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            });
+          }
+        }
+      } catch {
+        setSaveToCatalogMsg("Could not save task to catalog.");
+      } finally {
+        setSavingToCatalog(false);
+      }
+    }
+
+    // Reset inputs
+    setTask("");
+    setTaskSearch("");
+    setItem("");
+    setQuantity(0);
+    setUnit("yd");
+    setHours(0);
+    setShowTaskResults(false);
   }
 
   async function deleteLaborRow(rowId: string) {
@@ -395,11 +513,7 @@ export default function BidScopePage() {
 
           <div className="max-w-md space-y-2">
             <label className="block text-sm text-gray-700">Division</label>
-            <select
-              className="border rounded p-2 w-full"
-              value={divisionPick}
-              onChange={(e) => setDivisionPick(e.target.value)}
-            >
+            <select className="border rounded p-2 w-full" value={divisionPick} onChange={(e) => setDivisionPick(e.target.value)}>
               <option value="">— Select —</option>
               {divisions
                 .filter((d) => d.is_active !== false)
@@ -427,8 +541,7 @@ export default function BidScopePage() {
               <div>
                 <h2 className="text-xl font-semibold">Labor Builder</h2>
                 <div className="text-sm text-gray-500">
-                  Division rate (used for labor + trucking):{" "}
-                  <span className="font-semibold">{money(divisionRate)} / hr</span>
+                  Division rate (used for labor + trucking): <span className="font-semibold">{money(divisionRate)} / hr</span>
                 </div>
               </div>
 
@@ -441,7 +554,7 @@ export default function BidScopePage() {
             {/* Column headers ABOVE inputs */}
             <div className="grid grid-cols-6 gap-4 text-xs font-semibold text-gray-600">
               <div>Task</div>
-              <div>Details (optional)</div>
+              <div>Item</div>
               <div>Qty</div>
               <div>Unit</div>
               <div>Hours</div>
@@ -449,18 +562,58 @@ export default function BidScopePage() {
             </div>
 
             <div className="grid grid-cols-6 gap-4 items-center">
-              <input
-                className="border p-2 rounded"
-                placeholder="e.g. Mulch — Install"
-                value={task}
-                onChange={(e) => setTask(e.target.value)}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="Optional: color/brand/location/notes"
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-              />
+              {/* ✅ Predictive Task Search */}
+              <div className="relative" ref={taskDropdownRef}>
+                <input
+                  className="border p-2 rounded w-full"
+                  placeholder="Search task catalog…"
+                  value={taskSearch}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTaskSearch(v);
+                    setTask(v);
+                    setShowTaskResults(true);
+                  }}
+                  onFocus={() => setShowTaskResults(true)}
+                />
+
+                {showTaskResults && filteredTasks.length > 0 ? (
+                  <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+                    {filteredTasks.map((t) => (
+                      <div
+                        key={t.id}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        onClick={() => {
+                          setTask(t.name || "");
+                          setTaskSearch(t.name || "");
+                          setShowTaskResults(false);
+
+                          if (t.unit) setUnit(t.unit);
+                          if (typeof t.default_qty === "number") setQuantity(Number(t.default_qty) || 0);
+
+                          // Only auto-fill Item if it's blank (safe, non-destructive)
+                          if (!item.trim()) {
+                            const guessed = guessItemFromTaskName(t.name || "");
+                            if (guessed) setItem(guessed);
+                          }
+                        }}
+                      >
+                        {t.name}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <label className="flex items-center gap-2 text-xs mt-2 text-gray-700">
+                  <input type="checkbox" checked={saveToCatalog} onChange={(e) => setSaveToCatalog(e.target.checked)} />
+                  Save to Task Catalog
+                  {savingToCatalog ? <span className="text-gray-500">Saving…</span> : null}
+                  {saveToCatalogMsg ? <span className="text-gray-500">{saveToCatalogMsg}</span> : null}
+                </label>
+              </div>
+
+              <input className="border p-2 rounded" placeholder="e.g. Mulch" value={item} onChange={(e) => setItem(e.target.value)} />
+
               <input
                 className="border p-2 rounded"
                 type="number"
@@ -485,6 +638,7 @@ export default function BidScopePage() {
                 value={Number.isFinite(hours) ? hours : 0}
                 onChange={(e) => setHours(Number(e.target.value))}
               />
+
               <div className="text-right">
                 <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4 py-2">
                   Add
@@ -495,7 +649,7 @@ export default function BidScopePage() {
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
               <div>Task</div>
-              <div>Details</div>
+              <div>Item</div>
               <div>Qty</div>
               <div>Unit</div>
               <div>Hours</div>
@@ -512,16 +666,13 @@ export default function BidScopePage() {
                 return (
                   <div key={row.id} className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center">
                     <div>{row.task}</div>
-                    <div className="text-gray-700">{row.item || "—"}</div>
+                    <div>{row.item}</div>
                     <div>{row.quantity}</div>
                     <div>{row.unit}</div>
                     <div>{row.man_hours}</div>
                     <div>{Number(row.hourly_rate || 0).toFixed(2)}</div>
                     <div>{rowTotal.toFixed(2)}</div>
-                    <button
-                      onClick={() => deleteLaborRow(row.id)}
-                      className="text-red-600 hover:underline text-right"
-                    >
+                    <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-right">
                       Delete
                     </button>
                   </div>
@@ -535,9 +686,7 @@ export default function BidScopePage() {
             <div className="flex items-start justify-between gap-6">
               <div>
                 <h2 className="text-xl font-semibold">Trucking</h2>
-                <div className="text-sm text-gray-500">
-                  Single trucking entry (Landscaping only). Uses the same division rate.
-                </div>
+                <div className="text-sm text-gray-500">Single trucking entry (Landscaping only). Uses the same division rate.</div>
               </div>
               <div className="text-right text-sm">{savingTrucking ? <span className="text-gray-500">Saving…</span> : null}</div>
             </div>
@@ -584,9 +733,7 @@ export default function BidScopePage() {
                   Apply prepay discount (100% payment via check up-front)
                 </label>
 
-                <div className="text-xs text-gray-500">
-                  Rounding + contingency are “baked in” from Ops Settings (hidden from sales).
-                </div>
+                <div className="text-xs text-gray-500">Rounding + contingency are “baked in” from Ops Settings (hidden from sales).</div>
               </div>
 
               <div className="space-y-2 text-sm">
@@ -626,8 +773,8 @@ export default function BidScopePage() {
           <div className="border rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-2">Difficulty / Season</h2>
             <p className="text-gray-500">
-              Those live in the <b>Task Catalog</b> + selection UI (Ops Center → Tasks). We haven’t wired Task Catalog
-              selection into Scope yet, so Scope currently uses manual rows.
+              Those live in the <b>Task Catalog</b> + selection UI (Ops Center → Tasks). We haven’t wired Task Catalog selection into Scope
+              beyond name/unit/default qty yet, so Scope still uses manual labor rows for hours.
             </p>
           </div>
         </>
