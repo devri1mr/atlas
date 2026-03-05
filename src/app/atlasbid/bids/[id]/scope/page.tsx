@@ -593,8 +593,6 @@ const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
 
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
-const row = json?.row ?? json?.data;
-if (row) setLabor((prev) => [...prev, row]);
 
 // Auto-add template materials
 if (
