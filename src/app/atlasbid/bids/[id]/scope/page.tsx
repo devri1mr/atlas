@@ -289,7 +289,11 @@ export default function BidScopePage() {
     return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
   }, [labor]);
 
-  const truckingCost = useMemo(() => (Number(truckingHours) || 0) * (Number(divisionRate) || 0), [truckingHours, divisionRate]);
+  const truckingCost = useMemo(
+    () => (Number(truckingHours) || 0) * (Number(divisionRate) || 0),
+    [truckingHours, divisionRate]
+  );
+
   const laborPlusTrucking = useMemo(() => laborSubtotal + truckingCost, [laborSubtotal, truckingCost]);
 
   const contingencyCost = useMemo(() => {
@@ -455,7 +459,9 @@ export default function BidScopePage() {
       <div>
         <div className="text-sm text-gray-500">
           Bid: <span className="font-mono">{bid.id}</span> • Client:{" "}
-          <span className="font-semibold">{[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}</span>
+          <span className="font-semibold">
+            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
+          </span>
         </div>
         <h1 className="text-3xl font-bold mt-1">Scope</h1>
         <div className="text-sm text-gray-600 mt-1">
@@ -464,17 +470,25 @@ export default function BidScopePage() {
         {isDebug ? <DebugPanel bidId={bid.id} /> : null}
       </div>
 
-      {error ? <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">{error}</div> : null}
+      {error ? (
+        <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">{error}</div>
+      ) : null}
 
       {/* Division Gate */}
       {!bid.division_id ? (
         <div className="border rounded-lg p-6 space-y-4">
           <h2 className="text-xl font-semibold">Select Division to Continue</h2>
-          <p className="text-sm text-gray-600">This bid has no division yet. We must set a division before labor/rates/pricing can calculate.</p>
+          <p className="text-sm text-gray-600">
+            This bid has no division yet. We must set a division before labor/rates/pricing can calculate.
+          </p>
 
           <div className="max-w-md space-y-2">
             <label className="block text-sm text-gray-700">Division</label>
-            <select className="border rounded p-2 w-full" value={divisionPick} onChange={(e) => setDivisionPick(e.target.value)}>
+            <select
+              className="border rounded p-2 w-full"
+              value={divisionPick}
+              onChange={(e) => setDivisionPick(e.target.value)}
+            >
               <option value="">— Select —</option>
               {divisions
                 .filter((d) => d.is_active !== false)
@@ -485,7 +499,11 @@ export default function BidScopePage() {
                 ))}
             </select>
 
-            <button className="bg-emerald-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={!divisionPick || savingDivision} onClick={saveDivision}>
+            <button
+              className="bg-emerald-700 text-white rounded px-4 py-2 disabled:opacity-50"
+              disabled={!divisionPick || savingDivision}
+              onClick={saveDivision}
+            >
               {savingDivision ? "Saving…" : "Save Division"}
             </button>
           </div>
@@ -498,7 +516,8 @@ export default function BidScopePage() {
               <div>
                 <h2 className="text-xl font-semibold">Labor Builder</h2>
                 <div className="text-sm text-gray-500">
-                  Division rate (used for labor + trucking): <span className="font-semibold">{money(divisionRate)} / hr</span>
+                  Division rate (used for labor + trucking):{" "}
+                  <span className="font-semibold">{money(divisionRate)} / hr</span>
                 </div>
               </div>
 
@@ -518,109 +537,110 @@ export default function BidScopePage() {
               <div className="col-span-1 text-right">Action</div>
             </div>
 
-           {/* Inputs row — aligned */}
-<div className="grid grid-cols-12 gap-4 items-end">
-  {/* Task */}
-  <div className="col-span-4" ref={taskDropdownRef}>
-    <div className="relative">
-      <input
-        className="border p-2 rounded w-full h-10"
-        placeholder="Search saved tasks…"
-        value={taskSearch}
-        onChange={(e) => {
-          const v = e.target.value;
-          setTaskSearch(v);
-          setTask(v);
-          setShowTaskResults(true);
-        }}
-        onFocus={() => setShowTaskResults(true)}
-      />
+            {/* Inputs row — aligned */}
+            <div className="grid grid-cols-12 gap-4 items-end">
+              {/* Task */}
+              <div className="col-span-4" ref={taskDropdownRef}>
+                <div className="relative">
+                  <input
+                    className="border p-2 rounded w-full h-10"
+                    placeholder="Search saved tasks…"
+                    value={taskSearch}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setTaskSearch(v);
+                      setTask(v);
+                      setShowTaskResults(true);
+                    }}
+                    onFocus={() => setShowTaskResults(true)}
+                  />
 
-      {showTaskResults && filteredTasks.length > 0 ? (
-        <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-          {filteredTasks.map((t) => (
-            <div
-              key={t.id}
-              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-              onClick={() => applyTaskSelection(t)}
-            >
-              {t.name}
+                  {showTaskResults && filteredTasks.length > 0 ? (
+                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+                      {filteredTasks.map((t) => (
+                        <div
+                          key={t.id}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          onClick={() => applyTaskSelection(t)}
+                        >
+                          {t.name}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-3 mt-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={saveToCatalog}
+                      onChange={(e) => setSaveToCatalog(e.target.checked)}
+                    />
+                    Save to Task Catalog
+                  </label>
+                  {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
+                  {saveToCatalogMsg ? <span className="text-xs text-gray-500">{saveToCatalogMsg}</span> : null}
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="col-span-3">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  placeholder="Optional details (color, location, etc.)"
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                />
+              </div>
+
+              {/* Qty */}
+              <div className="col-span-1">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  type="number"
+                  placeholder="0"
+                  value={Number.isFinite(quantity) ? quantity : 0}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                />
+              </div>
+
+              {/* Unit */}
+              <div className="col-span-1">
+                <select
+                  className="border p-2 rounded w-full h-10"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                >
+                  {UNIT_OPTIONS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Hours */}
+              <div className="col-span-2">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  type="number"
+                  placeholder="0"
+                  value={Number.isFinite(hours) ? hours : 0}
+                  onChange={(e) => setHours(Number(e.target.value))}
+                />
+              </div>
+
+              {/* Action */}
+              <div className="col-span-1 text-right">
+                <button
+                  onClick={addLabor}
+                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+                >
+                  Add
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-
-    <div className="flex items-center gap-3 mt-2">
-      <label className="flex items-center gap-2 text-xs text-gray-700">
-        <input
-          type="checkbox"
-          checked={saveToCatalog}
-          onChange={(e) => setSaveToCatalog(e.target.checked)}
-        />
-        Save to Task Catalog
-      </label>
-      {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
-      {saveToCatalogMsg ? <span className="text-xs text-gray-500">{saveToCatalogMsg}</span> : null}
-    </div>
-  </div>
-
-  {/* Details */}
-  <div className="col-span-3">
-    <input
-      className="border p-2 rounded w-full h-10"
-      placeholder="Optional details (color, location, etc.)"
-      value={details}
-      onChange={(e) => setDetails(e.target.value)}
-    />
-  </div>
-
-  {/* Qty */}
-  <div className="col-span-1">
-    <input
-      className="border p-2 rounded w-full h-10"
-      type="number"
-      placeholder="0"
-      value={Number.isFinite(quantity) ? quantity : 0}
-      onChange={(e) => setQuantity(Number(e.target.value))}
-    />
-  </div>
-
-  {/* Unit */}
-  <div className="col-span-1">
-    <select
-      className="border p-2 rounded w-full h-10"
-      value={unit}
-      onChange={(e) => setUnit(e.target.value)}
-    >
-      {UNIT_OPTIONS.map((u) => (
-        <option key={u.value} value={u.value}>
-          {u.label}
-        </option>
-      ))}
-    </select>
-  </div>
-{/* Hours */}
-<div className="col-span-2">
-  <input
-    className="border p-2 rounded w-full h-10"
-    type="number"
-    placeholder="0"
-    value={Number.isFinite(hours) ? hours : 0}
-    onChange={(e) => setHours(Number(e.target.value))}
-  />
-</div>
-  {/* Action */}
-  <div className="col-span-1 text-right">
-    <button
-      onClick={addLabor}
-      className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
-    >
-      Add
-    </button>
-  </div>
-</div>
-          
 
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
@@ -648,22 +668,30 @@ export default function BidScopePage() {
                     <div>{row.man_hours}</div>
                     <div>{Number(row.hourly_rate || 0).toFixed(2)}</div>
                     <div>{rowTotal.toFixed(2)}</div>
-                    <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-right">
+                    <button
+                      onClick={() => deleteLaborRow(row.id)}
+                      className="text-red-600 hover:underline text-right"
+                    >
                       Delete
                     </button>
                   </div>
                 );
               })
             )}
+          </div>
 
           {/* TRUCKING */}
           <div className="border rounded-lg p-6 space-y-3">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <h2 className="text-xl font-semibold">Trucking</h2>
-                <div className="text-sm text-gray-500">Single trucking entry (Landscaping only). Uses the same division rate.</div>
+                <div className="text-sm text-gray-500">
+                  Single trucking entry (Landscaping only). Uses the same division rate.
+                </div>
               </div>
-              <div className="text-right text-sm">{savingTrucking ? <span className="text-gray-500">Saving…</span> : null}</div>
+              <div className="text-right text-sm">
+                {savingTrucking ? <span className="text-gray-500">Saving…</span> : null}
+              </div>
             </div>
 
             {truckingSaveError ? <div className="text-sm text-red-600">{truckingSaveError}</div> : null}
@@ -671,7 +699,12 @@ export default function BidScopePage() {
             <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Hours</div>
-                <input className="border p-2 rounded w-full" type="number" value={Number.isFinite(truckingHours) ? truckingHours : 0} onChange={(e) => setTruckingHours(Number(e.target.value))} />
+                <input
+                  className="border p-2 rounded w-full"
+                  type="number"
+                  value={Number.isFinite(truckingHours) ? truckingHours : 0}
+                  onChange={(e) => setTruckingHours(Number(e.target.value))}
+                />
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">Rate ($/hr)</div>
@@ -691,14 +724,25 @@ export default function BidScopePage() {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm text-gray-600">Target Gross Profit % (editable)</label>
-                <input className="border p-2 rounded w-full" type="number" value={Number.isFinite(targetGpPct) ? targetGpPct : 0} onChange={(e) => setTargetGpPct(Number(e.target.value))} />
+                <input
+                  className="border p-2 rounded w-full"
+                  type="number"
+                  value={Number.isFinite(targetGpPct) ? targetGpPct : 0}
+                  onChange={(e) => setTargetGpPct(Number(e.target.value))}
+                />
 
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
-                  <input type="checkbox" checked={prepayEnabled} onChange={(e) => setPrepayEnabled(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={prepayEnabled}
+                    onChange={(e) => setPrepayEnabled(e.target.checked)}
+                  />
                   Apply prepay discount (100% payment via check up-front)
                 </label>
 
-                <div className="text-xs text-gray-500">Rounding + contingency are “baked in” from Ops Settings (hidden from sales).</div>
+                <div className="text-xs text-gray-500">
+                  Rounding + contingency are “baked in” from Ops Settings (hidden from sales).
+                </div>
               </div>
 
               <div className="space-y-2 text-sm">
@@ -733,7 +777,8 @@ export default function BidScopePage() {
               </div>
             </div>
           </div>
-          </div>
+        </>
       )}
     </div>
   );
+}
