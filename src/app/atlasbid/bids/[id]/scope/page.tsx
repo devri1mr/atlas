@@ -24,7 +24,7 @@ type LaborRow = {
   id: string;
   bid_id: string;
   task: string;
-  item: string;
+  item: string; // DB column; we show as "Details"
   quantity: number;
   unit: string;
   man_hours: number;
@@ -34,26 +34,20 @@ type LaborRow = {
 
 type BidSettings = {
   division_id: string;
-  margin_default: number; // could be 50 or 0.5 depending on what's stored
-  contingency_pct: number; // could be 3 or 0.03
-  round_up_increment: number; // typically 100
-  prepay_discount_pct: number; // could be 3 or 0.03
+  margin_default: number;
+  contingency_pct: number;
+  round_up_increment: number;
+  prepay_discount_pct: number;
 };
 
 type TaskCatalogRow = {
   id: string;
   division_id: string;
   name: string;
-  unit: string | null;
-  minutes_per_unit: number | null;
-  default_qty: number | null;
+  unit?: string | null;
+  minutes_per_unit?: number | null;
+  default_qty?: number | null;
   notes?: string | null;
-  min_qty?: number | null;
-  round_qty_to?: number | null;
-  seasonal_multiplier?: number | null;
-  difficulty_multiplier?: number | null;
-  created_at?: string;
-  updated_at?: string;
 };
 
 function normalizePercent(n: number) {
@@ -75,11 +69,15 @@ function money(n: number) {
   return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-/**
- * ✅ Controlled units:
- * - We STORE standardized values (like "yd") regardless of label.
- * - "yd(s)" displays but saves as "yd".
- */
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+function paramToString(v: unknown) {
+  if (Array.isArray(v)) return String(v[0] ?? "");
+  return String(v ?? "");
+}
+
 const UNIT_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "yd(s)", value: "yd" },
   { label: "sq ft", value: "sqft" },
@@ -90,24 +88,16 @@ const UNIT_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "hours", value: "hr" },
 ];
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-}
-
-function guessItemFromTaskName(name: string) {
-  // Safe, deterministic guess: if the task name looks like "Mulch — Install" or "Mulch - Install"
-  // we’ll use "Mulch" as item ONLY when item is currently blank.
-  const n = (name || "").trim();
-  if (!n) return "";
-  if (n.includes("—")) return n.split("—")[0].trim();
-  if (n.includes(" - ")) return n.split(" - ")[0].trim();
-  if (n.includes("-")) return n.split("-")[0].trim();
-  return "";
+function hoursFromMinutesPerUnit(minutesPerUnit: number, qty: number) {
+  const m = Number(minutesPerUnit) || 0;
+  const q = Number(qty) || 0;
+  if (m <= 0 || q <= 0) return 0;
+  return (m * q) / 60;
 }
 
 export default function BidScopePage() {
   const params = useParams();
-  const bidId = String((params as any)?.id || "");
+  const bidId = paramToString((params as any)?.id).trim();
 
   const [loading, setLoading] = useState(true);
   const [bid, setBid] = useState<Bid | null>(null);
@@ -120,47 +110,43 @@ export default function BidScopePage() {
 
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
+
+  // Inputs
   const [task, setTask] = useState("");
-  const [item, setItem] = useState("");
+  const [details, setDetails] = useState(""); // UI label "Details" (NOT required)
   const [quantity, setQuantity] = useState<number>(0);
-
-  // ✅ Unit now controlled
   const [unit, setUnit] = useState<string>("yd");
-
   const [hours, setHours] = useState<number>(0);
 
+  // Predictive task search
+  const [taskCatalog, setTaskCatalog] = useState<TaskCatalogRow[]>([]);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [showTaskResults, setShowTaskResults] = useState(false);
+  const taskDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Save-to-catalog
+  const [saveToCatalog, setSaveToCatalog] = useState(false);
+  const [savingToCatalog, setSavingToCatalog] = useState(false);
+  const [saveToCatalogMsg, setSaveToCatalogMsg] = useState<string>("");
+
   // Rates/settings
-  const [divisionRate, setDivisionRate] = useState<number>(0); // 1 standard rate per division
+  const [divisionRate, setDivisionRate] = useState<number>(0);
   const [targetGpPct, setTargetGpPct] = useState<number>(50);
   const [contingencyPct, setContingencyPct] = useState<number>(3);
   const [roundUpIncrement, setRoundUpIncrement] = useState<number>(100);
   const [prepayDiscountPct, setPrepayDiscountPct] = useState<number>(3);
   const [prepayEnabled, setPrepayEnabled] = useState<boolean>(false);
 
-  // Trucking (Landscaping only, uses same division rate)
+  // Trucking
   const [truckingHours, setTruckingHours] = useState<number>(0);
-
-  // Trucking autosave UX
   const [savingTrucking, setSavingTrucking] = useState(false);
   const [truckingSaveError, setTruckingSaveError] = useState<string | null>(null);
-
-  // ---- Task Catalog predictive search + optional save ----
-  const [taskCatalog, setTaskCatalog] = useState<TaskCatalogRow[]>([]);
-  const [taskSearch, setTaskSearch] = useState("");
-  const [showTaskResults, setShowTaskResults] = useState(false);
-  const [saveToCatalog, setSaveToCatalog] = useState(false);
-  const [savingToCatalog, setSavingToCatalog] = useState(false);
-  const [saveToCatalogMsg, setSaveToCatalogMsg] = useState<string>("");
-
-  const taskDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       const el = taskDropdownRef.current;
       if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setShowTaskResults(false);
-      }
+      if (e.target instanceof Node && !el.contains(e.target)) setShowTaskResults(false);
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
@@ -172,7 +158,7 @@ export default function BidScopePage() {
     setError("");
 
     try {
-      // 1) Load bid (API returns { data })
+      // 1) Bid
       const bRes = await fetch(`/api/bids/${bidId}`, { cache: "no-store" });
       const bJson = await bRes.json();
       const b: Bid | null = bJson?.data ?? null;
@@ -182,58 +168,41 @@ export default function BidScopePage() {
         setLoading(false);
         return;
       }
-
       setBid(b);
-
-      // hydrate trucking hours from DB
       setTruckingHours(Number(b.trucking_hours ?? 0));
 
-      // 2) Load divisions for gate
+      // 2) Divisions
       const dRes = await fetch(`/api/divisions`, { cache: "no-store" });
       const dJson = await dRes.json();
       const divs: Division[] = dJson?.divisions ?? dJson?.data ?? dJson ?? [];
-      const cleaned = Array.isArray(divs) ? divs : [];
-      setDivisions(cleaned);
-
-      // Preselect
+      setDivisions(Array.isArray(divs) ? divs : []);
       if (b.division_id) setDivisionPick(b.division_id);
 
-      // Stop here if division not chosen yet
       if (!b.division_id) {
         setLoading(false);
         return;
       }
-
       const divisionId = b.division_id;
 
-      // 3) Pull division rate from /api/labor-rates (1 per division)
+      // 3) Rate
       const rateRes = await fetch(`/api/labor-rates`, { cache: "no-store" });
       const rateJson = await rateRes.json();
-
       const rateRow =
         Array.isArray(rateJson?.rates) && rateJson.rates.length > 0
           ? (rateJson.rates as any[]).find((r) => r.division_id === divisionId)
           : null;
-
       setDivisionRate(Number(rateRow?.hourly_rate ?? 0));
 
-      // 4) Bid settings (ops)
-      const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
-        cache: "no-store",
-      });
+      // 4) Settings
+      const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, { cache: "no-store" });
       const sJson = await sRes.json();
       const settings: BidSettings | null = sJson?.settings ?? sJson?.data ?? null;
 
       if (settings) {
-        const marginDefault = normalizePercent(settings.margin_default);
-        const contPct = normalizePercent(settings.contingency_pct);
-        const prepayPct = normalizePercent(settings.prepay_discount_pct);
-        const roundInc = Number(settings.round_up_increment || 0);
-
-        setTargetGpPct(marginDefault || 50);
-        setContingencyPct(contPct || 0);
-        setPrepayDiscountPct(prepayPct || 0);
-        setRoundUpIncrement(roundInc || 0);
+        setTargetGpPct(normalizePercent(settings.margin_default) || 50);
+        setContingencyPct(normalizePercent(settings.contingency_pct) || 0);
+        setPrepayDiscountPct(normalizePercent(settings.prepay_discount_pct) || 0);
+        setRoundUpIncrement(Number(settings.round_up_increment || 0) || 0);
       } else {
         setTargetGpPct(50);
         setContingencyPct(3);
@@ -241,12 +210,12 @@ export default function BidScopePage() {
         setRoundUpIncrement(100);
       }
 
-      // 5) Labor rows for this bid
+      // 5) Labor rows
       const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, { cache: "no-store" });
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
 
-      // 6) Task catalog rows for division (predictive search)
+      // 6) Task catalog
       const tRes = await fetch(`/api/task-catalog?division_id=${divisionId}`, { cache: "no-store" });
       const tJson = await tRes.json();
       setTaskCatalog(Array.isArray(tJson?.data) ? tJson.data : []);
@@ -262,7 +231,7 @@ export default function BidScopePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidId]);
 
-  // Debounced autosave for trucking hours (persists to bids.trucking_hours)
+  // Trucking autosave
   useEffect(() => {
     if (!bid?.id) return;
     if (loading) return;
@@ -277,9 +246,7 @@ export default function BidScopePage() {
           body: JSON.stringify({ trucking_hours: Number(truckingHours) || 0 }),
         });
         const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json?.error?.message || json?.error || "Failed to save trucking hours");
-        }
+        if (!res.ok) throw new Error(json?.error?.message || json?.error || "Failed to save trucking hours");
         setBid(json?.data ?? bid);
       } catch (e: any) {
         setTruckingSaveError(e?.message || "Failed to save trucking hours");
@@ -292,28 +259,45 @@ export default function BidScopePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [truckingHours, bid?.id, loading]);
 
+  const filteredTasks = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return taskCatalog.slice(0, 20);
+    return taskCatalog.filter((t) => (t.name || "").toLowerCase().includes(q)).slice(0, 20);
+  }, [taskSearch, taskCatalog]);
+
+  function applyTaskSelection(t: TaskCatalogRow) {
+    const name = (t.name || "").trim();
+    setTask(name);
+    setTaskSearch(name);
+    setShowTaskResults(false);
+
+    if (t.unit) setUnit(t.unit);
+    const nextQty = typeof t.default_qty === "number" ? Number(t.default_qty) || 0 : Number(quantity) || 0;
+    if (typeof t.default_qty === "number") setQuantity(nextQty);
+
+    if (t.minutes_per_unit && nextQty > 0) {
+      const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
+      setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
+    }
+
+    // Optional convenience: if details empty, use notes
+    if (!details.trim() && t.notes) setDetails(String(t.notes));
+  }
+
   // ---- Labor calcs ----
   const laborSubtotal = useMemo(() => {
     return labor.reduce((sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0);
   }, [labor]);
 
-  const truckingCost = useMemo(() => {
-    return (Number(truckingHours) || 0) * (Number(divisionRate) || 0);
-  }, [truckingHours, divisionRate]);
+  const truckingCost = useMemo(() => (Number(truckingHours) || 0) * (Number(divisionRate) || 0), [truckingHours, divisionRate]);
+  const laborPlusTrucking = useMemo(() => laborSubtotal + truckingCost, [laborSubtotal, truckingCost]);
 
-  const laborPlusTrucking = useMemo(() => {
-    return laborSubtotal + truckingCost;
-  }, [laborSubtotal, truckingCost]);
-
-  // contingency calculated but hidden
   const contingencyCost = useMemo(() => {
     const pct = (Number(contingencyPct) || 0) / 100;
     return laborPlusTrucking * pct;
   }, [laborPlusTrucking, contingencyPct]);
 
-  const totalCost = useMemo(() => {
-    return laborPlusTrucking + contingencyCost;
-  }, [laborPlusTrucking, contingencyCost]);
+  const totalCost = useMemo(() => laborPlusTrucking + contingencyCost, [laborPlusTrucking, contingencyCost]);
 
   const targetSell = useMemo(() => {
     const gp = (Number(targetGpPct) || 0) / 100;
@@ -321,9 +305,7 @@ export default function BidScopePage() {
     return totalCost / (1 - gp);
   }, [totalCost, targetGpPct]);
 
-  const sellRounded = useMemo(() => {
-    return roundUpToIncrement(targetSell, roundUpIncrement);
-  }, [targetSell, roundUpIncrement]);
+  const sellRounded = useMemo(() => roundUpToIncrement(targetSell, roundUpIncrement), [targetSell, roundUpIncrement]);
 
   const sellWithPrepay = useMemo(() => {
     if (!prepayEnabled) return sellRounded;
@@ -337,14 +319,6 @@ export default function BidScopePage() {
     return ((sell - totalCost) / sell) * 100;
   }, [sellRounded, sellWithPrepay, prepayEnabled, totalCost]);
 
-  const filteredTasks = useMemo(() => {
-    const q = taskSearch.trim().toLowerCase();
-    if (!q) return taskCatalog.slice(0, 20);
-    return taskCatalog
-      .filter((t) => (t.name || "").toLowerCase().includes(q))
-      .slice(0, 20);
-  }, [taskSearch, taskCatalog]);
-
   async function saveDivision() {
     if (!divisionPick) return;
     setSavingDivision(true);
@@ -356,10 +330,8 @@ export default function BidScopePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ division_id: divisionPick }),
       });
-
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || json?.error || "Failed to save division.");
-
       await loadAll();
     } catch (e: any) {
       setError(e?.message || "Failed to save division.");
@@ -373,28 +345,28 @@ export default function BidScopePage() {
     setSaveToCatalogMsg("");
 
     if (!task.trim()) return setError("Task is required.");
-    if (!item.trim()) return setError("Item is required.");
+    // ✅ Details is OPTIONAL (no validation here)
     if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
     if ((Number(divisionRate) || 0) <= 0) return setError("Division rate is 0. Set the division + rate first.");
     if (!unit) return setError("Unit is required.");
 
-    // 1) Add labor row
+    // ✅ Always send a safe "item" value so API/DB can't reject null
+    const safeDetails = details.trim(); // may be ""
     const res = await fetch(`/api/atlasbid/bid-labor`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         bid_id: bidId,
         task: task.trim(),
-        item: item.trim(),
+        item: safeDetails, // may be empty string ✅
         quantity: Number(quantity) || 0,
-        unit: unit, // ✅ standardized
+        unit,
         man_hours: Number(hours) || 0,
         hourly_rate: Number(divisionRate) || 0,
       }),
     });
 
     const json = await res.json();
-
     if (!res.ok) {
       setError(json?.error?.message || json?.error || "Error adding labor");
       return;
@@ -403,14 +375,12 @@ export default function BidScopePage() {
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
 
-    // 2) Optional: save to task catalog
+    // Optional: save to task catalog
     if (saveToCatalog && bid?.division_id && isUuid(bid.division_id)) {
       setSavingToCatalog(true);
       try {
         const qtyNum = Number(quantity) || 0;
         const hoursNum = Number(hours) || 0;
-
-        // minutes_per_unit = (hours * 60) / qty  (only if qty > 0)
         const minutesPerUnit = qtyNum > 0 ? (hoursNum * 60) / qtyNum : null;
 
         const tcRes = await fetch(`/api/task-catalog`, {
@@ -422,16 +392,15 @@ export default function BidScopePage() {
             unit: unit || null,
             minutes_per_unit: minutesPerUnit,
             default_qty: qtyNum > 0 ? qtyNum : null,
+            notes: safeDetails ? safeDetails : null,
           }),
         });
 
         const tcJson = await tcRes.json();
         if (!tcRes.ok) {
-          // Don’t block sales flow — show a non-fatal message
           setSaveToCatalogMsg(tcJson?.error || "Could not save task to catalog.");
         } else {
           setSaveToCatalogMsg("Saved to Task Catalog.");
-          // Refresh local catalog list so it appears immediately in search
           const newRow: TaskCatalogRow | null = tcJson?.data ?? null;
           if (newRow?.id) {
             setTaskCatalog((prev) => {
@@ -448,10 +417,10 @@ export default function BidScopePage() {
       }
     }
 
-    // Reset inputs
+    // Reset
     setTask("");
     setTaskSearch("");
-    setItem("");
+    setDetails("");
     setQuantity(0);
     setUnit("yd");
     setHours(0);
@@ -486,30 +455,22 @@ export default function BidScopePage() {
       <div>
         <div className="text-sm text-gray-500">
           Bid: <span className="font-mono">{bid.id}</span> • Client:{" "}
-          <span className="font-semibold">
-            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
-          </span>
+          <span className="font-semibold">{[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}</span>
         </div>
         <h1 className="text-3xl font-bold mt-1">Scope</h1>
         <div className="text-sm text-gray-600 mt-1">
           Division: <span className="font-semibold">{divisionName}</span>
         </div>
-
         {isDebug ? <DebugPanel bidId={bid.id} /> : null}
       </div>
 
-      {/* Error */}
-      {error ? (
-        <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">{error}</div>
-      ) : null}
+      {error ? <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">{error}</div> : null}
 
       {/* Division Gate */}
       {!bid.division_id ? (
         <div className="border rounded-lg p-6 space-y-4">
           <h2 className="text-xl font-semibold">Select Division to Continue</h2>
-          <p className="text-sm text-gray-600">
-            This bid has no division yet. We must set a division before labor/rates/pricing can calculate.
-          </p>
+          <p className="text-sm text-gray-600">This bid has no division yet. We must set a division before labor/rates/pricing can calculate.</p>
 
           <div className="max-w-md space-y-2">
             <label className="block text-sm text-gray-700">Division</label>
@@ -524,11 +485,7 @@ export default function BidScopePage() {
                 ))}
             </select>
 
-            <button
-              className="bg-emerald-700 text-white rounded px-4 py-2 disabled:opacity-50"
-              disabled={!divisionPick || savingDivision}
-              onClick={saveDivision}
-            >
+            <button className="bg-emerald-700 text-white rounded px-4 py-2 disabled:opacity-50" disabled={!divisionPick || savingDivision} onClick={saveDivision}>
               {savingDivision ? "Saving…" : "Save Division"}
             </button>
           </div>
@@ -551,96 +508,90 @@ export default function BidScopePage() {
               </div>
             </div>
 
-            {/* Column headers ABOVE inputs */}
-            <div className="grid grid-cols-6 gap-4 text-xs font-semibold text-gray-600">
-              <div>Task</div>
-              <div>Item</div>
-              <div>Qty</div>
-              <div>Unit</div>
-              <div>Hours</div>
-              <div className="text-right">Action</div>
+            {/* Column labels */}
+            <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
+              <div className="col-span-4">Task</div>
+              <div className="col-span-3">Details (optional)</div>
+              <div className="col-span-1">Qty</div>
+              <div className="col-span-1">Unit</div>
+              <div className="col-span-2">Hours</div>
+              <div className="col-span-1 text-right">Action</div>
             </div>
 
-            <div className="grid grid-cols-6 gap-4 items-center">
-              {/* ✅ Predictive Task Search */}
-              <div className="relative" ref={taskDropdownRef}>
-                <input
-                  className="border p-2 rounded w-full"
-                  placeholder="Search task catalog…"
-                  value={taskSearch}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setTaskSearch(v);
-                    setTask(v);
-                    setShowTaskResults(true);
-                  }}
-                  onFocus={() => setShowTaskResults(true)}
-                />
+            {/* Inputs row — aligned */}
+            <div className="grid grid-cols-12 gap-4 items-end">
+              {/* Task cell is two lines (input + checkbox) but doesn’t wreck alignment */}
+              <div className="col-span-4" ref={taskDropdownRef}>
+                <div className="relative">
+                  <input
+                    className="border p-2 rounded w-full h-10"
+                    placeholder="Search saved tasks…"
+                    value={taskSearch}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setTaskSearch(v);
+                      setTask(v);
+                      setShowTaskResults(true);
+                    }}
+                    onFocus={() => setShowTaskResults(true)}
+                  />
 
-                {showTaskResults && filteredTasks.length > 0 ? (
-                  <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-                    {filteredTasks.map((t) => (
-                      <div
-                        key={t.id}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                        onClick={() => {
-                          setTask(t.name || "");
-                          setTaskSearch(t.name || "");
-                          setShowTaskResults(false);
+                  {showTaskResults && filteredTasks.length > 0 ? (
+                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+                      {filteredTasks.map((t) => (
+                        <div key={t.id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm" onClick={() => applyTaskSelection(t)}>
+                          {t.name}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
 
-                          if (t.unit) setUnit(t.unit);
-                          if (typeof t.default_qty === "number") setQuantity(Number(t.default_qty) || 0);
-
-                          // Only auto-fill Item if it's blank (safe, non-destructive)
-                          if (!item.trim()) {
-                            const guessed = guessItemFromTaskName(t.name || "");
-                            if (guessed) setItem(guessed);
-                          }
-                        }}
-                      >
-                        {t.name}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                <label className="flex items-center gap-2 text-xs mt-2 text-gray-700">
-                  <input type="checkbox" checked={saveToCatalog} onChange={(e) => setSaveToCatalog(e.target.checked)} />
-                  Save to Task Catalog
-                  {savingToCatalog ? <span className="text-gray-500">Saving…</span> : null}
-                  {saveToCatalogMsg ? <span className="text-gray-500">{saveToCatalogMsg}</span> : null}
-                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input type="checkbox" checked={saveToCatalog} onChange={(e) => setSaveToCatalog(e.target.checked)} />
+                    Save to Task Catalog
+                  </label>
+                  {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
+                  {saveToCatalogMsg ? <span className="text-xs text-gray-500">{saveToCatalogMsg}</span> : null}
+                </div>
               </div>
 
-              <input className="border p-2 rounded" placeholder="e.g. Mulch" value={item} onChange={(e) => setItem(e.target.value)} />
+              <div className="col-span-3">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  placeholder="Optional details (color, location, etc.)"
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                />
+              </div>
 
-              <input
-                className="border p-2 rounded"
-                type="number"
-                placeholder="0"
-                value={Number.isFinite(quantity) ? quantity : 0}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-              />
+              <div className="col-span-1">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  type="number"
+                  placeholder="0"
+                  value={Number.isFinite(quantity) ? quantity : 0}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                />
+              </div>
 
-              {/* ✅ controlled unit dropdown */}
-              <select className="border p-2 rounded" value={unit} onChange={(e) => setUnit(e.target.value)}>
-                {UNIT_OPTIONS.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
+              <div className="col-span-1">
+                <select className="border p-2 rounded w-full h-10" value={unit} onChange={(e) => setUnit(e.target.value)}>
+                  {UNIT_OPTIONS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <input
-                className="border p-2 rounded"
-                type="number"
-                placeholder="0"
-                value={Number.isFinite(hours) ? hours : 0}
-                onChange={(e) => setHours(Number(e.target.value))}
-              />
+              <div className="col-span-2">
+                <input className="border p-2 rounded w-full h-10" type="number" placeholder="0" value={Number.isFinite(hours) ? hours : 0} onChange={(e) => setHours(Number(e.target.value))} />
+              </div>
 
-              <div className="text-right">
-                <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4 py-2">
+              <div className="col-span-1 text-right">
+                <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full">
                   Add
                 </button>
               </div>
@@ -649,7 +600,7 @@ export default function BidScopePage() {
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
               <div>Task</div>
-              <div>Item</div>
+              <div>Details</div>
               <div>Qty</div>
               <div>Unit</div>
               <div>Hours</div>
@@ -666,7 +617,7 @@ export default function BidScopePage() {
                 return (
                   <div key={row.id} className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center">
                     <div>{row.task}</div>
-                    <div>{row.item}</div>
+                    <div className="text-gray-600">{row.item || "—"}</div>
                     <div>{row.quantity}</div>
                     <div>{row.unit}</div>
                     <div>{row.man_hours}</div>
@@ -681,7 +632,7 @@ export default function BidScopePage() {
             )}
           </div>
 
-          {/* TRUCKING (persisted) */}
+          {/* TRUCKING */}
           <div className="border rounded-lg p-6 space-y-3">
             <div className="flex items-start justify-between gap-6">
               <div>
@@ -696,12 +647,7 @@ export default function BidScopePage() {
             <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Hours</div>
-                <input
-                  className="border p-2 rounded w-full"
-                  type="number"
-                  value={Number.isFinite(truckingHours) ? truckingHours : 0}
-                  onChange={(e) => setTruckingHours(Number(e.target.value))}
-                />
+                <input className="border p-2 rounded w-full" type="number" value={Number.isFinite(truckingHours) ? truckingHours : 0} onChange={(e) => setTruckingHours(Number(e.target.value))} />
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">Rate ($/hr)</div>
@@ -721,12 +667,7 @@ export default function BidScopePage() {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm text-gray-600">Target Gross Profit % (editable)</label>
-                <input
-                  className="border p-2 rounded w-full"
-                  type="number"
-                  value={Number.isFinite(targetGpPct) ? targetGpPct : 0}
-                  onChange={(e) => setTargetGpPct(Number(e.target.value))}
-                />
+                <input className="border p-2 rounded w-full" type="number" value={Number.isFinite(targetGpPct) ? targetGpPct : 0} onChange={(e) => setTargetGpPct(Number(e.target.value))} />
 
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
                   <input type="checkbox" checked={prepayEnabled} onChange={(e) => setPrepayEnabled(e.target.checked)} />
@@ -767,15 +708,6 @@ export default function BidScopePage() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* NOTE about difficulty/season */}
-          <div className="border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-2">Difficulty / Season</h2>
-            <p className="text-gray-500">
-              Those live in the <b>Task Catalog</b> + selection UI (Ops Center → Tasks). We haven’t wired Task Catalog selection into Scope
-              beyond name/unit/default qty yet, so Scope still uses manual labor rows for hours.
-            </p>
           </div>
         </>
       )}
