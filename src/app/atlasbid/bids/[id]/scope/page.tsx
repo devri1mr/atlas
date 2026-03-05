@@ -527,21 +527,12 @@ export default function BidScopePage() {
               </div>
             </div>
 
-            {/* Column labels */}
-            <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-              <div className="col-span-4">Task</div>
-              <div className="col-span-3">Details (optional)</div>
-              <div className="col-span-1">Qty</div>
-              <div className="col-span-1">Unit</div>
-              <div className="col-span-2">Hours</div>
-              <div className="col-span-1 text-right">Action</div>
-            </div>
-
-            {/* Inputs row — aligned */}
+            {/* Inputs (2-row layout) */}
             <div className="grid grid-cols-12 gap-4 items-end">
               {/* Task */}
-              <div className="col-span-4" ref={taskDropdownRef}>
+              <div className="col-span-5" ref={taskDropdownRef}>
                 <div className="relative">
+                  <div className="text-xs font-semibold text-gray-600 mb-1">Task</div>
                   <input
                     className="border p-2 rounded w-full h-10"
                     placeholder="Search saved tasks…"
@@ -570,6 +561,7 @@ export default function BidScopePage() {
                   ) : null}
                 </div>
 
+                {/* Save-to-catalog under Task */}
                 <div className="flex items-center gap-3 mt-2">
                   <label className="flex items-center gap-2 text-xs text-gray-700">
                     <input
@@ -585,7 +577,8 @@ export default function BidScopePage() {
               </div>
 
               {/* Details */}
-              <div className="col-span-3">
+              <div className="col-span-5">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Details (optional)</div>
                 <input
                   className="border p-2 rounded w-full h-10"
                   placeholder="Optional details (color, location, etc.)"
@@ -594,8 +587,20 @@ export default function BidScopePage() {
                 />
               </div>
 
-              {/* Qty */}
-              <div className="col-span-1">
+              {/* Add */}
+              <div className="col-span-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1 text-right">Action</div>
+                <button
+                  onClick={addLabor}
+                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+                >
+                  Add
+                </button>
+              </div>
+
+              {/* Row 2: Qty */}
+              <div className="col-span-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Qty</div>
                 <input
                   className="border p-2 rounded w-full h-10"
                   type="number"
@@ -606,7 +611,8 @@ export default function BidScopePage() {
               </div>
 
               {/* Unit */}
-              <div className="col-span-1">
+              <div className="col-span-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Unit</div>
                 <select
                   className="border p-2 rounded w-full h-10"
                   value={unit}
@@ -622,6 +628,7 @@ export default function BidScopePage() {
 
               {/* Hours */}
               <div className="col-span-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Hours</div>
                 <input
                   className="border p-2 rounded w-full h-10"
                   type="number"
@@ -631,15 +638,8 @@ export default function BidScopePage() {
                 />
               </div>
 
-              {/* Action */}
-              <div className="col-span-1 text-right">
-                <button
-                  onClick={addLabor}
-                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
-                >
-                  Add
-                </button>
-              </div>
+              {/* Spacer so row 2 aligns under Details/Add */}
+              <div className="col-span-6" />
             </div>
 
             {/* Table headers */}
