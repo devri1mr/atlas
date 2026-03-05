@@ -178,7 +178,8 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     setError(null);
 
     try {
-      if (!effectiveBidId) throw new Error(`Invalid bid id.`);
+      if (!effectiveBidId) throw new Error(`Missing bid id.`);
+      console.log("BID ID RECEIVED:", effectiveBidId);
 
       // Load divisions (for division name display)
       const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
