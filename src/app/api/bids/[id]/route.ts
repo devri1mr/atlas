@@ -44,7 +44,7 @@ export async function GET(
         "id, client_name, client_last_name, division_id, status_id, internal_notes, created_at, trucking_hours"
       )
       .eq("id", bidId)
-      .maybesingle();
+      .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
