@@ -518,104 +518,110 @@ export default function BidScopePage() {
               <div className="col-span-1 text-right">Action</div>
             </div>
 
-            <div className="grid grid-cols-12 gap-3 items-end border-b pb-3">
+           {/* Inputs row — aligned */}
+<div className="grid grid-cols-12 gap-4 items-end">
+  {/* Task */}
+  <div className="col-span-4" ref={taskDropdownRef}>
+    <div className="relative">
+      <input
+        className="border p-2 rounded w-full h-10"
+        placeholder="Search saved tasks…"
+        value={taskSearch}
+        onChange={(e) => {
+          const v = e.target.value;
+          setTaskSearch(v);
+          setTask(v);
+          setShowTaskResults(true);
+        }}
+        onFocus={() => setShowTaskResults(true)}
+      />
 
-  <div className="col-span-4">
-    <label className="text-xs font-medium">Task</label>
+      {showTaskResults && filteredTasks.length > 0 ? (
+        <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+          {filteredTasks.map((t) => (
+            <div
+              key={t.id}
+              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+              onClick={() => applyTaskSelection(t)}
+            >
+              {t.name}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+
+    <div className="flex items-center gap-3 mt-2">
+      <label className="flex items-center gap-2 text-xs text-gray-700">
+        <input
+          type="checkbox"
+          checked={saveToCatalog}
+          onChange={(e) => setSaveToCatalog(e.target.checked)}
+        />
+        Save to Task Catalog
+      </label>
+      {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
+      {saveToCatalogMsg ? <span className="text-xs text-gray-500">{saveToCatalogMsg}</span> : null}
+    </div>
+  </div>
+
+  {/* Details */}
+  <div className="col-span-3">
     <input
-      type="text"
-      value={row.details || ""}
-      onChange={(e) => updateRow(index, "details", e.target.value)}
-      placeholder="Start typing task..."
-      className="w-full border rounded px-2 py-1"
+      className="border p-2 rounded w-full h-10"
+      placeholder="Optional details (color, location, etc.)"
+      value={details}
+      onChange={(e) => setDetails(e.target.value)}
     />
   </div>
 
-  <div className="col-span-2">
-    <label className="text-xs font-medium">Qty</label>
+  {/* Qty */}
+  <div className="col-span-1">
     <input
+      className="border p-2 rounded w-full h-10"
       type="number"
-      value={row.qty || ""}
-      onChange={(e) => updateRow(index, "qty", Number(e.target.value))}
-      className="w-full border rounded px-2 py-1"
+      placeholder="0"
+      value={Number.isFinite(quantity) ? quantity : 0}
+      onChange={(e) => setQuantity(Number(e.target.value))}
     />
   </div>
 
-  <div className="col-span-2">
-    <label className="text-xs font-medium">Unit</label>
+  {/* Unit */}
+  <div className="col-span-1">
     <select
-      value={row.unit || ""}
-      onChange={(e) => updateRow(index, "unit", e.target.value)}
-      className="w-full border rounded px-2 py-1"
+      className="border p-2 rounded w-full h-10"
+      value={unit}
+      onChange={(e) => setUnit(e.target.value)}
     >
-      <option value="">Select</option>
-      <option value="hr">hr</option>
-      <option value="sqft">sqft</option>
-      <option value="lf">lf</option>
-      <option value="each">each</option>
+      {UNIT_OPTIONS.map((u) => (
+        <option key={u.value} value={u.value}>
+          {u.label}
+        </option>
+      ))}
     </select>
   </div>
 
+  {/* Hours */}
   <div className="col-span-2">
-    <label className="text-xs font-medium">Rate</label>
     <input
+      className="border p-2 rounded w-full h-10"
       type="number"
-      value={row.rate || ""}
-      onChange={(e) => updateRow(index, "rate", Number(e.target.value))}
-      className="w-full border rounded px-2 py-1"
+      placeholder="0"
+      value={Number.isFinite(hours) ? hours : 0}
+      onChange={(e) => setHours(Number(e.target.value))}
     />
   </div>
 
-  <div className="col-span-2 flex items-end">
+  {/* Action */}
+  <div className="col-span-1 text-right">
     <button
-      onClick={() => removeRow(index)}
-      className="text-red-600 text-sm"
+      onClick={addLabor}
+      className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
     >
-      Remove
+      Add
     </button>
   </div>
-
 </div>
-
-                <div className="flex items-center gap-3 mt-2">
-                  <label className="flex items-center gap-2 text-xs text-gray-700">
-                    <input type="checkbox" checked={saveToCatalog} onChange={(e) => setSaveToCatalog(e.target.checked)} />
-                    Save to Task Catalog
-                  </label>
-                  {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
-                  {saveToCatalogMsg ? <span className="text-xs text-gray-500">{saveToCatalogMsg}</span> : null}
-                </div>
-              </div>
-
-              <div className="col-span-3">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  placeholder="Optional details (color, location, etc.)"
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                />
-              </div>
-
-              <div className="col-span-1">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  type="number"
-                  placeholder="0"
-                  value={Number.isFinite(quantity) ? quantity : 0}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="col-span-1">
-                <select className="border p-2 rounded w-full h-10" value={unit} onChange={(e) => setUnit(e.target.value)}>
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="col-span-2">
                 <input className="border p-2 rounded w-full h-10" type="number" placeholder="0" value={Number.isFinite(hours) ? hours : 0} onChange={(e) => setHours(Number(e.target.value))} />
               </div>
