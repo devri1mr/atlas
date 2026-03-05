@@ -1,11 +1,11 @@
-// src/app/atlasbid/bids/[id]/page.tsx
-
 import BidDetailClient from "./BidDetailClient";
 
-export default function Page({
+export default async function Page({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  return <BidDetailClient bidId={params.id} />;
+  const { id } = await params;
+
+  return <BidDetailClient bidId={id} />;
 }
