@@ -61,7 +61,23 @@ type MaterialRow = {
   unit_cost: number;
   created_at?: string;
 };
-
+type TemplateMaterialRow = {
+  id: string;
+  material_id: string;
+  qty_per_task_unit: number;
+  unit?: string | null;
+  unit_cost?: number | null;
+  details?: string | null;
+  materials_catalog?: {
+    id: string;
+    name: string;
+    default_unit?: string | null;
+    default_unit_cost?: number | null;
+    vendor?: string | null;
+    sku?: string | null;
+    is_active?: boolean | null;
+  } | null;
+};
 type MaterialsCatalogRow = {
   id: string;
   name: string;
