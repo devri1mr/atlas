@@ -625,7 +625,6 @@ export default function BidScopePage() {
                   Add
                 </button>
               </div>
-            </div>
 
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
