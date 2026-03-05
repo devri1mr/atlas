@@ -154,6 +154,10 @@ export default function BidScopePage() {
 
   // Materials (bid rows)
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
+  const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
+const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
+const [loadingTemplateMaterials, setLoadingTemplateMaterials] = useState(false);
+const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
   const [materialName, setMaterialName] = useState("");
   const [materialDetails, setMaterialDetails] = useState("");
   const [materialQty, setMaterialQty] = useState<number>(0);
