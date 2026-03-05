@@ -518,34 +518,64 @@ export default function BidScopePage() {
               <div className="col-span-1 text-right">Action</div>
             </div>
 
-            {/* Inputs row — aligned */}
-            <div className="grid grid-cols-12 gap-4 items-end">
-              {/* Task cell is two lines (input + checkbox) but doesn’t wreck alignment */}
-              <div className="col-span-4" ref={taskDropdownRef}>
-                <div className="relative">
-                  <input
-                    className="border p-2 rounded w-full h-10"
-                    placeholder="Search saved tasks…"
-                    value={taskSearch}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setTaskSearch(v);
-                      setTask(v);
-                      setShowTaskResults(true);
-                    }}
-                    onFocus={() => setShowTaskResults(true)}
-                  />
+            <div className="grid grid-cols-12 gap-3 items-end border-b pb-3">
 
-                  {showTaskResults && filteredTasks.length > 0 ? (
-                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-                      {filteredTasks.map((t) => (
-                        <div key={t.id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm" onClick={() => applyTaskSelection(t)}>
-                          {t.name}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+  <div className="col-span-4">
+    <label className="text-xs font-medium">Task</label>
+    <input
+      type="text"
+      value={row.details || ""}
+      onChange={(e) => updateRow(index, "details", e.target.value)}
+      placeholder="Start typing task..."
+      className="w-full border rounded px-2 py-1"
+    />
+  </div>
+
+  <div className="col-span-2">
+    <label className="text-xs font-medium">Qty</label>
+    <input
+      type="number"
+      value={row.qty || ""}
+      onChange={(e) => updateRow(index, "qty", Number(e.target.value))}
+      className="w-full border rounded px-2 py-1"
+    />
+  </div>
+
+  <div className="col-span-2">
+    <label className="text-xs font-medium">Unit</label>
+    <select
+      value={row.unit || ""}
+      onChange={(e) => updateRow(index, "unit", e.target.value)}
+      className="w-full border rounded px-2 py-1"
+    >
+      <option value="">Select</option>
+      <option value="hr">hr</option>
+      <option value="sqft">sqft</option>
+      <option value="lf">lf</option>
+      <option value="each">each</option>
+    </select>
+  </div>
+
+  <div className="col-span-2">
+    <label className="text-xs font-medium">Rate</label>
+    <input
+      type="number"
+      value={row.rate || ""}
+      onChange={(e) => updateRow(index, "rate", Number(e.target.value))}
+      className="w-full border rounded px-2 py-1"
+    />
+  </div>
+
+  <div className="col-span-2 flex items-end">
+    <button
+      onClick={() => removeRow(index)}
+      className="text-red-600 text-sm"
+    >
+      Remove
+    </button>
+  </div>
+
+</div>
 
                 <div className="flex items-center gap-3 mt-2">
                   <label className="flex items-center gap-2 text-xs text-gray-700">
