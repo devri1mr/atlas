@@ -393,31 +393,53 @@ const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
       .slice(0, 20);
   }, [taskSearch, taskCatalog]);
 
-  function applyTaskSelection(t: TaskCatalogRow) {
-    const name = (t.name || "").trim();
+ async function applyTaskSelection(t: TaskCatalogRow) {
+  const name = (t.name || "").trim();
 
-    setTask(name);
-    setTaskSearch(name);
-    setShowTaskResults(false);
+  setTask(name);
+  setTaskSearch(name);
+  setShowTaskResults(false);
 
-    if (t.unit) setUnit(t.unit);
+  setSelectedTaskCatalogId(t.id || "");
+  setTemplateMaterials([]);
 
-    const nextQty =
-      typeof t.default_qty === "number"
-        ? Number(t.default_qty) || 0
-        : Number(quantity) || 0;
+  if (t.unit) setUnit(t.unit);
 
-    if (typeof t.default_qty === "number") setQuantity(nextQty);
+  const nextQty =
+    typeof t.default_qty === "number"
+      ? Number(t.default_qty) || 0
+      : Number(quantity) || 0;
 
-    if (t.minutes_per_unit && nextQty > 0) {
-      const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
-      setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
-    }
+  if (typeof t.default_qty === "number") setQuantity(nextQty);
 
-    if (!details.trim() && t.notes) {
-      setDetails(String(t.notes));
+  if (t.minutes_per_unit && nextQty > 0) {
+    const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
+    setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
+  }
+
+  if (!details.trim() && t.notes) {
+    setDetails(String(t.notes));
+  }
+
+  // Load template materials for this task
+  if (bid?.division_id && t.id) {
+    setLoadingTemplateMaterials(true);
+
+    try {
+      const res = await fetch(
+        `/api/task-template-materials?division_id=${bid.division_id}&task_catalog_id=${t.id}`,
+        { cache: "no-store" }
+      );
+
+      const json = await res.json();
+      setTemplateMaterials(Array.isArray(json?.rows) ? json.rows : []);
+    } catch {
+      setTemplateMaterials([]);
+    } finally {
+      setLoadingTemplateMaterials(false);
     }
   }
+}
 
   // ✅ Materials catalog predictive filtering
   const filteredMaterialsCatalog = useMemo(() => {
