@@ -745,4 +745,3 @@ export default function BidScopePage() {
       )}
     </div>
   );
-}
