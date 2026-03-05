@@ -601,16 +601,7 @@ export default function BidScopePage() {
     </select>
   </div>
 
-  {/* Hours */}
-  <div className="col-span-2">
-    <input
-      className="border p-2 rounded w-full h-10"
-      type="number"
-      placeholder="0"
-      value={Number.isFinite(hours) ? hours : 0}
-      onChange={(e) => setHours(Number(e.target.value))}
-    />
-  </div>
+ 
 
   {/* Action */}
   <div className="col-span-1 text-right">
@@ -622,15 +613,7 @@ export default function BidScopePage() {
     </button>
   </div>
 </div>
-              <div className="col-span-2">
-                <input className="border p-2 rounded w-full h-10" type="number" placeholder="0" value={Number.isFinite(hours) ? hours : 0} onChange={(e) => setHours(Number(e.target.value))} />
-              </div>
-
-              <div className="col-span-1 text-right">
-                <button onClick={addLabor} className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full">
-                  Add
-                </button>
-              </div>
+          
 
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
