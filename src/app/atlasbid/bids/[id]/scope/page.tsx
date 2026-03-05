@@ -600,9 +600,16 @@ export default function BidScopePage() {
       ))}
     </select>
   </div>
-
- 
-
+{/* Hours */}
+<div className="col-span-2">
+  <input
+    className="border p-2 rounded w-full h-10"
+    type="number"
+    placeholder="0"
+    value={Number.isFinite(hours) ? hours : 0}
+    onChange={(e) => setHours(Number(e.target.value))}
+  />
+</div>
   {/* Action */}
   <div className="col-span-1 text-right">
     <button
@@ -725,6 +732,9 @@ export default function BidScopePage() {
                 </div>
               </div>
             </div>
+          </div>
+          </div>
+        </div>
       )}
     </div>
   );
