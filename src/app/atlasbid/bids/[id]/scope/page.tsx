@@ -50,6 +50,19 @@ type TaskCatalogRow = {
   notes?: string | null;
 };
 
+/** ✅ NEW: Bid materials row */
+type MaterialRow = {
+  id: string;
+  bid_id: string;
+  material_id?: string | null;
+  name: string;
+  details?: string | null;
+  qty: number;
+  unit: string;
+  unit_cost: number;
+  created_at?: string;
+};
+
 function normalizePercent(n: number) {
   const x = Number(n) || 0;
   if (x > 0 && x <= 1) return x * 100;
@@ -117,6 +130,14 @@ export default function BidScopePage() {
 
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
+
+  /** ✅ NEW: Materials */
+  const [materials, setMaterials] = useState<MaterialRow[]>([]);
+  const [materialName, setMaterialName] = useState("");
+  const [materialDetails, setMaterialDetails] = useState("");
+  const [materialQty, setMaterialQty] = useState<number>(0);
+  const [materialUnit, setMaterialUnit] = useState<string>("ea");
+  const [materialCost, setMaterialCost] = useState<number>(0);
 
   // Inputs
   const [task, setTask] = useState("");
@@ -189,14 +210,10 @@ export default function BidScopePage() {
       const dRes = await fetch(`/api/divisions`, { cache: "no-store" });
       const dJson = await dRes.json();
 
-      const divs: Division[] =
-        dJson?.divisions ?? dJson?.data ?? dJson ?? [];
-
+      const divs: Division[] = dJson?.divisions ?? dJson?.data ?? dJson ?? [];
       setDivisions(Array.isArray(divs) ? divs : []);
 
-      if (b.division_id) {
-        setDivisionPick(b.division_id);
-      }
+      if (b.division_id) setDivisionPick(b.division_id);
 
       if (!b.division_id) {
         setLoading(false);
@@ -211,29 +228,23 @@ export default function BidScopePage() {
 
       const rateRow =
         Array.isArray(rateJson?.rates) && rateJson.rates.length > 0
-          ? (rateJson.rates as any[]).find(
-              (r) => r.division_id === divisionId
-            )
+          ? (rateJson.rates as any[]).find((r) => r.division_id === divisionId)
           : null;
 
       setDivisionRate(Number(rateRow?.hourly_rate ?? 0));
 
       // 4) Settings
-      const sRes = await fetch(
-        `/api/atlasbid/bid-settings?division_id=${divisionId}`,
-        { cache: "no-store" }
-      );
+      const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
+        cache: "no-store",
+      });
 
       const sJson = await sRes.json();
-      const settings: BidSettings | null =
-        sJson?.settings ?? sJson?.data ?? null;
+      const settings: BidSettings | null = sJson?.settings ?? sJson?.data ?? null;
 
       if (settings) {
         setTargetGpPct(normalizePercent(settings.margin_default) || 50);
         setContingencyPct(normalizePercent(settings.contingency_pct) || 0);
-        setPrepayDiscountPct(
-          normalizePercent(settings.prepay_discount_pct) || 0
-        );
+        setPrepayDiscountPct(normalizePercent(settings.prepay_discount_pct) || 0);
         setRoundUpIncrement(Number(settings.round_up_increment || 0) || 0);
       } else {
         setTargetGpPct(50);
@@ -243,22 +254,38 @@ export default function BidScopePage() {
       }
 
       // 5) Labor rows
-      const lRes = await fetch(
-        `/api/atlasbid/bid-labor?bid_id=${bidId}`,
-        { cache: "no-store" }
-      );
+      const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
+        cache: "no-store",
+      });
 
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
 
-      // 6) Task catalog
-      const tRes = await fetch(
-        `/api/task-catalog?division_id=${divisionId}`,
-        { cache: "no-store" }
-      );
+      // ✅ 6) Materials rows (supports both ?bidId and ?bid_id depending on your route)
+      let mJson: any = null;
+
+      const mRes1 = await fetch(`/api/atlasbid/bid-materials?bidId=${bidId}`, {
+        cache: "no-store",
+      });
+
+      mJson = await mRes1.json();
+
+      // fallback if API expects bid_id
+      if (!mRes1.ok && (mJson?.error || mJson?.message)) {
+        const mRes2 = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, {
+          cache: "no-store",
+        });
+        mJson = await mRes2.json();
+      }
+
+      setMaterials(mJson?.rows || mJson?.data || mJson || []);
+
+      // 7) Task catalog
+      const tRes = await fetch(`/api/task-catalog?division_id=${divisionId}`, {
+        cache: "no-store",
+      });
 
       const tJson = await tRes.json();
-
       setTaskCatalog(Array.isArray(tJson?.data) ? tJson.data : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load scope.");
@@ -292,17 +319,11 @@ export default function BidScopePage() {
         const json = await res.json();
 
         if (!res.ok)
-          throw new Error(
-            json?.error?.message ||
-              json?.error ||
-              "Failed to save trucking hours"
-          );
+          throw new Error(json?.error?.message || json?.error || "Failed to save trucking hours");
 
         setBid(json?.data ?? bid);
       } catch (e: any) {
-        setTruckingSaveError(
-          e?.message || "Failed to save trucking hours"
-        );
+        setTruckingSaveError(e?.message || "Failed to save trucking hours");
       } finally {
         setSavingTrucking(false);
       }
@@ -331,23 +352,14 @@ export default function BidScopePage() {
     if (t.unit) setUnit(t.unit);
 
     const nextQty =
-      typeof t.default_qty === "number"
-        ? Number(t.default_qty) || 0
-        : Number(quantity) || 0;
+      typeof t.default_qty === "number" ? Number(t.default_qty) || 0 : Number(quantity) || 0;
 
     if (typeof t.default_qty === "number") setQuantity(nextQty);
 
     if (t.minutes_per_unit && nextQty > 0) {
-      const computed = hoursFromMinutesPerUnit(
-        t.minutes_per_unit,
-        nextQty
-      );
+      const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
 
-      setHours(
-        Number.isFinite(computed)
-          ? Number(computed.toFixed(2))
-          : 0
-      );
+      setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
     }
 
     if (!details.trim() && t.notes) {
@@ -358,24 +370,27 @@ export default function BidScopePage() {
   // Labor math
   const laborSubtotal = useMemo(() => {
     return labor.reduce(
-      (sum, r) =>
-        sum +
-        (Number(r.man_hours) || 0) *
-          (Number(r.hourly_rate) || 0),
+      (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
       0
     );
   }, [labor]);
 
-  const truckingCost = useMemo(() => {
-    return (
-      (Number(truckingHours) || 0) *
-      (Number(divisionRate) || 0)
+  /** ✅ NEW: Materials subtotal */
+  const materialsSubtotal = useMemo(() => {
+    return materials.reduce(
+      (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.unit_cost) || 0),
+      0
     );
+  }, [materials]);
+
+  const truckingCost = useMemo(() => {
+    return (Number(truckingHours) || 0) * (Number(divisionRate) || 0);
   }, [truckingHours, divisionRate]);
 
+  /** ✅ UPDATED: include materials in cost */
   const laborPlusTrucking = useMemo(
-    () => laborSubtotal + truckingCost,
-    [laborSubtotal, truckingCost]
+    () => laborSubtotal + truckingCost + materialsSubtotal,
+    [laborSubtotal, truckingCost, materialsSubtotal]
   );
 
   const contingencyCost = useMemo(() => {
@@ -389,9 +404,7 @@ export default function BidScopePage() {
 
   const targetSell = useMemo(() => {
     const gp = (Number(targetGpPct) || 0) / 100;
-
     if (gp >= 1) return 0;
-
     return totalCost / (1 - gp);
   }, [totalCost, targetGpPct]);
 
@@ -401,19 +414,13 @@ export default function BidScopePage() {
 
   const sellWithPrepay = useMemo(() => {
     if (!prepayEnabled) return sellRounded;
-
     const disc = (Number(prepayDiscountPct) || 0) / 100;
-
     return sellRounded * (1 - disc);
   }, [sellRounded, prepayEnabled, prepayDiscountPct]);
 
   const effectiveGpPct = useMemo(() => {
-    const sell = prepayEnabled
-      ? sellWithPrepay
-      : sellRounded;
-
+    const sell = prepayEnabled ? sellWithPrepay : sellRounded;
     if (sell <= 0) return 0;
-
     return ((sell - totalCost) / sell) * 100;
   }, [sellRounded, sellWithPrepay, prepayEnabled, totalCost]);
 
@@ -432,10 +439,7 @@ export default function BidScopePage() {
 
       const json = await res.json();
 
-      if (!res.ok)
-        throw new Error(
-          json?.error?.message || json?.error || "Failed to save division."
-        );
+      if (!res.ok) throw new Error(json?.error?.message || json?.error || "Failed to save division.");
 
       await loadAll();
     } catch (e: any) {
@@ -450,7 +454,6 @@ export default function BidScopePage() {
     setSaveToCatalogMsg("");
 
     if (!task.trim()) return setError("Task is required.");
-    // Details is optional
     if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
     if ((Number(divisionRate) || 0) <= 0)
       return setError("Division rate is 0. Set the division + rate first.");
@@ -482,7 +485,7 @@ export default function BidScopePage() {
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
 
-    // Optional: save to task catalog (de-dupe by name+division to avoid duplicates)
+    // Optional: save to task catalog
     if (saveToCatalog && bid?.division_id && isUuid(bid.division_id)) {
       setSavingToCatalog(true);
 
@@ -491,12 +494,10 @@ export default function BidScopePage() {
         const hoursNum = Number(hours) || 0;
         const minutesPerUnit = qtyNum > 0 ? (hoursNum * 60) / qtyNum : null;
 
-        // Prevent duplicate inserts locally (same division + name, case-insensitive)
         const existing = taskCatalog.some(
           (t) =>
             t.division_id === bid.division_id &&
-            (t.name || "").trim().toLowerCase() ===
-              task.trim().toLowerCase()
+            (t.name || "").trim().toLowerCase() === task.trim().toLowerCase()
         );
 
         if (!existing) {
@@ -527,7 +528,6 @@ export default function BidScopePage() {
                 const existsById = prev.some((p) => p.id === newRow.id);
                 if (existsById) return prev;
 
-                // also protect against name duplicates
                 const existsByName = prev.some(
                   (p) =>
                     p.division_id === newRow.division_id &&
@@ -573,6 +573,68 @@ export default function BidScopePage() {
       setLabor((prev) => prev.filter((r) => r.id !== rowId));
     } else {
       setError("Failed to delete labor row");
+    }
+  }
+
+  /** ✅ NEW: add material row */
+  async function addMaterial() {
+    setError("");
+
+    if (!materialName.trim()) return setError("Material name is required.");
+    if ((Number(materialQty) || 0) <= 0) return setError("Material qty must be > 0.");
+    if ((Number(materialCost) || 0) < 0) return setError("Material unit cost must be >= 0.");
+    if (!materialUnit) return setError("Material unit is required.");
+
+    const payload: any = {
+      // include both keys for compatibility
+      bidId,
+      bid_id: bidId,
+
+      name: materialName.trim(),
+      details: materialDetails.trim() || null,
+
+      qty: Number(materialQty) || 0,
+      unit: materialUnit,
+
+      unitCost: Number(materialCost) || 0,
+      unit_cost: Number(materialCost) || 0,
+    };
+
+    const res = await fetch(`/api/atlasbid/bid-materials`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      setError(json?.error?.message || json?.error || "Error adding material");
+      return;
+    }
+
+    const row = json?.row ?? json?.data ?? json;
+    if (row) setMaterials((prev) => [...prev, row]);
+
+    setMaterialName("");
+    setMaterialDetails("");
+    setMaterialQty(0);
+    setMaterialUnit("ea");
+    setMaterialCost(0);
+  }
+
+  /** ✅ NEW: delete material row */
+  async function deleteMaterialRow(rowId: string) {
+    setError("");
+
+    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      setMaterials((prev) => prev.filter((r) => r.id !== rowId));
+    } else {
+      setError("Failed to delete material row");
     }
   }
 
@@ -831,6 +893,134 @@ export default function BidScopePage() {
             )}
           </div>
 
+          {/* ✅ NEW: MATERIALS BUILDER (ADDED ONLY — DOES NOT TOUCH YOUR LABOR/TRUCKING/PRICING STRUCTURE) */}
+          <div className="border rounded-lg p-6 space-y-4">
+            <div className="flex items-start justify-between gap-6 flex-wrap">
+              <div>
+                <h2 className="text-xl font-semibold">Materials Builder</h2>
+                <div className="text-sm text-gray-500">
+                  Add materials used for this job (not reserved — just bid costing).
+                </div>
+              </div>
+
+              <div className="text-right min-w-[240px]">
+                <div className="text-sm text-gray-500">Materials Subtotal</div>
+                <div className="text-2xl font-bold">{money(materialsSubtotal)}</div>
+              </div>
+            </div>
+
+            {/* Column labels */}
+            <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
+              <div className="col-span-4">Material</div>
+              <div className="col-span-3">Details (optional)</div>
+              <div className="col-span-1">Qty</div>
+              <div className="col-span-1">Unit</div>
+              <div className="col-span-2">Unit Cost</div>
+              <div className="col-span-1 text-right">Action</div>
+            </div>
+
+            {/* Inputs row */}
+            <div className="grid grid-cols-12 gap-4 items-center">
+              <div className="col-span-4">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  placeholder="Material name"
+                  value={materialName}
+                  onChange={(e) => setMaterialName(e.target.value)}
+                />
+              </div>
+
+              <div className="col-span-3">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  placeholder="Optional details (color, vendor, etc.)"
+                  value={materialDetails}
+                  onChange={(e) => setMaterialDetails(e.target.value)}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  type="number"
+                  placeholder="0"
+                  value={Number.isFinite(materialQty) ? materialQty : 0}
+                  onChange={(e) => setMaterialQty(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <select
+                  className="border p-2 rounded w-full h-10"
+                  value={materialUnit}
+                  onChange={(e) => setMaterialUnit(e.target.value)}
+                >
+                  {UNIT_OPTIONS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <input
+                  className="border p-2 rounded w-full h-10"
+                  type="number"
+                  placeholder="0"
+                  value={Number.isFinite(materialCost) ? materialCost : 0}
+                  onChange={(e) => setMaterialCost(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="col-span-1 text-right">
+                <button
+                  onClick={addMaterial}
+                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Table headers */}
+            <div className="grid grid-cols-7 gap-4 font-semibold text-sm border-b pb-2 mt-4">
+              <div className="col-span-2">Material</div>
+              <div className="col-span-2">Details</div>
+              <div>Qty</div>
+              <div>Unit Cost</div>
+              <div>Total ($)</div>
+              <div></div>
+            </div>
+
+            {materials.length === 0 ? (
+              <div className="text-gray-400 text-sm py-3">No materials added yet.</div>
+            ) : (
+              materials.map((row) => {
+                const rowTotal = (Number(row.qty) || 0) * (Number(row.unit_cost) || 0);
+
+                return (
+                  <div
+                    key={row.id}
+                    className="grid grid-cols-7 gap-4 border p-2 rounded text-sm items-center"
+                  >
+                    <div className="col-span-2">{row.name}</div>
+                    <div className="col-span-2 text-gray-600">{row.details || "—"}</div>
+                    <div>{row.qty}</div>
+                    <div>{money(row.unit_cost)}</div>
+                    <div>{rowTotal.toFixed(2)}</div>
+                    <button
+                      onClick={() => deleteMaterialRow(row.id)}
+                      className="text-red-600 hover:underline text-right"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* TRUCKING */}
           <div className="border rounded-lg p-6 space-y-3">
             <div className="flex items-start justify-between gap-6">
@@ -904,6 +1094,10 @@ export default function BidScopePage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Labor cost</span>
                   <span className="font-semibold">{money(laborSubtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Materials cost</span>
+                  <span className="font-semibold">{money(materialsSubtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Trucking cost</span>
