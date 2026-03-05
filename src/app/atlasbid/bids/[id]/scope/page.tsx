@@ -593,7 +593,47 @@ const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
 
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
+const row = json?.row ?? json?.data;
+if (row) setLabor((prev) => [...prev, row]);
 
+// Auto-add template materials
+if (
+  applyTemplateMaterials &&
+  templateMaterials.length > 0 &&
+  (Number(quantity) || 0) > 0
+) {
+  const taskQty = Number(quantity) || 0;
+
+  for (const tm of templateMaterials) {
+    const catalog = tm.materials_catalog;
+    if (!catalog?.id || !catalog?.name) continue;
+
+    const qtyPer = Number(tm.qty_per_task_unit) || 0;
+    const mQty = qtyPer * taskQty;
+
+    if (mQty <= 0) continue;
+
+    const mUnit = (tm.unit || catalog.default_unit || "ea").toString();
+
+    const mUnitCost =
+      tm.unit_cost !== null && tm.unit_cost !== undefined
+        ? Number(tm.unit_cost) || 0
+        : Number(catalog.default_unit_cost) || 0;
+
+    await fetch(`/api/atlasbid/bid-materials`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bid_id: bidId,
+        material_id: catalog.id,
+        name: catalog.name,
+        qty: Number(mQty.toFixed(2)),
+        unit: mUnit,
+        unit_cost: Number(mUnitCost.toFixed(2)),
+      }),
+    });
+  }
+}
     // Optional save to task catalog (unchanged behavior)
     if (saveToCatalog && bid?.division_id) {
       setSavingToCatalog(true);
