@@ -659,7 +659,6 @@ export default function BidScopePage() {
                 );
               })
             )}
-          </div>
 
           {/* TRUCKING */}
           <div className="border rounded-lg p-6 space-y-3">
