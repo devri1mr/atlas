@@ -664,6 +664,21 @@ async function loadBundleTasks(bundleId: string) {
     setLoadingBundleIntoBid(false);
   }
 }
+  function copyProposal() {
+  const scopeLines = labor.map((l) => `• ${l.task}`).join("\n");
+
+  let text =
+`Scope of Work
+${scopeLines}
+
+Project Price: ${money(sellRounded)}`;
+
+  if (prepayEnabled) {
+    text += `\nPrepay Price: ${money(sellWithPrepay)}`;
+  }
+
+  navigator.clipboard.writeText(text);
+}
   async function addLabor() {
     setError("");
     setSaveToCatalogMsg("");
