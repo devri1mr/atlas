@@ -869,11 +869,11 @@ async function deleteLaborRow(rowId: string) {
       unit_cost: Number(materialCost) || 0,
     };
 
-    const res = await fetch(`/api/atlasbid/bid-materials`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  const res = await fetch("/api/atlasbid/bid-materials", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
+});
 
     const json = await res.json();
 
