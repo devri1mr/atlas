@@ -665,19 +665,17 @@ async function loadBundleTasks(bundleId: string) {
   }
 }
   function copyProposal() {
- const lineItems = labor.filter((l) => l.show_as_line_item ?? true);
-const lumpedItems = labor.filter((l) => !(l.show_as_line_item ?? true));
-
-const scopeLines = [
-  ...lineItems.map((l) => `• ${l.task}`),
-  ...(lumpedItems.length > 0
-  ? [`• ${lumpedItems.map((l) => l.task).join(", ")}`]
-  : [])
-].join("\n");
+  const scopeLines = labor.map((l) => `• ${l.task}`).join("\n");
 
   let text =
 `Scope of Work
 ${scopeLines}
+
+Project Price: ${money(sellRounded)}`;
+
+  if (prepayEnabled) {
+    text += `\nPrepay Price: ${money(sellWithPrepay)}`;
+  }
 
   navigator.clipboard.writeText(text);
 }
@@ -831,23 +829,17 @@ if (
     setShowTaskResults(false);
   }
 
-async function deleteLaborRow(rowId: string) {
-  setError("");
+  async function deleteLaborRow(rowId: string) {
+    setError("");
 
-  try {
-    const res = await fetch("/api/atlasbid/bid-labor/" + rowId, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, { method: "DELETE" });
 
     if (res.ok) {
       setLabor((prev) => prev.filter((r) => r.id !== rowId));
     } else {
       setError("Failed to delete labor row");
     }
-  } catch {
-    setError("Failed to delete labor row");
   }
-}
 
   // ✅ Add material
   async function addMaterial() {
@@ -869,11 +861,11 @@ async function deleteLaborRow(rowId: string) {
       unit_cost: Number(materialCost) || 0,
     };
 
-  const res = await fetch("/api/atlasbid/bid-materials", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload),
-});
+    const res = await fetch(`/api/atlasbid/bid-materials`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
     const json = await res.json();
 
@@ -895,22 +887,18 @@ async function deleteLaborRow(rowId: string) {
   }
 
   async function deleteMaterialRow(rowId: string) {
-  setError("");
+    setError("");
 
-  try {
-    const res = await fetch("/api/atlasbid/bid-materials/" + rowId, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, { method: "DELETE" });
 
     if (res.ok) {
       setMaterials((prev) => prev.filter((r) => r.id !== rowId));
+      if (editingMaterialId === rowId) setEditingMaterialId(null);
     } else {
       setError("Failed to delete material row");
     }
-  } catch {
-    setError("Failed to delete material row");
   }
-}
+
   // ✅ Inline edit
   function startEditMaterial(row: MaterialRow) {
     setEditingMaterialId(row.id);
@@ -942,7 +930,7 @@ async function deleteLaborRow(rowId: string) {
       unit_cost: Number(mEditUnitCost) || 0,
     };
 
-  const res = await fetch("/api/atlasbid/bid-materials/" + rowId, {
+    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1097,10 +1085,10 @@ async function deleteLaborRow(rowId: string) {
 
       <ul className="list-disc pl-5 space-y-1">
         {bundleTasks.map((bt) => (
-     <li key={bt.id}>
-  {bt.task_catalog?.name}
-  {bt.default_qty && (" (qty " + bt.default_qty + ")")}
-</li>
+          <li key={bt.id}>
+            {bt.task_catalog?.name}{" "}
+            {bt.default_qty ? `(qty ${bt.default_qty})` : ""}
+          </li>
         ))}
       </ul>
     </div>
@@ -1331,17 +1319,14 @@ async function deleteLaborRow(rowId: string) {
                           key={m.id}
                           className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
                           onClick={() => applyMaterialSelection(m)}
-                        ><div className="font-medium">{m.name}</div>
-<div className="text-xs text-gray-500">
-  <>
-    {m.vendor ? ("Vendor: " + m.vendor + " • ") : ""}
-    {"Unit: "}
-    {m.default_unit || "ea"}
-    {" • Cost: "}
-    {money(Number(m.default_unit_cost) || 0)}
-    {m.sku ? (" • SKU: " + m.sku) : ""}
-  </>
-</div>
+                        >
+                          <div className="font-medium">{m.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {m.vendor ? `Vendor: ${m.vendor} • ` : ""}
+                            Unit: {m.default_unit || "ea"} • Cost:{" "}
+                            {money(Number(m.default_unit_cost) || 0)}
+                            {m.sku ? ` • SKU: ${m.sku}` : ""}
+                          </div>
                         </div>
                       ))}
                     </div>
