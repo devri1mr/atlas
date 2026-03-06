@@ -835,7 +835,7 @@ async function deleteLaborRow(rowId: string) {
   setError("");
 
   try {
-    const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, {
+    const res = await fetch("/api/atlasbid/bid-labor/" + rowId, {
       method: "DELETE",
     });
 
