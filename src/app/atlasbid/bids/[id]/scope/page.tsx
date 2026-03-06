@@ -665,17 +665,19 @@ async function loadBundleTasks(bundleId: string) {
   }
 }
   function copyProposal() {
-  const scopeLines = labor.map((l) => `• ${l.task}`).join("\n");
+ const lineItems = labor.filter((l) => l.show_as_line_item ?? true);
+const lumpedItems = labor.filter((l) => !(l.show_as_line_item ?? true));
+
+const scopeLines = [
+  ...lineItems.map((l) => `• ${l.task}`),
+  ...(lumpedItems.length > 0
+  ? [`• ${lumpedItems.map((l) => l.task).join(", ")}`]
+  : [])
+].join("\n");
 
   let text =
 `Scope of Work
 ${scopeLines}
-
-Project Price: ${money(sellRounded)}`;
-
-  if (prepayEnabled) {
-    text += `\nPrepay Price: ${money(sellWithPrepay)}`;
-  }
 
   navigator.clipboard.writeText(text);
 }
