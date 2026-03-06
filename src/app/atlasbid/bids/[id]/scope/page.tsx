@@ -665,18 +665,21 @@ async function loadBundleTasks(bundleId: string) {
   }
 }
   function copyProposal() {
-  const lineItems = labor.filter(l => l.show_as_line_item);
+const lineItems = labor.filter(l => l.show_as_line_item);
 const bundled = labor.filter(l => !l.show_as_line_item);
 
 let scopeLines = "";
 
+// bundle unchecked tasks together
 if (bundled.length > 0) {
-  scopeLines += `• ${bundled[0].task}`;
+  const bundleText = bundled.map(l => l.task).join(", ");
+  scopeLines += `• ${bundleText}`;
 }
 
+// checked tasks become individual lines
 if (lineItems.length > 0) {
   const lineText = lineItems.map(l => `• ${l.task}`).join("\n");
-  scopeLines += `\n${lineText}`;
+  scopeLines += (scopeLines ? "\n" : "") + lineText;
 }
   let text =
 `Scope of Work
