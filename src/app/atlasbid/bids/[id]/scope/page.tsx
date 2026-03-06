@@ -665,8 +665,19 @@ async function loadBundleTasks(bundleId: string) {
   }
 }
   function copyProposal() {
-  const scopeLines = labor.map((l) => `• ${l.task}`).join("\n");
+  const lineItems = labor.filter(l => l.show_as_line_item);
+const bundled = labor.filter(l => !l.show_as_line_item);
 
+let scopeLines = "";
+
+if (bundled.length > 0) {
+  scopeLines += `• ${bundled[0].task}`;
+}
+
+if (lineItems.length > 0) {
+  const lineText = lineItems.map(l => `• ${l.task}`).join("\n");
+  scopeLines += `\n${lineText}`;
+}
   let text =
 `Scope of Work
 ${scopeLines}
