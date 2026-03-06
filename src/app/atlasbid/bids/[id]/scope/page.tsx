@@ -984,11 +984,11 @@ if (
       {/* Header */}
       <div>
         <div className="text-sm text-gray-500">
-          Bid: <span className="font-mono">{bid.id}</span> • Client:{" "}
-          <span className="font-semibold">
-            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
-          </span>
-        </div>
+  Client:{" "}
+  <span className="font-semibold">
+    {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "-"}
+  </span>
+</div>
         <h1 className="text-3xl font-bold mt-1">Scope</h1>
         <div className="text-sm text-gray-600 mt-1">
           Division: <span className="font-semibold">{divisionName}</span>
