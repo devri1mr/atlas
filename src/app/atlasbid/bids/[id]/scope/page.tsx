@@ -831,17 +831,23 @@ if (
     setShowTaskResults(false);
   }
 
-  async function deleteLaborRow(rowId: string) {
-    setError("");
+async function deleteLaborRow(rowId: string) {
+  setError("");
 
-const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, { method: "DELETE" });
+  try {
+    const res = await fetch(`/api/atlasbid/bid-labor/${rowId}`, {
+      method: "DELETE",
+    });
 
     if (res.ok) {
       setLabor((prev) => prev.filter((r) => r.id !== rowId));
     } else {
       setError("Failed to delete labor row");
     }
+  } catch {
+    setError("Failed to delete labor row");
   }
+}
 
   // ✅ Add material
   async function addMaterial() {
