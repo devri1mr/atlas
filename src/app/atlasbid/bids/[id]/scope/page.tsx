@@ -1097,10 +1097,10 @@ async function deleteLaborRow(rowId: string) {
 
       <ul className="list-disc pl-5 space-y-1">
         {bundleTasks.map((bt) => (
-          <li key={bt.id}>
-            {bt.task_catalog?.name}{" "}
-        {bt.default_qty ? `(qty ${bt.default_qty})` : ""}
-          </li>
+     <li key={bt.id}>
+  {bt.task_catalog?.name}
+  {bt.default_qty && (" (qty " + bt.default_qty + ")")}
+</li>
         ))}
       </ul>
     </div>
