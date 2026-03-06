@@ -208,7 +208,13 @@ const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
   const [truckingHours, setTruckingHours] = useState<number>(0);
   const [savingTrucking, setSavingTrucking] = useState(false);
   const [truckingSaveError, setTruckingSaveError] = useState<string | null>(null);
-
+// Scope bundles
+const [scopeBundles, setScopeBundles] = useState<any[]>([]);
+const [selectedBundleId, setSelectedBundleId] = useState<string>("");
+const [bundleTasks, setBundleTasks] = useState<any[]>([]);
+const [loadingBundles, setLoadingBundles] = useState(false);
+const [loadingBundleTasks, setLoadingBundleTasks] = useState(false);
+const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
   // Close dropdowns on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
