@@ -1334,7 +1334,7 @@ async function deleteLaborRow(rowId: string) {
                         >
                           <div className="font-medium">{m.name}</div>
                           <div className="text-xs text-gray-500">
-                           {m.vendor ? ("Vendor: " + m.vendor + " • ") : ""}
+                          {m.vendor ? `Vendor: ${m.vendor} • ` : ""}
 Unit: {m.default_unit || "ea"} • Cost:{" "}
 {money(Number(m.default_unit_cost) || 0)}
 {m.sku ? (" • SKU: " + m.sku) : ""}
