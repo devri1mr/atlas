@@ -104,6 +104,16 @@ export default function ProposalPage() {
           if (laborRes.ok && laborJson) {
             if (!cancelled) {
               setLabor(unwrapRows(laborJson));
+              const rows = unwrapRows(laborJson);
+
+const scopeItems = rows.map((r: any) => {
+  const qty = r.qty || "";
+  const unit = r.unit || "";
+  const task = r.task_name || r.task || "";
+  const details = r.details || "";
+
+  return `- ${task}${details ? ` (${details})` : ""}${qty ? ` — ${qty} ${unit}` : ""}`;
+});
             }
           } else {
             if (!cancelled) {
