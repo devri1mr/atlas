@@ -580,7 +580,30 @@ try {
       setSavingDivision(false);
     }
   }
+async function loadBundleTasks(bundleId: string) {
+  if (!bundleId) {
+    setBundleTasks([]);
+    return;
+  }
 
+  setLoadingBundleTasks(true);
+
+  try {
+    const res = await fetch(
+      `/api/atlasbid/scope-bundle-tasks?bundle_id=${bundleId}`,
+      { cache: "no-store" }
+    );
+
+    const json = await res.json();
+    const rows = json?.rows || json?.data || [];
+
+    setBundleTasks(Array.isArray(rows) ? rows : []);
+  } catch {
+    setBundleTasks([]);
+  } finally {
+    setLoadingBundleTasks(false);
+  }
+}
   async function addLabor() {
     setError("");
     setSaveToCatalogMsg("");
