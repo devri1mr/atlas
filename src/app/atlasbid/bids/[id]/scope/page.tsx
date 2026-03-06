@@ -895,18 +895,22 @@ async function deleteLaborRow(rowId: string) {
   }
 
   async function deleteMaterialRow(rowId: string) {
-    setError("");
+  setError("");
 
-    const res = await fetch(`/api/atlasbid/bid-materials/${rowId}`, { method: "DELETE" });
+  try {
+    const res = await fetch("/api/atlasbid/bid-materials/" + rowId, {
+      method: "DELETE",
+    });
 
     if (res.ok) {
       setMaterials((prev) => prev.filter((r) => r.id !== rowId));
-      if (editingMaterialId === rowId) setEditingMaterialId(null);
     } else {
       setError("Failed to delete material row");
     }
+  } catch {
+    setError("Failed to delete material row");
   }
-
+}
   // ✅ Inline edit
   function startEditMaterial(row: MaterialRow) {
     setEditingMaterialId(row.id);
