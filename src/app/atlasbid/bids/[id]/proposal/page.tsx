@@ -11,7 +11,6 @@ type BidRow = {
   client_name?: string | null;
   client_last_name?: string | null;
   customer_name?: string | null;
-  project_name?: string | null;
   address?: string | null;
   address1?: string | null;
   address2?: string | null;
@@ -31,15 +30,6 @@ type LaborRow = {
   show_as_line_item?: boolean | null;
 };
 
-function unwrap<T>(json: any, fallback: T): T {
-  return (json?.data ?? json?.row ?? json ?? fallback) as T;
-}
-
-function asArray<T>(json: any): T[] {
-  const data = json?.data ?? json?.rows ?? json ?? [];
-  return Array.isArray(data) ? data : [];
-}
-
 function formatDate(value?: string | null) {
   if (!value) return "";
   const d = new Date(value);
@@ -49,6 +39,21 @@ function formatDate(value?: string | null) {
 
 function moneyPlain(value: number) {
   return value.toFixed(2);
+}
+
+function unwrapBid(json: any): BidRow | null {
+  return json?.data ?? json?.row ?? json ?? null;
+}
+
+function unwrapRows(json: any): LaborRow[] {
+  const rows = json?.data ?? json?.rows ?? json ?? [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function safeJson(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) return null;
+  return res.json();
 }
 
 export default function ProposalPage() {
@@ -70,13 +75,12 @@ export default function ProposalPage() {
       setError("");
 
       try {
-        const [bidRes, laborRes] = await Promise.all([
-          fetch(`/api/atlasbid/bids/${bidId}`, { cache: "no-store" }),
-          fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, { cache: "no-store" }),
-        ]);
+        // Load bid
+        const bidRes = await fetch(`/api/atlasbid/bids/${bidId}`, {
+          cache: "no-store",
+        });
 
-        const bidJson = await bidRes.json();
-        const laborJson = await laborRes.json();
+        const bidJson = await safeJson(bidRes);
 
         if (!bidRes.ok) {
           throw new Error(
@@ -84,22 +88,41 @@ export default function ProposalPage() {
           );
         }
 
-        if (!laborRes.ok) {
-          throw new Error(
-            laborJson?.error?.message || laborJson?.error || "Failed to load labor."
-          );
+        if (!cancelled) {
+          setBid(unwrapBid(bidJson));
         }
 
-        if (cancelled) return;
+        // Try to load labor rows.
+        // If this endpoint is not your actual GET route, we fail gracefully.
+        try {
+          const laborRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
+            cache: "no-store",
+          });
 
-        setBid(unwrap<BidRow | null>(bidJson, null));
-        setLabor(asArray<LaborRow>(laborJson));
+          const laborJson = await safeJson(laborRes);
+
+          if (laborRes.ok && laborJson) {
+            if (!cancelled) {
+              setLabor(unwrapRows(laborJson));
+            }
+          } else {
+            if (!cancelled) {
+              setLabor([]);
+            }
+          }
+        } catch {
+          if (!cancelled) {
+            setLabor([]);
+          }
+        }
       } catch (e: any) {
         if (!cancelled) {
           setError(e?.message || "Failed to load proposal data.");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
@@ -124,9 +147,15 @@ export default function ProposalPage() {
   }, [bid]);
 
   const addressLine2 = useMemo(() => {
-    const pieces = [bid?.city, bid?.state, bid?.zip].filter(Boolean);
-    if (pieces.length > 0) return pieces.join(", ").replace(", ", " ").replace("  ", " ");
-    return bid?.address2 || "";
+    if (bid?.address2) return bid.address2;
+
+    const cityStateZip = [
+      bid?.city,
+      bid?.state,
+      bid?.zip,
+    ].filter(Boolean);
+
+    return cityStateZip.join(" ") || "";
   }, [bid]);
 
   const estimateNumber = useMemo(() => {
@@ -143,7 +172,11 @@ export default function ProposalPage() {
 
   const amountValue = useMemo(() => {
     return Number(
-      bid?.sell_rounded ?? bid?.sell_price ?? bid?.total ?? bid?.amount ?? 0
+      bid?.sell_rounded ??
+        bid?.sell_price ??
+        bid?.total ??
+        bid?.amount ??
+        0
     );
   }, [bid]);
 
@@ -161,7 +194,7 @@ export default function ProposalPage() {
       lines.push(...lineItems.map((l) => l.task));
     }
 
-    return lines.length > 0 ? lines : ["No scope items added yet."];
+    return lines.length > 0 ? lines : ["Project scope will appear here."];
   }, [labor]);
 
   if (loading) {
@@ -184,7 +217,9 @@ export default function ProposalPage() {
           boxSizing: "border-box",
         }}
       >
+        {/* Top header */}
         <div className="flex items-start justify-between">
+          {/* Left logo */}
           <div className="w-[270px] pt-2">
             <img
               src="/garpiel-logo.jpg"
@@ -193,7 +228,8 @@ export default function ProposalPage() {
             />
           </div>
 
-          <div className="w-[220px] text-right text-[13px] leading-[1.45] pt-3">
+          {/* Right company info */}
+          <div className="w-[220px] pt-3 text-right text-[13px] leading-[1.45]">
             <div>Garpiel Group</div>
             <div>3161 Carrollton Rd.</div>
             <div>Saginaw, MI 48604</div>
@@ -206,12 +242,14 @@ export default function ProposalPage() {
           </div>
         </div>
 
+        {/* Customer block */}
         <div className="mt-8 pl-[8px] text-[14px] leading-[1.55]">
           <div>{clientFullName}</div>
           {addressLine1 ? <div>{addressLine1}</div> : null}
           {addressLine2 ? <div>{addressLine2}</div> : null}
         </div>
 
+        {/* Estimate / Project / Date row */}
         <div className="mt-8 grid grid-cols-3 text-[14px]">
           <div className="text-left">
             <span className="font-semibold">Estimate #:</span> {estimateNumber}
@@ -224,17 +262,20 @@ export default function ProposalPage() {
           </div>
         </div>
 
+        {/* Validity */}
         <div className="mt-8 text-center text-[20px] font-semibold leading-tight text-[#4a4a4a]">
           Landscape Project - Estimate is valid for 30 days.
         </div>
 
+        {/* Deposit */}
         <div className="mt-1 text-center">
           <span className="bg-[#f4ecb8] px-1 text-[14px] italic text-[#5b5b5b]">
-            A 50% down payment is due along with a signed contract to move forward with
-            project.
+            A 50% down payment is due along with a signed contract to move forward
+            with project.
           </span>
         </div>
 
+        {/* Description / Amount table */}
         <div className="mt-7 border border-[#8f8f8f]">
           <div className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]">
             <div className="border-r border-[#8f8f8f] px-4 py-2 text-[14px] font-semibold">
@@ -259,6 +300,7 @@ export default function ProposalPage() {
         </div>
       </div>
 
+      {/* PAGE BREAK */}
       <div className="break-before-page h-10" />
 
       {/* PAGE 2 */}
