@@ -29,9 +29,9 @@ type LaborRow = {
   unit: string;
   man_hours: number;
   hourly_rate: number;
+  show_as_line_item?: boolean | null;
   created_at?: string;
 };
-
 type BidSettings = {
   division_id: string;
   margin_default: number;
