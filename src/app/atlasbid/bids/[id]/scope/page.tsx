@@ -277,7 +277,24 @@ const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
       }
 
       const divisionId = b.division_id;
+// Load scope bundles for this division
+setLoadingBundles(true);
 
+try {
+  const sbRes = await fetch(
+    `/api/atlasbid/scope-bundles?division_id=${divisionId}`,
+    { cache: "no-store" }
+  );
+
+  const sbJson = await sbRes.json();
+  const sbRows = sbJson?.rows || sbJson?.data || [];
+
+  setScopeBundles(Array.isArray(sbRows) ? sbRows : []);
+} catch {
+  setScopeBundles([]);
+} finally {
+  setLoadingBundles(false);
+}
       // 3) Rate
       const rateRes = await fetch(`/api/labor-rates`, { cache: "no-store" });
       const rateJson = await rateRes.json();
