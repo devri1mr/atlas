@@ -11,8 +11,8 @@ export default function ProposalPage() {
   const customerName = "Client Name";
   const customerAddress1 = "Client Address";
   const customerAddress2 = "";
-  const estimateNumber = bidId;
-  const projectName = "Landscaping";
+  const estimateNumber = bidId?.slice(0, 6);
+  const projectName = "Client Name";
   const dateText = "Today";
   const validityText = "Landscape Project - Estimate is valid for 30 days.";
   const depositText =
