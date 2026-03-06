@@ -926,6 +926,76 @@ if (
         </div>
       ) : (
         <>
+          {/* SCOPE BUNDLES */}
+<div className="border rounded-lg p-6 space-y-4 mb-6">
+  <div className="flex items-start justify-between gap-6 flex-wrap">
+    <div>
+      <h2 className="text-xl font-semibold">Scope Bundles</h2>
+      <div className="text-sm text-gray-500">
+        Load a prebuilt bundle of tasks into this bid.
+      </div>
+    </div>
+  </div>
+
+  <div className="grid grid-cols-12 gap-4 items-end">
+    <div className="col-span-8">
+      <label className="block text-xs font-semibold text-gray-600 mb-1">
+        Bundle
+      </label>
+
+      <select
+        className="border p-2 rounded w-full h-10"
+        value={selectedBundleId}
+        onChange={async (e) => {
+          const nextId = e.target.value;
+          setSelectedBundleId(nextId);
+          await loadBundleTasks(nextId);
+        }}
+      >
+        <option value="">— Select Bundle —</option>
+
+        {scopeBundles.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div className="col-span-4">
+      <button
+        onClick={loadSelectedBundleIntoBid}
+        disabled={
+          !selectedBundleId ||
+          loadingBundleIntoBid ||
+          loadingBundleTasks
+        }
+        className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
+      >
+        {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
+      </button>
+    </div>
+  </div>
+
+  {loadingBundles ? (
+    <div className="text-sm text-gray-500">Loading bundles…</div>
+  ) : null}
+
+  {selectedBundleId && bundleTasks.length > 0 ? (
+    <div className="border rounded p-3 bg-gray-50 text-sm">
+      <div className="font-semibold mb-1">Tasks in bundle</div>
+
+      <ul className="list-disc pl-5 space-y-1">
+        {bundleTasks.map((bt) => (
+          <li key={bt.id}>
+            {bt.task_catalog?.name}{" "}
+            {bt.default_qty ? `(qty ${bt.default_qty})` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null}
+</div>
           {/* LABOR BUILDER */}
           <div className="border rounded-lg p-6 space-y-4">
             {/* Top bar */}
