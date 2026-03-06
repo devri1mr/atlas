@@ -1267,7 +1267,7 @@ if (
                   >
                     <input className="w-4 h-4 self-center"
   type="checkbox"
-  checked={!!row.show_as_line_item}
+  checked={row.show_as_line_item === true}
   onChange={async (e) => {
     const checked = e.target.checked;
 
