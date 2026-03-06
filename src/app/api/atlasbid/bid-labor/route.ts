@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       unit,
       man_hours,
       hourly_rate,
+      show_as_line_item,
       created_at
       `
     )
