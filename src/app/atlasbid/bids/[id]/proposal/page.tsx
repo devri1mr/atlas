@@ -76,9 +76,9 @@ export default function ProposalPage() {
 
       try {
         // Load bid
-        const bidRes = await fetch(`/api/atlasbid/bids/${bidId}`, {
-          cache: "no-store",
-        });
+      const bidRes = await fetch(`/api/bids/${bidId}`, {
+  cache: "no-store",
+});
 
         const bidJson = await safeJson(bidRes);
 
