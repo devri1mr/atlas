@@ -1249,8 +1249,29 @@ if (
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center"
+                   className="grid grid-cols-9 gap-4 border p-2 rounded text-sm items-center"
                   >
+                    <input className="w-4 h-4"
+  type="checkbox"
+  checked={!!row.show_as_line_item}
+  onChange={async (e) => {
+    const checked = e.target.checked;
+
+    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        show_as_line_item: checked
+      })
+    });
+
+    setLabor(prev =>
+      prev.map(r =>
+        r.id === row.id ? { ...r, show_as_line_item: checked } : r
+      )
+    );
+  }}
+/>
                     <div>{row.task}</div>
                     <div className="text-gray-600">{row.item || "—"}</div>
                     <div>{row.quantity}</div>
