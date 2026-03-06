@@ -7,57 +7,97 @@ export default function ProposalPage() {
   const bidId = params?.id;
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8">
 
-      {/* Page 1 */}
-      <div className="border p-10 bg-white shadow max-w-[800px] mx-auto">
+      {/* PAGE CONTAINER */}
+      <div className="max-w-[800px] mx-auto bg-white border p-10">
 
-        <h1 className="text-2xl font-bold mb-6">Garpiel Group Estimate</h1>
+        {/* HEADER */}
+        <div className="flex items-start justify-between mb-8">
 
-        <div className="grid grid-cols-2 gap-6 text-sm mb-6">
+          <div className="flex items-center gap-6">
+            <img
+              src="/garpiel-logo.jpg"
+              alt="Garpiel Group"
+              className="h-20"
+            />
+
+            <div className="text-sm text-gray-700">
+              <div>3161 Carrollton Rd.</div>
+              <div>Saginaw, MI 48604</div>
+              <div>(989) 797-4749</div>
+              <div>www.GarpielGroup.com</div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ESTIMATE TITLE */}
+        <h2 className="text-xl font-bold mb-6">
+          LANDSCAPE ESTIMATE
+        </h2>
+
+        {/* CUSTOMER + ESTIMATE INFO */}
+        <div className="grid grid-cols-2 mb-6 text-sm">
+
           <div>
-            <div className="font-semibold">Customer</div>
+            <div className="font-semibold mb-2">Customer</div>
             <div>Client Name</div>
             <div>Client Address</div>
           </div>
 
-          <div className="text-right">
+          <div className="text-right space-y-1">
             <div>Estimate #: {bidId}</div>
             <div>Project: Landscaping</div>
             <div>Date: Today</div>
             <div>Valid Until: 30 Days</div>
           </div>
+
         </div>
 
-        <div className="mb-4 font-semibold">
+        {/* PAYMENT NOTE */}
+        <div className="text-sm mb-6">
+          A 50% down payment is due upon acceptance of this estimate. Remaining balance due upon completion.
+        </div>
+
+        {/* PROJECT DESCRIPTION */}
+        <div className="mb-2 font-semibold">
           Project Description
         </div>
 
-        <div className="text-sm space-y-1">
+        <div className="text-sm space-y-1 mb-10">
           <div>• Example scope item</div>
           <div>• Example scope item</div>
           <div>• Example scope item</div>
         </div>
 
-        <div className="mt-10 text-right text-lg font-semibold">
+        {/* TOTAL */}
+        <div className="text-right text-lg font-semibold">
           Total: $0.00
         </div>
 
       </div>
 
-      {/* Page Break */}
+      {/* PAGE BREAK */}
+      <div className="h-20"></div>
 
-      <div className="border-t pt-8 max-w-[800px] mx-auto">
+      {/* TERMS PAGE */}
+      <div className="max-w-[800px] mx-auto bg-white border p-10">
 
-        <h2 className="text-xl font-bold mb-4">
+        <h2 className="text-xl font-bold mb-6">
           Garpiel Group Terms of Service
         </h2>
 
-        <div className="text-sm space-y-3 text-gray-700">
+        <div className="text-sm text-gray-700 space-y-4">
+
           <p>
-            Terms and conditions will appear here exactly as they do on the
-            current estimate document.
+            Terms and conditions will appear here exactly as they do on the current estimate document.
           </p>
+
+          <p>
+            This section will be replaced with the full terms text from the existing estimate template.
+          </p>
+
         </div>
 
       </div>
