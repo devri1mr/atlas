@@ -319,13 +319,13 @@ export default function ProposalPage() {
               proposalRows.map((row, idx) => (
                 <div
                   key={`${row.label}-${idx}`}
-                  className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f] last:border-b-0"
+                  className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
                 >
                   <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
                     - {row.label}
                   </div>
                   <div className="px-4 py-3 text-right text-[14px]">
-                    {moneyPlain(row.amount)}
+                    {moneyDisplay(row.amount)}
                   </div>
                 </div>
               ))
