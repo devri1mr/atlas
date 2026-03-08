@@ -27,7 +27,18 @@ type BidRow = {
 type LaborRow = {
   id: string;
   task: string;
+  item?: string | null;
+  details?: string | null;
+  quantity?: number | null;
+  unit?: string | null;
+  man_hours?: number | null;
+  hourly_rate?: number | null;
   show_as_line_item?: boolean | null;
+};
+
+type ProposalRow = {
+  label: string;
+  amount: number;
 };
 
 function formatDate(value?: string | null) {
@@ -39,6 +50,10 @@ function formatDate(value?: string | null) {
 
 function moneyPlain(value: number) {
   return value.toFixed(2);
+}
+
+function moneyDisplay(value: number) {
+  return `$${value.toFixed(2)}`;
 }
 
 function unwrapBid(json: any): BidRow | null {
@@ -54,6 +69,29 @@ async function safeJson(res: Response) {
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) return null;
   return res.json();
+}
+
+function laborRowAmount(row: LaborRow) {
+  return (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+}
+
+function laborRowLabel(row: LaborRow) {
+  const task = row.task || "";
+  const details = row.details?.trim() || "";
+  const qty = Number(row.quantity) || 0;
+  const unit = row.unit || "";
+
+  let label = task;
+
+  if (details) {
+    label += ` (${details})`;
+  }
+
+  if (qty > 0) {
+    label += ` — ${qty} ${unit}`.trim();
+  }
+
+  return label.trim();
 }
 
 export default function ProposalPage() {
@@ -75,10 +113,9 @@ export default function ProposalPage() {
       setError("");
 
       try {
-        // Load bid
-      const bidRes = await fetch(`/api/bids/${bidId}`, {
-  cache: "no-store",
-});
+        const bidRes = await fetch(`/api/bids/${bidId}`, {
+          cache: "no-store",
+        });
 
         const bidJson = await safeJson(bidRes);
 
@@ -92,8 +129,6 @@ export default function ProposalPage() {
           setBid(unwrapBid(bidJson));
         }
 
-        // Try to load labor rows.
-        // If this endpoint is not your actual GET route, we fail gracefully.
         try {
           const laborRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
             cache: "no-store",
@@ -104,16 +139,6 @@ export default function ProposalPage() {
           if (laborRes.ok && laborJson) {
             if (!cancelled) {
               setLabor(unwrapRows(laborJson));
-              const rows = unwrapRows(laborJson);
-
-const scopeItems = rows.map((r: any) => {
-  const qty = r.qty || "";
-  const unit = r.unit || "";
-  const task = r.task_name || r.task || "";
-  const details = r.details || "";
-
-  return `- ${task}${details ? ` (${details})` : ""}${qty ? ` — ${qty} ${unit}` : ""}`;
-});
             }
           } else {
             if (!cancelled) {
@@ -159,21 +184,12 @@ const scopeItems = rows.map((r: any) => {
   const addressLine2 = useMemo(() => {
     if (bid?.address2) return bid.address2;
 
-    const cityStateZip = [
-      bid?.city,
-      bid?.state,
-      bid?.zip,
-    ].filter(Boolean);
-
+    const cityStateZip = [bid?.city, bid?.state, bid?.zip].filter(Boolean);
     return cityStateZip.join(" ") || "";
   }, [bid]);
 
   const estimateNumber = useMemo(() => {
-    return String(
-      bid?.estimate_number ??
-        bid?.bid_number ??
-        bidId.slice(0, 6)
-    );
+    return String(bid?.estimate_number ?? bid?.bid_number ?? bidId.slice(0, 6));
   }, [bid, bidId]);
 
   const dateText = useMemo(() => {
@@ -182,29 +198,31 @@ const scopeItems = rows.map((r: any) => {
 
   const amountValue = useMemo(() => {
     return Number(
-      bid?.sell_rounded ??
-        bid?.sell_price ??
-        bid?.total ??
-        bid?.amount ??
-        0
+      bid?.sell_rounded ?? bid?.sell_price ?? bid?.total ?? bid?.amount ?? 0
     );
   }, [bid]);
 
-  const scopeLines = useMemo(() => {
-    const lineItems = labor.filter((l) => !!l.show_as_line_item);
-    const bundled = labor.filter((l) => !l.show_as_line_item);
+  const proposalRows = useMemo(() => {
+    const separate = labor.filter((l) => l.show_as_line_item === true);
+    const bundled = labor.filter((l) => l.show_as_line_item !== true);
 
-    const lines: string[] = [];
+    const rows: ProposalRow[] = [];
 
     if (bundled.length > 0) {
-      lines.push(bundled.map((l) => l.task).join(", "));
+      rows.push({
+        label: bundled.map((r) => laborRowLabel(r)).join(", "),
+        amount: bundled.reduce((sum, r) => sum + laborRowAmount(r), 0),
+      });
     }
 
-    if (lineItems.length > 0) {
-      lines.push(...lineItems.map((l) => l.task));
-    }
+    separate.forEach((row) => {
+      rows.push({
+        label: laborRowLabel(row),
+        amount: laborRowAmount(row),
+      });
+    });
 
-    return lines.length > 0 ? lines : ["Project scope will appear here."];
+    return rows;
   }, [labor]);
 
   if (loading) {
@@ -227,9 +245,7 @@ const scopeItems = rows.map((r: any) => {
           boxSizing: "border-box",
         }}
       >
-        {/* Top header */}
         <div className="flex items-start justify-between">
-          {/* Left logo */}
           <div className="w-[270px] pt-2">
             <img
               src="/garpiel-logo.jpg"
@@ -238,7 +254,6 @@ const scopeItems = rows.map((r: any) => {
             />
           </div>
 
-          {/* Right company info */}
           <div className="w-[220px] pt-3 text-right text-[13px] leading-[1.45]">
             <div>Garpiel Group</div>
             <div>3161 Carrollton Rd.</div>
@@ -252,14 +267,12 @@ const scopeItems = rows.map((r: any) => {
           </div>
         </div>
 
-        {/* Customer block */}
         <div className="mt-8 pl-[8px] text-[14px] leading-[1.55]">
           <div>{clientFullName}</div>
           {addressLine1 ? <div>{addressLine1}</div> : null}
           {addressLine2 ? <div>{addressLine2}</div> : null}
         </div>
 
-        {/* Estimate / Project / Date row */}
         <div className="mt-8 grid grid-cols-3 text-[14px]">
           <div className="text-left">
             <span className="font-semibold">Estimate #:</span> {estimateNumber}
@@ -272,12 +285,10 @@ const scopeItems = rows.map((r: any) => {
           </div>
         </div>
 
-        {/* Validity */}
         <div className="mt-8 text-center text-[20px] font-semibold leading-tight text-[#4a4a4a]">
           Landscape Project - Estimate is valid for 30 days.
         </div>
 
-        {/* Deposit */}
         <div className="mt-1 text-center">
           <span className="bg-[#f4ecb8] px-1 text-[14px] italic text-[#5b5b5b]">
             A 50% down payment is due along with a signed contract to move forward
@@ -296,15 +307,37 @@ const scopeItems = rows.map((r: any) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_150px]">
-            <div className="min-h-[360px] border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
-              {scopeLines.map((line, idx) => (
-                <div key={`${line}-${idx}`}>- {line}</div>
-              ))}
-            </div>
+          <div className="min-h-[360px]">
+            {proposalRows.length === 0 ? (
+              <div className="grid grid-cols-[1fr_150px]">
+                <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
+                  Project scope will appear here.
+                </div>
+                <div className="px-4 py-3 text-right text-[14px]">0.00</div>
+              </div>
+            ) : (
+              proposalRows.map((row, idx) => (
+                <div
+                  key={`${row.label}-${idx}`}
+                  className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f] last:border-b-0"
+                >
+                  <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
+                    - {row.label}
+                  </div>
+                  <div className="px-4 py-3 text-right text-[14px]">
+                    {moneyPlain(row.amount)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
-            <div className="px-4 py-3 text-right text-[14px]">
-              {moneyPlain(amountValue)}
+          <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+            <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
+              Total
+            </div>
+            <div className="px-4 py-3 text-right text-[14px] font-semibold">
+              {moneyDisplay(amountValue)}
             </div>
           </div>
         </div>
