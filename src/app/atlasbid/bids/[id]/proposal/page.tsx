@@ -22,6 +22,8 @@ type BidRow = {
   sell_price?: number | null;
   total?: number | null;
   amount?: number | null;
+  prepay_enabled?: boolean | null;
+  prepay_price?: number | null;
 };
 
 type LaborRow = {
@@ -36,8 +38,14 @@ type LaborRow = {
   show_as_line_item?: boolean | null;
 };
 
+type ProposalRowBase = {
+  label: string;
+  cost: number;
+};
+
 type ProposalRow = {
   label: string;
+  cost: number;
   amount: number;
 };
 
@@ -46,10 +54,6 @@ function formatDate(value?: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
   return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
-}
-
-function moneyPlain(value: number) {
-  return value.toFixed(2);
 }
 
 function moneyDisplay(value: number) {
@@ -71,7 +75,7 @@ async function safeJson(res: Response) {
   return res.json();
 }
 
-function laborRowAmount(row: LaborRow) {
+function laborRowCost(row: LaborRow) {
   return (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 }
 
@@ -88,10 +92,62 @@ function laborRowLabel(row: LaborRow) {
   }
 
   if (qty > 0) {
-    label += ` — ${qty} ${unit}`.trim();
+    label += ` — ${qty} ${unit}`;
   }
 
   return label.trim();
+}
+
+function allocateSellAmounts(rows: ProposalRowBase[], totalSell: number): ProposalRow[] {
+  if (rows.length === 0) return [];
+
+  const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
+
+  if (totalSell <= 0) {
+    return rows.map((row) => ({
+      ...row,
+      amount: 0,
+    }));
+  }
+
+  if (totalCost <= 0) {
+    const equalBase = Math.floor((totalSell / rows.length) * 100) / 100;
+    let running = 0;
+
+    return rows.map((row, idx) => {
+      const amount =
+        idx === rows.length - 1
+          ? Number((totalSell - running).toFixed(2))
+          : equalBase;
+
+      running += amount;
+
+      return {
+        ...row,
+        amount,
+      };
+    });
+  }
+
+  let allocatedRunning = 0;
+
+  return rows.map((row, idx) => {
+    if (idx === rows.length - 1) {
+      return {
+        ...row,
+        amount: Number((totalSell - allocatedRunning).toFixed(2)),
+      };
+    }
+
+    const rawAmount = (row.cost / totalCost) * totalSell;
+    const amount = Number(rawAmount.toFixed(2));
+    allocatedRunning += amount;
+
+    return {
+      ...row,
+      amount,
+    };
+  });
 }
 
 export default function ProposalPage() {
@@ -202,28 +258,35 @@ export default function ProposalPage() {
     );
   }, [bid]);
 
+  const totalDisplayValue = useMemo(() => {
+    if (bid?.prepay_enabled && Number(bid?.prepay_price ?? 0) > 0) {
+      return Number(bid.prepay_price ?? 0);
+    }
+    return amountValue;
+  }, [bid, amountValue]);
+
   const proposalRows = useMemo(() => {
     const separate = labor.filter((l) => l.show_as_line_item === true);
     const bundled = labor.filter((l) => l.show_as_line_item !== true);
 
-    const rows: ProposalRow[] = [];
+    const baseRows: ProposalRowBase[] = [];
 
     if (bundled.length > 0) {
-      rows.push({
+      baseRows.push({
         label: bundled.map((r) => laborRowLabel(r)).join(", "),
-        amount: bundled.reduce((sum, r) => sum + laborRowAmount(r), 0),
+        cost: bundled.reduce((sum, r) => sum + laborRowCost(r), 0),
       });
     }
 
     separate.forEach((row) => {
-      rows.push({
+      baseRows.push({
         label: laborRowLabel(row),
-        amount: laborRowAmount(row),
+        cost: laborRowCost(row),
       });
     });
 
-    return rows;
-  }, [labor]);
+    return allocateSellAmounts(baseRows, totalDisplayValue);
+  }, [labor, totalDisplayValue]);
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -235,7 +298,6 @@ export default function ProposalPage() {
 
   return (
     <div className="bg-white px-6 py-8">
-      {/* PAGE 1 */}
       <div
         className="mx-auto bg-white text-black"
         style={{
@@ -296,7 +358,6 @@ export default function ProposalPage() {
           </span>
         </div>
 
-        {/* Description / Amount table */}
         <div className="mt-7 border border-[#8f8f8f]">
           <div className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]">
             <div className="border-r border-[#8f8f8f] px-4 py-2 text-[14px] font-semibold">
@@ -313,7 +374,9 @@ export default function ProposalPage() {
                 <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
                   Project scope will appear here.
                 </div>
-                <div className="px-4 py-3 text-right text-[14px]">0.00</div>
+                <div className="px-4 py-3 text-right text-[14px]">
+                  {moneyDisplay(0)}
+                </div>
               </div>
             ) : (
               proposalRows.map((row, idx) => (
@@ -337,16 +400,14 @@ export default function ProposalPage() {
               Total
             </div>
             <div className="px-4 py-3 text-right text-[14px] font-semibold">
-              {moneyDisplay(amountValue)}
+              {moneyDisplay(totalDisplayValue)}
             </div>
           </div>
         </div>
       </div>
 
-      {/* PAGE BREAK */}
       <div className="break-before-page h-10" />
 
-      {/* PAGE 2 */}
       <div
         className="mx-auto bg-white text-black"
         style={{
