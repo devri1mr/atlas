@@ -9,17 +9,49 @@ function getSupabase() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
+function num(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function getDivisionMinimumGpPct(bidRow: any): number {
+  const divisionName = String(
+    bidRow?.division_name ??
+      bidRow?.division ??
+      bidRow?.division_label ??
+      ""
+  ).toLowerCase();
+
+  // Fallback defaults for now.
+  // Later these should come from Operations Center / division settings.
+  if (divisionName.includes("landscap")) return 45;
+  if (divisionName.includes("irrig")) return 42;
+  if (divisionName.includes("fert")) return 50;
+  if (divisionName.includes("lawn")) return 40;
+  if (divisionName.includes("snow")) return 35;
+  if (divisionName.includes("holiday")) return 45;
+  if (divisionName.includes("phc")) return 50;
+
+  return 45;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabase();
     const body = await req.json();
 
     const bid_id = body?.bid_id;
-    const target_gp_pct = Number(body?.target_gp_pct ?? 50);
+    const target_gp_pct = num(body?.target_gp_pct, 50);
     const prepay_enabled = Boolean(body?.prepay_enabled ?? false);
     const manual_price =
-      body?.manual_price !== null && body?.manual_price !== undefined
-        ? Number(body.manual_price)
+      body?.manual_price !== null &&
+      body?.manual_price !== undefined &&
+      body?.manual_price !== ""
+        ? num(body.manual_price, NaN)
         : null;
 
     if (!bid_id) {
@@ -56,37 +88,39 @@ export async function POST(req: NextRequest) {
 
     const labor_cost =
       laborRows?.reduce((sum, r) => {
-        const hours = Number(r.man_hours ?? 0);
-        const rate = Number(r.hourly_rate ?? 0);
+        const hours = num(r.man_hours);
+        const rate = num(r.hourly_rate);
         return sum + hours * rate;
       }, 0) ?? 0;
 
     const material_cost =
       materialRows?.reduce((sum, r) => {
-        const qty = Number(r.quantity ?? 0);
-        const cost = Number(r.unit_cost ?? 0);
+        const qty = num(r.quantity);
+        const cost = num(r.unit_cost);
         return sum + qty * cost;
       }, 0) ?? 0;
 
-    const trucking_hours = Number(bidRow?.trucking_hours ?? 0);
-    const trucking_rate = Number(
+    const trucking_hours = num(bidRow?.trucking_hours);
+    const trucking_rate = num(
       bidRow?.division_rate ?? bidRow?.hourly_rate ?? 0
     );
 
     const trucking_cost =
       bidRow?.trucking_cost !== null && bidRow?.trucking_cost !== undefined
-        ? Number(bidRow.trucking_cost)
+        ? num(bidRow.trucking_cost)
         : trucking_hours * trucking_rate;
 
-    const total_cost = labor_cost + material_cost + trucking_cost;
+    const total_cost = round2(labor_cost + material_cost + trucking_cost);
 
     // Hidden Ops values for now.
     // Later replace these with Operations Center settings.
     const contingency = 0.05;
     const round_to = 100;
     const prepay_discount = 0.03;
+    const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
 
-    const margin = Math.max(0, Math.min(0.95, target_gp_pct / 100));
+    const clamped_target_gp_pct = Math.max(0, Math.min(95, target_gp_pct));
+    const margin = clamped_target_gp_pct / 100;
 
     let calculated_price =
       total_cost > 0 && margin < 1 ? total_cost / (1 - margin) : 0;
@@ -98,33 +132,60 @@ export async function POST(req: NextRequest) {
         ? Math.round(calculated_price / round_to) * round_to
         : calculated_price;
 
-    // This is the Atlas system recommendation before manual override
-    const suggested_price = rounded_price;
+    // Atlas recommendation before manual override
+    const suggested_price = round2(rounded_price);
 
-    // This is the actual project price after override if provided
-    const final_price =
-      manual_price !== null && !Number.isNaN(manual_price) && manual_price > 0
-        ? manual_price
-        : suggested_price;
+    // Actual price after override if provided
+    const has_manual_override =
+      manual_price !== null && Number.isFinite(manual_price) && manual_price > 0;
 
-    const prepay_price = prepay_enabled
-      ? final_price * (1 - prepay_discount)
-      : final_price;
+    const final_price = round2(
+      has_manual_override ? Number(manual_price) : suggested_price
+    );
+
+    const prepay_price = round2(
+      prepay_enabled ? final_price * (1 - prepay_discount) : final_price
+    );
 
     const gp_base_price = prepay_enabled ? prepay_price : final_price;
 
-const effective_gp =
-  gp_base_price > 0 ? ((gp_base_price - total_cost) / gp_base_price) * 100 : 0;
+    const effective_gp =
+      gp_base_price > 0
+        ? round2(((gp_base_price - total_cost) / gp_base_price) * 100)
+        : 0;
+
+    const override_amount = round2(final_price - suggested_price);
+    const below_target = effective_gp < clamped_target_gp_pct;
+    const target_gap_pct = round2(effective_gp - clamped_target_gp_pct);
+
+    const below_minimum_gp = effective_gp < minimum_gp_pct;
+    const minimum_gap_pct = round2(effective_gp - minimum_gp_pct);
 
     return NextResponse.json({
-      labor_cost,
-      material_cost,
-      trucking_cost,
+      labor_cost: round2(labor_cost),
+      material_cost: round2(material_cost),
+      trucking_cost: round2(trucking_cost),
       total_cost,
+
       suggested_price,
       final_price,
       prepay_price,
+      gp_base_price,
       effective_gp,
+
+      target_gp_pct: clamped_target_gp_pct,
+      minimum_gp_pct,
+      prepay_discount_pct: prepay_discount * 100,
+
+      override_amount,
+      has_manual_override,
+      pricing_mode: has_manual_override ? "manual_override" : "suggested",
+
+      below_target,
+      target_gap_pct,
+
+      below_minimum_gp,
+      minimum_gap_pct,
     });
   } catch (e: any) {
     return NextResponse.json(
