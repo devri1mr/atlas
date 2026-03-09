@@ -1084,20 +1084,64 @@ if (
     <div className="text-sm text-gray-500">Loading bundles…</div>
   ) : null}
 
-  {selectedBundleId && bundleTasks.length > 0 ? (
-    <div className="border rounded p-3 bg-gray-50 text-sm">
-      <div className="font-semibold mb-1">Tasks in bundle</div>
+  {selectedBundleId && bundleQuestions.length > 0 ? (
+  <div className="border rounded p-3 bg-gray-50 text-sm space-y-3">
+    <div className="font-semibold mb-1">Bundle Questions</div>
 
-      <ul className="list-disc pl-5 space-y-1">
-        {bundleTasks.map((bt) => (
-          <li key={bt.id}>
-            {bt.task_catalog?.name}{" "}
-            {bt.default_qty ? `(qty ${bt.default_qty})` : ""}
-          </li>
-        ))}
-      </ul>
-    </div>
-  ) : null}
+    {bundleQuestions.map((q) => (
+      <div key={q.id} className="space-y-1">
+        <label className="block text-xs font-semibold text-gray-600">
+          {q.label}
+          {q.unit ? ` (${q.unit})` : ""}
+        </label>
+
+        {q.input_type === "number" ? (
+          <input
+            type="number"
+            className="border p-2 rounded w-full"
+            value={bundleAnswers[q.question_key] ?? ""}
+            onChange={(e) =>
+              setBundleAnswers((prev) => ({
+                ...prev,
+                [q.question_key]: Number(e.target.value),
+              }))
+            }
+          />
+        ) : q.input_type === "checkbox" ? (
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={bundleAnswers[q.question_key] === true}
+              onChange={(e) =>
+                setBundleAnswers((prev) => ({
+                  ...prev,
+                  [q.question_key]: e.target.checked,
+                }))
+              }
+            />
+            <span>{q.label}</span>
+          </label>
+        ) : (
+          <input
+            type="text"
+            className="border p-2 rounded w-full"
+            value={bundleAnswers[q.question_key] ?? ""}
+            onChange={(e) =>
+              setBundleAnswers((prev) => ({
+                ...prev,
+                [q.question_key]: e.target.value,
+              }))
+            }
+          />
+        )}
+
+        {q.help_text ? (
+          <div className="text-xs text-gray-500">{q.help_text}</div>
+        ) : null}
+      </div>
+    ))}
+  </div>
+) : null}
 </div>
           {/* LABOR BUILDER */}
           <div className="border rounded-lg p-6 space-y-4">
