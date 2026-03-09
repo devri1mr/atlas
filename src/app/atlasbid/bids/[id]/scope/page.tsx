@@ -211,9 +211,12 @@ const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
 // Scope bundles
 const [scopeBundles, setScopeBundles] = useState<any[]>([]);
 const [selectedBundleId, setSelectedBundleId] = useState<string>("");
-const [bundleTasks, setBundleTasks] = useState<any[]>([]);
+
+const [bundleQuestions, setBundleQuestions] = useState<any[]>([]);
+const [bundleAnswers, setBundleAnswers] = useState<Record<string, any>>({});
+
 const [loadingBundles, setLoadingBundles] = useState(false);
-const [loadingBundleTasks, setLoadingBundleTasks] = useState(false);
+const [loadingBundleQuestions, setLoadingBundleQuestions] = useState(false);
 const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
   // Close dropdowns on outside click
   useEffect(() => {
