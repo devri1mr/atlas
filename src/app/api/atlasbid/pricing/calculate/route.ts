@@ -111,8 +111,10 @@ export async function POST(req: NextRequest) {
       ? final_price * (1 - prepay_discount)
       : final_price;
 
-    const effective_gp =
-      final_price > 0 ? ((final_price - total_cost) / final_price) * 100 : 0;
+    const gp_base_price = prepay_enabled ? prepay_price : final_price;
+
+const effective_gp =
+  gp_base_price > 0 ? ((gp_base_price - total_cost) / gp_base_price) * 100 : 0;
 
     return NextResponse.json({
       labor_cost,
