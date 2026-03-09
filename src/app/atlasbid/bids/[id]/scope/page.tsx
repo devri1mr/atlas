@@ -583,28 +583,39 @@ try {
       setSavingDivision(false);
     }
   }
-async function loadBundleTasks(bundleId: string) {
+async function loadBundleQuestions(bundleId: string) {
   if (!bundleId) {
-    setBundleTasks([]);
+    setBundleQuestions([]);
+    setBundleAnswers({});
     return;
   }
 
-  setLoadingBundleTasks(true);
+  setLoadingBundleQuestions(true);
 
   try {
     const res = await fetch(
-      `/api/atlasbid/scope-bundle-tasks?bundle_id=${bundleId}`,
+      `/api/atlasbid/scope-bundle-questions?bundle_id=${bundleId}`,
       { cache: "no-store" }
     );
 
     const json = await res.json();
-    const rows = json?.rows || json?.data || [];
+    const rows = json?.rows || [];
 
-    setBundleTasks(Array.isArray(rows) ? rows : []);
+    setBundleQuestions(rows);
+
+    const defaults: Record<string, any> = {};
+
+    for (const q of rows) {
+      if (q.default_value !== null && q.default_value !== undefined) {
+        defaults[q.question_key] = q.default_value;
+      }
+    }
+
+    setBundleAnswers(defaults);
   } catch {
-    setBundleTasks([]);
+    setBundleQuestions([]);
   } finally {
-    setLoadingBundleTasks(false);
+    setLoadingBundleQuestions(false);
   }
 }
   async function loadSelectedBundleIntoBid() {
