@@ -73,9 +73,10 @@ export async function POST(req: NextRequest) {
     const trucking_rate =
       Number(bidRow?.division_rate ?? bidRow?.hourly_rate ?? 0);
 
-    const trucking_cost =
-      Number(bidRow?.trucking_cost ?? trucking_hours * trucking_rate ?? 0);
-
+   const trucking_cost =
+  bidRow?.trucking_cost !== null && bidRow?.trucking_cost !== undefined
+    ? Number(bidRow.trucking_cost)
+    : trucking_hours * trucking_rate;
     const total_cost = labor_cost + material_cost + trucking_cost;
 
     // Hidden Ops values for now.
