@@ -1075,7 +1075,7 @@ if (
         onChange={async (e) => {
           const nextId = e.target.value;
           setSelectedBundleId(nextId);
-          await loadBundleTasks(nextId);
+          await loadBundleQuestions(nextId);
         }}
       >
         <option value="">— Select Bundle —</option>
