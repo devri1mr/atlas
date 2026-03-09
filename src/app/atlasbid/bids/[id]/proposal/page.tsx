@@ -236,25 +236,33 @@ export default function ProposalPage() {
     };
   }, [bidId]);
 
-  const clientFullName = useMemo(() => {
-    const pieces = [
-      bid?.customer_name,
-      bid?.client_name,
-      bid?.client_last_name,
-    ].filter(Boolean);
-    return pieces.join(" ") || "Client Name";
-  }, [bid]);
+ const clientFullName = useMemo(() => {
+  const company = cleanText(bid?.customer_name);
+  if (company) return company;
 
-  const addressLine1 = useMemo(() => {
-    return bid?.address || bid?.address1 || "";
-  }, [bid]);
+  const pieces = [
+    cleanText(bid?.client_name),
+    cleanText(bid?.client_last_name),
+  ].filter(Boolean);
+
+  return pieces.join(" ") || "Client Name";
+}, [bid]);
+
+const addressLine1 = useMemo(() => {
+  return cleanText(bid?.address1 || bid?.address);
+}, [bid]);
+
 
   const addressLine2 = useMemo(() => {
-    if (bid?.address2) return bid.address2;
+  const addr2 = cleanText(bid?.address2);
+  if (addr2) return addr2;
 
-    const cityStateZip = [bid?.city, bid?.state, bid?.zip].filter(Boolean);
-    return cityStateZip.join(" ") || "";
-  }, [bid]);
+  const city = cleanText(bid?.city);
+  const state = cleanText(bid?.state);
+  const zip = cleanText(bid?.zip);
+
+  return [city, state, zip].filter(Boolean).join(" ") || "";
+}, [bid]);
 
   const estimateNumber = useMemo(() => {
     return String(
