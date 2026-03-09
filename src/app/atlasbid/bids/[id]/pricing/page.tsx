@@ -1,31 +1,55 @@
-import Link from "next/link";
+"use client";
 
-export default async function BidScopePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+
+export default function PricingPage() {
+  const params = useParams();
+  const bidId = String(params?.id ?? "");
+
+  const [data, setData] = useState<any>(null);
+
+  async function calculate() {
+    const res = await fetch("/api/atlasbid/pricing/calculate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ bid_id: bidId }),
+    });
+
+    const json = await res.json();
+    setData(json);
+  }
+
+  useEffect(() => {
+    if (bidId) {
+      calculate();
+    }
+  }, [bidId]);
+
+  if (!data) {
+    return <div className="p-8">Loading...</div>;
+  }
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-[#123b1f]">Scope</h2>
-      <p className="mt-2 text-sm text-[#3d5a45]">
-        Labor + materials builder will live here.
-      </p>
+    <div className="p-8 space-y-4">
 
-      <div className="mt-6 rounded-md border border-[#d7e6db] bg-[#f6f8f6] p-4 text-sm text-[#123b1f]">
-        Bid: <strong>{id}</strong>
+      <h1 className="text-2xl font-bold">Pricing</h1>
+
+      <div>Labor Cost: ${data.labor_cost.toFixed(2)}</div>
+      <div>Material Cost: ${data.material_cost.toFixed(2)}</div>
+
+      <hr />
+
+      <div>Total Cost: ${data.total_cost.toFixed(2)}</div>
+
+      <div className="text-lg font-semibold">
+        Final Price: ${data.rounded_price.toFixed(2)}
       </div>
 
-      <div className="mt-6">
-        <Link
-          href={`/atlasbid/bids/${id}`}
-          className="cursor-pointer text-sm font-medium text-[#1e7a3a] hover:underline"
-        >
-          ← Back to Overview
-        </Link>
-      </div>
+      <div>Prepay Price: ${data.prepay_price.toFixed(2)}</div>
+
     </div>
   );
 }
