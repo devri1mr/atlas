@@ -57,7 +57,7 @@ function formatDate(value?: string | null) {
 }
 
 function moneyDisplay(value: number) {
-  return `$${value.toFixed(2)}`;
+  return `$${Math.round(value).toLocaleString()}`;
 }
 
 function unwrapBid(json: any): BidRow | null {
@@ -98,12 +98,16 @@ function laborRowLabel(row: LaborRow) {
   return label.trim();
 }
 
-function allocateSellAmounts(rows: ProposalRowBase[], totalSell: number): ProposalRow[] {
+function allocateSellAmounts(
+  rows: ProposalRowBase[],
+  totalSell: number
+): ProposalRow[] {
   if (rows.length === 0) return [];
 
+  const roundedTotalSell = Math.round(totalSell);
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
 
-  if (totalSell <= 0) {
+  if (roundedTotalSell <= 0) {
     return rows.map((row) => ({
       ...row,
       amount: 0,
@@ -111,14 +115,12 @@ function allocateSellAmounts(rows: ProposalRowBase[], totalSell: number): Propos
   }
 
   if (totalCost <= 0) {
-    const equalBase = Math.floor((totalSell / rows.length) * 100) / 100;
+    const equalBase = Math.floor(roundedTotalSell / rows.length);
     let running = 0;
 
     return rows.map((row, idx) => {
       const amount =
-        idx === rows.length - 1
-          ? Number((totalSell - running).toFixed(2))
-          : equalBase;
+        idx === rows.length - 1 ? roundedTotalSell - running : equalBase;
 
       running += amount;
 
@@ -135,12 +137,12 @@ function allocateSellAmounts(rows: ProposalRowBase[], totalSell: number): Propos
     if (idx === rows.length - 1) {
       return {
         ...row,
-        amount: Number((totalSell - allocatedRunning).toFixed(2)),
+        amount: roundedTotalSell - allocatedRunning,
       };
     }
 
-    const rawAmount = (row.cost / totalCost) * totalSell;
-    const amount = Number(rawAmount.toFixed(2));
+    const rawAmount = (row.cost / totalCost) * roundedTotalSell;
+    const amount = Math.round(rawAmount);
     allocatedRunning += amount;
 
     return {
@@ -186,9 +188,12 @@ export default function ProposalPage() {
         }
 
         try {
-          const laborRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
-            cache: "no-store",
-          });
+          const laborRes = await fetch(
+            `/api/atlasbid/bid-labor?bid_id=${bidId}`,
+            {
+              cache: "no-store",
+            }
+          );
 
           const laborJson = await safeJson(laborRes);
 
@@ -245,7 +250,9 @@ export default function ProposalPage() {
   }, [bid]);
 
   const estimateNumber = useMemo(() => {
-    return String(bid?.estimate_number ?? bid?.bid_number ?? bidId.slice(0, 6));
+    return String(
+      bid?.estimate_number ?? bid?.bid_number ?? bidId.slice(0, 6)
+    );
   }, [bid, bidId]);
 
   const dateText = useMemo(() => {
@@ -353,8 +360,8 @@ export default function ProposalPage() {
 
         <div className="mt-1 text-center">
           <span className="bg-[#f4ecb8] px-1 text-[14px] italic text-[#5b5b5b]">
-            A 50% down payment is due along with a signed contract to move forward
-            with project.
+            A 50% down payment is due along with a signed contract to move
+            forward with project.
           </span>
         </div>
 
@@ -417,16 +424,18 @@ export default function ProposalPage() {
           boxSizing: "border-box",
         }}
       >
-        <h1 className="mb-6 text-[26px] font-bold">Garpiel Group Terms of Service</h1>
+        <h1 className="mb-6 text-[26px] font-bold">
+          Garpiel Group Terms of Service
+        </h1>
 
         <div className="space-y-4 text-[14px] leading-[1.55] text-[#3f3f3f]">
           <p>
-            Terms and conditions will appear here exactly as they do on the current
-            estimate document.
+            Terms and conditions will appear here exactly as they do on the
+            current estimate document.
           </p>
           <p>
-            This page is intentionally separated from page one and will be replaced
-            with the exact fixed terms text from your current estimate.
+            This page is intentionally separated from page one and will be
+            replaced with the exact fixed terms text from your current estimate.
           </p>
         </div>
       </div>
