@@ -618,60 +618,37 @@ async function loadBundleQuestions(bundleId: string) {
     setLoadingBundleQuestions(false);
   }
 }
-  async function loadSelectedBundleIntoBid() {
+ async function loadSelectedBundleIntoBid() {
   if (!selectedBundleId) return;
-
   if (!bidId) return;
-
-  if ((Number(divisionRate) || 0) <= 0) {
-    setError("Division rate is 0. Set the division + rate first.");
-    return;
-  }
 
   setLoadingBundleIntoBid(true);
 
   try {
-    for (const bt of bundleTasks) {
-      const tc = bt.task_catalog;
-      if (!tc?.name) continue;
+    const res = await fetch(`/api/atlasbid/apply-scope-bundle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        bid_id: bidId,
+        bundle_id: selectedBundleId,
+        answers: bundleAnswers
+      })
+    });
 
-      const qty =
-        bt.default_qty !== null && bt.default_qty !== undefined
-          ? Number(bt.default_qty) || 0
-          : Number(tc.default_qty) || 0;
+    const json = await res.json();
 
-      const unit = tc.unit || "ea";
-
-      const hours =
-        tc.minutes_per_unit && qty > 0
-          ? Number(((Number(tc.minutes_per_unit) * qty) / 60).toFixed(2))
-          : 0;
-
-      const details = tc.notes || "";
-
-      const res = await fetch(`/api/atlasbid/bid-labor`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          bid_id: bidId,
-          task: tc.name,
-          item: details,
-          quantity: qty,
-          unit,
-          man_hours: hours,
-          hourly_rate: Number(divisionRate) || 0
-        })
-      });
-
-      const json = await res.json();
-
-      if (res.ok) {
-        const row = json?.row ?? json?.data;
-        if (row) setLabor((prev) => [...prev, row]);
-      }
+    if (!res.ok) {
+      throw new Error(json?.error || "Failed applying bundle");
     }
+
+    const rows = json?.rows || [];
+
+    if (rows.length) {
+      setLabor(prev => [...prev, ...rows]);
+    }
+
   } catch (e: any) {
     setError(e?.message || "Failed loading bundle.");
   } finally {
