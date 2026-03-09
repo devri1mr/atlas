@@ -57,7 +57,8 @@ function formatDate(value?: string | null) {
 }
 
 function moneyDisplay(value: number) {
-  return `$${Math.round(value).toLocaleString()}`;
+  const rounded = Math.round(value);
+  return `$${rounded.toLocaleString()}.00`;
 }
 
 function unwrapBid(json: any): BidRow | null {
