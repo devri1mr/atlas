@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 type PricingResponse = {
@@ -8,6 +8,7 @@ type PricingResponse = {
   material_cost: number;
   trucking_cost: number;
   total_cost: number;
+  suggested_price: number;
   final_price: number;
   prepay_price: number;
   effective_gp: number;
@@ -67,6 +68,7 @@ export default function PricingPage() {
       material_cost: Number(json?.material_cost ?? 0),
       trucking_cost: Number(json?.trucking_cost ?? 0),
       total_cost: Number(json?.total_cost ?? 0),
+      suggested_price: Number(json?.suggested_price ?? 0),
       final_price: Number(json?.final_price ?? 0),
       prepay_price: Number(json?.prepay_price ?? 0),
       effective_gp: Number(json?.effective_gp ?? 0),
@@ -131,24 +133,23 @@ export default function PricingPage() {
           const row = bidJson?.data ?? bidJson?.row ?? bidJson ?? null;
 
           if (row) {
-            setTargetGpPct(Number(row?.target_gp_pct ?? 50));
-            setPrepayEnabled(Boolean(row?.prepay_enabled ?? false));
-            setManualPrice(
+            const nextTargetGp = Number(row?.target_gp_pct ?? 50);
+            const nextPrepayEnabled = Boolean(row?.prepay_enabled ?? false);
+            const nextManualPrice =
               row?.sell_rounded !== null &&
-                row?.sell_rounded !== undefined &&
-                Number(row?.sell_rounded) > 0
+              row?.sell_rounded !== undefined &&
+              Number(row?.sell_rounded) > 0
                 ? String(Number(row.sell_rounded))
-                : ""
-            );
+                : "";
+
+            setTargetGpPct(nextTargetGp);
+            setPrepayEnabled(nextPrepayEnabled);
+            setManualPrice(nextManualPrice);
 
             await calculate(
-              Number(row?.target_gp_pct ?? 50),
-              Boolean(row?.prepay_enabled ?? false),
-              row?.sell_rounded !== null &&
-                row?.sell_rounded !== undefined &&
-                Number(row?.sell_rounded) > 0
-                ? String(Number(row.sell_rounded))
-                : ""
+              nextTargetGp,
+              nextPrepayEnabled,
+              nextManualPrice
             );
           } else {
             await calculate(50, false, "");
@@ -185,6 +186,28 @@ export default function PricingPage() {
 
     return () => clearTimeout(t);
   }, [targetGpPct, prepayEnabled, manualPrice]);
+
+  const suggestedPrice = useMemo(() => {
+    return Number(data?.suggested_price ?? 0);
+  }, [data]);
+
+  const finalPrice = useMemo(() => {
+    return Number(data?.final_price ?? 0);
+  }, [data]);
+
+  const overrideAmount = useMemo(() => {
+    return finalPrice - suggestedPrice;
+  }, [finalPrice, suggestedPrice]);
+
+  const overrideColorClass = useMemo(() => {
+    if (overrideAmount > 0) return "text-green-600";
+    if (overrideAmount < 0) return "text-red-600";
+    return "text-gray-700";
+  }, [overrideAmount]);
+
+  const overridePrefix = useMemo(() => {
+    return overrideAmount > 0 ? "+" : "";
+  }, [overrideAmount]);
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -228,6 +251,15 @@ export default function PricingPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
+                Suggested Project Price
+              </label>
+              <div className="w-full rounded-md border bg-gray-100 px-3 py-2 text-base text-gray-800">
+                {money(suggestedPrice)}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Project Price (editable)
               </label>
               <input
@@ -238,6 +270,18 @@ export default function PricingPage() {
                 min={0}
                 step={0.01}
               />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Override Amount
+              </label>
+              <div
+                className={`w-full rounded-md border bg-gray-100 px-3 py-2 text-base font-medium ${overrideColorClass}`}
+              >
+                {overridePrefix}
+                {money(overrideAmount)}
+              </div>
             </div>
 
             <label className="flex items-center gap-3 text-sm text-gray-700">
@@ -283,7 +327,7 @@ export default function PricingPage() {
             <div className="flex items-center justify-between pt-3">
               <span className="text-gray-700">Project price</span>
               <span className="text-lg font-bold text-green-700">
-                {money(Number(data?.final_price ?? 0))}
+                {money(finalPrice)}
               </span>
             </div>
 
@@ -293,7 +337,7 @@ export default function PricingPage() {
                 {money(
                   prepayEnabled
                     ? Number(data?.prepay_price ?? 0)
-                    : Number(data?.final_price ?? 0)
+                    : finalPrice
                 )}
               </span>
             </div>
