@@ -21,13 +21,18 @@ type StatusesGet = {
 
 type BidRecord = {
   id: string;
+  customer_name?: string | null;
   client_name?: string | null;
   client_last_name?: string | null;
   division_id?: string | null;
-
   status_id?: number | null;
   internal_notes?: string | null;
-
+  address?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   created_at?: string | null;
 };
 
@@ -41,6 +46,12 @@ function safeJoinName(first?: string | null, last?: string | null) {
     .map((s) => String(s).trim())
     .filter(Boolean);
   return parts.length ? parts.join(" ") : "—";
+}
+
+function displayClientName(bid?: BidRecord | null) {
+  const company = String(bid?.customer_name ?? "").trim();
+  if (company) return company;
+  return safeJoinName(bid?.client_name, bid?.client_last_name);
 }
 
 function fmtDate(s?: string | null) {
@@ -95,20 +106,20 @@ async function fetchBidById(bidId: string): Promise<BidRecord> {
   return bid;
 }
 
-async function patchBidStatus(
+async function patchBid(
   bidId: string,
-  status_id: number | null
+  payload: Partial<BidRecord>
 ): Promise<BidRecord> {
   const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
-    body: JSON.stringify({ status_id }),
+    body: JSON.stringify(payload),
   });
 
   const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
   const bid = json?.data;
-  if (!bid?.id) throw new Error("Status update failed.");
+  if (!bid?.id) throw new Error("Bid update failed.");
   return bid;
 }
 
@@ -135,6 +146,21 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   }, [statuses]);
 
   const [savingStatus, setSavingStatus] = React.useState(false);
+  const [savingDetails, setSavingDetails] = React.useState(false);
+  const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
+
+  const [form, setForm] = React.useState({
+    customer_name: "",
+    client_name: "",
+    client_last_name: "",
+    address1: "",
+    address2: "",
+    city: "",
+    state: "",
+    zip: "",
+    internal_notes: "",
+    status_id: "",
+  });
 
   const cardStyle: React.CSSProperties = {
     border: "1px solid #d7e6db",
@@ -149,6 +175,22 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     padding: "10px 14px",
     borderRadius: 10,
     cursor: "pointer",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid #e5e7eb",
+    borderRadius: 10,
+    padding: "10px 12px",
+    background: "white",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    marginBottom: 6,
+    fontWeight: 600,
+    color: "#374151",
+    fontSize: 14,
   };
 
   const backBtnStyle: React.CSSProperties = {
@@ -171,29 +213,53 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     fontWeight: 600,
   };
 
+  const saveBtnStyle: React.CSSProperties = {
+    ...btnStyle,
+    border: "1px solid #111827",
+    background: "#111827",
+    color: "white",
+    fontWeight: 600,
+  };
+
   const base = `/atlasbid/bids/${effectiveBidId}`;
+
+  function syncFormFromBid(nextBid: BidRecord) {
+    setForm({
+      customer_name: String(nextBid.customer_name ?? "").trim(),
+      client_name: String(nextBid.client_name ?? "").trim(),
+      client_last_name: String(nextBid.client_last_name ?? "").trim(),
+      address1: String(nextBid.address1 ?? nextBid.address ?? "").trim(),
+      address2: String(nextBid.address2 ?? "").trim(),
+      city: String(nextBid.city ?? "").trim(),
+      state: String(nextBid.state ?? "").trim(),
+      zip: String(nextBid.zip ?? "").trim(),
+      internal_notes: String(nextBid.internal_notes ?? "").trim(),
+      status_id:
+        nextBid.status_id === null || nextBid.status_id === undefined
+          ? ""
+          : String(nextBid.status_id),
+    });
+  }
 
   async function loadAll() {
     setLoading(true);
     setError(null);
+    setSaveMessage(null);
 
     try {
       if (!effectiveBidId) throw new Error(`Missing bid id.`);
-      console.log("BID ID RECEIVED:", effectiveBidId);
 
-      // Load divisions (for division name display)
       const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
 
-      // Load statuses (for status dropdown)
       const stRes = await fetch("/api/statuses", { cache: "no-store" });
       const stJson = (await readJsonOrThrow(stRes)) as StatusesGet;
       setStatuses(Array.isArray(stJson?.data) ? stJson.data : []);
 
-      // Load bid
       const b = await fetchBidById(effectiveBidId);
       setBid(b);
+      syncFormFromBid(b);
     } catch (e: any) {
       setBid(null);
       setError(e?.message || "Load failed");
@@ -207,10 +273,53 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveBidId]);
 
+  const divId = bid?.division_id ?? "";
+  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
+
+  const computedDisplayName = React.useMemo(() => {
+    return displayClientName({
+      customer_name: form.customer_name,
+      client_name: form.client_name,
+      client_last_name: form.client_last_name,
+    } as BidRecord);
+  }, [form.customer_name, form.client_name, form.client_last_name]);
+
+  async function handleSaveDetails() {
+    if (!bid) return;
+
+    setSavingDetails(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const payload = {
+        customer_name: form.customer_name.trim() || null,
+        client_name: form.client_name.trim() || null,
+        client_last_name: form.client_last_name.trim() || null,
+        address1: form.address1.trim() || null,
+        address2: form.address2.trim() || null,
+        city: form.city.trim() || null,
+        state: form.state.trim() || null,
+        zip: form.zip.trim() || null,
+        internal_notes: form.internal_notes.trim() || null,
+        status_id:
+          form.status_id === "" ? null : Number(form.status_id),
+      };
+
+      const updated = await patchBid(effectiveBidId, payload);
+      setBid(updated);
+      syncFormFromBid(updated);
+      setSaveMessage("Details saved.");
+    } catch (e: any) {
+      setError(e?.message || "Save failed");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   if (loading) return <div>Loading…</div>;
 
-  // Error state
-  if (error) {
+  if (error && !bid) {
     return (
       <div style={cardStyle}>
         <div
@@ -233,91 +342,227 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     );
   }
 
-  // No bid
   if (!bid) {
-    return (
-      <div style={{ ...cardStyle, color: "#b91c1c" }}>
-        Bid not found.
-      </div>
-    );
+    return <div style={{ ...cardStyle, color: "#b91c1c" }}>Bid not found.</div>;
   }
-
-  const divId = bid.division_id ?? "";
-  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
 
   return (
     <div style={cardStyle}>
-      <p style={{ marginTop: 0 }}>
-        <strong>Client:</strong>{" "}
-        {safeJoinName(bid.client_name, bid.client_last_name)}
-      </p>
-
-      <p>
-        <strong>Division:</strong> {divName}
-      </p>
-
-      {/* Status dropdown (FULL WIDTH) */}
-      <div style={{ marginTop: 12, marginBottom: 12 }}>
-        <div style={{ marginBottom: 6 }}>
-          <strong>Status:</strong>
-        </div>
-
-        <select
-          value={bid.status_id ?? ""}
-          disabled={savingStatus}
-          onChange={async (e) => {
-            const v = e.target.value;
-            const nextStatus = v === "" ? null : Number(v);
-
-            // optimistic update
-            setBid((prev) => (prev ? { ...prev, status_id: nextStatus } : prev));
-
-            try {
-              setSavingStatus(true);
-              const updated = await patchBidStatus(effectiveBidId, nextStatus);
-              setBid(updated);
-            } catch (err: any) {
-              setError(err?.message || "Status update failed");
-            } finally {
-              setSavingStatus(false);
-            }
-          }}
+      {error ? (
+        <div
           style={{
-            width: "100%",
-            maxWidth: 400,
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            padding: "10px 12px",
-            background: "white",
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            color: "#991b1b",
+            padding: 12,
+            borderRadius: 12,
+            marginBottom: 16,
           }}
         >
-          <option value="">(None)</option>
-          {statuses.map((s) => (
-            <option key={s.id} value={String(s.id)}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          {error}
+        </div>
+      ) : null}
 
-        <div style={{ marginTop: 6, color: "#6b7280", fontSize: 13 }}>
-          Current:{" "}
-          {bid.status_id
-            ? statusNameById.get(bid.status_id) ?? `#${bid.status_id}`
-            : "(None)"}
-          {savingStatus ? " — saving…" : ""}
+      {saveMessage ? (
+        <div
+          style={{
+            border: "1px solid #bbf7d0",
+            background: "#f0fdf4",
+            color: "#166534",
+            padding: 12,
+            borderRadius: 12,
+            marginBottom: 16,
+          }}
+        >
+          {saveMessage}
+        </div>
+      ) : null}
+
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
+          Client / Property Display Name
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 20 }}>
+          {computedDisplayName}
         </div>
       </div>
 
-      <p>
-        <strong>Internal Notes:</strong> {bid.internal_notes ?? "None"}
-      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 16,
+        }}
+      >
+        <div>
+          <label style={labelStyle}>Company / Commercial Name</label>
+          <input
+            value={form.customer_name}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, customer_name: e.target.value }))
+            }
+            placeholder="ABC Property Management"
+            style={inputStyle}
+          />
+        </div>
 
-      <p style={{ marginBottom: 14 }}>
-        <strong>Created At:</strong> {fmtDate(bid.created_at)}
-      </p>
+        <div>
+          <label style={labelStyle}>Client First Name</label>
+          <input
+            value={form.client_name}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, client_name: e.target.value }))
+            }
+            placeholder="John"
+            style={inputStyle}
+          />
+        </div>
 
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+        <div>
+          <label style={labelStyle}>Client Last Name</label>
+          <input
+            value={form.client_last_name}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, client_last_name: e.target.value }))
+            }
+            placeholder="Smith"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Division</label>
+          <div
+            style={{
+              ...inputStyle,
+              background: "#f9fafb",
+              color: "#374151",
+            }}
+          >
+            {divName}
+          </div>
+          <div style={{ marginTop: 6, color: "#6b7280", fontSize: 12 }}>
+            Division display only for now. We can safely add guarded editing next.
+          </div>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Address Line 1</label>
+          <input
+            value={form.address1}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, address1: e.target.value }))
+            }
+            placeholder="123 Main St"
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Address Line 2</label>
+          <input
+            value={form.address2}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, address2: e.target.value }))
+            }
+            placeholder="Suite, unit, building, etc. (optional)"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>City</label>
+          <input
+            value={form.city}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, city: e.target.value }))
+            }
+            placeholder="Saginaw"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>State</label>
+          <input
+            value={form.state}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, state: e.target.value }))
+            }
+            placeholder="MI"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>ZIP</label>
+          <input
+            value={form.zip}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, zip: e.target.value }))
+            }
+            placeholder="48604"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Status</label>
+          <select
+            value={form.status_id}
+            disabled={savingStatus || savingDetails}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, status_id: e.target.value }))
+            }
+            style={inputStyle}
+          >
+            <option value="">(None)</option>
+            {statuses.map((s) => (
+              <option key={s.id} value={String(s.id)}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <div style={{ marginTop: 6, color: "#6b7280", fontSize: 13 }}>
+            Current saved status:{" "}
+            {bid.status_id
+              ? statusNameById.get(bid.status_id) ?? `#${bid.status_id}`
+              : "(None)"}
+          </div>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Internal Notes</label>
+          <textarea
+            value={form.internal_notes}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, internal_notes: e.target.value }))
+            }
+            rows={5}
+            style={{ ...inputStyle, resize: "vertical" }}
+            placeholder="Internal notes..."
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <p style={{ margin: 0 }}>
+          <strong>Created At:</strong> {fmtDate(bid.created_at)}
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+        <button
+          onClick={handleSaveDetails}
+          disabled={savingDetails}
+          style={{
+            ...saveBtnStyle,
+            opacity: savingDetails ? 0.7 : 1,
+          }}
+        >
+          {savingDetails ? "Saving…" : "Save Details"}
+        </button>
+
         <Link href="/atlasbid/bids" style={backBtnStyle}>
           Back to bids
         </Link>
