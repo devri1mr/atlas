@@ -253,7 +253,7 @@ const addressLine1 = useMemo(() => {
 }, [bid]);
 
 
-  const addressLine2 = useMemo(() => {
+const addressLine2 = useMemo(() => {
   const addr2 = cleanText(bid?.address2);
   if (addr2) return addr2;
 
@@ -261,7 +261,8 @@ const addressLine1 = useMemo(() => {
   const state = cleanText(bid?.state);
   const zip = cleanText(bid?.zip);
 
-  return [city, state, zip].filter(Boolean).join(" ") || "";
+  const cityState = [city, state].filter(Boolean).join(", ");
+  return `${cityState}${zip ? ` ${zip}` : ""}`.trim();
 }, [bid]);
 
   const estimateNumber = useMemo(() => {
