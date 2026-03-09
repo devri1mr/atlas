@@ -1,318 +1,281 @@
-// src/app/atlasbid/bids/[id]/BidDetailClient.tsx
-"use client";
+// src/app/api/bids/[id]/route.ts
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-import * as React from "react";
-import Link from "next/link";
+export const runtime = "nodejs";
 
-type Division = { id: string; name: string };
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type LaborRatesGet = {
-  rates?: Array<{ division_id: string; hourly_rate: number }>;
-  divisions?: Division[];
-  error?: string;
-};
-
-type Status = { id: number; name: string; color?: string | null };
-
-type StatusesGet = {
-  data?: Status[];
-  error?: string;
-};
-
-type BidRecord = {
-  id: string;
-  customer_name?: string | null;
-  client_name?: string | null;
-  client_last_name?: string | null;
-  division_id?: string | null;
-  status_id?: number | null;
-  internal_notes?: string | null;
-  address?: string | null;
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip?: string | null;
-  created_at?: string | null;
-};
-
-type ApiBidByIdResponse = {
-  data?: BidRecord;
-  error?: string;
-};
-
-function safeJoinName(first?: string | null, last?: string | null) {
-  const parts = [first ?? "", last ?? ""]
-    .map((s) => String(s).trim())
-    .filter(Boolean);
-  return parts.length ? parts.join(" ") : "—";
+function supabaseAdmin() {
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Missing Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
+    );
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 }
 
-function displayClientName(bid?: BidRecord | null) {
-  const company = String(bid?.customer_name ?? "").trim();
-  if (company) return company;
-  return safeJoinName(bid?.client_name, bid?.client_last_name);
-}
+const TABLE_BIDS = "bids";
 
-function fmtDate(s?: string | null) {
-  if (!s) return "—";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString();
+const BID_SELECT = `
+  id,
+  customer_name,
+  client_name,
+  client_last_name,
+  address,
+  address1,
+  address2,
+  city,
+  state,
+  zip,
+  division_id,
+  status_id,
+  internal_notes,
+  created_at,
+  trucking_hours,
+  labor_cost,
+  material_cost,
+  trucking_cost,
+  total_cost,
+  target_gp_pct,
+  sell_rounded,
+  prepay_enabled,
+  prepay_price
+`;
+
+/**
+ * GET /api/bids/[id]
+ * returns: { data: bid }
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const bidId = String(id || "").trim();
+
+    if (!bidId) {
+      return NextResponse.json({ error: "Missing bid id" }, { status: 400 });
+    }
+
+    const supabase = supabaseAdmin();
+
+    const { data, error } = await supabase
+      .from(TABLE_BIDS)
+      .select(BID_SELECT)
+      .eq("id", bidId)
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ data }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Unknown error" },
+      { status: 500 }
+    );
+  }
 }
 
 /**
- * Reads response as text first, then JSON-parses.
- * If the server returns HTML (DOCTYPE), you get a useful error instead of a crash.
+ * PATCH /api/bids/[id]
  */
-async function readJsonOrThrow(res: Response) {
-  const text = await res.text();
-  const looksLikeHtml = /^\s*</.test(text) && /<!doctype|<html/i.test(text);
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const bidId = String(id || "").trim();
 
-  if (!res.ok) {
-    if (looksLikeHtml) {
-      throw new Error(
-        `Request failed (HTTP ${res.status}) and returned HTML. Likely a bad API route or redirect.`
+    if (!bidId) {
+      return NextResponse.json({ error: "Missing bid id" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const patch: Record<string, any> = {};
+
+    if (body?.customer_name !== undefined) {
+      patch.customer_name =
+        body.customer_name === "" ? null : String(body.customer_name);
+    }
+
+    if (body?.client_name !== undefined) {
+      patch.client_name =
+        body.client_name === "" ? null : String(body.client_name);
+    }
+
+    if (body?.client_last_name !== undefined) {
+      patch.client_last_name =
+        body.client_last_name === "" ? null : String(body.client_last_name);
+    }
+
+    if (body?.address !== undefined) {
+      patch.address = body.address === "" ? null : String(body.address);
+    }
+
+    if (body?.address1 !== undefined) {
+      patch.address1 = body.address1 === "" ? null : String(body.address1);
+    }
+
+    if (body?.address2 !== undefined) {
+      patch.address2 = body.address2 === "" ? null : String(body.address2);
+    }
+
+    if (body?.city !== undefined) {
+      patch.city = body.city === "" ? null : String(body.city);
+    }
+
+    if (body?.state !== undefined) {
+      patch.state = body.state === "" ? null : String(body.state);
+    }
+
+    if (body?.zip !== undefined) {
+      patch.zip = body.zip === "" ? null : String(body.zip);
+    }
+
+    if (body?.division_id !== undefined) {
+      const v = body.division_id;
+      patch.division_id = v === "" ? null : v;
+    }
+
+    if (body?.status_id !== undefined) {
+      const v = body.status_id;
+      patch.status_id = v === "" ? null : v;
+    }
+
+    if (body?.internal_notes !== undefined) {
+      patch.internal_notes =
+        body.internal_notes === "" ? null : body.internal_notes;
+    }
+
+    if (body?.trucking_hours !== undefined) {
+      const n = Number(body.trucking_hours);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid trucking_hours" },
+          { status: 400 }
+        );
+      }
+      patch.trucking_hours = n;
+    }
+
+    if (body?.labor_cost !== undefined) {
+      const n = Number(body.labor_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid labor_cost" },
+          { status: 400 }
+        );
+      }
+      patch.labor_cost = n;
+    }
+
+    if (body?.material_cost !== undefined) {
+      const n = Number(body.material_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid material_cost" },
+          { status: 400 }
+        );
+      }
+      patch.material_cost = n;
+    }
+
+    if (body?.trucking_cost !== undefined) {
+      const n = Number(body.trucking_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid trucking_cost" },
+          { status: 400 }
+        );
+      }
+      patch.trucking_cost = n;
+    }
+
+    if (body?.total_cost !== undefined) {
+      const n = Number(body.total_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid total_cost" },
+          { status: 400 }
+        );
+      }
+      patch.total_cost = n;
+    }
+
+    if (body?.target_gp_pct !== undefined) {
+      const n = Number(body.target_gp_pct);
+      if (!Number.isFinite(n) || n < 0 || n > 95) {
+        return NextResponse.json(
+          { error: "Invalid target_gp_pct" },
+          { status: 400 }
+        );
+      }
+      patch.target_gp_pct = n;
+    }
+
+    if (body?.sell_rounded !== undefined) {
+      const n = Number(body.sell_rounded);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid sell_rounded" },
+          { status: 400 }
+        );
+      }
+      patch.sell_rounded = n;
+    }
+
+    if (body?.prepay_enabled !== undefined) {
+      patch.prepay_enabled = Boolean(body.prepay_enabled);
+    }
+
+    if (body?.prepay_price !== undefined) {
+      const n = Number(body.prepay_price);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid prepay_price" },
+          { status: 400 }
+        );
+      }
+      patch.prepay_price = n;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json(
+        { error: "No fields to update" },
+        { status: 400 }
       );
     }
-    try {
-      const j = JSON.parse(text || "{}");
-      throw new Error(j?.error || `HTTP ${res.status}`);
-    } catch {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
-  }
 
-  if (!text) return {};
-  if (looksLikeHtml) {
-    throw new Error(
-      `Expected JSON but got HTML. Likely a bad API route or redirect.`
+    const supabase = supabaseAdmin();
+
+    const { data, error } = await supabase
+      .from(TABLE_BIDS)
+      .update(patch)
+      .eq("id", bidId)
+      .select(BID_SELECT)
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Unknown error" },
+      { status: 500 }
     );
   }
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`Response was not valid JSON.`);
-  }
 }
-
-async function fetchBidById(bidId: string): Promise<BidRecord> {
-  const url = `/api/bids/${encodeURIComponent(bidId)}`;
-  const res = await fetch(url, { cache: "no-store" });
-  const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
-
-  const bid = json?.data;
-  if (!bid?.id) throw new Error("Bid not found.");
-  return bid;
-}
-
-async function patchBid(
-  bidId: string,
-  payload: Partial<BidRecord>
-): Promise<BidRecord> {
-  const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(payload),
-  });
-
-  const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
-  const bid = json?.data;
-  if (!bid?.id) throw new Error("Bid update failed.");
-  return bid;
-}
-
-export default function BidDetailClient({ bidId }: { bidId: string }) {
-  const effectiveBidId = React.useMemo(() => String(bidId || "").trim(), [bidId]);
-
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const [bid, setBid] = React.useState<BidRecord | null>(null);
-
-  const [divisions, setDivisions] = React.useState<Division[]>([]);
-  const divisionNameById = React.useMemo(() => {
-    const m = new Map<string, string>();
-    divisions.forEach((d) => m.set(d.id, d.name));
-    return m;
-  }, [divisions]);
-
-  const [statuses, setStatuses] = React.useState<Status[]>([]);
-  const statusNameById = React.useMemo(() => {
-    const m = new Map<number, string>();
-    statuses.forEach((s) => m.set(s.id, s.name));
-    return m;
-  }, [statuses]);
-
-  const [savingStatus, setSavingStatus] = React.useState(false);
-  const [savingDetails, setSavingDetails] = React.useState(false);
-  const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
-
-  const [form, setForm] = React.useState({
-    customer_name: "",
-    client_name: "",
-    client_last_name: "",
-    address1: "",
-    address2: "",
-    city: "",
-    state: "",
-    zip: "",
-    internal_notes: "",
-    status_id: "",
-  });
-
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #d7e6db",
-    borderRadius: 12,
-    padding: 18,
-    background: "white",
-  };
-
-  const btnStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    background: "white",
-    padding: "10px 14px",
-    borderRadius: 10,
-    cursor: "pointer",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "10px 12px",
-    background: "white",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 600,
-    color: "#374151",
-    fontSize: 14,
-  };
-
-  const backBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #16a34a",
-    background: "#16a34a",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-    fontWeight: 600,
-  };
-
-  const nextBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #123b1f",
-    background: "#123b1f",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-    fontWeight: 600,
-  };
-
-  const saveBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #111827",
-    background: "#111827",
-    color: "white",
-    fontWeight: 600,
-  };
-
-  const base = `/atlasbid/bids/${effectiveBidId}`;
-
-  function syncFormFromBid(nextBid: BidRecord) {
-    setForm({
-      customer_name: String(nextBid.customer_name ?? "").trim(),
-      client_name: String(nextBid.client_name ?? "").trim(),
-      client_last_name: String(nextBid.client_last_name ?? "").trim(),
-      address1: String(nextBid.address1 ?? nextBid.address ?? "").trim(),
-      address2: String(nextBid.address2 ?? "").trim(),
-      city: String(nextBid.city ?? "").trim(),
-      state: String(nextBid.state ?? "").trim(),
-      zip: String(nextBid.zip ?? "").trim(),
-      internal_notes: String(nextBid.internal_notes ?? "").trim(),
-      status_id:
-        nextBid.status_id === null || nextBid.status_id === undefined
-          ? ""
-          : String(nextBid.status_id),
-    });
-  }
-
-  async function loadAll() {
-    setLoading(true);
-    setError(null);
-    setSaveMessage(null);
-
-    try {
-      if (!effectiveBidId) throw new Error(`Missing bid id.`);
-
-      const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
-      const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
-      setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
-
-      const stRes = await fetch("/api/statuses", { cache: "no-store" });
-      const stJson = (await readJsonOrThrow(stRes)) as StatusesGet;
-      setStatuses(Array.isArray(stJson?.data) ? stJson.data : []);
-
-      const b = await fetchBidById(effectiveBidId);
-      setBid(b);
-      syncFormFromBid(b);
-    } catch (e: any) {
-      setBid(null);
-      setError(e?.message || "Load failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  React.useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveBidId]);
-
-  const divId = bid?.division_id ?? "";
-  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
-
-  const computedDisplayName = React.useMemo(() => {
-    return displayClientName({
-      customer_name: form.customer_name,
-      client_name: form.client_name,
-      client_last_name: form.client_last_name,
-    } as BidRecord);
-  }, [form.customer_name, form.client_name, form.client_last_name]);
-
-  async function handleSaveDetails() {
-    if (!bid) return;
-
-    setSavingDetails(true);
-    setError(null);
-    setSaveMessage(null);
-
-    try {
-      const payload = {
-        customer_name: form.customer_name.trim() || null,
-        client_name: form.client_name.trim() || null,
-        client_last_name: form.client_last_name.trim() || null,
-        address1: form.address1.trim() || null,
-        address2: form.address2.trim() || null,
-        city: form.city.trim() || null,
-        state: form.state.trim() || null,
-        zip: form.zip.trim() || null,
-        internal_notes: form.internal_notes.trim() || null,
-        status_id:
-          form.status_id === "" ? null : Number(form.status_id),
-      };
-
-      const updated = await patchBid(effectiveBidId, payload);
-      setBid(updated);
-      syncFormFromBid(updated);
-      setSaveMessage("Details saved.");
-    } catch (e: any) {
-      setError(e?.message || "Save failed");
-    } finally {
-      setSavingDetails(false);
-    }
-  }
