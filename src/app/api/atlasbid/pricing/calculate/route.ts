@@ -68,15 +68,16 @@ export async function POST(req: NextRequest) {
         return sum + qty * cost;
       }, 0) ?? 0;
 
-    // Uses existing bid columns if present; otherwise 0
     const trucking_hours = Number(bidRow?.trucking_hours ?? 0);
-    const trucking_rate =
-      Number(bidRow?.division_rate ?? bidRow?.hourly_rate ?? 0);
+    const trucking_rate = Number(
+      bidRow?.division_rate ?? bidRow?.hourly_rate ?? 0
+    );
 
-   const trucking_cost =
-  bidRow?.trucking_cost !== null && bidRow?.trucking_cost !== undefined
-    ? Number(bidRow.trucking_cost)
-    : trucking_hours * trucking_rate;
+    const trucking_cost =
+      bidRow?.trucking_cost !== null && bidRow?.trucking_cost !== undefined
+        ? Number(bidRow.trucking_cost)
+        : trucking_hours * trucking_rate;
+
     const total_cost = labor_cost + material_cost + trucking_cost;
 
     // Hidden Ops values for now.
@@ -93,12 +94,18 @@ export async function POST(req: NextRequest) {
     calculated_price = calculated_price * (1 + contingency);
 
     const rounded_price =
-      round_to > 0 ? Math.round(calculated_price / round_to) * round_to : calculated_price;
+      round_to > 0
+        ? Math.round(calculated_price / round_to) * round_to
+        : calculated_price;
 
+    // This is the Atlas system recommendation before manual override
+    const suggested_price = rounded_price;
+
+    // This is the actual project price after override if provided
     const final_price =
       manual_price !== null && !Number.isNaN(manual_price) && manual_price > 0
         ? manual_price
-        : rounded_price;
+        : suggested_price;
 
     const prepay_price = prepay_enabled
       ? final_price * (1 - prepay_discount)
@@ -112,11 +119,15 @@ export async function POST(req: NextRequest) {
       material_cost,
       trucking_cost,
       total_cost,
+      suggested_price,
       final_price,
       prepay_price,
       effective_gp,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Pricing calculation failed." }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "Pricing calculation failed." },
+      { status: 500 }
+    );
   }
 }
