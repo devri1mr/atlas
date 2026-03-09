@@ -48,7 +48,13 @@ type ProposalRow = {
   cost: number;
   amount: number;
 };
-
+function cleanText(value?: string | null) {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  if (s.toLowerCase() === "null") return "";
+  if (s.toLowerCase() === "undefined") return "";
+  return s;
+}
 function formatDate(value?: string | null) {
   if (!value) return "";
   const d = new Date(value);
