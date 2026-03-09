@@ -1071,7 +1071,7 @@ if (
         disabled={
           !selectedBundleId ||
           loadingBundleIntoBid ||
-          loadingBundleTasks
+          loadingBundleQuestions
         }
         className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
       >
