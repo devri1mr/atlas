@@ -14,15 +14,12 @@ type PricingResponse = {
   gp_base_price: number;
   effective_gp: number;
   target_gp_pct: number;
-  minimum_gp_pct: number;
   prepay_discount_pct: number;
   override_amount: number;
   has_manual_override: boolean;
   pricing_mode: "manual_override" | "suggested";
   below_target: boolean;
   target_gap_pct: number;
-  below_minimum_gp: boolean;
-  minimum_gap_pct: number;
 };
 
 function money(v: number) {
@@ -85,7 +82,6 @@ export default function PricingPage() {
       gp_base_price: Number(json?.gp_base_price ?? 0),
       effective_gp: Number(json?.effective_gp ?? 0),
       target_gp_pct: Number(json?.target_gp_pct ?? Number(nextGpPct || 0)),
-      minimum_gp_pct: Number(json?.minimum_gp_pct ?? 0),
       prepay_discount_pct: Number(json?.prepay_discount_pct ?? 0),
       override_amount: Number(json?.override_amount ?? 0),
       has_manual_override: Boolean(json?.has_manual_override ?? false),
@@ -95,8 +91,6 @@ export default function PricingPage() {
           : "suggested",
       below_target: Boolean(json?.below_target ?? false),
       target_gap_pct: Number(json?.target_gap_pct ?? 0),
-      below_minimum_gp: Boolean(json?.below_minimum_gp ?? false),
-      minimum_gap_pct: Number(json?.minimum_gap_pct ?? 0),
     });
   }
 
@@ -239,9 +233,7 @@ export default function PricingPage() {
   const gpColorClass = useMemo(() => {
     const gp = Number(data?.effective_gp ?? 0);
     const target = Number(data?.target_gp_pct ?? targetGpPct);
-    const minimum = Number(data?.minimum_gp_pct ?? 0);
 
-    if (gp < minimum) return "text-red-700";
     if (gp < target - 0.25) return "text-red-600";
     if (gp > target + 0.25) return "text-green-700";
     return "text-gray-800";
@@ -250,11 +242,7 @@ export default function PricingPage() {
   const gpBadgeClass = useMemo(() => {
     const gp = Number(data?.effective_gp ?? 0);
     const target = Number(data?.target_gp_pct ?? targetGpPct);
-    const minimum = Number(data?.minimum_gp_pct ?? 0);
 
-    if (gp < minimum) {
-      return "border-red-200 bg-red-50 text-red-700";
-    }
     if (gp < target - 0.25) {
       return "border-amber-200 bg-amber-50 text-amber-700";
     }
@@ -277,7 +265,9 @@ export default function PricingPage() {
   }, [data]);
 
   const gpBaseLabel = useMemo(() => {
-    return prepayEnabled ? "GP based on prepay price" : "GP based on project price";
+    return prepayEnabled
+      ? "GP based on prepay price"
+      : "GP based on project price";
   }, [prepayEnabled]);
 
   if (loading) {
@@ -361,9 +351,7 @@ export default function PricingPage() {
                 className={`w-full rounded-md border bg-gray-100 px-3 py-2 text-base font-medium ${overrideColorClass} ${overrideBorderClass}`}
               >
                 {overridePrefix}
-                {money(Math.abs(overrideAmount)).startsWith("$")
-                  ? `${overridePrefix}${money(Math.abs(overrideAmount))}`
-                  : money(overrideAmount)}
+                {money(Math.abs(overrideAmount))}
               </div>
             </div>
 
@@ -379,25 +367,11 @@ export default function PricingPage() {
               check up-front)
             </label>
 
-            {Boolean(data?.below_target) && !Boolean(data?.below_minimum_gp) ? (
+            {Boolean(data?.below_target) ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 Below target GP by{" "}
                 <span className="font-semibold">
                   {Math.abs(Number(data?.target_gap_pct ?? 0)).toFixed(2)}%
-                </span>
-                .
-              </div>
-            ) : null}
-
-            {Boolean(data?.below_minimum_gp) ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Below minimum division GP guardrail of{" "}
-                <span className="font-semibold">
-                  {Number(data?.minimum_gp_pct ?? 0).toFixed(2)}%
-                </span>{" "}
-                by{" "}
-                <span className="font-semibold">
-                  {Math.abs(Number(data?.minimum_gap_pct ?? 0)).toFixed(2)}%
                 </span>
                 .
               </div>
@@ -470,7 +444,7 @@ export default function PricingPage() {
                 className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${gpBadgeClass}`}
               >
                 Target GP {Number(data?.target_gp_pct ?? targetGpPct).toFixed(2)}
-                % | Minimum GP {Number(data?.minimum_gp_pct ?? 0).toFixed(2)}%
+                %
               </div>
             </div>
           </div>
