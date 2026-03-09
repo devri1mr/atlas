@@ -40,16 +40,20 @@ type ApiBidByIdResponse = {
   data?: BidRecord;
   error?: string;
 };
-
+function cleanText(value?: string | null) {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  if (s.toLowerCase() === "null") return "";
+  if (s.toLowerCase() === "undefined") return "";
+  return s;
+}
 function safeJoinName(first?: string | null, last?: string | null) {
-  const parts = [first ?? "", last ?? ""]
-    .map((s) => String(s).trim())
-    .filter(Boolean);
+  const parts = [cleanText(first), cleanText(last)].filter(Boolean);
   return parts.length ? parts.join(" ") : "—";
 }
 
 function displayClientName(bid?: BidRecord | null) {
-  const company = String(bid?.customer_name ?? "").trim();
+  const company = cleanText(bid?.customer_name);
   if (company) return company;
   return safeJoinName(bid?.client_name, bid?.client_last_name);
 }
