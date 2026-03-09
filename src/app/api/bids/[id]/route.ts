@@ -20,6 +20,25 @@ function supabaseAdmin() {
 
 const TABLE_BIDS = "bids";
 
+const BID_SELECT = `
+  id,
+  client_name,
+  client_last_name,
+  division_id,
+  status_id,
+  internal_notes,
+  created_at,
+  trucking_hours,
+  labor_cost,
+  material_cost,
+  trucking_cost,
+  total_cost,
+  target_gp_pct,
+  sell_rounded,
+  prepay_enabled,
+  prepay_price
+`;
+
 /**
  * GET /api/bids/[id]
  * returns: { data: bid }
@@ -40,18 +59,18 @@ export async function GET(
 
     const { data, error } = await supabase
       .from(TABLE_BIDS)
-      .select(
-        "id, client_name, client_last_name, division_id, status_id, internal_notes, created_at, trucking_hours"
-      )
+      .select(BID_SELECT)
       .eq("id", bidId)
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-if (!data) {
-  return NextResponse.json({ error: "Bid not found" }, { status: 404 });
-}
+
+    if (!data) {
+      return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+    }
+
     return NextResponse.json({ data }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
@@ -64,7 +83,20 @@ if (!data) {
 /**
  * PATCH /api/bids/[id]
  * body can include any of:
- * { division_id?: uuid|null, status_id?: number|null, internal_notes?: string|null, trucking_hours?: number }
+ * {
+ *   division_id?: uuid|null,
+ *   status_id?: number|null,
+ *   internal_notes?: string|null,
+ *   trucking_hours?: number,
+ *   labor_cost?: number,
+ *   material_cost?: number,
+ *   trucking_cost?: number,
+ *   total_cost?: number,
+ *   target_gp_pct?: number,
+ *   sell_rounded?: number,
+ *   prepay_enabled?: boolean,
+ *   prepay_price?: number
+ * }
  *
  * returns: { data: updatedBid }
  */
@@ -81,18 +113,17 @@ export async function PATCH(
     }
 
     const body = await req.json().catch(() => ({}));
-
     const patch: Record<string, any> = {};
 
     // Preserve existing features: only patch what is explicitly provided
     if (body?.division_id !== undefined) {
       const v = body.division_id;
-      patch.division_id = v === "" ? null : v; // allow null
+      patch.division_id = v === "" ? null : v;
     }
 
     if (body?.status_id !== undefined) {
       const v = body.status_id;
-      patch.status_id = v === "" ? null : v; // allow null
+      patch.status_id = v === "" ? null : v;
     }
 
     if (body?.internal_notes !== undefined) {
@@ -100,7 +131,6 @@ export async function PATCH(
         body.internal_notes === "" ? null : body.internal_notes;
     }
 
-    // ✅ NEW: persist trucking hours
     if (body?.trucking_hours !== undefined) {
       const n = Number(body.trucking_hours);
       if (!Number.isFinite(n) || n < 0) {
@@ -110,6 +140,87 @@ export async function PATCH(
         );
       }
       patch.trucking_hours = n;
+    }
+
+    if (body?.labor_cost !== undefined) {
+      const n = Number(body.labor_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid labor_cost" },
+          { status: 400 }
+        );
+      }
+      patch.labor_cost = n;
+    }
+
+    if (body?.material_cost !== undefined) {
+      const n = Number(body.material_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid material_cost" },
+          { status: 400 }
+        );
+      }
+      patch.material_cost = n;
+    }
+
+    if (body?.trucking_cost !== undefined) {
+      const n = Number(body.trucking_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid trucking_cost" },
+          { status: 400 }
+        );
+      }
+      patch.trucking_cost = n;
+    }
+
+    if (body?.total_cost !== undefined) {
+      const n = Number(body.total_cost);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid total_cost" },
+          { status: 400 }
+        );
+      }
+      patch.total_cost = n;
+    }
+
+    if (body?.target_gp_pct !== undefined) {
+      const n = Number(body.target_gp_pct);
+      if (!Number.isFinite(n) || n < 0 || n > 95) {
+        return NextResponse.json(
+          { error: "Invalid target_gp_pct" },
+          { status: 400 }
+        );
+      }
+      patch.target_gp_pct = n;
+    }
+
+    if (body?.sell_rounded !== undefined) {
+      const n = Number(body.sell_rounded);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid sell_rounded" },
+          { status: 400 }
+        );
+      }
+      patch.sell_rounded = n;
+    }
+
+    if (body?.prepay_enabled !== undefined) {
+      patch.prepay_enabled = Boolean(body.prepay_enabled);
+    }
+
+    if (body?.prepay_price !== undefined) {
+      const n = Number(body.prepay_price);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Invalid prepay_price" },
+          { status: 400 }
+        );
+      }
+      patch.prepay_price = n;
     }
 
     if (Object.keys(patch).length === 0) {
@@ -125,9 +236,7 @@ export async function PATCH(
       .from(TABLE_BIDS)
       .update(patch)
       .eq("id", bidId)
-      .select(
-        "id, client_name, client_last_name, division_id, status_id, internal_notes, created_at, trucking_hours"
-      )
+      .select(BID_SELECT)
       .single();
 
     if (error) {
