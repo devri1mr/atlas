@@ -227,23 +227,23 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
 
   const base = `/atlasbid/bids/${effectiveBidId}`;
 
-  function syncFormFromBid(nextBid: BidRecord) {
-    setForm({
-      customer_name: String(nextBid.customer_name ?? "").trim(),
-      client_name: String(nextBid.client_name ?? "").trim(),
-      client_last_name: String(nextBid.client_last_name ?? "").trim(),
-      address1: String(nextBid.address1 ?? nextBid.address ?? "").trim(),
-      address2: String(nextBid.address2 ?? "").trim(),
-      city: String(nextBid.city ?? "").trim(),
-      state: String(nextBid.state ?? "").trim(),
-      zip: String(nextBid.zip ?? "").trim(),
-      internal_notes: String(nextBid.internal_notes ?? "").trim(),
-      status_id:
-        nextBid.status_id === null || nextBid.status_id === undefined
-          ? ""
-          : String(nextBid.status_id),
-    });
-  }
+ function syncFormFromBid(nextBid: BidRecord) {
+  setForm({
+    customer_name: cleanText(nextBid.customer_name),
+    client_name: cleanText(nextBid.client_name),
+    client_last_name: cleanText(nextBid.client_last_name),
+    address1: cleanText(nextBid.address1 ?? nextBid.address),
+    address2: cleanText(nextBid.address2),
+    city: cleanText(nextBid.city),
+    state: cleanText(nextBid.state),
+    zip: cleanText(nextBid.zip),
+    internal_notes: cleanText(nextBid.internal_notes),
+    status_id:
+      nextBid.status_id === null || nextBid.status_id === undefined
+        ? ""
+        : String(nextBid.status_id),
+  });
+}
 
   async function loadAll() {
     setLoading(true);
