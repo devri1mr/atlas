@@ -668,6 +668,9 @@ async function loadBundleQuestions(bundleId: string) {
     setLoadingBundleIntoBid(false);
   }
 }
+  const bundleRunNameMap = useMemo(() => {
+  return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
+}, [bundleRunsMeta]);
   const proposalGroups = useMemo(() => {
   const groups: Array<
     | {
