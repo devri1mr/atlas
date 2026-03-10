@@ -465,14 +465,36 @@ const showPrepaySection =
             )}
           </div>
 
-          <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
-            <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
-              Total
-            </div>
-            <div className="px-4 py-3 text-right text-[14px] font-semibold">
-              {moneyDisplay(totalDisplayValue)}
-            </div>
-          </div>
+       <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+  <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
+    Project Total
+  </div>
+  <div className="px-4 py-3 text-right text-[14px] font-semibold">
+    {moneyDisplay(totalDisplayValue)}
+  </div>
+</div>
+
+{showPrepaySection && (
+  <>
+    <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+      <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] text-gray-600">
+        Prepay Discount (3%)
+      </div>
+      <div className="px-4 py-3 text-right text-[14px] text-gray-700">
+        -{moneyDisplay(prepayDiscountAmount)}
+      </div>
+    </div>
+
+    <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+      <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-bold">
+        Price with Prepay
+      </div>
+      <div className="px-4 py-3 text-right text-[14px] font-bold">
+        {moneyDisplay(prepayPrice)}
+      </div>
+    </div>
+  </>
+)}
         </div>
       </div>
 
