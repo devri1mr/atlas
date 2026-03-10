@@ -633,7 +633,8 @@ async function loadBundleQuestions(bundleId: string) {
       body: JSON.stringify({
         bid_id: bidId,
         bundle_id: selectedBundleId,
-        answers: bundleAnswers
+        answers: bundleAnswers,
+        hourly_rate: Number(divisionRate) || 0
       })
     });
 
