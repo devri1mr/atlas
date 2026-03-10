@@ -485,7 +485,7 @@ const showPrepaySection =
   <>
     <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
       <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] text-gray-600">
-        Prepay Discount (3%)
+        Prepay Discount ({settings.prepay_discount_pct}%)
       </div>
       <div className="px-4 py-3 text-right text-[14px] text-gray-700">
         -{moneyDisplay(prepayDiscountAmount)}
