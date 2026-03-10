@@ -477,7 +477,7 @@ const showPrepaySection =
     Project Total
   </div>
   <div className="px-4 py-3 text-right text-[14px] font-semibold">
-    {moneyDisplay(totalDisplayValue)}
+    {moneyDisplay(projectTotal)}
   </div>
 </div>
 
