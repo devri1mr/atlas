@@ -30,6 +30,7 @@ type LaborRow = {
   man_hours: number;
   hourly_rate: number;
   show_as_line_item?: boolean | null;
+  bundle_run_id?: string | null;
   created_at?: string;
 };
 type BidSettings = {
