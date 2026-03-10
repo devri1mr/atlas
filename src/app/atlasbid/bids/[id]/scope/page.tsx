@@ -1417,21 +1417,31 @@ if (
   type="number"
   step="0.01"
   value={row.man_hours === 0 ? "" : row.man_hours}
-  onChange={(e) => {
-    const raw = e.target.value;
+  onChange={async (e) => {
+  const raw = e.target.value;
+  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
 
-    setLabor((prev) =>
-      prev.map((r) =>
-        r.id === row.id
-          ? {
-              ...r,
-              man_hours: raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0),
-              is_overridden: true,
-            }
-          : r
-      )
-    );
-  }}
+  setLabor((prev) =>
+    prev.map((r) =>
+      r.id === row.id
+        ? {
+            ...r,
+            man_hours: value,
+            is_overridden: true,
+          }
+        : r
+    )
+  );
+
+  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      man_hours: value,
+      is_overridden: true,
+    }),
+  });
+}}
 />
                     <div>{Number(row.hourly_rate || 0).toLocaleString(undefined, {
                     minimumFractionDigits: 2,
