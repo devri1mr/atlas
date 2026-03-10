@@ -368,8 +368,13 @@ const prepayPrice = prepayEnabled
 
 const prepayDiscountPct =
   projectTotal > 0
-    ? Math.round(((projectTotal - prepayPrice) / projectTotal) * 10000) / 100
+    ? Math.round(((projectTotal - prepayPrice) / projectTotal) * 100)
     : 0;
+
+const prepayDiscountAmount = Math.max(
+  0,
+  Math.round((projectTotal - prepayPrice) * 100) / 100
+);
 
 const showPrepaySection =
   prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
