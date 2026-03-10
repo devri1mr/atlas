@@ -302,28 +302,6 @@ const addressLine2 = useMemo(() => {
     return amountValue;
   }, [bid, amountValue]);
 
-  const proposalRows = useMemo(() => {
-    const separate = labor.filter((l) => l.show_as_line_item === true);
-    const bundled = labor.filter((l) => l.show_as_line_item !== true);
-
-    const baseRows: ProposalRowBase[] = [];
-
-    if (bundled.length > 0) {
-      baseRows.push({
-        label: bundled.map((r) => laborRowLabel(r)).join(", "),
-        cost: bundled.reduce((sum, r) => sum + laborRowCost(r), 0),
-      });
-    }
-
-    separate.forEach((row) => {
-      baseRows.push({
-        label: laborRowLabel(row),
-        cost: laborRowCost(row),
-      });
-    });
-
-    return allocateSellAmounts(baseRows, totalDisplayValue);
-  }, [labor, totalDisplayValue]);
 const bundleRunNameMap = useMemo(() => {
   return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
 }, [bundleRunsMeta]);
