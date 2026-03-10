@@ -350,7 +350,7 @@ const proposalRows = useMemo(() => {
     });
   }
 
-  return allocateSellAmounts(baseRows, projectPrice);
+  return allocateSellAmounts(baseRows, totalDisplayValue);
 }, [labor, bundleRunNameMap, totalDisplayValue]);
   if (loading) {
     return <div className="p-8">Loading...</div>;
