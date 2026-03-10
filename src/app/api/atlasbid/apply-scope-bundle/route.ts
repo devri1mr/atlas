@@ -209,24 +209,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: rateRows, error: rateError } = await supabase
-      .from("labor_rates")
-      .select("division_id, hourly_rate")
-      .eq("division_id", bidRow.division_id)
-      .limit(1);
+    const hourlyRate = num(body?.hourly_rate, 0);
 
-    if (rateError) {
-      return NextResponse.json({ error: rateError.message }, { status: 500 });
-    }
-
-    const hourlyRate = num(rateRows?.[0]?.hourly_rate, 0);
-
-    if (hourlyRate <= 0) {
-      return NextResponse.json(
-        { error: "Division hourly rate is 0 or missing." },
-        { status: 400 }
-      );
-    }
+if (hourlyRate <= 0) {
+  return NextResponse.json(
+    { error: "Hourly rate is 0 or missing." },
+    { status: 400 }
+  );
+}
 
     const { data: questions, error: questionsError } = await supabase
       .from("scope_bundle_questions")
