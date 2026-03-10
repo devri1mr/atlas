@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       man_hours,
       hourly_rate,
       show_as_line_item,
+      bundle_run_id,
       created_at
       `
     )
