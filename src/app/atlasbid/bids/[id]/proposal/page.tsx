@@ -307,12 +307,12 @@ const bundleRunNameMap = useMemo(() => {
 }, [bundleRunsMeta]);
 
 const proposalRows = useMemo(() => {
-  const rows: ProposalRow[] = [];
+  const baseRows: ProposalRowBase[] = [];
   const groupedBundleRunIds = new Set<string>();
 
   for (const row of labor) {
     const bundleRunId = row.bundle_run_id || null;
-    const amount =
+    const cost =
       (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
     if (bundleRunId) {
@@ -322,17 +322,16 @@ const proposalRows = useMemo(() => {
 
       const bundleRows = labor.filter((r) => r.bundle_run_id === bundleRunId);
 
-      const bundleAmount = bundleRows.reduce(
+      const bundleCost = bundleRows.reduce(
         (sum, r) =>
           sum +
           (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
         0
       );
 
-      rows.push({
+      baseRows.push({
         label: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
-        cost: bundleAmount,
-        amount: bundleAmount,
+        cost: bundleCost,
       });
 
       continue;
@@ -345,15 +344,14 @@ const proposalRows = useMemo(() => {
       parts.push(`${row.quantity} ${row.unit}`);
     }
 
-    rows.push({
+    baseRows.push({
       label: parts.join(" — "),
-      cost: amount,
-      amount: amount,
+      cost,
     });
   }
 
-  return rows;
-}, [labor, bundleRunNameMap]);
+  return allocateSellAmounts(baseRows, totalDisplayValue);
+}, [labor, bundleRunNameMap, totalDisplayValue]);
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
