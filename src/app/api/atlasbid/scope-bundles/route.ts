@@ -16,7 +16,9 @@ export async function GET(req: Request) {
       .select("*")
       .order("name", { ascending: true });
 
-    if (division_id) query = query.eq("division_id", division_id);
+    if (division_id) {
+  query = query.or(`division_id.eq.${division_id},division_id.is.null`);
+}
     if (q) query = query.ilike("name", `%${q}%`);
 
     const { data, error } = await query;
