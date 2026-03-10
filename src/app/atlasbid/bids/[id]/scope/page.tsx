@@ -668,6 +668,57 @@ async function loadBundleQuestions(bundleId: string) {
     setLoadingBundleIntoBid(false);
   }
 }
+  const proposalGroups = useMemo(() => {
+  const groups: Array<
+    | {
+        type: "bundle";
+        key: string;
+        name: string;
+        rows: LaborRow[];
+      }
+    | {
+        type: "line";
+        key: string;
+        row: LaborRow;
+      }
+  > = [];
+
+  const groupedBundleRunIds = new Set<string>();
+
+  for (const row of labor) {
+    const bundleRunId = row.bundle_run_id || null;
+    const showIndividually = row.show_as_line_item === true;
+
+    if (bundleRunId && !showIndividually) {
+      if (groupedBundleRunIds.has(bundleRunId)) continue;
+
+      groupedBundleRunIds.add(bundleRunId);
+
+      const bundleRows = labor.filter(
+        (r) =>
+          r.bundle_run_id === bundleRunId &&
+          r.show_as_line_item !== true
+      );
+
+      groups.push({
+        type: "bundle",
+        key: bundleRunId,
+        name: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
+        rows: bundleRows,
+      });
+
+      continue;
+    }
+
+    groups.push({
+      type: "line",
+      key: row.id,
+      row,
+    });
+  }
+
+  return groups;
+}, [labor, bundleRunNameMap]);
   function copyProposal() {
 const lineItems = labor.filter(l => l.show_as_line_item);
 const bundled = labor.filter(l => !l.show_as_line_item);
