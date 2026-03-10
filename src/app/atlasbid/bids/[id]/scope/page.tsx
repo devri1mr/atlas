@@ -1385,21 +1385,31 @@ if (
   className="border p-1 rounded w-16 text-right"
   type="number"
   value={row.quantity === 0 ? "" : row.quantity}
-  onChange={(e) => {
-    const raw = e.target.value;
+ onChange={async (e) => {
+  const raw = e.target.value;
+  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
 
-    setLabor((prev) =>
-      prev.map((r) =>
-        r.id === row.id
-          ? {
-              ...r,
-              quantity: raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0),
-              is_overridden: true,
-            }
-          : r
-      )
-    );
-  }}
+  setLabor((prev) =>
+    prev.map((r) =>
+      r.id === row.id
+        ? {
+            ...r,
+            quantity: value,
+            is_overridden: true,
+          }
+        : r
+    )
+  );
+
+  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      quantity: value,
+      is_overridden: true,
+    }),
+  });
+}}
 />
                     <div>{row.unit}</div>
                     <input
