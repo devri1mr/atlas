@@ -288,7 +288,7 @@ if (hourlyRate <= 0) {
       const payload = {
         bid_id: bidId,
         task: computed.taskName,
-        item: computed.itemName || null,
+        item: computed.itemName || computed.taskName,
         quantity: computed.quantity,
         suggested_quantity: computed.quantity,
         unit: computed.unit,
