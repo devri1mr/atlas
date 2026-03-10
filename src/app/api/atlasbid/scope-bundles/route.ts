@@ -14,9 +14,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("scope_bundles")
       .select("*")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
 
     if (division_id) query = query.eq("division_id", division_id);
     if (q) query = query.ilike("name", `%${q}%`);
