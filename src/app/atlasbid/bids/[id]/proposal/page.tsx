@@ -359,16 +359,20 @@ const proposalRows = useMemo(() => {
   if (error) {
     return <div className="p-8 text-red-600">{error}</div>;
   }
-  const prepayPrice = applyPrepay
-  ? Math.round(totalDisplayValue * 0.97 * 100) / 100
-  : totalDisplayValue;
+const projectTotal = Number(totalDisplayValue || 0);
+
+const prepayEnabled = Boolean(bid?.prepay_enabled);
+const prepayPrice = prepayEnabled
+  ? Number(bid?.prepay_price || 0)
+  : 0;
+
 const prepayDiscountAmount = Math.max(
   0,
-  Math.round((totalDisplayValue - prepayPrice) * 100) / 100
+  Math.round((projectTotal - prepayPrice) * 100) / 100
 );
 
 const showPrepaySection =
-  applyPrepay && prepayPrice > 0 && prepayPrice < totalDisplayValue;
+  prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
   return (
     <div className="bg-white px-6 py-8">
       <div
