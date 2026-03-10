@@ -100,6 +100,8 @@ export async function POST(req: NextRequest) {
       unit,
       man_hours,
       hourly_rate,
+      show_as_line_item,
+      bundle_run_id,
       created_at
       `
     )
