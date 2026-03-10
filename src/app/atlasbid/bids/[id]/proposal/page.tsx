@@ -359,6 +359,9 @@ const proposalRows = useMemo(() => {
   if (error) {
     return <div className="p-8 text-red-600">{error}</div>;
   }
+  const prepayPrice = applyPrepay
+  ? Math.round(totalDisplayValue * 0.97 * 100) / 100
+  : totalDisplayValue;
 const prepayDiscountAmount = Math.max(
   0,
   Math.round((totalDisplayValue - prepayPrice) * 100) / 100
