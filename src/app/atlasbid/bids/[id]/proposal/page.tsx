@@ -215,6 +215,13 @@ const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
             if (!cancelled) {
               setLabor(unwrapRows(laborJson));
             }
+            const brRes = await fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, {
+  cache: "no-store",
+});
+const brJson = await safeJson(brRes);
+if (!cancelled) {
+  setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
+}
           } else {
             if (!cancelled) {
               setLabor([]);
