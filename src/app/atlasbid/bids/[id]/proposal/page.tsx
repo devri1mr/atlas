@@ -169,10 +169,11 @@ export default function ProposalPage() {
   const params = useParams();
   const bidId = String(params?.id ?? "");
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [bid, setBid] = useState<BidRow | null>(null);
-  const [labor, setLabor] = useState<LaborRow[]>([]);
+ const [loading, setLoading] = useState(true);
+const [error, setError] = useState("");
+const [bid, setBid] = useState<BidRow | null>(null);
+const [labor, setLabor] = useState<LaborRow[]>([]);
+const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
   useEffect(() => {
     if (!bidId) return;
