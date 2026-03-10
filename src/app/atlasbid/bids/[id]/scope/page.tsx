@@ -157,6 +157,7 @@ export default function BidScopePage() {
 
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
+const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
   // Materials (bid rows)
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
