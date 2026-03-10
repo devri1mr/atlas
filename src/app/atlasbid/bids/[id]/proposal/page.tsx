@@ -366,10 +366,10 @@ const prepayPrice = prepayEnabled
   ? Number(bid?.prepay_price || 0)
   : 0;
 
-const prepayDiscountAmount = Math.max(
-  0,
-  Math.round((projectTotal - prepayPrice) * 100) / 100
-);
+const prepayDiscountPct =
+  projectTotal > 0
+    ? Math.round(((projectTotal - prepayPrice) / projectTotal) * 10000) / 100
+    : 0;
 
 const showPrepaySection =
   prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
