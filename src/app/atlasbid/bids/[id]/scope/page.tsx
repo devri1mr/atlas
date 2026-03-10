@@ -1356,8 +1356,17 @@ if (
     );
   }}
 />
-                    <div>{Number(row.hourly_rate || 0).toFixed(2)}</div>
-                    <div>{rowTotal.toFixed(2)}</div>
+                    <div>{Number(row.hourly_rate || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                      </div>
+                    <div>
+                      {rowTotal.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                      </div>
                     <button
                       onClick={() => deleteLaborRow(row.id)}
                       className="text-red-600 hover:underline text-right"
