@@ -33,6 +33,11 @@ type LaborRow = {
   bundle_run_id?: string | null;
   created_at?: string;
 };
+type BundleRunMeta = {
+  id: string;
+  bundle_id: string;
+  bundle_name: string;
+};
 type BidSettings = {
   division_id: string;
   margin_default: number;
