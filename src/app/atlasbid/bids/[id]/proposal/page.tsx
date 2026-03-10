@@ -359,7 +359,7 @@ const proposalRows = useMemo(() => {
   if (error) {
     return <div className="p-8 text-red-600">{error}</div>;
   }
-const projectTotal = Number(totalDisplayValue || 0);
+const projectTotal = Number(bid?.sell_rounded ?? totalDisplayValue ?? 0);
 
 const prepayEnabled = Boolean(bid?.prepay_enabled);
 const prepayPrice = prepayEnabled
