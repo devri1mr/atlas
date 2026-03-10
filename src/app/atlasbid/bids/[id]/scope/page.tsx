@@ -719,33 +719,24 @@ async function loadBundleQuestions(bundleId: string) {
 
   return groups;
 }, [labor, bundleRunNameMap]);
-  function copyProposal() {
-const lineItems = labor.filter(l => l.show_as_line_item);
-const bundled = labor.filter(l => !l.show_as_line_item);
+function copyProposal() {
+  const scopeLines = proposalGroups.map((g) => {
+    if (g.type === "bundle") {
+      return `• ${g.name}`;
+    }
 
-let scopeLines = "";
+    return `• ${g.row.task}`;
+  });
 
-// bundle unchecked tasks together
-if (bundled.length > 0) {
-  const bundleText = bundled.map(l => l.task).join(", ");
-  scopeLines += `• ${bundleText}`;
-}
-
-// checked tasks become individual lines
-if (lineItems.length > 0) {
-  const lineText = lineItems.map(l => `• ${l.task}`).join("\n");
-  scopeLines += (scopeLines ? "\n" : "") + lineText;
-}
-  let text =
-`Scope of Work
-${scopeLines}
+  let text = `Scope of Work
+${scopeLines.join("\n")}
 
 Project Price: ${money(sellRounded)}`;
 
   if (prepayEnabled) {
     text += `\nPrepay Price: ${money(sellWithPrepay)}`;
   }
-
+  
   navigator.clipboard.writeText(text);
 }
   async function addLabor() {
