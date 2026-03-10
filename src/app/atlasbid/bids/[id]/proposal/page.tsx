@@ -36,6 +36,12 @@ type LaborRow = {
   man_hours?: number | null;
   hourly_rate?: number | null;
   show_as_line_item?: boolean | null;
+  bundle_run_id?: string | null;
+};
+type BundleRunMeta = {
+  id: string;
+  bundle_id: string;
+  bundle_name: string;
 };
 
 type ProposalRowBase = {
