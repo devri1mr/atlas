@@ -1324,9 +1324,38 @@ if (
 />
                     <div>{row.task}</div>
                     <div className="text-gray-600">{row.item || "—"}</div>
-                    <div>{row.quantity}</div>
+                  <input
+  className="border p-1 rounded w-16"
+  type="number"
+  value={row.quantity}
+  onChange={(e) => {
+    const value = Number(e.target.value) || 0;
+    setLabor((prev) =>
+      prev.map((r) =>
+        r.id === row.id
+          ? { ...r, quantity: value, is_overridden: true }
+          : r
+      )
+    );
+  }}
+/>
                     <div>{row.unit}</div>
-                    <div>{row.man_hours}</div>
+                    <input
+  className="border p-1 rounded w-20"
+  type="number"
+  step="0.01"
+  value={row.man_hours}
+  onChange={(e) => {
+    const value = Number(e.target.value) || 0;
+    setLabor((prev) =>
+      prev.map((r) =>
+        r.id === row.id
+          ? { ...r, man_hours: value, is_overridden: true }
+          : r
+      )
+    );
+  }}
+/>
                     <div>{Number(row.hourly_rate || 0).toFixed(2)}</div>
                     <div>{rowTotal.toFixed(2)}</div>
                     <button
