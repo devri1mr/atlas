@@ -361,11 +361,11 @@ const proposalRows = useMemo(() => {
   }
 const prepayDiscountAmount = Math.max(
   0,
-  Math.round((projectPrice - prepayPrice) * 100) / 100
+  Math.round((totalDisplayValue - prepayPrice) * 100) / 100
 );
 
 const showPrepaySection =
-  applyPrepay && prepayPrice > 0 && prepayPrice < projectPrice;
+  applyPrepay && prepayPrice > 0 && prepayPrice < totalDisplayValue;
   return (
     <div className="bg-white px-6 py-8">
       <div
