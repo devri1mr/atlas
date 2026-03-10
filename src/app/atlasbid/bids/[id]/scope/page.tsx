@@ -343,6 +343,11 @@ try {
 
       const lJson = await lRes.json();
       setLabor(lJson?.rows || lJson?.data || []);
+      const brRes = await fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, {
+  cache: "no-store",
+});
+const brJson = await brRes.json();
+setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
 
       // ✅ 6) Materials rows (supports both ?bidId and ?bid_id)
       let mJson: any = null;
