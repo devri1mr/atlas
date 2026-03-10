@@ -114,11 +114,20 @@ export async function POST(req: NextRequest) {
 
     // Hidden Ops values for now.
     // Later replace these with Operations Center settings.
-    const contingency = 0.05;
-    const round_to = 100;
-    const prepay_discount = 0.03;
-    const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
+    const { data: opsRow, error: opsError } = await supabase
+  .from("operations_settings")
+  .select("*")
+  .limit(1)
+  .single();
 
+if (opsError) {
+  return NextResponse.json({ error: opsError.message }, { status: 500 });
+}
+
+const contingency = num(opsRow?.contingency_pct, 5) / 100;
+const round_to = num(opsRow?.round_up_increment, 100);
+const prepay_discount = num(opsRow?.prepay_discount_pct, 3) / 100;
+const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
     const clamped_target_gp_pct = Math.max(0, Math.min(95, target_gp_pct));
     const margin = clamped_target_gp_pct / 100;
 
