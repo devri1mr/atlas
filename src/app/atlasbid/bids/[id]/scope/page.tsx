@@ -1325,15 +1325,20 @@ if (
                     <div>{row.task}</div>
                     <div className="text-gray-600">{row.item || "—"}</div>
                   <input
-  className="border p-1 rounded w-16"
+  className="border p-1 rounded w-16 text-right"
   type="number"
-  value={row.quantity}
+  value={row.quantity === 0 ? "" : row.quantity}
   onChange={(e) => {
-    const value = Math.max(0, parseFloat(e.target.value) || 0);
+    const raw = e.target.value;
+
     setLabor((prev) =>
       prev.map((r) =>
         r.id === row.id
-          ? { ...r, quantity: value, is_overridden: true }
+          ? {
+              ...r,
+              quantity: raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0),
+              is_overridden: true,
+            }
           : r
       )
     );
@@ -1341,16 +1346,21 @@ if (
 />
                     <div>{row.unit}</div>
                     <input
-  className="border p-1 rounded w-20"
+  className="border p-1 rounded w-20 text-right"
   type="number"
   step="0.01"
-  value={row.man_hours}
+  value={row.man_hours === 0 ? "" : row.man_hours}
   onChange={(e) => {
-    const value = Math.max(0, parseFloat(e.target.value) || 0);
+    const raw = e.target.value;
+
     setLabor((prev) =>
       prev.map((r) =>
         r.id === row.id
-          ? { ...r, man_hours: value, is_overridden: true }
+          ? {
+              ...r,
+              man_hours: raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0),
+              is_overridden: true,
+            }
           : r
       )
     );
