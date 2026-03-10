@@ -324,7 +324,58 @@ const addressLine2 = useMemo(() => {
 
     return allocateSellAmounts(baseRows, totalDisplayValue);
   }, [labor, totalDisplayValue]);
+const bundleRunNameMap = useMemo(() => {
+  return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
+}, [bundleRunsMeta]);
 
+const proposalRows = useMemo(() => {
+  const rows: ProposalRow[] = [];
+  const groupedBundleRunIds = new Set<string>();
+
+  for (const row of labor) {
+    const bundleRunId = row.bundle_run_id || null;
+    const amount =
+      (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+
+    if (bundleRunId) {
+      if (groupedBundleRunIds.has(bundleRunId)) continue;
+
+      groupedBundleRunIds.add(bundleRunId);
+
+      const bundleRows = labor.filter((r) => r.bundle_run_id === bundleRunId);
+
+      const bundleAmount = bundleRows.reduce(
+        (sum, r) =>
+          sum +
+          (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+        0
+      );
+
+      rows.push({
+        label: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
+        cost: bundleAmount,
+        amount: bundleAmount,
+      });
+
+      continue;
+    }
+
+    const parts: string[] = [];
+    if (row.task) parts.push(row.task);
+
+    if ((Number(row.quantity) || 0) > 0 && row.unit) {
+      parts.push(`${row.quantity} ${row.unit}`);
+    }
+
+    rows.push({
+      label: parts.join(" — "),
+      cost: amount,
+      amount: amount,
+    });
+  }
+
+  return rows;
+}, [labor, bundleRunNameMap]);
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
