@@ -1329,7 +1329,7 @@ if (
   type="number"
   value={row.quantity}
   onChange={(e) => {
-    const value = Number(e.target.value) || 0;
+    const value = Math.max(0, parseFloat(e.target.value) || 0);
     setLabor((prev) =>
       prev.map((r) =>
         r.id === row.id
@@ -1346,7 +1346,7 @@ if (
   step="0.01"
   value={row.man_hours}
   onChange={(e) => {
-    const value = Number(e.target.value) || 0;
+    const value = Math.max(0, parseFloat(e.target.value) || 0);
     setLabor((prev) =>
       prev.map((r) =>
         r.id === row.id
