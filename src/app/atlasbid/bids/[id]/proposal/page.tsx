@@ -477,20 +477,31 @@ const showPrepaySection =
                   className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
                 >
                  <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
-  {(() => {
-    const [bundle, text] = row.label.split("||");
+proposalRows.map((row, idx) => {
+  const [bundle, text] = String(row.label || "").split("||");
 
-    return (
-      <>
-        {bundle && (
-          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-            {bundle}
-          </div>
+  return (
+    <div
+      key={`${row.label}-${idx}`}
+      className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
+    >
+      <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
+        {bundle ? (
+          <>
+            <div style={{ fontWeight: 600, marginBottom: "4px" }}>{bundle}</div>
+            <div>- {text || bundle}</div>
+          </>
+        ) : (
+          <div>- {text || row.label}</div>
         )}
-        <div>- {text || bundle}</div>
-      </>
-    );
-  })()}
+      </div>
+
+      <div className="px-4 py-3 text-right text-[14px]">
+        {moneyDisplay(row.amount)}
+      </div>
+    </div>
+  );
+})
 </div>
                     {moneyDisplay(row.amount)}
                   </div>
