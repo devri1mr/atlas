@@ -1388,8 +1388,29 @@ if (
 
               <div className="font-medium leading-tight">{row.task}</div>
 
-              <div className="text-gray-600 leading-tight">{row.item || "—"}</div>
+             <div>
+  <input
+    className="border p-1 rounded w-full text-sm"
+    value={row.proposal_text ?? row.task}
+    onChange={async (e) => {
+      const value = e.target.value;
 
+      setLabor((prev) =>
+        prev.map((r) =>
+          r.id === row.id ? { ...r, proposal_text: value } : r
+        )
+      );
+
+      await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposal_text: value,
+        }),
+      });
+    }}
+  />
+</div>
               <div>
                 <input
                   className="border p-1 rounded w-full text-right h-9"
