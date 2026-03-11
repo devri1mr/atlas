@@ -457,9 +457,12 @@ baseRows.push({
                       {bundle ? (
                         <>
                           <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-                            {bundle}
-                          </div>
-                          <div>- {text || bundle}</div>
+  {bundle}
+</div>
+
+{text && text !== bundle && (
+  <div>- {text}</div>
+)}
                         </>
                       ) : (
                         <div>{row.label}</div>
