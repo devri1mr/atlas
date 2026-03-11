@@ -93,7 +93,7 @@ function laborRowCost(row: LaborRow) {
 }
 
 function laborRowLabel(row: LaborRow) {
-  const task = row.task || "";
+  const task = row.proposal_text || row.task || "";
   const details = row.details?.trim() || "";
   const qty = Number(row.quantity) || 0;
   const unit = row.unit || "";
