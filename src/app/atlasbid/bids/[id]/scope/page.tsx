@@ -1330,18 +1330,6 @@ if (
               </div>
             </div>
 
-            {/* Table headers */}
-            <div className="grid grid-cols-12 gap-4 font-semibold text-sm border-b pb-2 mt-4 items-center">
-  <div className="flex justify-center"></div>
-  <div className="pl-1 text-left">Task</div>
-  <div className="pl-1 text-left">Details</div>
-  <div className="text-center">Qty</div>
-  <div className="text-center">Unit</div>
-  <div className="text-center">Hours</div>
-  <div className="pr-2 text-right">Total ($)</div>
-  <div className="pr-2 text-right">Action</div>
-</div>
-
             {labor.length === 0 ? (
               <div className="text-gray-400 text-sm py-3">No labor added yet.</div>
             ) : (
