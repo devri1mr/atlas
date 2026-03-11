@@ -1337,108 +1337,123 @@ if (
                 const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
                 return (
-                  <div
-                    key={row.id}
-                   className="grid grid-cols-12 gap-4 border p-2 rounded text-sm items-center"
-                  >
-                    <input className="w-4 h-4 self-center"
-  type="checkbox"
-  checked={row.show_as_line_item === true}
-  onChange={async (e) => {
-    const checked = e.target.checked;
+                <div
+  key={row.id}
+  className="grid grid-cols-12 gap-4 border p-2 rounded text-sm items-center"
+>
+  <div className="col-span-4 grid grid-cols-[20px_1fr] gap-3 items-center">
+    <input
+      className="w-4 h-4"
+      type="checkbox"
+      checked={row.show_as_line_item === true}
+      onChange={async (e) => {
+        const checked = e.target.checked;
 
-    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        show_as_line_item: checked
-      })
-    });
+        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            show_as_line_item: checked,
+          }),
+        });
 
-    setLabor(prev =>
-      prev.map(r =>
-        r.id === row.id ? { ...r, show_as_line_item: checked } : r
-      )
-    );
-  }}
-/>
-                    <div>{row.task}</div>
-                    <div className="text-gray-600">{row.item || "—"}</div>
-                  <input
-  className="border p-1 rounded w-16 text-right"
-  type="number"
-  value={row.quantity === 0 ? "" : row.quantity}
- onChange={async (e) => {
-  const raw = e.target.value;
-  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+        setLabor((prev) =>
+          prev.map((r) =>
+            r.id === row.id ? { ...r, show_as_line_item: checked } : r
+          )
+        );
+      }}
+    />
+    <div>{row.task}</div>
+  </div>
 
-  setLabor((prev) =>
-    prev.map((r) =>
-      r.id === row.id
-        ? {
-            ...r,
+  <div className="col-span-3 text-gray-600">{row.item || "—"}</div>
+
+  <div className="col-span-1">
+    <input
+      className="border p-1 rounded w-full text-right"
+      type="number"
+      value={row.quantity === 0 ? "" : row.quantity}
+      onChange={async (e) => {
+        const raw = e.target.value;
+        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+        setLabor((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? {
+                  ...r,
+                  quantity: value,
+                  is_overridden: true,
+                }
+              : r
+          )
+        );
+
+        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             quantity: value,
             is_overridden: true,
-          }
-        : r
-    )
-  );
+          }),
+        });
+      }}
+    />
+  </div>
 
-  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      quantity: value,
-      is_overridden: true,
-    }),
-  });
-}}
-/>
-                    <div>{row.unit}</div>
-                    <input
-  className="border p-1 rounded w-20 text-right"
-  type="number"
-  step="0.01"
-  value={row.man_hours === 0 ? "" : row.man_hours}
-  onChange={async (e) => {
-  const raw = e.target.value;
-  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+  <div className="col-span-1">{row.unit}</div>
 
-  setLabor((prev) =>
-    prev.map((r) =>
-      r.id === row.id
-        ? {
-            ...r,
+  <div className="col-span-2">
+    <input
+      className="border p-1 rounded w-full text-right"
+      type="number"
+      step="0.01"
+      value={row.man_hours === 0 ? "" : row.man_hours}
+      onChange={async (e) => {
+        const raw = e.target.value;
+        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+        setLabor((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? {
+                  ...r,
+                  man_hours: value,
+                  is_overridden: true,
+                }
+              : r
+          )
+        );
+
+        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             man_hours: value,
             is_overridden: true,
-          }
-        : r
-    )
-  );
+          }),
+        });
+      }}
+    />
+  </div>
 
-  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      man_hours: value,
-      is_overridden: true,
-    }),
-  });
-}}
-/>
-                    <div>
-                      {rowTotal.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  })}
-                      </div>
-                                       <button
-                      onClick={() => deleteLaborRow(row.id)}
-                      className="text-red-600 hover:underline text-right"
-                    >
-                      Delete
-                    </button>
-                  </div>
+  <div className="col-span-1 text-right">
+    {rowTotal.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}
+  </div>
+
+  <div className="col-span-1 text-right">
+    <button
+      onClick={() => deleteLaborRow(row.id)}
+      className="text-red-600 hover:underline"
+    >
+      Delete
+    </button>
+  </div>
+</div>
                 );
               })
             )}
