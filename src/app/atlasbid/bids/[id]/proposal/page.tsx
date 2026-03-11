@@ -1,4 +1,3 @@
-// src/app/atlasbid/bids/[id]/proposal/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -39,6 +38,7 @@ type LaborRow = {
   show_as_line_item?: boolean | null;
   bundle_run_id?: string | null;
 };
+
 type BundleRunMeta = {
   id: string;
   bundle_id: string;
@@ -55,6 +55,7 @@ type ProposalRow = {
   cost: number;
   amount: number;
 };
+
 function cleanText(value?: string | null) {
   const s = String(value ?? "").trim();
   if (!s) return "";
@@ -62,6 +63,7 @@ function cleanText(value?: string | null) {
   if (s.toLowerCase() === "undefined") return "";
   return s;
 }
+
 function formatDate(value?: string | null) {
   if (!value) return "";
   const d = new Date(value);
@@ -70,7 +72,7 @@ function formatDate(value?: string | null) {
 }
 
 function moneyDisplay(value: number) {
-  const rounded = Math.round(value);
+  const rounded = Math.round(Number(value) || 0);
   return `$${rounded.toLocaleString()}.00`;
 }
 
@@ -89,36 +91,13 @@ async function safeJson(res: Response) {
   return res.json();
 }
 
-function laborRowCost(row: LaborRow) {
-  return (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
-}
-
-function laborRowLabel(row: LaborRow) {
-  const task = row.proposal_text || row.task || "";
-  const details = row.details?.trim() || "";
-  const qty = Number(row.quantity) || 0;
-  const unit = row.unit || "";
-
-  let label = task;
-
-  if (details) {
-    label += ` (${details})`;
-  }
-
-  if (qty > 0) {
-    label += ` — ${qty} ${unit}`;
-  }
-
-  return label.trim();
-}
-
 function allocateSellAmounts(
   rows: ProposalRowBase[],
   totalSell: number
 ): ProposalRow[] {
   if (rows.length === 0) return [];
 
-  const roundedTotalSell = Math.round(totalSell);
+  const roundedTotalSell = Math.round(Number(totalSell) || 0);
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
 
   if (roundedTotalSell <= 0) {
@@ -170,11 +149,11 @@ export default function ProposalPage() {
   const params = useParams();
   const bidId = String(params?.id ?? "");
 
- const [loading, setLoading] = useState(true);
-const [error, setError] = useState("");
-const [bid, setBid] = useState<BidRow | null>(null);
-const [labor, setLabor] = useState<LaborRow[]>([]);
-const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [bid, setBid] = useState<BidRow | null>(null);
+  const [labor, setLabor] = useState<LaborRow[]>([]);
+  const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
   useEffect(() => {
     if (!bidId) return;
@@ -203,12 +182,9 @@ const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
         }
 
         try {
-          const laborRes = await fetch(
-            `/api/atlasbid/bid-labor?bid_id=${bidId}`,
-            {
-              cache: "no-store",
-            }
-          );
+          const laborRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
+            cache: "no-store",
+          });
 
           const laborJson = await safeJson(laborRes);
 
@@ -216,13 +192,15 @@ const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
             if (!cancelled) {
               setLabor(unwrapRows(laborJson));
             }
+
             const brRes = await fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, {
-  cache: "no-store",
-});
-const brJson = await safeJson(brRes);
-if (!cancelled) {
-  setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
-}
+              cache: "no-store",
+            });
+            const brJson = await safeJson(brRes);
+
+            if (!cancelled) {
+              setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
+            }
           } else {
             if (!cancelled) {
               setLabor([]);
@@ -251,39 +229,36 @@ if (!cancelled) {
     };
   }, [bidId]);
 
- const clientFullName = useMemo(() => {
-  const company = cleanText(bid?.customer_name);
-  if (company) return company;
+  const clientFullName = useMemo(() => {
+    const company = cleanText(bid?.customer_name);
+    if (company) return company;
 
-  const pieces = [
-    cleanText(bid?.client_name),
-    cleanText(bid?.client_last_name),
-  ].filter(Boolean);
+    const pieces = [
+      cleanText(bid?.client_name),
+      cleanText(bid?.client_last_name),
+    ].filter(Boolean);
 
-  return pieces.join(" ") || "Client Name";
-}, [bid]);
+    return pieces.join(" ") || "Client Name";
+  }, [bid]);
 
-const addressLine1 = useMemo(() => {
-  return cleanText(bid?.address1 || bid?.address);
-}, [bid]);
+  const addressLine1 = useMemo(() => {
+    return cleanText(bid?.address1 || bid?.address);
+  }, [bid]);
 
+  const addressLine2 = useMemo(() => {
+    const addr2 = cleanText(bid?.address2);
+    if (addr2) return addr2;
 
-const addressLine2 = useMemo(() => {
-  const addr2 = cleanText(bid?.address2);
-  if (addr2) return addr2;
+    const city = cleanText(bid?.city);
+    const state = cleanText(bid?.state);
+    const zip = cleanText(bid?.zip);
 
-  const city = cleanText(bid?.city);
-  const state = cleanText(bid?.state);
-  const zip = cleanText(bid?.zip);
-
-  const cityState = [city, state].filter(Boolean).join(", ");
-  return `${cityState}${zip ? ` ${zip}` : ""}`.trim();
-}, [bid]);
+    const cityState = [city, state].filter(Boolean).join(", ");
+    return `${cityState}${zip ? ` ${zip}` : ""}`.trim();
+  }, [bid]);
 
   const estimateNumber = useMemo(() => {
-    return String(
-      bid?.estimate_number ?? bid?.bid_number ?? bidId.slice(0, 6)
-    );
+    return String(bid?.estimate_number ?? bid?.bid_number ?? bidId.slice(0, 6));
   }, [bid, bidId]);
 
   const dateText = useMemo(() => {
@@ -303,62 +278,60 @@ const addressLine2 = useMemo(() => {
     return amountValue;
   }, [bid, amountValue]);
 
-const bundleRunNameMap = useMemo(() => {
-  return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
-}, [bundleRunsMeta]);
+  const bundleRunNameMap = useMemo(() => {
+    return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
+  }, [bundleRunsMeta]);
 
-const proposalRows = useMemo(() => {
-  const baseRows: ProposalRowBase[] = [];
-  const groupedBundleRunIds = new Set<string>();
+  const proposalRows = useMemo(() => {
+    const baseRows: ProposalRowBase[] = [];
+    const groupedBundleRunIds = new Set<string>();
 
-  for (const row of labor) {
-    const bundleRunId = row.bundle_run_id || null;
-    const cost =
-      (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+    for (const row of labor) {
+      const bundleRunId = row.bundle_run_id || null;
+      const cost =
+        (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-    if (bundleRunId) {
-      if (groupedBundleRunIds.has(bundleRunId)) continue;
+      if (bundleRunId) {
+        if (groupedBundleRunIds.has(bundleRunId)) continue;
 
-      groupedBundleRunIds.add(bundleRunId);
+        groupedBundleRunIds.add(bundleRunId);
 
-      const bundleRows = labor.filter((r) => r.bundle_run_id === bundleRunId);
+        const bundleRows = labor.filter((r) => r.bundle_run_id === bundleRunId);
 
-      const bundleCost = bundleRows.reduce(
-        (sum, r) =>
-          sum +
-          (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
-        0
-      );
+        const bundleCost = bundleRows.reduce(
+          (sum, r) =>
+            sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+          0
+        );
+
+        baseRows.push({
+          label: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
+          cost: bundleCost,
+        });
+
+        continue;
+      }
+
+      const parts: string[] = [];
+      const taskText = cleanText(row.proposal_text) || cleanText(row.task);
+      if (taskText) parts.push(taskText);
+
+      if ((Number(row.quantity) || 0) > 0 && row.unit) {
+        parts.push(`${row.quantity} ${row.unit}`);
+      }
 
       baseRows.push({
-        label: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
-        cost: bundleCost,
+        label:
+          (bundleRunNameMap.get(row.bundle_run_id || "") || "") +
+          "||" +
+          parts.join(" — "),
+        cost,
       });
-
-      continue;
     }
 
-    const parts: string[] = [];
-    if (row.proposal_text || row.task) parts.push(row.proposal_text || row.task);
+    return allocateSellAmounts(baseRows, totalDisplayValue);
+  }, [labor, bundleRunNameMap, totalDisplayValue]);
 
-    if ((Number(row.quantity) || 0) > 0 && row.unit) {
-      parts.push(`${row.quantity} ${row.unit}`);
-    }
-
-   baseRows.push({
-  label:
-    (bundleRunNameMap.get(row.bundle_run_id || "") || "") +
-    "||" +
-    parts.join(" — "),
-  cost,
-});
-  }
-
-  return allocateSellAmounts(
-  baseRows,
-  baseRows.reduce((sum, r) => sum + r.cost, 0)
-);
-}, [labor, bundleRunNameMap, totalDisplayValue]);
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
@@ -366,28 +339,28 @@ const proposalRows = useMemo(() => {
   if (error) {
     return <div className="p-8 text-red-600">{error}</div>;
   }
-const projectTotal = proposalRows.reduce(
-  (sum, row) => sum + (Number(row.amount) || 0),
-  0
-);
 
-const prepayEnabled = Boolean(bid?.prepay_enabled);
-const prepayPrice = prepayEnabled
-  ? Number(bid?.prepay_price || 0)
-  : 0;
+  const projectTotal = proposalRows.reduce(
+    (sum, row) => sum + (Number(row.amount) || 0),
+    0
+  );
 
-const prepayDiscountPct =
-  projectTotal > 0
-    ? Math.round(((projectTotal - prepayPrice) / projectTotal) * 100)
-    : 0;
+  const prepayEnabled = Boolean(bid?.prepay_enabled);
+  const prepayPrice = prepayEnabled ? Number(bid?.prepay_price || 0) : 0;
 
-const prepayDiscountAmount = Math.max(
-  0,
-  Math.round((projectTotal - prepayPrice) * 100) / 100
-);
+  const prepayDiscountPct =
+    projectTotal > 0
+      ? Math.round(((projectTotal - prepayPrice) / projectTotal) * 100)
+      : 0;
 
-const showPrepaySection =
-  prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
+  const prepayDiscountAmount = Math.max(
+    0,
+    Math.round((projectTotal - prepayPrice) * 100) / 100
+  );
+
+  const showPrepaySection =
+    prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
+
   return (
     <div className="bg-white px-6 py-8">
       <div
@@ -471,70 +444,68 @@ const showPrepaySection =
                 </div>
               </div>
             ) : (
-              proposalRows.map((row, idx) => (
-                <div
-                  key={`${row.label}-${idx}`}
-                  className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
-                >
-                  {proposalRows.map((row, idx) => {
-  const [bundle, text] = String(row.label || "").split("||");
+              proposalRows.map((row, idx) => {
+                const [bundle, text] = String(row.label || "").split("||");
 
-  return (
-    <div
-      key={`${row.label}-${idx}`}
-      className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
-    >
-      <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
-        {bundle ? (
-          <>
-            <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-              {bundle}
+                return (
+                  <div
+                    key={`${row.label}-${idx}`}
+                    className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
+                  >
+                    <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
+                      {bundle ? (
+                        <>
+                          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+                            {bundle}
+                          </div>
+                          <div>- {text || bundle}</div>
+                        </>
+                      ) : (
+                        <div>{row.label}</div>
+                      )}
+                    </div>
+
+                    <div className="px-4 py-3 text-right text-[14px]">
+                      {moneyDisplay(row.amount)}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+            <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
+              Project Total
             </div>
-            <div>- {text || bundle}</div>
-          </>
-        ) : (
-          <div> {row.label}</div>
-        )}
-      </div>
+            <div className="px-4 py-3 text-right text-[14px] font-semibold">
+              {moneyDisplay(projectTotal)}
+            </div>
+          </div>
 
-      <div className="px-4 py-3 text-right text-[14px]">
-        {moneyDisplay(row.amount)}
-      </div>
-    </div>
-  );
-})}
+          {showPrepaySection && (
+            <>
+              <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+                <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] text-gray-600">
+                  Prepay Discount ({prepayDiscountPct}%)
+                </div>
+                <div className="px-4 py-3 text-right text-[14px] text-gray-700">
+                  -{moneyDisplay(prepayDiscountAmount)}
+                </div>
+              </div>
 
-       <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
-  <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
-    Project Total
-  </div>
-  <div className="px-4 py-3 text-right text-[14px] font-semibold">
-    {moneyDisplay(projectTotal)}
-  </div>
-</div>
-
-{showPrepaySection && (
-  <>
-    <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
-      <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] text-gray-600">
-        Prepay Discount ({prepayDiscountPct}%)
-      </div>
-      <div className="px-4 py-3 text-right text-[14px] text-gray-700">
-        -{moneyDisplay(prepayDiscountAmount)}
-      </div>
-    </div>
-
-    <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
-      <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-bold">
-        Price with Prepay
-      </div>
-      <div className="px-4 py-3 text-right text-[14px] font-bold">
-        {moneyDisplay(prepayPrice)}
-      </div>
-    </div>
-  </>
-)}
+              <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
+                <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-bold">
+                  Price with Prepay
+                </div>
+                <div className="px-4 py-3 text-right text-[14px] font-bold">
+                  {moneyDisplay(prepayPrice)}
+                </div>
+              </div>
+            </>
+          )}
         </div>
+      </div>
 
       <div className="break-before-page h-10" />
 
