@@ -762,6 +762,7 @@ Project Price: ${money(sellRounded)}`;
         bid_id: bidId,
         task: task.trim(),
         item: safeDetails,
+        proposal_text: task.trim(),
         quantity: Number(quantity) || 0,
         unit,
         man_hours: Number(hours) || 0,
