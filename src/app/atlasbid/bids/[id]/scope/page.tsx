@@ -1338,7 +1338,6 @@ if (
               <div>Qty</div>
               <div>Unit</div>
               <div>Hours</div>
-              <div>Rate ($/hr)</div>
               <div>Total ($)</div>
               <div></div>
             </div>
