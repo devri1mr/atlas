@@ -1376,7 +1376,7 @@ if (
   }}
 />
                     <div>{row.task}</div>
-                    <div className="text-gray-600">{row.item || "—"}</div>
+                    <div className="text-gray-600">{row.details || "—"}</div>
                   <input
   className="border p-1 rounded w-16 text-right"
   type="number"
