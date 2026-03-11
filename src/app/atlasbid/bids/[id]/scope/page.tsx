@@ -1339,7 +1339,7 @@ if (
                 return (
                   <div
                     key={row.id}
-                   className="grid grid-cols-8 gap-4 border p-2 rounded text-sm items-center"
+                   className="grid grid-cols-12 gap-4 border p-2 rounded text-sm items-center"
                   >
                     <input className="w-4 h-4 self-center"
   type="checkbox"
