@@ -535,7 +535,6 @@ const showPrepaySection =
   </>
 )}
         </div>
-      </div>
 
       <div className="break-before-page h-10" />
 
