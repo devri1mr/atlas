@@ -29,6 +29,7 @@ type BidRow = {
 type LaborRow = {
   id: string;
   task: string;
+  proposal_text?: string | null;
   item?: string | null;
   details?: string | null;
   quantity?: number | null;
