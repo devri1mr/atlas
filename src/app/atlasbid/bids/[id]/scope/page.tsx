@@ -1473,9 +1473,9 @@ if (
               </button>
             </div>
           </div>
-        );
-      })}
+          })}
     </div>
+  </>
   )}
 </div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
