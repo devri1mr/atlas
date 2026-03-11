@@ -1438,11 +1438,6 @@ if (
   });
 }}
 />
-                    <div>{Number(row.hourly_rate || 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  })}
-                      </div>
                     <div>
                       {rowTotal.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
