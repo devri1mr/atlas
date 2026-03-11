@@ -729,7 +729,7 @@ function copyProposal() {
       return `• ${g.name}`;
     }
 
-    return `• ${g.row.task}`;
+    return `• ${g.row.proposal_text || g.row.task}`;
   });
 
   let text = `Scope of Work
