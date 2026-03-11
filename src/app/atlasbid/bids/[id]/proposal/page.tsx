@@ -476,7 +476,7 @@ const showPrepaySection =
                   key={`${row.label}-${idx}`}
                   className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
                 >
-  proposalRows.map((row, idx) => {
+                  {proposalRows.map((row, idx) => {
   const [bundle, text] = String(row.label || "").split("||");
 
   return (
@@ -503,15 +503,6 @@ const showPrepaySection =
     </div>
   );
 })
-    </div>
-  );
-})
-</div>
-                    {moneyDisplay(row.amount)}
-                  </div>
-                </div>
-              ))
-            )}
           </div>
 
        <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
