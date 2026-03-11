@@ -1331,10 +1331,25 @@ if (
     </div>
   </div>
 
-  {labor.length === 0 ? (
-    <div className="text-gray-400 text-sm py-4 border rounded px-3">No labor added yet.</div>
-  ) : (
-    <div className="space-y-3 pt-2">
+ {labor.length === 0 ? (
+  <div className="text-gray-400 text-sm py-4 border rounded px-3">
+    No labor added yet.
+  </div>
+) : (
+  <>
+    {/* Row headers */}
+    <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-[11px] font-semibold text-gray-500 px-3">
+      <div></div>
+      <div>Task</div>
+      <div>Details</div>
+      <div className="text-center">Qty</div>
+      <div className="text-center">Unit</div>
+      <div className="text-center">Hours</div>
+      <div className="text-right">Total</div>
+      <div className="text-right">Action</div>
+    </div>
+
+    <div className="space-y-3 pt-1">
       {labor.map((row) => {
         const rowTotal =
           (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
