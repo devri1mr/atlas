@@ -570,7 +570,42 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
     if (sell <= 0) return 0;
     return ((sell - totalCost) / sell) * 100;
   }, [sellRounded, sellWithPrepay, prepayEnabled, totalCost]);
+// Pricing autosave
+useEffect(() => {
+  if (!bid?.id) return;
+  if (loading) return;
 
+  const t = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/bids/${bid.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sell_rounded: Number(sellRounded) || 0,
+          prepay_enabled: prepayEnabled,
+          prepay_price: prepayEnabled ? Number(sellWithPrepay) || 0 : null,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          json?.error?.message || json?.error || "Failed to save pricing"
+        );
+      }
+
+      setBid((prev) => ({
+        ...(prev || {}),
+        ...(json?.data ?? {}),
+      }));
+    } catch (e: any) {
+      console.error("Failed to save pricing", e?.message || e);
+    }
+  }, 600);
+
+  return () => clearTimeout(t);
+}, [bid?.id, loading, sellRounded, sellWithPrepay, prepayEnabled]);
   async function saveDivision() {
     if (!divisionPick) return;
 
