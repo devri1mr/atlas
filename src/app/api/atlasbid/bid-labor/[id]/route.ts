@@ -32,6 +32,7 @@ export async function PATCH(
 
   if ("task" in body) updates.task = String(body.task ?? "").trim();
   if ("item" in body) updates.item = String(body.item ?? "").trim();
+  if ("proposal_text" in body) {updates.proposal_text = String(body.proposal_text ?? "").trim();}
   if ("quantity" in body) updates.quantity = Number(body.quantity ?? 0);
   if ("unit" in body) updates.unit = String(body.unit ?? "").trim();
   if ("man_hours" in body) updates.man_hours = Number(body.man_hours ?? 0);
@@ -50,6 +51,7 @@ export async function PATCH(
       bid_id,
       task,
       item,
+      proposal_text,
       quantity,
       unit,
       man_hours,
