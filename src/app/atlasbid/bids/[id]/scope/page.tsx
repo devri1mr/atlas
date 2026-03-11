@@ -1333,14 +1333,15 @@ if (
 
             {/* Table headers */}
             <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
-              <div>Task</div>
-              <div>Details</div>
-              <div>Qty</div>
-              <div>Unit</div>
-              <div>Hours</div>
-              <div>Total ($)</div>
-              <div></div>
-            </div>
+  <div></div>
+  <div>Task</div>
+  <div>Details</div>
+  <div>Qty</div>
+  <div>Unit</div>
+  <div>Hours</div>
+  <div>Total ($)</div>
+  <div></div>
+</div>
 
             {labor.length === 0 ? (
               <div className="text-gray-400 text-sm py-3">No labor added yet.</div>
