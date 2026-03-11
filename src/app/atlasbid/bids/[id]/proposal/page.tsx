@@ -502,8 +502,7 @@ const showPrepaySection =
       </div>
     </div>
   );
-})
-          </div>
+})}
 
        <div className="grid grid-cols-[1fr_150px] border-t border-[#8f8f8f]">
   <div className="border-r border-[#8f8f8f] px-4 py-3 text-right text-[14px] font-semibold">
