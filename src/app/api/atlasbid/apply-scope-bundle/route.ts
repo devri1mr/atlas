@@ -48,6 +48,7 @@ type BundleTask = {
 type BidRow = {
   id: string;
   division_id?: string | null;
+  company_id: string | null;
 };
 
 function num(v: unknown, fallback = 0) {
