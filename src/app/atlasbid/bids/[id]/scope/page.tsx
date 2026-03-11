@@ -1207,10 +1207,6 @@ if (
             <div className="flex items-start justify-between gap-6 flex-wrap">
               <div>
                 <h2 className="text-xl font-semibold">Labor Builder</h2>
-                <div className="text-sm text-gray-500">
-                  Division rate (used for labor + trucking):{" "}
-                  <span className="font-semibold">{money(divisionRate)} / hr</span>
-                </div>
               </div>
 
               <div className="text-right min-w-[240px]">
