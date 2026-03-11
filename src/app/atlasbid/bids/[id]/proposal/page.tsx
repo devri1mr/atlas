@@ -345,10 +345,13 @@ const proposalRows = useMemo(() => {
       parts.push(`${row.quantity} ${row.unit}`);
     }
 
-    baseRows.push({
-      label: parts.join(" — "),
-      cost,
-    });
+   baseRows.push({
+  label:
+    (bundleRunNameMap.get(row.bundle_run_id || "") || "") +
+    "||" +
+    parts.join(" — "),
+  cost,
+});
   }
 
   return allocateSellAmounts(
