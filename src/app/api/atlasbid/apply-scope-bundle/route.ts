@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
 
     const { data: bidRow, error: bidError } = await supabase
       .from("bids")
-      .select("id, division_id")
+      .select("id, division_id, company_id")
       .eq("id", bidId)
       .single<BidRow>();
 
@@ -201,7 +201,12 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
+if (!bidRow.company_id) {
+  return NextResponse.json(
+    { error: "Bid missing company_id." },
+    { status: 400 }
+  );
+}
     if (!bidRow.division_id) {
       return NextResponse.json(
         { error: "Bid has no division_id." },
@@ -264,6 +269,7 @@ if (hourlyRate <= 0) {
     const { data: bundleRun, error: runError } = await supabase
       .from("scope_bundle_runs")
       .insert({
+        company_id: bidRow.company_id,
         bid_id: bidId,
         bundle_id: bundleId,
         answers_json: answers,
