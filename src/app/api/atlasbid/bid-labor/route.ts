@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
 
   const task = String(body?.task ?? "").trim();
   const item = String(body?.item ?? "").trim();
+  const proposal text = String(body?.proposal_text ?? body?.task ?? "").trim();
   const quantity = Number(body?.quantity ?? 0);
   const unit = String(body?.unit ?? "").trim();
   const man_hours = Number(body?.man_hours ?? 0);
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
     company_id: bidRow.company_id,
     task,
     item,
+    proposal_text,
     quantity,
     unit,
     man_hours,
@@ -128,6 +130,7 @@ export async function POST(req: NextRequest) {
       bid_id,
       task,
       item,
+      proposal_text,
       quantity,
       unit,
       man_hours,
