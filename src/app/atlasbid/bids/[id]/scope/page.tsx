@@ -1230,17 +1230,14 @@ if (
             </div>
 
             {/* Column labels */}
-            <div className="grid grid-cols-12 gap-4 font-semibold text-sm border-b pb-2 mt-4 items-center">
-  <div className="col-span-1"></div>
-  <div className="col-span-3">Task</div>
-  <div className="col-span-3">Details</div>
-  <div className="col-span-1 text-center">Qty</div>
-  <div className="col-span-1 text-center">Unit</div>
-  <div className="col-span-1 text-center">Hours</div>
-  <div className="col-span-1 text-right">Total ($)</div>
+           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
+  <div className="col-span-4">Task</div>
+  <div className="col-span-3">Details (optional)</div>
+  <div className="col-span-1">Qty</div>
+  <div className="col-span-1">Unit</div>
+  <div className="col-span-2">Hours</div>
   <div className="col-span-1 text-right">Action</div>
 </div>
-
             {/* Inputs row */}
             <div className="grid grid-cols-12 gap-4 items-center">
               {/* Task search */}
