@@ -338,7 +338,7 @@ const proposalRows = useMemo(() => {
     }
 
     const parts: string[] = [];
-    if (row.task) parts.push(row.task);
+    if (row.proposal_text || row.task) parts.push(row.proposal_text || row.task);
 
     if ((Number(row.quantity) || 0) > 0 && row.unit) {
       parts.push(`${row.quantity} ${row.unit}`);
