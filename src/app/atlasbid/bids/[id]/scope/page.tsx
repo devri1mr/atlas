@@ -1331,151 +1331,152 @@ if (
     </div>
   </div>
 
- {labor.length === 0 ? (
-  <div className="text-gray-400 text-sm py-4 border rounded px-3">
-    No labor added yet.
-  </div>
-) : (
-  <>
-    {/* Row headers */}
-    <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-[11px] font-semibold text-gray-500 px-3">
-      <div></div>
-      <div>Task</div>
-      <div>Details</div>
-      <div className="text-center">Qty</div>
-      <div className="text-center">Unit</div>
-      <div className="text-center">Hours</div>
-      <div className="text-right">Total</div>
-      <div className="text-right">Action</div>
+   {labor.length === 0 ? (
+    <div className="text-gray-400 text-sm py-4 border rounded px-3">
+      No labor added yet.
     </div>
+  ) : (
+    <>
+      {/* Row headers */}
+      <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-[11px] font-semibold text-gray-500 px-3">
+        <div></div>
+        <div>Task</div>
+        <div>Details</div>
+        <div className="text-center">Qty</div>
+        <div className="text-center">Unit</div>
+        <div className="text-center">Hours</div>
+        <div className="text-right">Total</div>
+        <div className="text-right">Action</div>
+      </div>
 
-    <div className="space-y-3 pt-1">
-      {labor.map((row) => {
-        const rowTotal =
-          (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+      <div className="space-y-3 pt-1">
+        {labor.map((row) => {
+          const rowTotal =
+            (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-        return (
-          <div
-            key={row.id}
-            className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 border rounded px-3 py-3 text-sm items-center"
-          >
-            <div className="flex justify-center">
-              <input
-                className="w-4 h-4"
-                type="checkbox"
-                checked={row.show_as_line_item === true}
-                onChange={async (e) => {
-                  const checked = e.target.checked;
+          return (
+            <div
+              key={row.id}
+              className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 border rounded px-3 py-3 text-sm items-center"
+            >
+              <div className="flex justify-center">
+                <input
+                  className="w-4 h-4"
+                  type="checkbox"
+                  checked={row.show_as_line_item === true}
+                  onChange={async (e) => {
+                    const checked = e.target.checked;
 
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      show_as_line_item: checked,
-                    }),
-                  });
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        show_as_line_item: checked,
+                      }),
+                    });
 
-                  setLabor((prev) =>
-                    prev.map((r) =>
-                      r.id === row.id ? { ...r, show_as_line_item: checked } : r
-                    )
-                  );
-                }}
-              />
+                    setLabor((prev) =>
+                      prev.map((r) =>
+                        r.id === row.id ? { ...r, show_as_line_item: checked } : r
+                      )
+                    );
+                  }}
+                />
+              </div>
+
+              <div className="font-medium leading-tight">{row.task}</div>
+
+              <div className="text-gray-600 leading-tight">{row.item || "—"}</div>
+
+              <div>
+                <input
+                  className="border p-1 rounded w-full text-right h-9"
+                  type="number"
+                  value={row.quantity === 0 ? "" : row.quantity}
+                  onChange={async (e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+                    setLabor((prev) =>
+                      prev.map((r) =>
+                        r.id === row.id
+                          ? {
+                              ...r,
+                              quantity: value,
+                              is_overridden: true,
+                            }
+                          : r
+                      )
+                    );
+
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        quantity: value,
+                        is_overridden: true,
+                      }),
+                    });
+                  }}
+                />
+              </div>
+
+              <div>{row.unit}</div>
+
+              <div>
+                <input
+                  className="border p-1 rounded w-full text-right h-9"
+                  type="number"
+                  step="0.01"
+                  value={row.man_hours === 0 ? "" : row.man_hours}
+                  onChange={async (e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+                    setLabor((prev) =>
+                      prev.map((r) =>
+                        r.id === row.id
+                          ? {
+                              ...r,
+                              man_hours: value,
+                              is_overridden: true,
+                            }
+                          : r
+                      )
+                    );
+
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        man_hours: value,
+                        is_overridden: true,
+                      }),
+                    });
+                  }}
+                />
+              </div>
+
+              <div className="text-right font-medium">
+                {rowTotal.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+
+              <div className="text-right">
+                <button
+                  onClick={() => deleteLaborRow(row.id)}
+                  className="text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-
-            <div className="font-medium leading-tight">{row.task}</div>
-
-            <div className="text-gray-600 leading-tight">{row.item || "—"}</div>
-
-            <div>
-              <input
-                className="border p-1 rounded w-full text-right h-9"
-                type="number"
-                value={row.quantity === 0 ? "" : row.quantity}
-                onChange={async (e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
-                  setLabor((prev) =>
-                    prev.map((r) =>
-                      r.id === row.id
-                        ? {
-                            ...r,
-                            quantity: value,
-                            is_overridden: true,
-                          }
-                        : r
-                    )
-                  );
-
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      quantity: value,
-                      is_overridden: true,
-                    }),
-                  });
-                }}
-              />
-            </div>
-
-            <div>{row.unit}</div>
-
-            <div>
-              <input
-                className="border p-1 rounded w-full text-right h-9"
-                type="number"
-                step="0.01"
-                value={row.man_hours === 0 ? "" : row.man_hours}
-                onChange={async (e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
-                  setLabor((prev) =>
-                    prev.map((r) =>
-                      r.id === row.id
-                        ? {
-                            ...r,
-                            man_hours: value,
-                            is_overridden: true,
-                          }
-                        : r
-                    )
-                  );
-
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      man_hours: value,
-                      is_overridden: true,
-                    }),
-                  });
-                }}
-              />
-            </div>
-
-            <div className="text-right font-medium">
-              {rowTotal.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </div>
-
-            <div className="text-right">
-              <button
-                onClick={() => deleteLaborRow(row.id)}
-                className="text-red-600 hover:underline"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-          })}
-    </div>
-  </>
+          );
+        })}
+      </div>
+    </>
   )}
 </div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
