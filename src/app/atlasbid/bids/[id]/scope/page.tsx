@@ -1202,7 +1202,7 @@ if (
 ) : null}
 </div>
           {/* LABOR BUILDER */}
-          <div className="border rounded-lg p-6 space-y-4">
+          <div className="mx-auto w-full max-w-7xl border rounded-lg p-6 space-y-4">
             {/* Top bar */}
             <div className="flex items-start justify-between gap-6 flex-wrap">
               <div>
