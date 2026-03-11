@@ -155,7 +155,7 @@ const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
 
     const rounded_price =
       round_to > 0
-        ? Math.round(calculated_price / round_to) * round_to
+        ? Math.ceil(calculated_price / round_to) * round_to
         : calculated_price;
 
     // Atlas recommendation before manual override
