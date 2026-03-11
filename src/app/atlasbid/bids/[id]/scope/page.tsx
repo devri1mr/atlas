@@ -1453,9 +1453,9 @@ if (
                       Delete
                     </button>
                   </div>
-                );
-              });
-              }
+                )
+              })
+              )}
           </div>
 
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
