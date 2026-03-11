@@ -1202,264 +1202,267 @@ if (
 ) : null}
 </div>
           {/* LABOR BUILDER */}
-          <div className="mx-auto w-full max-w-7xl border rounded-lg p-6 space-y-4">
-            {/* Top bar */}
-            <div className="flex items-start justify-between gap-6 flex-wrap">
-              <div>
-                <h2 className="text-xl font-semibold">Labor Builder</h2>
+<div className="border rounded-lg p-6 space-y-4">
+  <div className="flex items-start justify-between gap-6 flex-wrap">
+    <div>
+      <h2 className="text-xl font-semibold">Labor Builder</h2>
+    </div>
+
+    <div className="text-right">
+      <div className="text-sm text-gray-500">Labor Subtotal</div>
+      <div className="text-2xl font-bold">{money(laborSubtotal)}</div>
+    </div>
+  </div>
+
+  <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-xs font-semibold text-gray-600 pt-2">
+    <div></div>
+    <div>Task</div>
+    <div>Details (optional)</div>
+    <div className="text-center">Qty</div>
+    <div className="text-center">Unit</div>
+    <div className="text-center">Hours</div>
+    <div className="text-right">Total ($)</div>
+    <div className="text-right">Action</div>
+  </div>
+
+  <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 items-start">
+    <div></div>
+
+    <div ref={taskDropdownRef}>
+      <div className="relative">
+        <input
+          className="border p-2 rounded w-full h-11"
+          placeholder="Search saved tasks..."
+          value={taskSearch}
+          onChange={(e) => {
+            const v = e.target.value;
+            setTaskSearch(v);
+            setTask(v);
+            setShowTaskResults(true);
+          }}
+          onFocus={() => setShowTaskResults(true)}
+        />
+
+        {showTaskResults && filteredTasks.length > 0 ? (
+          <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+            {filteredTasks.map((t) => (
+              <div
+                key={t.id}
+                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                onClick={() => applyTaskSelection(t)}
+              >
+                {t.name}
               </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
 
-              <div className="text-right min-w-[240px]">
-                <div className="text-sm text-gray-500">Labor Subtotal</div>
-                <div className="text-2xl font-bold">{money(laborSubtotal)}</div>
-
-                {/* Save-to-catalog (unchanged) */}
-                <div className="mt-3 flex items-center justify-end gap-3">
-                  <label className="flex items-center gap-2 text-xs text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={saveToCatalog}
-                      onChange={(e) => setSaveToCatalog(e.target.checked)}
-                    />
-                    Save to Task Catalog
-                  </label>
-                  {savingToCatalog ? <span className="text-xs text-gray-500">Saving…</span> : null}
-                </div>
-                {saveToCatalogMsg ? <div className="text-xs text-gray-500 mt-1">{saveToCatalogMsg}</div> : null}
-              </div>
-            </div>
-
-           {/* Column labels */}
-<div className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 text-xs font-semibold text-gray-600">
-  <div></div>
-  <div>Task</div>
-  <div>Details (optional)</div>
-  <div className="text-center">Qty</div>
-  <div className="text-center">Unit</div>
-  <div className="text-center">Hours</div>
-  <div className="text-right">Total ($)</div>
-  <div className="text-right">Action</div>
-</div>
-            {/* Inputs row */}
-<div className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 items-center">
-  <div></div>
-
-  <div ref={taskDropdownRef}>
-    <div className="relative">
+    <div>
       <input
-        className="border p-2 rounded w-full h-10"
-        placeholder="Search saved tasks…"
-        value={taskSearch}
-        onChange={(e) => {
-          const v = e.target.value;
-          setTaskSearch(v);
-          setTask(v);
-          setShowTaskResults(true);
-        }}
-        onFocus={() => setShowTaskResults(true)}
+        className="border p-2 rounded w-full h-11"
+        placeholder="Optional details (color, location, etc.)"
+        value={details}
+        onChange={(e) => setDetails(e.target.value)}
       />
+    </div>
 
-      {showTaskResults && filteredTasks.length > 0 ? (
-        <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-          {filteredTasks.map((t) => (
-            <div
-              key={t.id}
-              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-              onClick={() => applyTaskSelection(t)}
-            >
-              {t.name}
-            </div>
-          ))}
-        </div>
+    <div>
+      <input
+        className="border p-2 rounded w-full h-11 text-right"
+        type="number"
+        placeholder="0"
+        value={Number.isFinite(quantity) ? quantity : 0}
+        onChange={(e) => setQuantity(Number(e.target.value))}
+      />
+    </div>
+
+    <div>
+      <select
+        className="border p-2 rounded w-full h-11"
+        value={unit}
+        onChange={(e) => setUnit(e.target.value)}
+      >
+        {UNIT_OPTIONS.map((u) => (
+          <option key={u.value} value={u.value}>
+            {u.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <input
+        className="border p-2 rounded w-full h-11 text-right"
+        type="number"
+        placeholder="0"
+        value={Number.isFinite(hours) ? hours : 0}
+        onChange={(e) => setHours(Number(e.target.value))}
+      />
+    </div>
+
+    <div></div>
+
+    <div className="space-y-2">
+      <button
+        onClick={addLabor}
+        className="bg-emerald-700 text-white rounded px-4 py-2 h-11 w-full"
+      >
+        Add
+      </button>
+
+      <label className="flex items-center justify-end gap-2 text-xs text-gray-700">
+        <input
+          type="checkbox"
+          checked={saveToCatalog}
+          onChange={(e) => setSaveToCatalog(e.target.checked)}
+        />
+        Save to Catalog
+      </label>
+
+      {savingToCatalog ? (
+        <div className="text-[11px] text-gray-500 text-right">Saving…</div>
+      ) : null}
+
+      {saveToCatalogMsg ? (
+        <div className="text-[11px] text-gray-500 text-right">{saveToCatalogMsg}</div>
       ) : null}
     </div>
   </div>
 
-  <div>
-    <input
-      className="border p-2 rounded w-full h-10"
-      placeholder="Optional details (color, location, etc.)"
-      value={details}
-      onChange={(e) => setDetails(e.target.value)}
-    />
-  </div>
+  {labor.length === 0 ? (
+    <div className="text-gray-400 text-sm py-4 border rounded px-3">No labor added yet.</div>
+  ) : (
+    <div className="space-y-3 pt-2">
+      {labor.map((row) => {
+        const rowTotal =
+          (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-  <div>
-    <input
-      className="border p-2 rounded w-full h-10 text-right"
-      type="number"
-      placeholder="0"
-      value={Number.isFinite(quantity) ? quantity : 0}
-      onChange={(e) => setQuantity(Number(e.target.value))}
-    />
-  </div>
+        return (
+          <div
+            key={row.id}
+            className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 border rounded px-3 py-3 text-sm items-center"
+          >
+            <div className="flex justify-center">
+              <input
+                className="w-4 h-4"
+                type="checkbox"
+                checked={row.show_as_line_item === true}
+                onChange={async (e) => {
+                  const checked = e.target.checked;
 
-  <div>
-    <select
-      className="border p-2 rounded w-full h-10"
-      value={unit}
-      onChange={(e) => setUnit(e.target.value)}
-    >
-      {UNIT_OPTIONS.map((u) => (
-        <option key={u.value} value={u.value}>
-          {u.label}
-        </option>
-      ))}
-    </select>
-  </div>
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      show_as_line_item: checked,
+                    }),
+                  });
 
-  <div>
-    <input
-      className="border p-2 rounded w-full h-10 text-right"
-      type="number"
-      placeholder="0"
-      value={Number.isFinite(hours) ? hours : 0}
-      onChange={(e) => setHours(Number(e.target.value))}
-    />
-  </div>
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id ? { ...r, show_as_line_item: checked } : r
+                    )
+                  );
+                }}
+              />
+            </div>
 
-  <div></div>
+            <div className="font-medium leading-tight">{row.task}</div>
 
-  <div className="text-right">
-    <button
-      onClick={addLabor}
-      className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
-    >
-      Add
-    </button>
-  </div>
-</div>
+            <div className="text-gray-600 leading-tight">{row.item || "—"}</div>
 
-            {labor.length === 0 ? (
-              <div className="text-gray-400 text-sm py-3">No labor added yet.</div>
-            ) : (
-              labor.map((row) => {
-                const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+            <div>
+              <input
+                className="border p-1 rounded w-full text-right h-9"
+                type="number"
+                value={row.quantity === 0 ? "" : row.quantity}
+                onChange={async (e) => {
+                  const raw = e.target.value;
+                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
 
-                return (
-                <div
-  key={row.id}
-  className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 border p-2 rounded text-sm items-center"
->
-  <div className="flex justify-center">
-    <input
-      className="w-4 h-4"
-      type="checkbox"
-      checked={row.show_as_line_item === true}
-      onChange={async (e) => {
-        const checked = e.target.checked;
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id
+                        ? {
+                            ...r,
+                            quantity: value,
+                            is_overridden: true,
+                          }
+                        : r
+                    )
+                  );
 
-        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            show_as_line_item: checked,
-          }),
-        });
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      quantity: value,
+                      is_overridden: true,
+                    }),
+                  });
+                }}
+              />
+            </div>
 
-        setLabor((prev) =>
-          prev.map((r) =>
-            r.id === row.id ? { ...r, show_as_line_item: checked } : r
-          )
-        );
-      }}
-    />
-  </div>
+            <div>{row.unit}</div>
 
-  <div>{row.task}</div>
+            <div>
+              <input
+                className="border p-1 rounded w-full text-right h-9"
+                type="number"
+                step="0.01"
+                value={row.man_hours === 0 ? "" : row.man_hours}
+                onChange={async (e) => {
+                  const raw = e.target.value;
+                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
 
-  <div className="text-gray-600">{row.item || "—"}</div>
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id
+                        ? {
+                            ...r,
+                            man_hours: value,
+                            is_overridden: true,
+                          }
+                        : r
+                    )
+                  );
 
-  <div>
-    <input
-      className="border p-1 rounded w-full text-right"
-      type="number"
-      value={row.quantity === 0 ? "" : row.quantity}
-      onChange={async (e) => {
-        const raw = e.target.value;
-        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      man_hours: value,
+                      is_overridden: true,
+                    }),
+                  });
+                }}
+              />
+            </div>
 
-        setLabor((prev) =>
-          prev.map((r) =>
-            r.id === row.id
-              ? {
-                  ...r,
-                  quantity: value,
-                  is_overridden: true,
-                }
-              : r
-          )
-        );
+            <div className="text-right font-medium">
+              {rowTotal.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
 
-        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            quantity: value,
-            is_overridden: true,
-          }),
-        });
-      }}
-    />
-  </div>
-
-  <div>{row.unit}</div>
-
-  <div>
-    <input
-      className="border p-1 rounded w-full text-right"
-      type="number"
-      step="0.01"
-      value={row.man_hours === 0 ? "" : row.man_hours}
-      onChange={async (e) => {
-        const raw = e.target.value;
-        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
-        setLabor((prev) =>
-          prev.map((r) =>
-            r.id === row.id
-              ? {
-                  ...r,
-                  man_hours: value,
-                  is_overridden: true,
-                }
-              : r
-          )
-        );
-
-        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            man_hours: value,
-            is_overridden: true,
-          }),
-        });
-      }}
-    />
-  </div>
-
-  <div className="text-right">
-    {rowTotal.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}
-  </div>
-
-  <div className="text-right">
-    <button
-      onClick={() => deleteLaborRow(row.id)}
-      className="text-red-600 hover:underline"
-    >
-      Delete
-    </button>
-  </div>
-</div>
-                );
-              })
-            )}
+            <div className="text-right">
+              <button
+                onClick={() => deleteLaborRow(row.id)}
+                className="text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </div>
           </div>
-
+        );
+      })}
+    </div>
+  )}
+</div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
           <div className="border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-6 flex-wrap">
