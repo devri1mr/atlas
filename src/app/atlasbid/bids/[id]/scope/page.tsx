@@ -1445,7 +1445,7 @@ if (
                     maximumFractionDigits: 2
                   })}
                       </div>
-                    <button
+                                       <button
                       onClick={() => deleteLaborRow(row.id)}
                       className="text-red-600 hover:underline text-right"
                     >
@@ -1453,7 +1453,8 @@ if (
                     </button>
                   </div>
                 );
-          )})}
+              })
+            )}
           </div>
 
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
