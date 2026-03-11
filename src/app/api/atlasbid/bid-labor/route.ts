@@ -72,24 +72,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bid_id (uuid string) is required" }, { status: 400 });
   }
 
-  const task = String(body?.task ?? "");
-  const item = String(body?.item ?? "");
+  const task = String(body?.task ?? "").trim();
+  const item = String(body?.item ?? "").trim();
   const quantity = Number(body?.quantity ?? 0);
-  const unit = String(body?.unit ?? "");
+  const unit = String(body?.unit ?? "").trim();
   const man_hours = Number(body?.man_hours ?? 0);
   const hourly_rate = Number(body?.hourly_rate ?? 0);
 
+  if (!task) {
+    return NextResponse.json({ error: "task is required" }, { status: 400 });
+  }
+
+  if (!unit) {
+    return NextResponse.json({ error: "unit is required" }, { status: 400 });
+  }
+
+  const { data: bidRow, error: bidError } = await supabase
+    .from("bids")
+    .select("id, company_id, division_id")
+    .eq("id", bid_id)
+    .single();
+
+  if (bidError || !bidRow?.id) {
+    return NextResponse.json(
+      { error: bidError?.message || "Bid not found" },
+      { status: 404 }
+    );
+  }
+
+  if (!bidRow.company_id) {
+    return NextResponse.json(
+      { error: "Bid is missing company_id" },
+      { status: 400 }
+    );
+  }
+
+  const insertPayload = {
+    bid_id,
+    company_id: bidRow.company_id,
+    task,
+    item,
+    quantity,
+    unit,
+    man_hours,
+    hourly_rate,
+  };
+
   const { data, error } = await supabase
     .from("bid_labor")
-    .insert({
-      bid_id,
-      task,
-      item,
-      quantity,
-      unit,
-      man_hours,
-      hourly_rate,
-    })
+    .insert(insertPayload)
     .select(
       `
       id,
