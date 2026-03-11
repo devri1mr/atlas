@@ -16,20 +16,26 @@ export async function PATCH(
   const supabase = getSupabase();
   const { id } = await ctx.params;
 
-  const rowId = Number(id);
-  if (!rowId || Number.isNaN(rowId)) {
+  const rowId = String(id || "").trim();
+  if (!rowId) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const body = await req.json();
+  let body: any = null;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
   const updates: Record<string, any> = {};
 
-  if ("task" in body) updates.task = body.task;
-  if ("item" in body) updates.item = body.item;
-  if ("quantity" in body) updates.quantity = body.quantity;
-  if ("unit" in body) updates.unit = body.unit;
-  if ("man_hours" in body) updates.man_hours = body.man_hours;
-  if ("hourly_rate" in body) updates.hourly_rate = body.hourly_rate;
+  if ("task" in body) updates.task = String(body.task ?? "").trim();
+  if ("item" in body) updates.item = String(body.item ?? "").trim();
+  if ("quantity" in body) updates.quantity = Number(body.quantity ?? 0);
+  if ("unit" in body) updates.unit = String(body.unit ?? "").trim();
+  if ("man_hours" in body) updates.man_hours = Number(body.man_hours ?? 0);
+  if ("hourly_rate" in body) updates.hourly_rate = Number(body.hourly_rate ?? 0);
   if ("show_as_line_item" in body) {
     updates.show_as_line_item = body.show_as_line_item;
   }
@@ -38,7 +44,21 @@ export async function PATCH(
     .from("bid_labor")
     .update(updates)
     .eq("id", rowId)
-    .select()
+    .select(
+      `
+      id,
+      bid_id,
+      task,
+      item,
+      quantity,
+      unit,
+      man_hours,
+      hourly_rate,
+      show_as_line_item,
+      bundle_run_id,
+      created_at
+      `
+    )
     .single();
 
   if (error) {
@@ -55,8 +75,8 @@ export async function DELETE(
   const supabase = getSupabase();
   const { id } = await ctx.params;
 
-  const rowId = Number(id);
-  if (!rowId || Number.isNaN(rowId)) {
+  const rowId = String(id || "").trim();
+  if (!rowId) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
