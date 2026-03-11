@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   const task = String(body?.task ?? "").trim();
   const item = String(body?.item ?? "").trim();
-  const proposal text = String(body?.proposal_text ?? body?.task ?? "").trim();
+  const proposal_text = String(body?.proposal_text ?? body?.task ?? "").trim();
   const quantity = Number(body?.quantity ?? 0);
   const unit = String(body?.unit ?? "").trim();
   const man_hours = Number(body?.man_hours ?? 0);
