@@ -293,6 +293,7 @@ if (hourlyRate <= 0) {
       if (computed.skip) continue;
 
       const payload = {
+        company_id: bidRow.company_id,
         bid_id: bidId,
         task: computed.taskName,
         item: computed.itemName || computed.taskName,
