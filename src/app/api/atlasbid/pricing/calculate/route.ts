@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
   .eq("company_id", bidRow.company_id)
   .eq("is_active", true)
   .limit(1)
-  .maybesingle();
+  .single();
 
 if (opsError) {
   return NextResponse.json({ error: opsError.message }, { status: 500 });
