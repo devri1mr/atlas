@@ -320,13 +320,14 @@ export default function ProposalPage() {
         parts.push(`${row.quantity} ${row.unit}`);
       }
 
-      baseRows.push({
-        label:
-          (bundleRunNameMap.get(row.bundle_run_id || "") || "") +
-          "||" +
-          parts.join(" — "),
-        cost,
-      });
+     const bundleName = bundleRunNameMap.get(row.bundle_run_id || "");
+
+baseRows.push({
+  label: bundleName
+    ? `${bundleName}||${parts.join(" — ")}`
+    : parts.join(" — "),
+  cost,
+});
     }
 
     return allocateSellAmounts(baseRows, totalDisplayValue);
