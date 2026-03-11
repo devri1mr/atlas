@@ -25,6 +25,7 @@ type LaborRow = {
   bid_id: string;
   task: string;
   item: string;
+  proposal_text?: string | null;
   quantity: number;
   unit: string;
   man_hours: number;
