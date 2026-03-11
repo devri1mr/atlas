@@ -351,7 +351,10 @@ const proposalRows = useMemo(() => {
     });
   }
 
-  return allocateSellAmounts(baseRows, totalDisplayValue);
+  return allocateSellAmounts(
+  baseRows,
+  baseRows.reduce((sum, r) => sum + r.cost, 0)
+);
 }, [labor, bundleRunNameMap, totalDisplayValue]);
   if (loading) {
     return <div className="p-8">Loading...</div>;
