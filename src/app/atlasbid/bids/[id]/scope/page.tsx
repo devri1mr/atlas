@@ -1332,15 +1332,16 @@ if (
             </div>
 
             {/* Table headers */}
-            <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
+          <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4 items-center">
   <div></div>
-  <div>Task</div>
-  <div>Details</div>
-  <div>Qty</div>
-  <div>Unit</div>
-  <div>Hours</div>
-  <div>Total ($)</div>
-  <div></div>
+  <div className="text-left">Task</div>
+  <div className="text-left">Details</div>
+  <div className="text-center">Qty</div>
+  <div className="text-center">Unit</div>
+  <div className="text-center">Hours</div>
+  <div className="text-right">Total ($)</div>
+  <div className="text-right"></div>
+</div>
 </div>
 
             {labor.length === 0 ? (
