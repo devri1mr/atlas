@@ -1877,7 +1877,7 @@ if (
       <div className="text-gray-500">No scope items yet.</div>
     ) : (
       labor.map((row) => (
-        <div key={row.id}>• {row.task}</div>
+        <div key={row.id}>• {row.proposal_text || row.task}</div>
       ))
     )}
   </div>
