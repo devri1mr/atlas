@@ -739,7 +739,7 @@ Project Price: ${money(sellRounded)}`;
   if (prepayEnabled) {
     text += `\nPrepay Price: ${money(sellWithPrepay)}`;
   }
-  
+
   navigator.clipboard.writeText(text);
 }
   async function addLabor() {
@@ -1332,16 +1332,15 @@ if (
             </div>
 
             {/* Table headers */}
-          <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4 items-center">
+            <div className="grid grid-cols-8 gap-4 font-semibold text-sm border-b pb-2 mt-4">
   <div></div>
-  <div className="text-left">Task</div>
-  <div className="text-left">Details</div>
-  <div className="text-center">Qty</div>
-  <div className="text-center">Unit</div>
-  <div className="text-center">Hours</div>
-  <div className="text-right">Total ($)</div>
-  <div className="text-right"></div>
-</div>
+  <div>Task</div>
+  <div>Details</div>
+  <div>Qty</div>
+  <div>Unit</div>
+  <div>Hours</div>
+  <div>Total ($)</div>
+  <div></div>
 </div>
 
             {labor.length === 0 ? (
@@ -1377,6 +1376,7 @@ if (
   }}
 />
                     <div>{row.task}</div>
+                    <div className="text-gray-600">{row.details || "—"}</div>
                     <div className="text-gray-600">{row.item || "—"}</div>
                   <input
   className="border p-1 rounded w-16 text-right"
@@ -1453,9 +1453,9 @@ if (
                       Delete
                     </button>
                   </div>
-                )
+                );
               })
-              )}
+            )}
           </div>
 
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
