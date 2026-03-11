@@ -1455,7 +1455,6 @@ if (
                   </div>
                 );
               })
-            )}
           </div>
 
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
