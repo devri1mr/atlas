@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       bid_id,
       task,
       item,
+      proposal_text,
       quantity,
       unit,
       man_hours,
