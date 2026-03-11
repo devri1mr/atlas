@@ -476,10 +476,22 @@ const showPrepaySection =
                   key={`${row.label}-${idx}`}
                   className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
                 >
-                  <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
-                    - {row.label}
-                  </div>
-                  <div className="px-4 py-3 text-right text-[14px]">
+                 <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
+  {(() => {
+    const [bundle, text] = row.label.split("||");
+
+    return (
+      <>
+        {bundle && (
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+            {bundle}
+          </div>
+        )}
+        <div>- {text || bundle}</div>
+      </>
+    );
+  })()}
+</div>
                     {moneyDisplay(row.amount)}
                   </div>
                 </div>
