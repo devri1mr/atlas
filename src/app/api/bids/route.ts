@@ -97,10 +97,22 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+const { data: companyRow, error: companyError } = await supabase
+  .from("companies")
+  .select("id")
+  .limit(1)
+  .single();
 
+if (companyError || !companyRow?.id) {
+  return NextResponse.json(
+    { error: companyError?.message || "No company found." },
+    { status: 500 }
+  );
+}
   const { data, error } = await supabase
     .from("bids")
     .insert({
+      company_id: companyRow.id,
       client_name,
       client_last_name,
       status_id,
