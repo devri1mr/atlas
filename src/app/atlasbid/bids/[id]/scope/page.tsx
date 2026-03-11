@@ -1229,106 +1229,106 @@ if (
               </div>
             </div>
 
-            {/* Column labels */}
-           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-  <div className="col-span-4">Task</div>
-  <div className="col-span-3">Details (optional)</div>
-  <div className="col-span-1">Qty</div>
-  <div className="col-span-1">Unit</div>
-  <div className="col-span-2">Hours</div>
-  <div className="col-span-1 text-right">Action</div>
+           {/* Column labels */}
+<div className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 text-xs font-semibold text-gray-600">
+  <div></div>
+  <div>Task</div>
+  <div>Details (optional)</div>
+  <div className="text-center">Qty</div>
+  <div className="text-center">Unit</div>
+  <div className="text-center">Hours</div>
+  <div className="text-right">Total ($)</div>
+  <div className="text-right">Action</div>
 </div>
             {/* Inputs row */}
-            <div className="grid grid-cols-12 gap-4 items-center">
-              {/* Task search */}
-              <div className="col-span-4" ref={taskDropdownRef}>
-                <div className="relative">
-                  <input
-                    className="border p-2 rounded w-full h-10"
-                    placeholder="Search saved tasks…"
-                    value={taskSearch}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setTaskSearch(v);
-                      setTask(v);
-                      setShowTaskResults(true);
-                    }}
-                    onFocus={() => setShowTaskResults(true)}
-                  />
+<div className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 items-center">
+  <div></div>
 
-                  {showTaskResults && filteredTasks.length > 0 ? (
-                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-                      {filteredTasks.map((t) => (
-                        <div
-                          key={t.id}
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          onClick={() => applyTaskSelection(t)}
-                        >
-                          {t.name}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+  <div ref={taskDropdownRef}>
+    <div className="relative">
+      <input
+        className="border p-2 rounded w-full h-10"
+        placeholder="Search saved tasks…"
+        value={taskSearch}
+        onChange={(e) => {
+          const v = e.target.value;
+          setTaskSearch(v);
+          setTask(v);
+          setShowTaskResults(true);
+        }}
+        onFocus={() => setShowTaskResults(true)}
+      />
 
-              {/* Details */}
-              <div className="col-span-3">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  placeholder="Optional details (color, location, etc.)"
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                />
-              </div>
-
-              {/* Qty */}
-              <div className="col-span-1">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  type="number"
-                  placeholder="0"
-                  value={Number.isFinite(quantity) ? quantity : 0}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                />
-              </div>
-
-              {/* Unit */}
-              <div className="col-span-1">
-                <select
-                  className="border p-2 rounded w-full h-10"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                >
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Hours */}
-              <div className="col-span-2">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  type="number"
-                  placeholder="0"
-                  value={Number.isFinite(hours) ? hours : 0}
-                  onChange={(e) => setHours(Number(e.target.value))}
-                />
-              </div>
-
-              {/* Action */}
-              <div className="col-span-1 text-right">
-                <button
-                  onClick={addLabor}
-                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
-                >
-                  Add
-                </button>
-              </div>
+      {showTaskResults && filteredTasks.length > 0 ? (
+        <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+          {filteredTasks.map((t) => (
+            <div
+              key={t.id}
+              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+              onClick={() => applyTaskSelection(t)}
+            >
+              {t.name}
             </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  </div>
+
+  <div>
+    <input
+      className="border p-2 rounded w-full h-10"
+      placeholder="Optional details (color, location, etc.)"
+      value={details}
+      onChange={(e) => setDetails(e.target.value)}
+    />
+  </div>
+
+  <div>
+    <input
+      className="border p-2 rounded w-full h-10 text-right"
+      type="number"
+      placeholder="0"
+      value={Number.isFinite(quantity) ? quantity : 0}
+      onChange={(e) => setQuantity(Number(e.target.value))}
+    />
+  </div>
+
+  <div>
+    <select
+      className="border p-2 rounded w-full h-10"
+      value={unit}
+      onChange={(e) => setUnit(e.target.value)}
+    >
+      {UNIT_OPTIONS.map((u) => (
+        <option key={u.value} value={u.value}>
+          {u.label}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <input
+      className="border p-2 rounded w-full h-10 text-right"
+      type="number"
+      placeholder="0"
+      value={Number.isFinite(hours) ? hours : 0}
+      onChange={(e) => setHours(Number(e.target.value))}
+    />
+  </div>
+
+  <div></div>
+
+  <div className="text-right">
+    <button
+      onClick={addLabor}
+      className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+    >
+      Add
+    </button>
+  </div>
+</div>
 
             {labor.length === 0 ? (
               <div className="text-gray-400 text-sm py-3">No labor added yet.</div>
@@ -1339,9 +1339,9 @@ if (
                 return (
                 <div
   key={row.id}
-  className="grid grid-cols-12 gap-4 border p-2 rounded text-sm items-center"
+  className="grid grid-cols-[36px_2.2fr_1.8fr_72px_72px_96px_96px_80px] gap-3 border p-2 rounded text-sm items-center"
 >
-  <div className="col-span-4 grid grid-cols-[20px_1fr] gap-3 items-center">
+  <div className="flex justify-center">
     <input
       className="w-4 h-4"
       type="checkbox"
@@ -1364,12 +1364,13 @@ if (
         );
       }}
     />
-    <div>{row.task}</div>
   </div>
 
-  <div className="col-span-3 text-gray-600">{row.item || "—"}</div>
+  <div>{row.task}</div>
 
-  <div className="col-span-1">
+  <div className="text-gray-600">{row.item || "—"}</div>
+
+  <div>
     <input
       className="border p-1 rounded w-full text-right"
       type="number"
@@ -1402,9 +1403,9 @@ if (
     />
   </div>
 
-  <div className="col-span-1">{row.unit}</div>
+  <div>{row.unit}</div>
 
-  <div className="col-span-2">
+  <div>
     <input
       className="border p-1 rounded w-full text-right"
       type="number"
@@ -1438,14 +1439,14 @@ if (
     />
   </div>
 
-  <div className="col-span-1 text-right">
+  <div className="text-right">
     {rowTotal.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}
   </div>
 
-  <div className="col-span-1 text-right">
+  <div className="text-right">
     <button
       onClick={() => deleteLaborRow(row.id)}
       className="text-red-600 hover:underline"
