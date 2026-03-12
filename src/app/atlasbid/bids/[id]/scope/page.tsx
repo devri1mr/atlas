@@ -1238,7 +1238,7 @@ if (
   </div>
 ) : null}
 </div>
-          {/* LABOR BUILDER */}
+{/* LABOR BUILDER */}
 <div className="border rounded-lg p-6 space-y-4">
   <div className="flex items-start justify-between gap-6 flex-wrap">
     <div>
@@ -1252,7 +1252,7 @@ if (
   </div>
 
   {/* Top headers */}
-  <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 text-xs font-semibold text-gray-600 pt-2 items-end">
+  <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 text-xs font-semibold text-gray-600 pt-2 items-end">
     <div></div>
     <div>Task</div>
     <div>Details (optional)</div>
@@ -1264,7 +1264,7 @@ if (
   </div>
 
   {/* Add row */}
-  <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 items-start">
+  <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 items-start">
     <div></div>
 
     <div ref={taskDropdownRef}>
@@ -1341,19 +1341,19 @@ if (
       />
     </div>
 
-    <div className="h-10 flex items-center justify-end text-sm text-gray-400">
+    <div className="h-10 flex items-center justify-end text-sm text-gray-400 tabular-nums">
       —
     </div>
 
-    <div className="space-y-2">
+    <div className="flex flex-col items-end gap-2">
       <button
         onClick={addLabor}
-        className="bg-emerald-700 text-white rounded h-10 w-full"
+        className="bg-emerald-700 text-white rounded h-10 w-[84px]"
       >
         Add
       </button>
 
-      <label className="flex items-center justify-end gap-2 text-xs text-gray-700 leading-none">
+      <label className="flex items-center justify-end gap-2 text-xs text-gray-700 leading-none whitespace-nowrap">
         <input
           type="checkbox"
           checked={saveToCatalog}
@@ -1379,7 +1379,7 @@ if (
   ) : (
     <>
       {/* Row headers */}
-      <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 text-[11px] font-semibold text-gray-500 px-3 pt-2 items-end">
+      <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 text-[11px] font-semibold text-gray-500 px-3 pt-2 items-end">
         <div></div>
         <div>Task</div>
         <div>Details</div>
@@ -1398,7 +1398,7 @@ if (
           return (
             <div
               key={row.id}
-              className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 border rounded px-3 py-3 text-sm items-center"
+              className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 border rounded px-3 py-3 text-sm items-center"
             >
               <div className="flex justify-center">
                 <input
@@ -1425,7 +1425,9 @@ if (
                 />
               </div>
 
-              <div className="font-medium leading-tight">{row.task}</div>
+              <div className="border rounded w-full h-10 px-3 flex items-center font-medium leading-tight bg-gray-50">
+                {row.task}
+              </div>
 
               <div>
                 <input
