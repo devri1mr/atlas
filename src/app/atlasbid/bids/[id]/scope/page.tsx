@@ -1251,26 +1251,34 @@ if (
     </div>
   </div>
 
-  {/* Top headers */}
-  <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 text-xs font-semibold text-gray-600 pt-2 items-end">
+  {/* Single header row */}
+  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 text-xs font-semibold text-gray-600 items-end">
     <div></div>
     <div>Task</div>
-    <div>Details (optional)</div>
+    <div>Details</div>
     <div className="text-center">Qty</div>
     <div className="text-center">Unit</div>
     <div className="text-center">Hours</div>
-    <div className="text-right">Total ($)</div>
+    <div className="text-right">Total</div>
     <div className="text-right">Action</div>
   </div>
 
   {/* Add row */}
-  <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 items-start">
-    <div></div>
+  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center">
+    <div className="flex justify-center">
+      <label className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={saveToCatalog}
+          onChange={(e) => setSaveToCatalog(e.target.checked)}
+        />
+      </label>
+    </div>
 
     <div ref={taskDropdownRef}>
       <div className="relative">
         <input
-          className="border rounded w-full h-10 px-3"
+          className="border rounded w-full h-9 px-3"
           placeholder="Search saved tasks..."
           value={taskSearch}
           onChange={(e) => {
@@ -1300,8 +1308,8 @@ if (
 
     <div>
       <input
-        className="border rounded w-full h-10 px-3"
-        placeholder="Optional details (color, location, etc.)"
+        className="border rounded w-full h-9 px-3"
+        placeholder="Optional details"
         value={details}
         onChange={(e) => setDetails(e.target.value)}
       />
@@ -1309,7 +1317,7 @@ if (
 
     <div>
       <input
-        className="border rounded w-full h-10 px-3 text-right"
+        className="border rounded w-full h-9 px-3 text-right"
         type="number"
         placeholder="0"
         value={Number.isFinite(quantity) ? quantity : 0}
@@ -1319,7 +1327,7 @@ if (
 
     <div>
       <select
-        className="border rounded w-full h-10 px-2"
+        className="border rounded w-full h-9 px-2"
         value={unit}
         onChange={(e) => setUnit(e.target.value)}
       >
@@ -1333,7 +1341,7 @@ if (
 
     <div>
       <input
-        className="border rounded w-full h-10 px-3 text-right"
+        className="border rounded w-full h-9 px-3 text-right"
         type="number"
         placeholder="0"
         value={Number.isFinite(hours) ? hours : 0}
@@ -1341,35 +1349,32 @@ if (
       />
     </div>
 
-    <div className="h-10 flex items-center justify-end text-sm text-gray-400 tabular-nums">
-      —
-    </div>
+    <div className="text-right text-sm text-gray-400 tabular-nums">—</div>
 
-    <div className="flex flex-col items-end gap-2">
+    <div className="text-right">
       <button
         onClick={addLabor}
-        className="bg-emerald-700 text-white rounded h-10 w-[84px]"
+        className="bg-emerald-700 text-white rounded h-9 px-4"
       >
         Add
       </button>
-
-      <label className="flex items-center justify-end gap-2 text-xs text-gray-700 leading-none whitespace-nowrap">
-        <input
-          type="checkbox"
-          checked={saveToCatalog}
-          onChange={(e) => setSaveToCatalog(e.target.checked)}
-        />
-        Save to Catalog
-      </label>
-
-      {savingToCatalog ? (
-        <div className="text-[11px] text-gray-500 text-right">Saving…</div>
-      ) : null}
-
-      {saveToCatalogMsg ? (
-        <div className="text-[11px] text-gray-500 text-right">{saveToCatalogMsg}</div>
-      ) : null}
     </div>
+  </div>
+
+  {/* Save to Catalog helper row */}
+  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1">
+    <div></div>
+    <div className="text-xs text-gray-600">
+      Save to Catalog
+    </div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div className="text-right text-[11px] text-gray-500">
+      {savingToCatalog ? "Saving…" : saveToCatalogMsg || ""}
+    </div>
+    <div></div>
   </div>
 
   {labor.length === 0 ? (
@@ -1377,175 +1382,157 @@ if (
       No labor added yet.
     </div>
   ) : (
-    <>
-      {/* Row headers */}
-      <div className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 text-[11px] font-semibold text-gray-500 px-3 pt-2 items-end">
-        <div></div>
-        <div>Task</div>
-        <div>Details</div>
-        <div className="text-center">Qty</div>
-        <div className="text-center">Unit</div>
-        <div className="text-center">Hours</div>
-        <div className="text-right">Total</div>
-        <div className="text-right">Action</div>
-      </div>
+    <div className="space-y-2 pt-1">
+      {labor.map((row) => {
+        const rowTotal =
+          (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-      <div className="space-y-3 pt-1">
-        {labor.map((row) => {
-          const rowTotal =
-            (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+        return (
+          <div
+            key={row.id}
+            className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 border rounded px-3 py-2 text-sm items-center"
+          >
+            <div className="flex justify-center">
+              <input
+                className="w-4 h-4"
+                type="checkbox"
+                checked={row.show_as_line_item === true}
+                onChange={async (e) => {
+                  const checked = e.target.checked;
 
-          return (
-            <div
-              key={row.id}
-              className="grid grid-cols-[44px_2.5fr_2.5fr_88px_88px_96px_100px_84px] gap-3 border rounded px-3 py-3 text-sm items-center"
-            >
-              <div className="flex justify-center">
-                <input
-                  className="w-4 h-4"
-                  type="checkbox"
-                  checked={row.show_as_line_item === true}
-                  onChange={async (e) => {
-                    const checked = e.target.checked;
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      show_as_line_item: checked,
+                    }),
+                  });
 
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        show_as_line_item: checked,
-                      }),
-                    });
-
-                    setLabor((prev) =>
-                      prev.map((r) =>
-                        r.id === row.id ? { ...r, show_as_line_item: checked } : r
-                      )
-                    );
-                  }}
-                />
-              </div>
-
-              <div className="border rounded w-full h-10 px-3 flex items-center font-medium leading-tight bg-gray-50">
-                {row.task}
-              </div>
-
-              <div>
-                <input
-                  className="border rounded w-full h-10 px-3 text-sm"
-                  value={row.proposal_text ?? row.task}
-                  onChange={async (e) => {
-                    const value = e.target.value;
-
-                    setLabor((prev) =>
-                      prev.map((r) =>
-                        r.id === row.id ? { ...r, proposal_text: value } : r
-                      )
-                    );
-
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        proposal_text: value,
-                      }),
-                    });
-                  }}
-                />
-              </div>
-
-              <div>
-                <input
-                  className="border rounded w-full h-10 px-3 text-right"
-                  type="number"
-                  value={row.quantity === 0 ? "" : row.quantity}
-                  onChange={async (e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
-                    setLabor((prev) =>
-                      prev.map((r) =>
-                        r.id === row.id
-                          ? {
-                              ...r,
-                              quantity: value,
-                              is_overridden: true,
-                            }
-                          : r
-                      )
-                    );
-
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        quantity: value,
-                        is_overridden: true,
-                      }),
-                    });
-                  }}
-                />
-              </div>
-
-              <div>
-                <div className="border rounded w-full h-10 px-3 flex items-center bg-gray-50">
-                  {row.unit}
-                </div>
-              </div>
-
-              <div>
-                <input
-                  className="border rounded w-full h-10 px-3 text-right"
-                  type="number"
-                  step="0.01"
-                  value={row.man_hours === 0 ? "" : row.man_hours}
-                  onChange={async (e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
-                    setLabor((prev) =>
-                      prev.map((r) =>
-                        r.id === row.id
-                          ? {
-                              ...r,
-                              man_hours: value,
-                              is_overridden: true,
-                            }
-                          : r
-                      )
-                    );
-
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        man_hours: value,
-                        is_overridden: true,
-                      }),
-                    });
-                  }}
-                />
-              </div>
-
-              <div className="text-right font-medium tabular-nums">
-                {rowTotal.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-
-              <div className="text-right">
-                <button
-                  onClick={() => deleteLaborRow(row.id)}
-                  className="text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              </div>
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id ? { ...r, show_as_line_item: checked } : r
+                    )
+                  );
+                }}
+              />
             </div>
-          );
-        })}
-      </div>
-    </>
+
+            <div className="font-medium leading-tight truncate">
+              {row.task}
+            </div>
+
+            <div>
+              <input
+                className="border rounded w-full h-9 px-3 text-sm"
+                value={row.proposal_text ?? row.task}
+                onChange={async (e) => {
+                  const value = e.target.value;
+
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id ? { ...r, proposal_text: value } : r
+                    )
+                  );
+
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      proposal_text: value,
+                    }),
+                  });
+                }}
+              />
+            </div>
+
+            <div>
+              <input
+                className="border rounded w-full h-9 px-3 text-right"
+                type="number"
+                value={row.quantity === 0 ? "" : row.quantity}
+                onChange={async (e) => {
+                  const raw = e.target.value;
+                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id
+                        ? {
+                            ...r,
+                            quantity: value,
+                            is_overridden: true,
+                          }
+                        : r
+                    )
+                  );
+
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      quantity: value,
+                      is_overridden: true,
+                    }),
+                  });
+                }}
+              />
+            </div>
+
+            <div className="truncate">{row.unit}</div>
+
+            <div>
+              <input
+                className="border rounded w-full h-9 px-3 text-right"
+                type="number"
+                step="0.01"
+                value={row.man_hours === 0 ? "" : row.man_hours}
+                onChange={async (e) => {
+                  const raw = e.target.value;
+                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+                  setLabor((prev) =>
+                    prev.map((r) =>
+                      r.id === row.id
+                        ? {
+                            ...r,
+                            man_hours: value,
+                            is_overridden: true,
+                          }
+                        : r
+                    )
+                  );
+
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      man_hours: value,
+                      is_overridden: true,
+                    }),
+                  });
+                }}
+              />
+            </div>
+
+            <div className="text-right font-medium tabular-nums">
+              {rowTotal.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+
+            <div className="text-right">
+              <button
+                onClick={() => deleteLaborRow(row.id)}
+                className="text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   )}
 </div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
