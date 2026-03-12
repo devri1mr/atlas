@@ -331,12 +331,8 @@ baseRows.push({
         parts.push(`${row.quantity} ${row.unit}`);
       }
 
-     const bundleName = bundleRunNameMap.get(row.bundle_run_id || "");
-
-baseRows.push({
-  label: bundleName
-    ? `${bundleName}||${parts.join(" — ")}`
-    : parts.join(" — "),
+    baseRows.push({
+  label: parts.join(" — "),
   cost,
 });
     }
