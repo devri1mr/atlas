@@ -1252,7 +1252,7 @@ if (
   </div>
 
   {/* Single header row */}
-  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 text-xs font-semibold text-gray-600 items-end">
+ <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 text-xs font-semibold text-gray-600 items-end px-3">
     <div></div>
     <div>Task</div>
     <div>Details</div>
@@ -1264,7 +1264,7 @@ if (
   </div>
 
   {/* Add row */}
-  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center">
+ <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center px-3">
     <div className="flex justify-center">
       <label className="flex items-center justify-center">
         <input
@@ -1362,7 +1362,7 @@ if (
   </div>
 
   {/* Save to Catalog helper row */}
-  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1">
+  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1 px-3">
     <div></div>
     <div className="text-xs text-gray-600">
       Save to Catalog
