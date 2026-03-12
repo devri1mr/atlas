@@ -839,9 +839,11 @@ if (
         ? Number(tm.unit_cost) || 0
         : Number(catalog.default_unit_cost) || 0;
 
-    await fetch(`/api/atlasbid/bid-materials`, {
+    const res = await fetch(`/api/atlasbid/bid-materials`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         bid_id: bidId,
         material_id: catalog.id,
@@ -849,8 +851,17 @@ if (
         qty: Number(mQty.toFixed(2)),
         unit: mUnit,
         unit_cost: Number(mUnitCost.toFixed(2)),
+        source_type: "template",
+        source_task_id: row?.id
       }),
     });
+
+    const json = await res.json();
+    const newRow = json?.row ?? json?.data ?? null;
+
+    if (newRow) {
+      setMaterials((prev) => [...prev, newRow]);
+    }
   }
 }
     // Optional save to task catalog (unchanged behavior)
