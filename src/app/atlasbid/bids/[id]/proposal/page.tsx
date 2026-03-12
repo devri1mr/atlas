@@ -468,7 +468,7 @@ baseRows.push({
 </div>
 
 {text && text !== bundle && (
-  <div>- {text}</div>
+  <div style={{ paddingLeft: "18px" }}>- {text}</div>
 )}
                         </>
                       ) : (
