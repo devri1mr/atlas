@@ -291,15 +291,16 @@ export default function ProposalPage() {
       const cost =
         (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-      if (bundleRunId) {
-        if (groupedBundleRunIds.has(bundleRunId)) continue;
+     if (bundleRunId && row.show_as_line_item !== true) {
+  if (groupedBundleRunIds.has(bundleRunId)) continue;
 
-        groupedBundleRunIds.add(bundleRunId);
-        
-if (bundleRows.length === 0) continue;
-        const bundleRows = labor.filter(
-  (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true
-);
+  groupedBundleRunIds.add(bundleRunId);
+
+  const bundleRows = labor.filter(
+    (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true
+  );
+
+  if (bundleRows.length === 0) continue;
 
         const bundleCost = bundleRows.reduce(
           (sum, r) =>
