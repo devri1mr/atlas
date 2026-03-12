@@ -6,14 +6,13 @@ export async function GET(req: Request) {
     const supabase = supabaseAdmin();
     const url = new URL(req.url);
 
-    const division_id = url.searchParams.get("division_id") || "";
     const task_catalog_id = url.searchParams.get("task_catalog_id") || "";
 
-    if (!division_id) {
-      return NextResponse.json({ error: "Missing division_id" }, { status: 400 });
-    }
     if (!task_catalog_id) {
-      return NextResponse.json({ error: "Missing task_catalog_id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing task_catalog_id" },
+        { status: 400 }
+      );
     }
 
     const { data, error } = await supabase
@@ -39,13 +38,18 @@ export async function GET(req: Request) {
         )
       `
       )
-      .eq("division_id", division_id)
       .eq("task_catalog_id", task_catalog_id)
       .order("created_at", { ascending: true });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ rows: data ?? [] });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ rows: data ?? [] }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "Unknown error" },
+      { status: 500 }
+    );
   }
 }
