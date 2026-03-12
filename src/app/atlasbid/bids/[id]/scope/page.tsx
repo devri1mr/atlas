@@ -815,53 +815,64 @@ Project Price: ${money(sellRounded)}`;
     const row = json?.row ?? json?.data;
     if (row) setLabor((prev) => [...prev, row]);
 
-// Auto-add template materials
+// Auto-add template materials (fresh fetch at click time)
 if (
   applyTemplateMaterials &&
-  templateMaterials.length > 0 &&
+  selectedTaskCatalogId &&
   (Number(quantity) || 0) > 0
 ) {
-  const taskQty = Number(quantity) || 0;
+  try {
+    const tmRes = await fetch(
+      `/api/task-template-materials?task_catalog_id=${selectedTaskCatalogId}`,
+      { cache: "no-store" }
+    );
 
-  for (const tm of templateMaterials) {
-    const catalog = tm.materials_catalog;
-    if (!catalog?.id || !catalog?.name) continue;
+    const tmJson = await tmRes.json();
+    const liveTemplateMaterials = Array.isArray(tmJson?.rows) ? tmJson.rows : [];
 
-    const qtyPer = Number(tm.qty_per_task_unit) || 0;
-    const mQty = qtyPer * taskQty;
+    const taskQty = Number(quantity) || 0;
 
-    if (mQty <= 0) continue;
+    for (const tm of liveTemplateMaterials) {
+      const catalog = tm.materials_catalog;
+      if (!catalog?.id || !catalog?.name) continue;
 
-    const mUnit = (tm.unit || catalog.default_unit || "ea").toString();
+      const qtyPer = Number(tm.qty_per_task_unit) || 0;
+      const mQty = qtyPer * taskQty;
+      if (mQty <= 0) continue;
 
-    const mUnitCost =
-      tm.unit_cost !== null && tm.unit_cost !== undefined
-        ? Number(tm.unit_cost) || 0
-        : Number(catalog.default_unit_cost) || 0;
+      const mUnit = (tm.unit || catalog.default_unit || "ea").toString();
 
-    const res = await fetch(`/api/atlasbid/bid-materials`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        bid_id: bidId,
-        material_id: catalog.id,
-        name: catalog.name,
-        qty: Number(mQty.toFixed(2)),
-        unit: mUnit,
-        unit_cost: Number(mUnitCost.toFixed(2)),
-        source_type: "template",
-        source_task_id: row?.id
-      }),
-    });
+      const mUnitCost =
+        tm.unit_cost !== null && tm.unit_cost !== undefined
+          ? Number(tm.unit_cost) || 0
+          : Number(catalog.default_unit_cost) || 0;
 
-    const json = await res.json();
-    const newRow = json?.row ?? json?.data ?? null;
+      const res = await fetch(`/api/atlasbid/bid-materials`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bid_id: bidId,
+          material_id: catalog.id,
+          name: catalog.name,
+          qty: Number(mQty.toFixed(2)),
+          unit: mUnit,
+          unit_cost: Number(mUnitCost.toFixed(2)),
+          source_type: "template",
+          source_task_id: row?.id,
+        }),
+      });
 
-    if (newRow) {
-      setMaterials((prev) => [...prev, newRow]);
+      const json = await res.json();
+      const newRow = json?.row ?? json?.data ?? null;
+
+      if (newRow) {
+        setMaterials((prev) => [...prev, newRow]);
+      }
     }
+  } catch (e) {
+    console.error("Failed auto-adding template materials", e);
   }
 }
     // Optional save to task catalog (unchanged behavior)
