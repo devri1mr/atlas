@@ -295,8 +295,11 @@ export default function ProposalPage() {
         if (groupedBundleRunIds.has(bundleRunId)) continue;
 
         groupedBundleRunIds.add(bundleRunId);
-
-        const bundleRows = labor.filter((r) => r.bundle_run_id === bundleRunId);
+        
+if (bundleRows.length === 0) continue;
+        const bundleRows = labor.filter(
+  (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true
+);
 
         const bundleCost = bundleRows.reduce(
           (sum, r) =>
