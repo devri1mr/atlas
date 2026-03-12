@@ -1351,23 +1351,31 @@ if (
 
     <div className="text-right text-sm text-gray-400 tabular-nums">—</div>
 
-  <div className="flex flex-col items-end gap-1">
-  <button
-    onClick={addLabor}
-    className="bg-emerald-700 text-white rounded h-9 px-4"
-  >
-    Add
-  </button>
+    <div className="text-right">
+      <button
+        onClick={addLabor}
+        className="bg-emerald-700 text-white rounded h-9 px-4"
+      >
+        Add
+      </button>
+    </div>
+  </div>
 
-  <label className="flex items-center gap-2 text-xs text-gray-600">
-    <input
-      type="checkbox"
-      checked={saveToCatalog}
-      onChange={(e) => setSaveToCatalog(e.target.checked)}
-    />
-    Save to Catalog
-  </label>
-</div>
+  {/* Save to Catalog helper row */}
+  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1 px-3">
+    <div></div>
+    <div className="text-xs text-gray-600">
+      Save to Catalog
+    </div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div className="text-right text-[11px] text-gray-500">
+      {savingToCatalog ? "Saving…" : saveToCatalogMsg || ""}
+    </div>
+    <div></div>
+  </div>
 
   {labor.length === 0 ? (
     <div className="text-gray-400 text-sm py-4 border rounded px-3">
@@ -1918,6 +1926,7 @@ if (
     )}
   </div>
 </div>
+        </>
       )}
     </div>
   );
