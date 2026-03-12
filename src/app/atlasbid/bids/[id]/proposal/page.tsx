@@ -304,10 +304,17 @@ export default function ProposalPage() {
           0
         );
 
-        baseRows.push({
-          label: bundleRunNameMap.get(bundleRunId) || "Bundled Scope",
-          cost: bundleCost,
-        });
+       const bundleName = bundleRunNameMap.get(bundleRunId) || "Bundled Scope";
+
+const childLines = bundleRows
+  .map((r) => r.proposal_text || r.task || "")
+  .filter(Boolean)
+  .join("~~");
+
+baseRows.push({
+  label: `${bundleName}||${childLines}`,
+  cost: bundleCost,
+});
 
         continue;
       }
