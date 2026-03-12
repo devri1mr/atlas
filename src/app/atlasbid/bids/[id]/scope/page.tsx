@@ -1251,7 +1251,8 @@ if (
     </div>
   </div>
 
-  <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-xs font-semibold text-gray-600 pt-2">
+  {/* Top headers */}
+  <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 text-xs font-semibold text-gray-600 pt-2 items-end">
     <div></div>
     <div>Task</div>
     <div>Details (optional)</div>
@@ -1262,13 +1263,14 @@ if (
     <div className="text-right">Action</div>
   </div>
 
-  <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 items-start">
+  {/* Add row */}
+  <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 items-start">
     <div></div>
 
     <div ref={taskDropdownRef}>
       <div className="relative">
         <input
-          className="border p-2 rounded w-full h-11"
+          className="border rounded w-full h-10 px-3"
           placeholder="Search saved tasks..."
           value={taskSearch}
           onChange={(e) => {
@@ -1298,7 +1300,7 @@ if (
 
     <div>
       <input
-        className="border p-2 rounded w-full h-11"
+        className="border rounded w-full h-10 px-3"
         placeholder="Optional details (color, location, etc.)"
         value={details}
         onChange={(e) => setDetails(e.target.value)}
@@ -1307,7 +1309,7 @@ if (
 
     <div>
       <input
-        className="border p-2 rounded w-full h-11 text-right"
+        className="border rounded w-full h-10 px-3 text-right"
         type="number"
         placeholder="0"
         value={Number.isFinite(quantity) ? quantity : 0}
@@ -1317,7 +1319,7 @@ if (
 
     <div>
       <select
-        className="border p-2 rounded w-full h-11"
+        className="border rounded w-full h-10 px-2"
         value={unit}
         onChange={(e) => setUnit(e.target.value)}
       >
@@ -1331,7 +1333,7 @@ if (
 
     <div>
       <input
-        className="border p-2 rounded w-full h-11 text-right"
+        className="border rounded w-full h-10 px-3 text-right"
         type="number"
         placeholder="0"
         value={Number.isFinite(hours) ? hours : 0}
@@ -1339,17 +1341,19 @@ if (
       />
     </div>
 
-    <div></div>
+    <div className="h-10 flex items-center justify-end text-sm text-gray-400">
+      —
+    </div>
 
     <div className="space-y-2">
       <button
         onClick={addLabor}
-        className="bg-emerald-700 text-white rounded px-4 py-2 h-11 w-full"
+        className="bg-emerald-700 text-white rounded h-10 w-full"
       >
         Add
       </button>
 
-      <label className="flex items-center justify-end gap-2 text-xs text-gray-700">
+      <label className="flex items-center justify-end gap-2 text-xs text-gray-700 leading-none">
         <input
           type="checkbox"
           checked={saveToCatalog}
@@ -1368,14 +1372,14 @@ if (
     </div>
   </div>
 
-   {labor.length === 0 ? (
+  {labor.length === 0 ? (
     <div className="text-gray-400 text-sm py-4 border rounded px-3">
       No labor added yet.
     </div>
   ) : (
     <>
       {/* Row headers */}
-      <div className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 text-[11px] font-semibold text-gray-500 px-3">
+      <div className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 text-[11px] font-semibold text-gray-500 px-3 pt-2 items-end">
         <div></div>
         <div>Task</div>
         <div>Details</div>
@@ -1394,7 +1398,7 @@ if (
           return (
             <div
               key={row.id}
-              className="grid grid-cols-[36px_2.3fr_2fr_84px_84px_110px_110px_96px] gap-3 border rounded px-3 py-3 text-sm items-center"
+              className="grid grid-cols-[44px_2.25fr_2.25fr_96px_88px_96px_110px_88px] gap-3 border rounded px-3 py-3 text-sm items-center"
             >
               <div className="flex justify-center">
                 <input
@@ -1423,32 +1427,33 @@ if (
 
               <div className="font-medium leading-tight">{row.task}</div>
 
-             <div>
-  <input
-    className="border p-1 rounded w-full text-sm"
-    value={row.proposal_text ?? row.task}
-    onChange={async (e) => {
-      const value = e.target.value;
-
-      setLabor((prev) =>
-        prev.map((r) =>
-          r.id === row.id ? { ...r, proposal_text: value } : r
-        )
-      );
-
-      await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposal_text: value,
-        }),
-      });
-    }}
-  />
-</div>
               <div>
                 <input
-                  className="border p-1 rounded w-full text-right h-9"
+                  className="border rounded w-full h-10 px-3 text-sm"
+                  value={row.proposal_text ?? row.task}
+                  onChange={async (e) => {
+                    const value = e.target.value;
+
+                    setLabor((prev) =>
+                      prev.map((r) =>
+                        r.id === row.id ? { ...r, proposal_text: value } : r
+                      )
+                    );
+
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        proposal_text: value,
+                      }),
+                    });
+                  }}
+                />
+              </div>
+
+              <div>
+                <input
+                  className="border rounded w-full h-10 px-3 text-right"
                   type="number"
                   value={row.quantity === 0 ? "" : row.quantity}
                   onChange={async (e) => {
@@ -1479,11 +1484,15 @@ if (
                 />
               </div>
 
-              <div>{row.unit}</div>
+              <div>
+                <div className="border rounded w-full h-10 px-3 flex items-center bg-gray-50">
+                  {row.unit}
+                </div>
+              </div>
 
               <div>
                 <input
-                  className="border p-1 rounded w-full text-right h-9"
+                  className="border rounded w-full h-10 px-3 text-right"
                   type="number"
                   step="0.01"
                   value={row.man_hours === 0 ? "" : row.man_hours}
@@ -1515,7 +1524,7 @@ if (
                 />
               </div>
 
-              <div className="text-right font-medium">
+              <div className="text-right font-medium tabular-nums">
                 {rowTotal.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
