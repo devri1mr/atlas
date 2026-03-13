@@ -847,29 +847,41 @@ if (
           ? Number(tm.unit_cost) || 0
           : Number(catalog.default_unit_cost) || 0;
 
-      const res = await fetch(`/api/atlasbid/bid-materials`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bid_id: bidId,
-          material_id: catalog.id,
-          name: catalog.name,
-          qty: Number(mQty.toFixed(2)),
-          unit: mUnit,
-          unit_cost: Number(mUnitCost.toFixed(2)),
-          source_type: "template",
-          source_task_id: row?.id,
-        }),
-      });
+      const payload = {
+  bidId,
+  bid_id: bidId,
+  material_id: catalog.id,
+  name: catalog.name,
+  details: tm.details ?? null,
+  qty: Number(mQty.toFixed(2)),
+  unit: mUnit,
+  unitCost: Number(mUnitCost.toFixed(2)),
+  unit_cost: Number(mUnitCost.toFixed(2)),
+  source_type: "template",
+  source_task_id: row?.id ?? null,
+};
 
-      const json = await res.json();
-      const newRow = json?.row ?? json?.data ?? null;
+const res = await fetch(`/api/atlasbid/bid-materials`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(payload),
+});
 
-      if (newRow) {
-        setMaterials((prev) => [...prev, newRow]);
-      }
+const json = await res.json();
+
+if (!res.ok) {
+  console.error("Auto-add material failed", json);
+  setError(json?.error?.message || json?.error || "Failed auto-adding material");
+  continue;
+}
+
+const newRow = json?.row ?? json?.data ?? json ?? null;
+
+if (newRow) {
+  setMaterials((prev) => [...prev, newRow]);
+}
     }
   } catch (e) {
     console.error("Failed auto-adding template materials", e);
