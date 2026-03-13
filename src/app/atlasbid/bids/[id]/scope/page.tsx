@@ -163,6 +163,8 @@ const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
   // Materials (bid rows)
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
+  const [materials, setMaterials] = useState<MaterialRow[]>([]);
+const addingMaterialRef = useRef(false);
   const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
 const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
 const [loadingTemplateMaterials, setLoadingTemplateMaterials] = useState(false);
@@ -976,10 +978,9 @@ if (newRow) {
   }
 
   // ✅ Add material
-  let addingMaterial = false;
   async function addMaterial() {
-    if (addingMaterial) return;
-    addingMaterial = true;
+  if (addingMaterialRef.current) return;
+  addingMaterialRef.current = true;
     
     setError("");
 
@@ -1023,7 +1024,7 @@ if (newRow) {
     setMaterialUnit("ea");
     setMaterialCost(0);
     setShowMaterialResults(false);
-    addingMaterial = false;
+    addingMaterialRef.current = false;
   }
 
   async function deleteMaterialRow(rowId: string) {
