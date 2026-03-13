@@ -858,7 +858,6 @@ if (
   unitCost: Number(mUnitCost.toFixed(2)),
   unit_cost: Number(mUnitCost.toFixed(2)),
   source_type: "template",
-  source_task_id: row?.id ?? null,
 };
 
 const res = await fetch(`/api/atlasbid/bid-materials`, {
