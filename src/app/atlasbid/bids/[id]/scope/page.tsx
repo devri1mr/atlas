@@ -246,7 +246,75 @@ const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
+function normalizeMaterialText(v: unknown) {
+  return String(v ?? "").trim().toLowerCase();
+}
 
+function findMatchingMaterialRow(
+  rows: MaterialRow[],
+  args: {
+    material_id?: string | null;
+    name: string;
+    unit: string;
+  }
+) {
+  const targetMaterialId = normalizeMaterialText(args.material_id);
+  const targetName = normalizeMaterialText(args.name);
+  const targetUnit = normalizeMaterialText(args.unit);
+
+  return rows.find((row) => {
+    const rowUnit = normalizeMaterialText(row.unit);
+    if (rowUnit !== targetUnit) return false;
+
+    const rowMaterialId = normalizeMaterialText(row.material_id);
+
+    if (targetMaterialId && rowMaterialId) {
+      return rowMaterialId === targetMaterialId;
+    }
+
+    return normalizeMaterialText(row.name) === targetName;
+  });
+}
+
+async function mergeMaterialRow(
+  existing: MaterialRow,
+  incoming: {
+    name: string;
+    details?: string | null;
+    qty: number;
+    unit: string;
+    unit_cost: number;
+  }
+) {
+  const nextQty = Number(
+    (Number(existing.qty || 0) + Number(incoming.qty || 0)).toFixed(2)
+  );
+
+  const payload: any = {
+    name: existing.name || incoming.name,
+    details: existing.details ?? incoming.details ?? null,
+    qty: nextQty,
+    unit: existing.unit || incoming.unit,
+    unitCost: Number(existing.unit_cost ?? incoming.unit_cost ?? 0),
+    unit_cost: Number(existing.unit_cost ?? incoming.unit_cost ?? 0),
+  };
+
+  const res = await fetch(`/api/atlasbid/bid-materials/${existing.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      json?.error?.message || json?.error || "Failed to merge material row"
+    );
+  }
+
+  return json?.row ?? json?.data ?? json;
+}
   async function loadAll() {
     if (!bidId) return;
 
