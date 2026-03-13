@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     const details = String(body?.details ?? "").trim() || null;
     const unit = String(body?.unit ?? "").trim();
     const source_type = String(body?.source_type ?? "manual").trim() || "manual";
-    const source_task_id = String(body?.source_task_id ?? "").trim() || null;
+    const source_task_id = body?.source_task_id || null;
 
     if (!bid_id || !isUuid(bid_id)) {
       return NextResponse.json({ error: "bid_id must be a uuid" }, { status: 400 });
