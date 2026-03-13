@@ -1102,12 +1102,33 @@ Project Price: ${money(sellRounded)}`;
       return;
     }
 
-    const alreadyExists = materials.some(
-      (m) => (m.name || "").trim().toLowerCase() === trimmedName.toLowerCase()
-    );
+    const existing = findMatchingMaterialRow(materials, {
+      material_id: selectedMaterialId || null,
+      name: trimmedName,
+      unit: materialUnit,
+    });
 
-    if (alreadyExists) {
-      setError("This material is already added.");
+    if (existing) {
+      const updated = await mergeMaterialRow(existing, {
+        name: trimmedName,
+        details: materialDetails.trim() || null,
+        qty: Number(materialQty) || 0,
+        unit: materialUnit,
+        unit_cost: Number(materialCost) || 0,
+      });
+
+      setMaterials((prev) =>
+        prev.map((r) => (r.id === existing.id ? { ...r, ...updated } : r))
+      );
+
+      setMaterialName("");
+      setSelectedMaterialId("");
+      setMaterialSearch("");
+      setMaterialDetails("");
+      setMaterialQty(0);
+      setMaterialUnit("ea");
+      setMaterialCost(0);
+      setShowMaterialResults(false);
       return;
     }
 
@@ -1115,6 +1136,7 @@ Project Price: ${money(sellRounded)}`;
       bidId,
       bid_id: bidId,
       company_id: bid?.company_id ?? null,
+      material_id: selectedMaterialId || null,
       name: trimmedName,
       details: materialDetails.trim() || null,
       qty: Number(materialQty) || 0,
@@ -1143,6 +1165,7 @@ Project Price: ${money(sellRounded)}`;
     }
 
     setMaterialName("");
+    setSelectedMaterialId("");
     setMaterialSearch("");
     setMaterialDetails("");
     setMaterialQty(0);
