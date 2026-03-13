@@ -11,7 +11,6 @@ function getSupabase() {
 
 /**
  * GET /api/atlasbid/bid-labor?bid_id=<uuid>
- * Returns rows for a bid
  */
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -24,10 +23,10 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("bid_labor")
-    .select(
-      `
+    .select(`
       id,
       bid_id,
+      task_catalog_id,
       task,
       item,
       proposal_text,
@@ -38,8 +37,7 @@ export async function GET(req: NextRequest) {
       show_as_line_item,
       bundle_run_id,
       created_at
-      `
-    )
+    `)
     .eq("bid_id", bid_id)
     .order("id", { ascending: true });
 
@@ -52,11 +50,6 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/atlasbid/bid-labor
- * Body:
- * {
- *   bid_id: uuid,
- *   task, item, quantity, unit, man_hours, hourly_rate
- * }
  */
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
@@ -70,8 +63,16 @@ export async function POST(req: NextRequest) {
 
   const bid_id = body?.bid_id;
   if (!bid_id || typeof bid_id !== "string") {
-    return NextResponse.json({ error: "bid_id (uuid string) is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "bid_id (uuid string) is required" },
+      { status: 400 }
+    );
   }
+
+  const task_catalog_id =
+    typeof body?.task_catalog_id === "string"
+      ? body.task_catalog_id
+      : null;
 
   const task = String(body?.task ?? "").trim();
   const item = String(body?.item ?? "").trim();
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
   const insertPayload = {
     bid_id,
     company_id: bidRow.company_id,
+    task_catalog_id,
     task,
     item,
     proposal_text,
@@ -124,10 +126,10 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("bid_labor")
     .insert(insertPayload)
-    .select(
-      `
+    .select(`
       id,
       bid_id,
+      task_catalog_id,
       task,
       item,
       proposal_text,
@@ -138,8 +140,7 @@ export async function POST(req: NextRequest) {
       show_as_line_item,
       bundle_run_id,
       created_at
-      `
-    )
+    `)
     .single();
 
   if (error) {
