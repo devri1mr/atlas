@@ -1760,11 +1760,12 @@ Project Price: ${money(sellRounded)}`;
                     placeholder="Search materials catalog…"
                     value={materialSearch}
                     onChange={(e) => {
-                      const v = e.target.value;
-                      setMaterialSearch(v);
-                      setMaterialName(v);
-                      setShowMaterialResults(true);
-                    }}
+  const v = e.target.value;
+  setSelectedMaterialId("");
+  setMaterialSearch(v);
+  setMaterialName(v);
+  setShowMaterialResults(true);
+}}
                     onFocus={() => setShowMaterialResults(true)}
                   />
 
