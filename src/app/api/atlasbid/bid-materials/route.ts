@@ -146,20 +146,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("bid_materials")
-      .insert({
-        bid_id,
-        company_id: body.company_id,
-        material_id,
-        name,
-        details,
-        qty,
-        unit,
-        unit_cost,
-        source_type,
-        source_task_id,
-      })
+    const company_id = String(body?.company_id ?? "").trim();
+
+const { data, error } = await supabase
+  .from("bid_materials")
+  .insert({
+    company_id,
+    bid_id,
+    material_id,
+    name,
+    details,
+    qty,
+    unit,
+    unit_cost,
+    source_type,
+    source_task_id,
+  })
       .select(
         "id, bid_id, material_id, name, details, qty, unit, unit_cost, source_type, source_task_id, created_at"
       )
