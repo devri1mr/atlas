@@ -1637,26 +1637,60 @@ async function addLabor() {
               />
             </div>
 
-            <div>
-              <input
-                className="border rounded w-full h-9 px-3 text-right"
-                type="number"
-                value={row.quantity === 0 ? "" : row.quantity}
-                onChange={async (e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+           <input
+  className="border rounded w-full h-9 px-3 text-right"
+  type="number"
+  value={row.quantity === 0 ? "" : row.quantity}
+  onChange={(e) => {
+    const raw = e.target.value;
+    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
 
-                  setLabor((prev) =>
-                    prev.map((r) =>
-                      r.id === row.id
-                        ? {
-                            ...r,
-                            quantity: value,
-                            is_overridden: true,
-                          }
-                        : r
-                    )
-                  );
+    setLabor((prev) =>
+      prev.map((r) =>
+        r.id === row.id
+          ? {
+              ...r,
+              quantity: value,
+              is_overridden: true,
+            }
+          : r
+      )
+    );
+  }}
+  onBlur={async (e) => {
+    const raw = e.target.value;
+    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+
+    try {
+      const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quantity: value,
+          unit: row.unit,
+          man_hours: row.man_hours,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        console.error("Labor update failed", json);
+        return;
+      }
+
+      if (json?.row) {
+        setLabor((prev) =>
+          prev.map((r) => (r.id === json.row.id ? json.row : r))
+        );
+      }
+    } catch (err) {
+      console.error("Labor autosave failed", err);
+    }
+  }}
+/>
 
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
