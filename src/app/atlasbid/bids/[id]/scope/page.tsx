@@ -852,188 +852,213 @@ Project Price: ${money(sellRounded)}`;
   navigator.clipboard.writeText(text);
 }
   async function addLabor() {
-    setError("");
-    setSaveToCatalogMsg("");
+  setError("");
+  setSaveToCatalogMsg("");
 
-    if (!task.trim()) return setError("Task is required.");
-    if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
-    if ((Number(divisionRate) || 0) <= 0)
-      return setError("Division rate is 0. Set the division + rate first.");
-    if (!unit) return setError("Unit is required.");
+  if (!task.trim()) return setError("Task is required.");
+  if ((Number(hours) || 0) <= 0) return setError("Hours must be > 0.");
+  if ((Number(divisionRate) || 0) <= 0)
+    return setError("Division rate is 0. Set the division + rate first.");
+  if (!unit) return setError("Unit is required.");
 
-    const safeDetails = details.trim(); // may be ""
+  const safeDetails = details.trim();
 
-    const res = await fetch(`/api/atlasbid/bid-labor`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bid_id: bidId,
-        task: task.trim(),
-        item: safeDetails,
-        proposal_text: task.trim(),
-        quantity: Number(quantity) || 0,
-        unit,
-        man_hours: Number(hours) || 0,
-        hourly_rate: Number(divisionRate) || 0,
-      }),
-    });
+  const res = await fetch(`/api/atlasbid/bid-labor`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      bid_id: bidId,
+      task: task.trim(),
+      item: safeDetails,
+      proposal_text: task.trim(),
+      quantity: Number(quantity) || 0,
+      unit,
+      man_hours: Number(hours) || 0,
+      hourly_rate: Number(divisionRate) || 0,
+    }),
+  });
 
-    const json = await res.json();
+  const json = await res.json();
 
-    if (!res.ok) {
-      setError(json?.error?.message || json?.error || "Error adding labor");
-      return;
-    }
-
-    const row = json?.row ?? json?.data;
-    if (row) setLabor((prev) => [...prev, row]);
-
-// Auto-add template materials (fresh fetch at click time)
-if (
-  applyTemplateMaterials &&
-  selectedTaskCatalogId &&
-  (Number(quantity) || 0) > 0
-) {
-  try {
-    const tmRes = await fetch(
-      `/api/task-template-materials?task_catalog_id=${selectedTaskCatalogId}`,
-      { cache: "no-store" }
-    );
-
-    const tmJson = await tmRes.json();
-    const liveTemplateMaterials = Array.isArray(tmJson?.rows) ? tmJson.rows : [];
-
-    const taskQty = Number(quantity) || 0;
-
-    for (const tm of liveTemplateMaterials) {
-      const catalog = tm.materials_catalog;
-      if (!catalog?.id || !catalog?.name) continue;
-
-      const qtyPer = Number(tm.qty_per_task_unit) || 0;
-      const mQty = qtyPer * taskQty;
-      if (mQty <= 0) continue;
-
-      const mUnit = (tm.unit || catalog.default_unit || "ea").toString();
-
-      const mUnitCost =
-        tm.unit_cost !== null && tm.unit_cost !== undefined
-          ? Number(tm.unit_cost) || 0
-          : Number(catalog.default_unit_cost) || 0;
-
-      const payload = {
-  bidId,
-  bid_id: bidId,
-  material_id: catalog.id,
-  name: catalog.name,
-  details: tm.details ?? null,
-  qty: Number(mQty.toFixed(2)),
-  unit: mUnit,
-  unitCost: Number(mUnitCost.toFixed(2)),
-  unit_cost: Number(mUnitCost.toFixed(2)),
-  source_type: "template",
-};
-
-const res = await fetch(`/api/atlasbid/bid-materials`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(payload),
-});
-
-const json = await res.json();
-
-if (!res.ok) {
-  console.error("Auto-add material failed", json);
-  setError(json?.error?.message || json?.error || "Failed auto-adding material");
-  continue;
-}
-
-const newRow = json?.row ?? json?.data ?? json ?? null;
-
-if (newRow) {
-  setMaterials((prev) => [...prev, newRow]);
-}
-    }
-  } catch (e) {
-    console.error("Failed auto-adding template materials", e);
+  if (!res.ok) {
+    setError(json?.error?.message || json?.error || "Error adding labor");
+    return;
   }
-}
-    // Optional save to task catalog (unchanged behavior)
-    if (saveToCatalog && bid?.division_id) {
-      setSavingToCatalog(true);
 
-      try {
-        const qtyNum = Number(quantity) || 0;
-        const hoursNum = Number(hours) || 0;
-        const minutesPerUnit = qtyNum > 0 ? (hoursNum * 60) / qtyNum : null;
+  const row = json?.row ?? json?.data;
+  if (row) setLabor((prev) => [...prev, row]);
 
-        const existing = taskCatalog.some(
-          (t) =>
-            t.division_id === bid.division_id &&
-            (t.name || "").trim().toLowerCase() === task.trim().toLowerCase()
-        );
+  if (
+    applyTemplateMaterials &&
+    selectedTaskCatalogId &&
+    (Number(quantity) || 0) > 0
+  ) {
+    try {
+      const tmRes = await fetch(
+        `/api/task-template-materials?task_catalog_id=${selectedTaskCatalogId}`,
+        { cache: "no-store" }
+      );
 
-        if (!existing) {
-          const tcRes = await fetch(`/api/task-catalog`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              division_id: bid.division_id,
-              name: task.trim(),
-              unit: unit || null,
-              minutes_per_unit: minutesPerUnit,
-              default_qty: qtyNum > 0 ? qtyNum : null,
-              notes: safeDetails ? safeDetails : null,
-            }),
+      const tmJson = await tmRes.json();
+      const liveTemplateMaterials = Array.isArray(tmJson?.rows) ? tmJson.rows : [];
+
+      const taskQty = Number(quantity) || 0;
+      let workingMaterials = [...materials];
+
+      for (const tm of liveTemplateMaterials) {
+        const catalog = tm.materials_catalog;
+        if (!catalog?.id || !catalog?.name) continue;
+
+        const qtyPer = Number(tm.qty_per_task_unit) || 0;
+        const mQty = qtyPer * taskQty;
+        if (mQty <= 0) continue;
+
+        const mUnit = (tm.unit || catalog.default_unit || "ea").toString();
+
+        const mUnitCost =
+          tm.unit_cost !== null && tm.unit_cost !== undefined
+            ? Number(tm.unit_cost) || 0
+            : Number(catalog.default_unit_cost) || 0;
+
+        const existing = findMatchingMaterialRow(workingMaterials, {
+          material_id: catalog.id,
+          name: catalog.name,
+          unit: mUnit,
+        });
+
+        if (existing) {
+          const updated = await mergeMaterialRow(existing, {
+            name: catalog.name,
+            details: tm.details ?? null,
+            qty: Number(mQty.toFixed(2)),
+            unit: mUnit,
+            unit_cost: Number(mUnitCost.toFixed(2)),
           });
 
-          const tcJson = await tcRes.json();
-
-          if (!tcRes.ok) {
-            setSaveToCatalogMsg(tcJson?.error || "Could not save task to catalog.");
-          } else {
-            setSaveToCatalogMsg("Saved to Task Catalog.");
-            const newRow: TaskCatalogRow | null = tcJson?.data ?? null;
-
-            if (newRow?.id) {
-              setTaskCatalog((prev) => {
-                const existsById = prev.some((p) => p.id === newRow.id);
-                if (existsById) return prev;
-
-                const existsByName = prev.some(
-                  (p) =>
-                    p.division_id === newRow.division_id &&
-                    (p.name || "").trim().toLowerCase() ===
-                      (newRow.name || "").trim().toLowerCase()
-                );
-                if (existsByName) return prev;
-
-                return [...prev, newRow].sort((a, b) =>
-                  (a.name || "").localeCompare(b.name || "")
-                );
-              });
-            }
-          }
-        } else {
-          setSaveToCatalogMsg("Already in Task Catalog.");
+          workingMaterials = workingMaterials.map((r) =>
+            r.id === existing.id ? { ...r, ...updated } : r
+          );
+          setMaterials(workingMaterials);
+          continue;
         }
-      } catch {
-        setSaveToCatalogMsg("Could not save task to catalog.");
-      } finally {
-        setSavingToCatalog(false);
-      }
-    }
 
-    // Reset
-    setTask("");
-    setTaskSearch("");
-    setDetails("");
-    setQuantity(0);
-    setUnit("yd");
-    setHours(0);
-    setShowTaskResults(false);
+        const payload = {
+          bidId,
+          bid_id: bidId,
+          material_id: catalog.id,
+          company_id: bid?.company_id ?? null,
+          name: catalog.name,
+          details: tm.details ?? null,
+          qty: Number(mQty.toFixed(2)),
+          unit: mUnit,
+          unitCost: Number(mUnitCost.toFixed(2)),
+          unit_cost: Number(mUnitCost.toFixed(2)),
+          source_type: "template",
+        };
+
+        const matRes = await fetch(`/api/atlasbid/bid-materials`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const matJson = await matRes.json();
+
+        if (!matRes.ok) {
+          console.error("Auto-add material failed", matJson);
+          setError(
+            matJson?.error?.message || matJson?.error || "Failed auto-adding material"
+          );
+          continue;
+        }
+
+        const newRow = matJson?.row ?? matJson?.data ?? matJson ?? null;
+
+        if (newRow) {
+          workingMaterials = [...workingMaterials, newRow];
+          setMaterials(workingMaterials);
+        }
+      }
+    } catch (e) {
+      console.error("Failed auto-adding template materials", e);
+    }
   }
+
+  if (saveToCatalog && bid?.division_id) {
+    setSavingToCatalog(true);
+
+    try {
+      const qtyNum = Number(quantity) || 0;
+      const hoursNum = Number(hours) || 0;
+      const minutesPerUnit = qtyNum > 0 ? (hoursNum * 60) / qtyNum : null;
+
+      const existing = taskCatalog.some(
+        (t) =>
+          t.division_id === bid.division_id &&
+          (t.name || "").trim().toLowerCase() === task.trim().toLowerCase()
+      );
+
+      if (!existing) {
+        const tcRes = await fetch(`/api/task-catalog`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            division_id: bid.division_id,
+            name: task.trim(),
+            unit: unit || null,
+            minutes_per_unit: minutesPerUnit,
+            default_qty: qtyNum > 0 ? qtyNum : null,
+            notes: safeDetails ? safeDetails : null,
+          }),
+        });
+
+        const tcJson = await tcRes.json();
+
+        if (!tcRes.ok) {
+          setSaveToCatalogMsg(tcJson?.error || "Could not save task to catalog.");
+        } else {
+          setSaveToCatalogMsg("Saved to Task Catalog.");
+          const newRow: TaskCatalogRow | null = tcJson?.data ?? null;
+
+          if (newRow?.id) {
+            setTaskCatalog((prev) => {
+              const existsById = prev.some((p) => p.id === newRow.id);
+              if (existsById) return prev;
+
+              const existsByName = prev.some(
+                (p) =>
+                  p.division_id === newRow.division_id &&
+                  (p.name || "").trim().toLowerCase() ===
+                    (newRow.name || "").trim().toLowerCase()
+              );
+              if (existsByName) return prev;
+
+              return [...prev, newRow].sort((a, b) =>
+                (a.name || "").localeCompare(b.name || "")
+              );
+            });
+          }
+        }
+      } else {
+        setSaveToCatalogMsg("Already in Task Catalog.");
+      }
+    } catch {
+      setSaveToCatalogMsg("Could not save task to catalog.");
+    } finally {
+      setSavingToCatalog(false);
+    }
+  }
+
+  setTask("");
+  setTaskSearch("");
+  setDetails("");
+  setQuantity(0);
+  setUnit("yd");
+  setHours(0);
+  setShowTaskResults(false);
+}
 
   async function deleteLaborRow(rowId: string) {
     setError("");
