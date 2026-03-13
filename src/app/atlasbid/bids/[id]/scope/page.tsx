@@ -7,6 +7,7 @@ import DebugPanel from "./DebugPanel";
 
 type Bid = {
   id: string;
+  company_id?: string | null;
   client_name?: string | null;
   client_last_name?: string | null;
   division_id?: string | null;
