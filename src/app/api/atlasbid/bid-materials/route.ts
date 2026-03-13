@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "@next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -116,7 +116,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalize optional UUID fields
     const material_id =
       typeof body?.material_id === "string" && body.material_id.trim()
         ? body.material_id.trim()
@@ -151,7 +150,6 @@ export async function POST(req: NextRequest) {
         ? body.source_type.trim()
         : "manual";
 
-    // 🔑 DERIVE company_id FROM THE BID (do not trust frontend)
     const { data: bidRow, error: bidError } = await supabase
       .from("bids")
       .select("company_id")
@@ -166,6 +164,36 @@ export async function POST(req: NextRequest) {
     }
 
     const company_id = bidRow.company_id;
+
+    // Deduplicate immediate duplicate requests
+    const { data: existingRows, error: existingError } = await supabase
+      .from("bid_materials")
+      .select(
+        "id, bid_id, material_id, name, details, qty, unit, unit_cost, source_type, source_task_id, created_at"
+      )
+      .eq("bid_id", bid_id)
+      .eq("name", name)
+      .eq("qty", qty)
+      .eq("unit", unit)
+      .eq("unit_cost", unit_cost)
+      .eq("source_type", source_type)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 500 });
+    }
+
+    const existing = Array.isArray(existingRows) ? existingRows[0] : null;
+
+    if (existing?.created_at) {
+      const createdMs = new Date(existing.created_at).getTime();
+      const nowMs = Date.now();
+
+      if (Number.isFinite(createdMs) && nowMs - createdMs <= 5000) {
+        return NextResponse.json({ row: existing }, { status: 200 });
+      }
+    }
 
     const { data, error } = await supabase
       .from("bid_materials")
