@@ -22,6 +22,7 @@ const TABLE_BIDS = "bids";
 
 const BID_SELECT = `
   id,
+  company_id,
   customer_name,
   client_name,
   client_last_name,
