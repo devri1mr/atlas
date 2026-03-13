@@ -1675,7 +1675,6 @@ async function addLabor() {
     }
   }}
 />
-            </div>
 
             <div className="truncate">{row.unit}</div>
 
