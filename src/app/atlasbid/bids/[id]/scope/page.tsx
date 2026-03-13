@@ -851,7 +851,7 @@ Project Price: ${money(sellRounded)}`;
 
   navigator.clipboard.writeText(text);
 }
-  async function addLabor() {
+async function addLabor() {
   setError("");
   setSaveToCatalogMsg("");
 
@@ -868,6 +868,7 @@ Project Price: ${money(sellRounded)}`;
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       bid_id: bidId,
+      task_catalog_id: selectedTaskCatalogId || null,
       task: task.trim(),
       item: safeDetails,
       proposal_text: task.trim(),
