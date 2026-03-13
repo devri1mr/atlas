@@ -565,25 +565,27 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
   }, [materialSearch, materialsCatalog]);
 
   function applyMaterialSelection(m: MaterialsCatalogRow) {
-    const nm = (m.name || "").trim();
+  const nm = (m.name || "").trim();
 
-    setMaterialName(nm);
-    setMaterialSearch(nm);
-    setShowMaterialResults(false);
+  setSelectedMaterialId(m.id || "");
+  setMaterialName(nm);
+  setMaterialSearch(nm);
+  setShowMaterialResults(false);
 
-    if (m.default_unit) setMaterialUnit(m.default_unit);
-    if (typeof m.default_unit_cost === "number")
-      setMaterialCost(Number(m.default_unit_cost) || 0);
-
-    // Only set details if empty (don’t overwrite)
-    if (!materialDetails.trim()) {
-      const bits = [
-        m.vendor ? `Vendor: ${m.vendor}` : null,
-        m.sku ? `SKU: ${m.sku}` : null,
-      ].filter(Boolean);
-      if (bits.length) setMaterialDetails(bits.join(" • "));
-    }
+  if (m.default_unit) setMaterialUnit(m.default_unit);
+  if (typeof m.default_unit_cost === "number") {
+    setMaterialCost(Number(m.default_unit_cost) || 0);
   }
+
+  if (!materialDetails.trim()) {
+    const bits = [
+      m.vendor ? `Vendor: ${m.vendor}` : null,
+      m.sku ? `SKU: ${m.sku}` : null,
+    ].filter(Boolean);
+
+    if (bits.length) setMaterialDetails(bits.join(" • "));
+  }
+}
 
   // Labor math
   const laborSubtotal = useMemo(() => {
