@@ -1675,17 +1675,6 @@ async function addLabor() {
     }
   }}
 />
-
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      quantity: value,
-                      is_overridden: true,
-                    }),
-                  });
-                }}
-              />
             </div>
 
             <div className="truncate">{row.unit}</div>
