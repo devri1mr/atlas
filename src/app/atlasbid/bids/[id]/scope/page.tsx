@@ -1648,19 +1648,12 @@ async function addLabor() {
     setLabor((prev) =>
       prev.map((r) =>
         r.id === row.id
-          ? {
-              ...r,
-              quantity: value,
-              is_overridden: true,
-            }
+          ? { ...r, quantity: value, is_overridden: true }
           : r
       )
     );
   }}
-  onBlur={async (e) => {
-    const raw = e.target.value;
-    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-
+  onBlur={async () => {
     try {
       const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
         method: "PATCH",
@@ -1668,19 +1661,20 @@ async function addLabor() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          quantity: value,
+          quantity: row.quantity,
           unit: row.unit,
           man_hours: row.man_hours,
         }),
       });
 
-      const json = await res.json();
-
       if (!res.ok) {
-        console.error("Labor update failed", json);
-        return;
+        console.error("Failed to save labor row");
       }
-
+    } catch (err) {
+      console.error("Labor autosave failed", err);
+    }
+  }}
+/>
       if (json?.row) {
         setLabor((prev) =>
           prev.map((r) => (r.id === json.row.id ? json.row : r))
