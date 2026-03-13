@@ -9,6 +9,11 @@ function getSupabase() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
+function toNumber(value: any, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -28,20 +33,58 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const { data: existingRow, error: existingError } = await supabase
+    .from("bid_labor")
+    .select(
+      `
+      id,
+      bid_id,
+      company_id,
+      task_catalog_id,
+      task,
+      item,
+      proposal_text,
+      quantity,
+      unit,
+      man_hours,
+      hourly_rate,
+      show_as_line_item,
+      bundle_run_id,
+      created_at
+      `
+    )
+    .eq("id", rowId)
+    .single();
+
+  if (existingError || !existingRow) {
+    return NextResponse.json(
+      { error: existingError?.message || "Labor row not found" },
+      { status: 404 }
+    );
+  }
+
   const updates: Record<string, any> = {};
 
   if ("task" in body) updates.task = String(body.task ?? "").trim();
   if ("item" in body) updates.item = String(body.item ?? "").trim();
-  if ("proposal_text" in body) {updates.proposal_text = String(body.proposal_text ?? "").trim();}
-  if ("quantity" in body) updates.quantity = Number(body.quantity ?? 0);
+  if ("proposal_text" in body) {
+    updates.proposal_text = String(body.proposal_text ?? "").trim();
+  }
+  if ("quantity" in body) updates.quantity = toNumber(body.quantity, 0);
   if ("unit" in body) updates.unit = String(body.unit ?? "").trim();
-  if ("man_hours" in body) updates.man_hours = Number(body.man_hours ?? 0);
-  if ("hourly_rate" in body) updates.hourly_rate = Number(body.hourly_rate ?? 0);
+  if ("man_hours" in body) updates.man_hours = toNumber(body.man_hours, 0);
+  if ("hourly_rate" in body) updates.hourly_rate = toNumber(body.hourly_rate, 0);
   if ("show_as_line_item" in body) {
     updates.show_as_line_item = body.show_as_line_item;
   }
+  if ("task_catalog_id" in body) {
+    updates.task_catalog_id =
+      typeof body.task_catalog_id === "string" && body.task_catalog_id.trim()
+        ? body.task_catalog_id.trim()
+        : null;
+  }
 
-  const { data, error } = await supabase
+  const { data: updatedRow, error: updateError } = await supabase
     .from("bid_labor")
     .update(updates)
     .eq("id", rowId)
@@ -49,6 +92,8 @@ export async function PATCH(
       `
       id,
       bid_id,
+      company_id,
+      task_catalog_id,
       task,
       item,
       proposal_text,
@@ -63,11 +108,242 @@ export async function PATCH(
     )
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (updateError || !updatedRow) {
+    return NextResponse.json(
+      { error: updateError?.message || "Failed to update labor row" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ row: data });
+  const shouldRecalcMaterials =
+    ("quantity" in body || "task_catalog_id" in body) &&
+    !!updatedRow.task_catalog_id &&
+    !!updatedRow.bid_id &&
+    !!updatedRow.company_id;
+
+  if (shouldRecalcMaterials) {
+    const { data: templateRows, error: templateError } = await supabase
+      .from("task_template_materials")
+      .select(
+        `
+        id,
+        task_catalog_id,
+        material_id,
+        qty_per_task_unit,
+        unit,
+        unit_cost,
+        details
+        `
+      )
+      .eq("task_catalog_id", updatedRow.task_catalog_id);
+
+    if (templateError) {
+      return NextResponse.json(
+        { error: templateError.message },
+        { status: 500 }
+      );
+    }
+
+    if (templateRows && templateRows.length > 0) {
+      const materialIds = templateRows
+        .map((r) => r.material_id)
+        .filter(Boolean);
+
+      const { data: catalogRows, error: catalogError } = await supabase
+        .from("materials_catalog")
+        .select(
+          `
+          id,
+          name,
+          default_unit,
+          default_unit_cost
+          `
+        )
+        .in("id", materialIds);
+
+      if (catalogError) {
+        return NextResponse.json(
+          { error: catalogError.message },
+          { status: 500 }
+        );
+      }
+
+      const catalogMap = new Map((catalogRows || []).map((r) => [r.id, r]));
+
+      for (const tm of templateRows) {
+        const catalog = catalogMap.get(tm.material_id);
+        if (!catalog?.id || !catalog?.name) continue;
+
+        const resolvedUnit = String(
+          tm.unit || catalog.default_unit || "ea"
+        ).trim();
+
+        const resolvedUnitCost =
+          tm.unit_cost !== null && tm.unit_cost !== undefined
+            ? toNumber(tm.unit_cost, 0)
+            : toNumber(catalog.default_unit_cost, 0);
+
+        const laborQty = toNumber(updatedRow.quantity, 0);
+        const qtyPerTaskUnit = toNumber(tm.qty_per_task_unit, 0);
+        const contributionQty = Number((laborQty * qtyPerTaskUnit).toFixed(2));
+
+        const { data: priorContributionRows, error: priorContributionError } =
+          await supabase
+            .from("bid_material_contributions")
+            .select("qty")
+            .eq("bid_id", updatedRow.bid_id)
+            .eq("material_id", catalog.id)
+            .eq("unit", resolvedUnit);
+
+        if (priorContributionError) {
+          return NextResponse.json(
+            { error: priorContributionError.message },
+            { status: 500 }
+          );
+        }
+
+        const priorContributionTotal = (priorContributionRows || []).reduce(
+          (sum, r) => sum + toNumber(r.qty, 0),
+          0
+        );
+
+        const { data: existingMaterialRows, error: existingMaterialError } =
+          await supabase
+            .from("bid_materials")
+            .select(
+              `
+              id,
+              bid_id,
+              material_id,
+              name,
+              details,
+              qty,
+              unit,
+              unit_cost,
+              source_type,
+              source_task_id,
+              created_at
+              `
+            )
+            .eq("bid_id", updatedRow.bid_id)
+            .eq("material_id", catalog.id)
+            .eq("unit", resolvedUnit)
+            .order("created_at", { ascending: true })
+            .limit(1);
+
+        if (existingMaterialError) {
+          return NextResponse.json(
+            { error: existingMaterialError.message },
+            { status: 500 }
+          );
+        }
+
+        const existingMaterialRow =
+          Array.isArray(existingMaterialRows) && existingMaterialRows.length > 0
+            ? existingMaterialRows[0]
+            : null;
+
+        const existingDisplayQty = toNumber(existingMaterialRow?.qty, 0);
+        const manualCarryQty = Math.max(
+          Number((existingDisplayQty - priorContributionTotal).toFixed(2)),
+          0
+        );
+
+        const { error: contributionUpsertError } = await supabase
+          .from("bid_material_contributions")
+          .upsert(
+            {
+              bid_id: updatedRow.bid_id,
+              labor_row_id: updatedRow.id,
+              material_id: catalog.id,
+              material_name: catalog.name,
+              unit: resolvedUnit,
+              qty: contributionQty,
+              unit_cost: resolvedUnitCost,
+            },
+            {
+              onConflict: "labor_row_id,material_id,unit",
+            }
+          );
+
+        if (contributionUpsertError) {
+          return NextResponse.json(
+            { error: contributionUpsertError.message },
+            { status: 500 }
+          );
+        }
+
+        const { data: refreshedContributionRows, error: refreshedContributionError } =
+          await supabase
+            .from("bid_material_contributions")
+            .select("qty")
+            .eq("bid_id", updatedRow.bid_id)
+            .eq("material_id", catalog.id)
+            .eq("unit", resolvedUnit);
+
+        if (refreshedContributionError) {
+          return NextResponse.json(
+            { error: refreshedContributionError.message },
+            { status: 500 }
+          );
+        }
+
+        const refreshedContributionTotal = (refreshedContributionRows || []).reduce(
+          (sum, r) => sum + toNumber(r.qty, 0),
+          0
+        );
+
+        const nextDisplayQty = Number(
+          (manualCarryQty + refreshedContributionTotal).toFixed(2)
+        );
+
+        if (existingMaterialRow) {
+          const { error: materialUpdateError } = await supabase
+            .from("bid_materials")
+            .update({
+              qty: nextDisplayQty,
+              unit_cost:
+                existingMaterialRow.unit_cost !== null &&
+                existingMaterialRow.unit_cost !== undefined
+                  ? toNumber(existingMaterialRow.unit_cost, 0)
+                  : resolvedUnitCost,
+            })
+            .eq("id", existingMaterialRow.id);
+
+          if (materialUpdateError) {
+            return NextResponse.json(
+              { error: materialUpdateError.message },
+              { status: 500 }
+            );
+          }
+        } else if (nextDisplayQty > 0) {
+          const { error: materialInsertError } = await supabase
+            .from("bid_materials")
+            .insert({
+              company_id: updatedRow.company_id,
+              bid_id: updatedRow.bid_id,
+              material_id: catalog.id,
+              name: catalog.name,
+              details: tm.details ?? null,
+              qty: nextDisplayQty,
+              unit: resolvedUnit,
+              unit_cost: resolvedUnitCost,
+              source_type: "template",
+              source_task_id: updatedRow.task_catalog_id,
+            });
+
+          if (materialInsertError) {
+            return NextResponse.json(
+              { error: materialInsertError.message },
+              { status: 500 }
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ row: updatedRow });
 }
 
 export async function DELETE(
