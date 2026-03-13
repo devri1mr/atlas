@@ -163,7 +163,6 @@ const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
   // Materials (bid rows)
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
-  const [materials, setMaterials] = useState<MaterialRow[]>([]);
 const addingMaterialRef = useRef(false);
   const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
 const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
