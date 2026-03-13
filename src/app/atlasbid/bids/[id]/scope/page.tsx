@@ -161,18 +161,19 @@ export default function BidScopePage() {
   const [labor, setLabor] = useState<LaborRow[]>([]);
 const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
-  // Materials (bid rows)
-  const [materials, setMaterials] = useState<MaterialRow[]>([]);
+// Materials (bid rows)
+const [materials, setMaterials] = useState<MaterialRow[]>([]);
 const addingMaterialRef = useRef(false);
-  const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
+const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
+const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
 const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
 const [loadingTemplateMaterials, setLoadingTemplateMaterials] = useState(false);
 const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
-  const [materialName, setMaterialName] = useState("");
-  const [materialDetails, setMaterialDetails] = useState("");
-  const [materialQty, setMaterialQty] = useState<number>(0);
-  const [materialUnit, setMaterialUnit] = useState<string>("ea");
-  const [materialCost, setMaterialCost] = useState<number>(0);
+const [materialName, setMaterialName] = useState("");
+const [materialDetails, setMaterialDetails] = useState("");
+const [materialQty, setMaterialQty] = useState<number>(0);
+const [materialUnit, setMaterialUnit] = useState<string>("ea");
+const [materialCost, setMaterialCost] = useState<number>(0);
 
   // Materials catalog predictive search
   const [materialsCatalog, setMaterialsCatalog] = useState<MaterialsCatalogRow[]>([]);
