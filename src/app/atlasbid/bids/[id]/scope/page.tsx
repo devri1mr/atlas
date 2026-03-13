@@ -976,7 +976,11 @@ if (newRow) {
   }
 
   // ✅ Add material
+  let addingMaterial = false;
   async function addMaterial() {
+    if (addingMaterial) return;
+    addingMaterial = true;
+    
     setError("");
 
     if (!materialName.trim()) return setError("Material name is required.");
@@ -1019,6 +1023,7 @@ if (newRow) {
     setMaterialUnit("ea");
     setMaterialCost(0);
     setShowMaterialResults(false);
+    addingMaterial = false;
   }
 
   async function deleteMaterialRow(rowId: string) {
