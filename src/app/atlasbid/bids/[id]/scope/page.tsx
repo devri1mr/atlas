@@ -977,22 +977,49 @@ if (newRow) {
   }
 
   // ✅ Add material
-  async function addMaterial() {
+ async function addMaterial() {
   if (addingMaterialRef.current) return;
   addingMaterialRef.current = true;
-    
+
+  try {
     setError("");
 
-    if (!materialName.trim()) return setError("Material name is required.");
-    if ((Number(materialQty) || 0) <= 0) return setError("Material qty must be > 0.");
-    if ((Number(materialCost) || 0) < 0) return setError("Material unit cost must be >= 0.");
-    if (!materialUnit) return setError("Material unit is required.");
+    const trimmedName = materialName.trim();
+
+    if (!trimmedName) {
+      setError("Material name is required.");
+      return;
+    }
+
+    if ((Number(materialQty) || 0) <= 0) {
+      setError("Material qty must be > 0.");
+      return;
+    }
+
+    if ((Number(materialCost) || 0) < 0) {
+      setError("Material unit cost must be >= 0.");
+      return;
+    }
+
+    if (!materialUnit) {
+      setError("Material unit is required.");
+      return;
+    }
+
+    const alreadyExists = materials.some(
+      (m) => (m.name || "").trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (alreadyExists) {
+      setError("This material is already added.");
+      return;
+    }
 
     const payload: any = {
       bidId,
       bid_id: bidId,
-      company_id: bid?.company_id,
-      name: materialName.trim(),
+      company_id: bid?.company_id ?? null,
+      name: trimmedName,
       details: materialDetails.trim() || null,
       qty: Number(materialQty) || 0,
       unit: materialUnit,
@@ -1014,7 +1041,10 @@ if (newRow) {
     }
 
     const row = json?.row ?? json?.data ?? json;
-    if (row) setMaterials((prev) => [...prev, row]);
+
+    if (row) {
+      setMaterials((prev) => [...prev, row]);
+    }
 
     setMaterialName("");
     setMaterialSearch("");
@@ -1023,8 +1053,10 @@ if (newRow) {
     setMaterialUnit("ea");
     setMaterialCost(0);
     setShowMaterialResults(false);
+  } finally {
     addingMaterialRef.current = false;
   }
+}
 
   async function deleteMaterialRow(rowId: string) {
     setError("");
