@@ -986,6 +986,7 @@ if (newRow) {
     const payload: any = {
       bidId,
       bid_id: bidId,
+      company_id: bid?.company_id,
       name: materialName.trim(),
       details: materialDetails.trim() || null,
       qty: Number(materialQty) || 0,
