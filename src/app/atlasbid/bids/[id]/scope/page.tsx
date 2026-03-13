@@ -1683,6 +1683,7 @@ if (newRow) {
 
               <div className="col-span-1 text-right">
                 <button
+                  type="button"
                   onClick={addMaterial}
                   className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
                 >
