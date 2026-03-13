@@ -117,11 +117,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Normalize optional UUID fields
-    const company_id =
-      typeof body?.company_id === "string" && body.company_id.trim()
-        ? body.company_id.trim()
-        : null;
-
     const material_id =
       typeof body?.material_id === "string" && body.material_id.trim()
         ? body.material_id.trim()
@@ -131,13 +126,6 @@ export async function POST(req: NextRequest) {
       typeof body?.source_task_id === "string" && body.source_task_id.trim()
         ? body.source_task_id.trim()
         : null;
-
-    if (company_id && !isUuid(company_id)) {
-      return NextResponse.json(
-        { error: "company_id must be a uuid" },
-        { status: 400 }
-      );
-    }
 
     if (material_id && !isUuid(material_id)) {
       return NextResponse.json(
@@ -162,6 +150,22 @@ export async function POST(req: NextRequest) {
       typeof body?.source_type === "string" && body.source_type.trim()
         ? body.source_type.trim()
         : "manual";
+
+    // 🔑 DERIVE company_id FROM THE BID (do not trust frontend)
+    const { data: bidRow, error: bidError } = await supabase
+      .from("bids")
+      .select("company_id")
+      .eq("id", bid_id)
+      .single();
+
+    if (bidError || !bidRow?.company_id) {
+      return NextResponse.json(
+        { error: "Could not determine company_id from bid" },
+        { status: 400 }
+      );
+    }
+
+    const company_id = bidRow.company_id;
 
     const { data, error } = await supabase
       .from("bid_materials")
