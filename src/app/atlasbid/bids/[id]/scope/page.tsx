@@ -1675,16 +1675,6 @@ async function addLabor() {
     }
   }}
 />
-      if (json?.row) {
-        setLabor((prev) =>
-          prev.map((r) => (r.id === json.row.id ? json.row : r))
-        );
-      }
-    } catch (err) {
-      console.error("Labor autosave failed", err);
-    }
-  }}
-/>
 
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
