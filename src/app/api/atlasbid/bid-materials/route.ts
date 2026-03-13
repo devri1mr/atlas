@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
       .from("bid_materials")
       .insert({
         bid_id,
+        company_id: body.company_id,
         material_id,
         name,
         details,
