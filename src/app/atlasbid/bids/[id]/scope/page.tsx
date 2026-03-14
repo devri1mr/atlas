@@ -1779,14 +1779,15 @@ async function addLabor() {
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-              <div className="col-span-4">Material (catalog search)</div>
-              <div className="col-span-3">Details (optional)</div>
-              <div className="col-span-1">Qty</div>
-              <div className="col-span-1">Unit</div>
-              <div className="col-span-2">Unit Cost</div>
-              <div className="col-span-1 text-right">Action</div>
-            </div>
+           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
+  <div className="col-span-3">Material (catalog search)</div>
+  <div className="col-span-2">Source</div>
+  <div className="col-span-3">Details (optional)</div>
+  <div className="col-span-1">Qty</div>
+  <div className="col-span-1">Unit</div>
+  <div className="col-span-1">Unit Cost</div>
+  <div className="col-span-1 text-right">Action</div>
+</div>
 
             <div className="grid grid-cols-12 gap-4 items-center">
               {/* Catalog search */}
@@ -1827,7 +1828,31 @@ async function addLabor() {
                   ) : null}
                 </div>
               </div>
+<div className="col-span-2">
+  <select
+    className="border p-2 rounded w-full h-10"
+    value={selectedSourceIndex ?? ""}
+    onChange={(e) => {
+      const idx = Number(e.target.value);
+      setSelectedSourceIndex(idx);
 
+      const src = materialSources[idx];
+      if (!src) return;
+
+      if (src.unit) setMaterialUnit(src.unit);
+      if (src.cost !== undefined) setMaterialCost(src.cost);
+    }}
+  >
+    <option value="">Select source</option>
+
+    {materialSources.map((s, i) => (
+      <option key={i} value={i}>
+        {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
+        {s.available_qty ? ` (Stock: ${s.available_qty})` : ""}
+      </option>
+    ))}
+  </select>
+</div>
               {/* Details */}
               <div className="col-span-3">
                 <input
