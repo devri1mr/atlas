@@ -89,8 +89,9 @@ type TemplateMaterialRow = {
 type MaterialsCatalogRow = {
   id: string;
   name: string;
-  default_unit?: string | null;
-  default_unit_cost?: number | null;
+  display_name?: string | null;
+  unit?: string | null;
+  unit_cost?: number | null;
   vendor?: string | null;
   sku?: string | null;
   is_active?: boolean | null;
