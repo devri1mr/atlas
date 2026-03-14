@@ -578,13 +578,28 @@ async function loadMaterialSources(materialId: string) {
 
     const json = await res.json();
 
-    if (Array.isArray(json?.data)) {
-      setMaterialSources(json.data);
-    } else {
-      setMaterialSources([]);
-    }
+    const sources = Array.isArray(json?.data) ? json.data : [];
 
-    setSelectedSourceIndex(null);
+setMaterialSources(sources);
+
+if (sources.length > 0) {
+  let cheapestIndex = 0;
+
+  for (let i = 1; i < sources.length; i++) {
+    if (Number(sources[i].cost) < Number(sources[cheapestIndex].cost)) {
+      cheapestIndex = i;
+    }
+  }
+
+  const src = sources[cheapestIndex];
+
+  setSelectedSourceIndex(cheapestIndex);
+
+  if (src.unit) setMaterialUnit(src.unit);
+  if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
+} else {
+  setSelectedSourceIndex(null);
+}
   } catch {
     setMaterialSources([]);
   }
