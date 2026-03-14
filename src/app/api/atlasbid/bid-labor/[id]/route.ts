@@ -14,156 +14,6 @@ function toNumber(value: any, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/**
- * GET /api/atlasbid/bid-labor?bid_id=<uuid>
- */
-export async function GET(req: NextRequest) {
-  const supabase = getSupabase();
-  const { searchParams } = new URL(req.url);
-  const bid_id = searchParams.get("bid_id");
-
-  if (!bid_id) {
-    return NextResponse.json({ error: "bid_id is required" }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from("bid_labor")
-    .select(
-      `
-      id,
-      bid_id,
-      company_id,
-      task_catalog_id,
-      task,
-      item,
-      proposal_text,
-      quantity,
-      unit,
-      man_hours,
-      hourly_rate,
-      show_as_line_item,
-      bundle_run_id,
-      created_at
-      `
-    )
-    .eq("bid_id", bid_id)
-    .order("id", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ rows: data ?? [] });
-}
-
-/**
- * POST /api/atlasbid/bid-labor
- */
-export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
-
-  let body: any = null;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const bid_id = String(body?.bid_id ?? "").trim();
-  if (!bid_id) {
-    return NextResponse.json(
-      { error: "bid_id (uuid string) is required" },
-      { status: 400 }
-    );
-  }
-
-  const task_catalog_id =
-    typeof body?.task_catalog_id === "string" && body.task_catalog_id.trim()
-      ? body.task_catalog_id.trim()
-      : null;
-
-  const task = String(body?.task ?? "").trim();
-  const item = String(body?.item ?? "").trim();
-  const proposal_text = String(body?.proposal_text ?? body?.task ?? "").trim();
-  const quantity = toNumber(body?.quantity, 0);
-  const unit = String(body?.unit ?? "").trim();
-  const man_hours = toNumber(body?.man_hours, 0);
-  const hourly_rate = toNumber(body?.hourly_rate, 0);
-
-  if (!task) {
-    return NextResponse.json({ error: "task is required" }, { status: 400 });
-  }
-
-  if (!unit) {
-    return NextResponse.json({ error: "unit is required" }, { status: 400 });
-  }
-
-  const { data: bidRow, error: bidError } = await supabase
-    .from("bids")
-    .select("id, company_id, division_id")
-    .eq("id", bid_id)
-    .single();
-
-  if (bidError || !bidRow?.id) {
-    return NextResponse.json(
-      { error: bidError?.message || "Bid not found" },
-      { status: 404 }
-    );
-  }
-
-  if (!bidRow.company_id) {
-    return NextResponse.json(
-      { error: "Bid is missing company_id" },
-      { status: 400 }
-    );
-  }
-
-  const insertPayload = {
-    bid_id,
-    company_id: bidRow.company_id,
-    task_catalog_id,
-    task,
-    item,
-    proposal_text,
-    quantity,
-    unit,
-    man_hours,
-    hourly_rate,
-  };
-
-  const { data, error } = await supabase
-    .from("bid_labor")
-    .insert(insertPayload)
-    .select(
-      `
-      id,
-      bid_id,
-      company_id,
-      task_catalog_id,
-      task,
-      item,
-      proposal_text,
-      quantity,
-      unit,
-      man_hours,
-      hourly_rate,
-      show_as_line_item,
-      bundle_run_id,
-      created_at
-      `
-    )
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ row: data });
-}
-
-/**
- * PATCH /api/atlasbid/bid-labor/[id]
- */
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -295,7 +145,9 @@ export async function PATCH(
     }
 
     if (templateRows && templateRows.length > 0) {
-      const materialIds = templateRows.map((r) => r.material_id).filter(Boolean);
+      const materialIds = templateRows
+        .map((r) => r.material_id)
+        .filter(Boolean);
 
       const { data: catalogRows, error: catalogError } = await supabase
         .from("materials_catalog")
@@ -494,9 +346,6 @@ export async function PATCH(
   return NextResponse.json({ row: updatedRow });
 }
 
-/**
- * DELETE /api/atlasbid/bid-labor/[id]
- */
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -510,12 +359,21 @@ export async function DELETE(
   }
 
   const { error } = await supabase
+    .from("bid_materials")
+    .delete()
+    .eq("labor_row_id", rowId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const { error: laborDeleteError } = await supabase
     .from("bid_labor")
     .delete()
     .eq("id", rowId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (laborDeleteError) {
+    return NextResponse.json({ error: laborDeleteError.message }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
