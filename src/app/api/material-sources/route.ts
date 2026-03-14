@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
       for (const row of vendorRows) {
         sources.push({
           source_type: "vendor",
-          source_name: row.vendors?.name || "Vendor",
+          source_name: row.vendors?.[0]?.name || "Vendor",
           unit: row.unit,
           cost: Number(row.cost) || 0,
           available_qty: null,
