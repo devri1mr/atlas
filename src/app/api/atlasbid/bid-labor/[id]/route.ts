@@ -32,7 +32,9 @@ async function recalcBidMaterialDisplayQty(
   }
 
   const totalQty = Number(
-    ((contributionRows || []).reduce((sum, r) => sum + toNumber(r.qty, 0), 0)).toFixed(2)
+    (contributionRows || [])
+      .reduce((sum, r) => sum + toNumber(r.qty, 0), 0)
+      .toFixed(2)
   );
 
   const { data: materialRows, error: materialRowsError } = await supabase
@@ -49,7 +51,9 @@ async function recalcBidMaterialDisplayQty(
   }
 
   const materialRow =
-    Array.isArray(materialRows) && materialRows.length > 0 ? materialRows[0] : null;
+    Array.isArray(materialRows) && materialRows.length > 0
+      ? materialRows[0]
+      : null;
 
   if (!materialRow) return;
 
@@ -384,7 +388,10 @@ export async function DELETE(
     .eq("labor_row_id", rowId);
 
   if (contributionRowsError) {
-    return NextResponse.json({ error: contributionRowsError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: contributionRowsError.message },
+      { status: 500 }
+    );
   }
 
   for (const row of contributionRows || []) {
@@ -403,7 +410,10 @@ export async function DELETE(
     .eq("labor_row_id", rowId);
 
   if (contributionDeleteError) {
-    return NextResponse.json({ error: contributionDeleteError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: contributionDeleteError.message },
+      { status: 500 }
+    );
   }
 
   const { error: laborDeleteError } = await supabase
@@ -412,7 +422,10 @@ export async function DELETE(
     .eq("id", rowId);
 
   if (laborDeleteError) {
-    return NextResponse.json({ error: laborDeleteError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: laborDeleteError.message },
+      { status: 500 }
+    );
   }
 
   for (const key of affectedKeys) {
