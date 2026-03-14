@@ -345,13 +345,18 @@ async function mergeMaterialRow(
 
       if (b.division_id) setDivisionPick(b.division_id);
 
-      // ✅ 2b) Materials Catalog (for predictive search)
-      const mcRes = await fetch(`/api/materials-catalog`, { cache: "no-store" });
-      const mcJson = await mcRes.json();
-      const mcRows: MaterialsCatalogRow[] = mcJson?.rows ?? mcJson?.data ?? mcJson ?? [];
-      setMaterialsCatalog(
-        Array.isArray(mcRows) ? mcRows.filter((x) => x?.is_active !== false) : []
-      );
+     // ✅ Materials Search (product-level search)
+const mcRes = await fetch('/api/materials-search', { cache: "no-store" });
+const mcJson = await mcRes.json();
+
+const mcRows: MaterialsCatalogRow[] =
+  mcJson?.rows ?? mcJson?.data ?? mcJson ?? [];
+
+setMaterialsCatalog(
+  Array.isArray(mcRows)
+    ? mcRows.filter((x) => x?.is_active !== false)
+    : []
+);
 
       if (!b.division_id) {
         setLoading(false);
