@@ -570,7 +570,25 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
       })
       .slice(0, 20);
   }, [materialSearch, materialsCatalog]);
+async function loadMaterialSources(materialId: string) {
+  try {
+    const res = await fetch(`/api/material-sources?material_id=${materialId}`, {
+      cache: "no-store",
+    });
 
+    const json = await res.json();
+
+    if (Array.isArray(json?.data)) {
+      setMaterialSources(json.data);
+    } else {
+      setMaterialSources([]);
+    }
+
+    setSelectedSourceIndex(null);
+  } catch {
+    setMaterialSources([]);
+  }
+}
   function applyMaterialSelection(m: MaterialsCatalogRow) {
   const nm = (m.name || "").trim();
 
@@ -578,6 +596,8 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
   setMaterialName(nm);
   setMaterialSearch(nm);
   setShowMaterialResults(false);
+  
+  if (m.id) loadMaterialSources(m.id);
 
   if (m.unit) setMaterialUnit(m.unit);
   if (typeof m.unit_cost === "number") {
