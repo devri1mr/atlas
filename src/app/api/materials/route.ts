@@ -49,10 +49,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data ?? [], { status: 200 });
@@ -72,18 +69,19 @@ export async function POST(req: NextRequest) {
     const name = String(body?.name || "").trim();
     const display_name = String(body?.display_name || name).trim();
     const unit = String(body?.unit || "").trim() || null;
+
     const unit_cost =
-      body?.unit_cost === null || body?.unit_cost === undefined || body?.unit_cost === ""
+      body?.unit_cost === null ||
+      body?.unit_cost === undefined ||
+      body?.unit_cost === ""
         ? null
         : Number(body.unit_cost);
+
     const is_active =
       body?.is_active === undefined ? true : Boolean(body.is_active);
 
     if (!name) {
-      return NextResponse.json(
-        { error: "name is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 
     if (unit_cost !== null && !Number.isFinite(unit_cost)) {
@@ -115,10 +113,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 200 });
