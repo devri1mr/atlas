@@ -9,6 +9,15 @@ type Material = {
   common_name?: string | null;
   scientific_name?: string | null;
   cultivar?: string | null;
+  material_type?: string | null;
+  size?: string | null;
+  container_size?: string | null;
+  spacing_in?: number | null;
+  spread_in?: number | null;
+  height_in?: number | null;
+  plant_form?: string | null;
+  sun_exposure?: string | null;
+  notes?: string | null;
   unit: string | null;
   unit_cost: number | null;
   is_active: boolean | null;
@@ -24,11 +33,19 @@ type MaterialCategory = {
   is_active: boolean;
 };
 
+const MATERIAL_TYPES = [
+  { value: "", label: "All Types" },
+  { value: "bulk", label: "Bulk" },
+  { value: "plant", label: "Plant" },
+  { value: "product", label: "Product" },
+];
+
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [categories, setCategories] = useState<MaterialCategory[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedMaterialType, setSelectedMaterialType] = useState("");
 
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -36,6 +53,15 @@ export default function MaterialsPage() {
   const [newCommonName, setNewCommonName] = useState("");
   const [newScientificName, setNewScientificName] = useState("");
   const [newCultivar, setNewCultivar] = useState("");
+  const [newMaterialType, setNewMaterialType] = useState("product");
+  const [newSize, setNewSize] = useState("");
+  const [newContainerSize, setNewContainerSize] = useState("");
+  const [newSpacingIn, setNewSpacingIn] = useState("");
+  const [newSpreadIn, setNewSpreadIn] = useState("");
+  const [newHeightIn, setNewHeightIn] = useState("");
+  const [newPlantForm, setNewPlantForm] = useState("");
+  const [newSunExposure, setNewSunExposure] = useState("");
+  const [newNotes, setNewNotes] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newCost, setNewCost] = useState("");
   const [newCategoryId, setNewCategoryId] = useState("");
@@ -77,6 +103,7 @@ export default function MaterialsPage() {
 
     if (search.trim()) params.set("search", search.trim());
     if (selectedCategoryId) params.set("category_id", selectedCategoryId);
+    if (selectedMaterialType) params.set("material_type", selectedMaterialType);
 
     const qs = params.toString();
     const res = await fetch(`/api/materials${qs ? `?${qs}` : ""}`, {
@@ -100,7 +127,28 @@ export default function MaterialsPage() {
     }, 200);
 
     return () => clearTimeout(t);
-  }, [search, selectedCategoryId]);
+  }, [search, selectedCategoryId, selectedMaterialType]);
+
+  function resetAddForm() {
+    setShowAdd(false);
+    setNewName("");
+    setNewDisplayName("");
+    setNewCommonName("");
+    setNewScientificName("");
+    setNewCultivar("");
+    setNewMaterialType("product");
+    setNewSize("");
+    setNewContainerSize("");
+    setNewSpacingIn("");
+    setNewSpreadIn("");
+    setNewHeightIn("");
+    setNewPlantForm("");
+    setNewSunExposure("");
+    setNewNotes("");
+    setNewUnit("");
+    setNewCost("");
+    setNewCategoryId("");
+  }
 
   async function addMaterial() {
     const trimmedName = newName.trim();
@@ -119,6 +167,15 @@ export default function MaterialsPage() {
         common_name: newCommonName.trim() || null,
         scientific_name: newScientificName.trim() || null,
         cultivar: newCultivar.trim() || null,
+        material_type: newMaterialType || null,
+        size: newSize.trim() || null,
+        container_size: newContainerSize.trim() || null,
+        spacing_in: newSpacingIn === "" ? null : Number(newSpacingIn),
+        spread_in: newSpreadIn === "" ? null : Number(newSpreadIn),
+        height_in: newHeightIn === "" ? null : Number(newHeightIn),
+        plant_form: newPlantForm.trim() || null,
+        sun_exposure: newSunExposure.trim() || null,
+        notes: newNotes.trim() || null,
         unit: newUnit.trim() || null,
         unit_cost: newCost === "" ? null : Number(newCost),
         category_id: newCategoryId || null,
@@ -132,16 +189,7 @@ export default function MaterialsPage() {
       return;
     }
 
-    setShowAdd(false);
-    setNewName("");
-    setNewDisplayName("");
-    setNewCommonName("");
-    setNewScientificName("");
-    setNewCultivar("");
-    setNewUnit("");
-    setNewCost("");
-    setNewCategoryId("");
-
+    resetAddForm();
     await loadMaterials();
   }
 
@@ -165,12 +213,29 @@ export default function MaterialsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
-            width: 300,
+            width: 280,
             padding: 8,
             border: "1px solid #ccc",
             borderRadius: 6,
           }}
         />
+
+        <select
+          value={selectedMaterialType}
+          onChange={(e) => setSelectedMaterialType(e.target.value)}
+          style={{
+            padding: 8,
+            border: "1px solid #ccc",
+            borderRadius: 6,
+            minWidth: 150,
+          }}
+        >
+          {MATERIAL_TYPES.map((x) => (
+            <option key={x.value} value={x.value}>
+              {x.label}
+            </option>
+          ))}
+        </select>
 
         <select
           value={selectedCategoryId}
@@ -216,6 +281,7 @@ export default function MaterialsPage() {
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
             <th style={{ padding: 8 }}>Material</th>
+            <th style={{ padding: 8 }}>Type</th>
             <th style={{ padding: 8 }}>Category</th>
             <th style={{ padding: 8 }}>Unit</th>
             <th style={{ padding: 8 }}>Cost</th>
@@ -234,7 +300,13 @@ export default function MaterialsPage() {
                     {m.cultivar ? ` '${m.cultivar}'` : ""}
                   </div>
                 ) : null}
+                {m.size || m.container_size ? (
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    {[m.size, m.container_size].filter(Boolean).join(" • ")}
+                  </div>
+                ) : null}
               </td>
+              <td style={{ padding: 8 }}>{m.material_type || "-"}</td>
               <td style={{ padding: 8 }}>
                 {m.category_id ? categoryLabelMap.get(m.category_id) || "-" : "-"}
               </td>
@@ -250,7 +322,7 @@ export default function MaterialsPage() {
 
           {materials.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ padding: 16 }}>
+              <td colSpan={6} style={{ padding: 16 }}>
                 No materials found
               </td>
             </tr>
@@ -274,8 +346,10 @@ export default function MaterialsPage() {
             style={{
               background: "white",
               padding: 24,
-              width: 420,
+              width: 520,
               borderRadius: 8,
+              maxHeight: "90vh",
+              overflowY: "auto",
             }}
           >
             <h3 style={{ marginBottom: 12 }}>Add Material</h3>
@@ -294,26 +368,15 @@ export default function MaterialsPage() {
               style={{ width: "100%", marginBottom: 10, padding: 8 }}
             />
 
-            <input
-              placeholder="Common name"
-              value={newCommonName}
-              onChange={(e) => setNewCommonName(e.target.value)}
+            <select
+              value={newMaterialType}
+              onChange={(e) => setNewMaterialType(e.target.value)}
               style={{ width: "100%", marginBottom: 10, padding: 8 }}
-            />
-
-            <input
-              placeholder="Scientific name"
-              value={newScientificName}
-              onChange={(e) => setNewScientificName(e.target.value)}
-              style={{ width: "100%", marginBottom: 10, padding: 8 }}
-            />
-
-            <input
-              placeholder="Cultivar"
-              value={newCultivar}
-              onChange={(e) => setNewCultivar(e.target.value)}
-              style={{ width: "100%", marginBottom: 10, padding: 8 }}
-            />
+            >
+              <option value="product">Product</option>
+              <option value="bulk">Bulk</option>
+              <option value="plant">Plant</option>
+            </select>
 
             <select
               value={newCategoryId}
@@ -336,6 +399,78 @@ export default function MaterialsPage() {
             </select>
 
             <input
+              placeholder="Common name"
+              value={newCommonName}
+              onChange={(e) => setNewCommonName(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
+              placeholder="Scientific name"
+              value={newScientificName}
+              onChange={(e) => setNewScientificName(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
+              placeholder="Cultivar"
+              value={newCultivar}
+              onChange={(e) => setNewCultivar(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
+              placeholder="Size"
+              value={newSize}
+              onChange={(e) => setNewSize(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
+              placeholder="Container size"
+              value={newContainerSize}
+              onChange={(e) => setNewContainerSize(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <input
+                placeholder="Spacing (in)"
+                value={newSpacingIn}
+                onChange={(e) => setNewSpacingIn(e.target.value)}
+                style={{ width: "100%", marginBottom: 10, padding: 8 }}
+              />
+
+              <input
+                placeholder="Spread (in)"
+                value={newSpreadIn}
+                onChange={(e) => setNewSpreadIn(e.target.value)}
+                style={{ width: "100%", marginBottom: 10, padding: 8 }}
+              />
+
+              <input
+                placeholder="Height (in)"
+                value={newHeightIn}
+                onChange={(e) => setNewHeightIn(e.target.value)}
+                style={{ width: "100%", marginBottom: 10, padding: 8 }}
+              />
+            </div>
+
+            <input
+              placeholder="Plant form"
+              value={newPlantForm}
+              onChange={(e) => setNewPlantForm(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
+              placeholder="Sun exposure"
+              value={newSunExposure}
+              onChange={(e) => setNewSunExposure(e.target.value)}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <input
               placeholder="Unit (ea, yd, ton, sqft)"
               value={newUnit}
               onChange={(e) => setNewUnit(e.target.value)}
@@ -346,7 +481,14 @@ export default function MaterialsPage() {
               placeholder="Cost"
               value={newCost}
               onChange={(e) => setNewCost(e.target.value)}
-              style={{ width: "100%", marginBottom: 14, padding: 8 }}
+              style={{ width: "100%", marginBottom: 10, padding: 8 }}
+            />
+
+            <textarea
+              placeholder="Notes"
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
+              style={{ width: "100%", marginBottom: 14, padding: 8, minHeight: 80 }}
             />
 
             <button
@@ -364,7 +506,7 @@ export default function MaterialsPage() {
             </button>
 
             <button
-              onClick={() => setShowAdd(false)}
+              onClick={resetAddForm}
               style={{
                 padding: "8px 14px",
                 background: "#ccc",
