@@ -578,9 +578,9 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
   setMaterialSearch(nm);
   setShowMaterialResults(false);
 
-  if (m.default_unit) setMaterialUnit(m.default_unit);
-  if (typeof m.default_unit_cost === "number") {
-    setMaterialCost(Number(m.default_unit_cost) || 0);
+  if (m.unit) setMaterialUnit(m.unit);
+  if (typeof m.unit_cost === "number") {
+    setMaterialCost(Number(m.unit_cost) || 0);
   }
 
   if (!materialDetails.trim()) {
