@@ -1791,7 +1791,7 @@ async function addLabor() {
 
             <div className="grid grid-cols-12 gap-4 items-center">
               {/* Catalog search */}
-              <div className="col-span-4" ref={materialDropdownRef}>
+              <div className="col-span-3" ref={materialDropdownRef}>
                 <div className="relative">
                   <input
                     className="border p-2 rounded w-full h-10"
@@ -1890,7 +1890,7 @@ async function addLabor() {
               </div>
 
               {/* Unit Cost */}
-              <div className="col-span-2">
+              <div className="col-span-1">
                 <input
                   className="border p-2 rounded w-full h-10"
                   type="number"
