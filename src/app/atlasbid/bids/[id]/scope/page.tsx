@@ -336,8 +336,11 @@ async function mergeMaterialRow(
         return;
       }
 
-      setBid(b);
-      setTruckingHours(Number(b.trucking_hours ?? 0));
+      setBidPricingDate(
+  b?.pricing_date
+    ? String(b.pricing_date).slice(0, 10)
+    : new Date().toISOString().slice(0, 10)
+);
 
       // 2) Divisions
       const dRes = await fetch(`/api/divisions`, { cache: "no-store" });
