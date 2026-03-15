@@ -1904,6 +1904,7 @@ async function addLabor() {
                 </div>
               </div>
 <div className="col-span-2">
+  <div className="col-span-2">
   <select
     className="border p-2 rounded w-full h-10"
     value={selectedSourceIndex ?? ""}
@@ -1915,7 +1916,7 @@ async function addLabor() {
       if (!src) return;
 
       if (src.unit) setMaterialUnit(src.unit);
-      if (src.cost !== undefined) setMaterialCost(src.cost);
+      if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
     }}
   >
     <option value="">Select source</option>
@@ -1923,7 +1924,9 @@ async function addLabor() {
     {materialSources.map((s, i) => (
       <option key={i} value={i}>
         {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
-        {s.available_qty ? ` (Stock: ${s.available_qty})` : ""}
+        {s.available_qty !== null && s.available_qty !== undefined
+          ? ` (Qty: ${Number(s.available_qty).toFixed(2).replace(/\.00$/, "")})`
+          : ""}
       </option>
     ))}
   </select>
