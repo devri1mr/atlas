@@ -2257,7 +2257,6 @@ async function addLabor() {
       </div>
     )}
   </div>
-</div>
       )}
     </div>
   );
