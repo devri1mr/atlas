@@ -1235,18 +1235,20 @@ async function addLabor() {
       return;
     }
 
+    const selectedSource =
+  selectedSourceIndex !== null ? materialSources[selectedSourceIndex] : null;
     const payload: any = {
-      bidId,
-      bid_id: bidId,
-      company_id: bid?.company_id ?? null,
-      material_id: selectedMaterialId || null,
-      name: trimmedName,
-      details: materialDetails.trim() || null,
-      qty: Number(materialQty) || 0,
-      unit: materialUnit,
-      unitCost: Number(materialCost) || 0,
-      unit_cost: Number(materialCost) || 0,
-    };
+  bidId,
+  bid_id: bidId,
+  company_id: bid?.company_id ?? null,
+  material_id: selectedMaterialId || null,
+  name: trimmedName,
+  details: materialDetails.trim() || null,
+  qty: Number(materialQty) || 0,
+  unit: materialUnit,
+  unitCost: Number(materialCost) || 0,
+  unit_cost: Number(materialCost) || 0,
+};
 
     const res = await fetch(`/api/atlasbid/bid-materials`, {
       method: "POST",
@@ -1275,6 +1277,8 @@ async function addLabor() {
     setMaterialUnit("ea");
     setMaterialCost(0);
     setShowMaterialResults(false);
+    setMaterialSources([]);
+    setSelectedSourceIndex(null);
   } finally {
     addingMaterialRef.current = false;
   }
