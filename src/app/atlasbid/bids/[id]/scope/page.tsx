@@ -2228,35 +2228,39 @@ async function addLabor() {
             </div>
           </div>
           {/* PROPOSAL PREVIEW */}
-<div className="border rounded-lg p-6 space-y-4 mt-6">
-  <h2 className="text-xl font-semibold">Proposal Preview</h2>
-<button
-  onClick={copyProposal}
-  className="px-3 py-1 rounded bg-black text-white text-sm mb-3"
->
-  Copy Proposal
-</button>
-  {/* Scope Lines */}
-  <div className="space-y-1 text-sm">
-    {labor.length === 0 ? (
-      <div className="text-gray-500">No scope items yet.</div>
-    ) : (
-      labor.map((row) => (
-        <div key={row.id}>• {row.proposal_text || row.task}</div>
-      ))
-    )}
-  </div>
+          <div className="border rounded-lg p-6 space-y-4 mt-6">
+            <h2 className="text-xl font-semibold">Proposal Preview</h2>
 
-  {/* Pricing */}
-  <div className="pt-4 border-t text-lg font-semibold space-y-1">
-    <div>Project Price: {money(sellRounded)}</div>
+            <button
+              onClick={copyProposal}
+              className="px-3 py-1 rounded bg-black text-white text-sm mb-3"
+            >
+              Copy Proposal
+            </button>
 
-    {prepayEnabled && (
-      <div className="text-green-700">
-        Prepay Price: {money(sellWithPrepay)}
-      </div>
-    )}
-  </div>
+            {/* Scope Lines */}
+            <div className="space-y-1 text-sm">
+              {labor.length === 0 ? (
+                <div className="text-gray-500">No scope items yet.</div>
+              ) : (
+                labor.map((row) => (
+                  <div key={row.id}>• {row.proposal_text || row.task}</div>
+                ))
+              )}
+            </div>
+
+            {/* Pricing */}
+            <div className="pt-4 border-t text-lg font-semibold space-y-1">
+              <div>Project Price: {money(sellRounded)}</div>
+
+              {prepayEnabled && (
+                <div className="text-green-700">
+                  Prepay Price: {money(sellWithPrepay)}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
