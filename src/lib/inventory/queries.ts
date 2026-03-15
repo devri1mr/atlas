@@ -1,0 +1,93 @@
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+function n(v: any, d = 0) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : d;
+}
+
+export async function getInventoryLedger(filters: any = {}) {
+  const supabase = supabaseAdmin();
+
+  let q = supabase
+    .from("inventory_transactions")
+    .select(
+      `
+      *,
+      materials(id,name,display_name,inventory_unit,inventory_enabled),
+      inventory_locations(id,name),
+      vendors(id,name)
+      `
+    )
+    .order("transaction_date", { ascending: false });
+
+  if (filters.material_id) q = q.eq("material_id", filters.material_id);
+  if (filters.location_id) q = q.eq("location_id", filters.location_id);
+
+  const { data, error } = await q;
+
+  if (error) throw new Error(error.message);
+
+  return data || [];
+}
+
+export function computePosition(rows: any[]) {
+  let qty = 0;
+  let value = 0;
+
+  for (const r of rows) {
+    if (r.is_void) continue;
+
+    const q = n(r.quantity);
+    let v = 0;
+
+    if (r.total_cost !== null) {
+      v = n(r.total_cost);
+    } else if (r.unit_cost !== null) {
+      v = q * n(r.unit_cost);
+    }
+
+    qty += q;
+    value += v;
+  }
+
+  const avg = qty !== 0 ? value / qty : 0;
+
+  return {
+    qty_on_hand: Number(qty.toFixed(2)),
+    avg_unit_cost: Number(avg.toFixed(4)),
+    inventory_value: Number(value.toFixed(2)),
+    negative_flag: qty < 0,
+  };
+}
+
+export async function getInventorySummary() {
+  const rows = await getInventoryLedger();
+
+  const groups = new Map();
+
+  for (const r of rows) {
+    const key = `${r.material_id}_${r.location_id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+
+  const out: any[] = [];
+
+  for (const [, group] of groups.entries()) {
+    const pos = computePosition(group);
+
+    const r = group[0];
+
+    out.push({
+      material_id: r.material_id,
+      material_name: r.materials?.display_name || r.materials?.name || "",
+      location_id: r.location_id,
+      location_name: r.inventory_locations?.name || "",
+      inventory_unit: r.materials?.inventory_unit || null,
+      inventory_enabled: r.materials?.inventory_enabled || false,
+      ...pos,
+    });
+  }
+
+  return out;
+}
