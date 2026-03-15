@@ -1924,14 +1924,26 @@ async function addLabor() {
   >
     <option value="">Select source</option>
 
-    {materialSources.map((s, i) => (
-      <option key={i} value={i}>
-        {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
-        {s.available_qty !== null && s.available_qty !== undefined
-          ? ` (Qty: ${Number(s.available_qty).toFixed(2).replace(/\.00$/, "")})`
-          : ""}
-      </option>
-    ))}
+    {materialSources.map((s, i) => {
+  const qty =
+    s.available_qty === null || s.available_qty === undefined
+      ? null
+      : Number(s.available_qty);
+
+  const qtyText =
+    qty === null
+      ? ""
+      : qty < 0
+      ? ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")} LOW)`
+      : ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")})`;
+
+  return (
+    <option key={i} value={i}>
+      {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
+      {qtyText}
+    </option>
+  );
+})}
   </select>
 </div>
               {/* Details */}
