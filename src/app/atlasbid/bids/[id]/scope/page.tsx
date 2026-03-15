@@ -576,12 +576,63 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
   }, [materialSearch, materialsCatalog]);
 async function loadMaterialSources(materialId: string) {
   try {
-    const res = await fetch(`/api/material-sources?material_id=${materialId}`, {
-      cache: "no-store",
-    });
+    if (!materialId) {
+      setMaterialSources([]);
+      setSelectedSourceIndex(null);
+      return;
+    }
 
-    const json = await res.json();
-    const sources = Array.isArray(json?.data) ? json.data : [];
+    const pricingDate =
+      bidPricingDate || new Date().toISOString().slice(0, 10);
+
+    const [inventoryRes, vendorRes] = await Promise.all([
+      fetch(
+        `/api/inventory/source?material_id=${materialId}&pricing_date=${pricingDate}`,
+        { cache: "no-store" }
+      ),
+      fetch(`/api/material-sources?material_id=${materialId}`, {
+        cache: "no-store",
+      }),
+    ]);
+
+    const inventoryJson = await inventoryRes.json();
+    const vendorJson = await vendorRes.json();
+
+    const inventorySources = Array.isArray(inventoryJson?.data)
+      ? inventoryJson.data.map((s: any) => ({
+          source_type: "inventory",
+          source_name: s.source_label || "Inventory",
+          source_label: s.source_label || "Inventory",
+          source_reference_id: s.source_reference_id || null,
+          unit: s.unit || materialUnit || "ea",
+          cost: Number(s.avg_unit_cost) || 0,
+          available_qty:
+            s.qty_on_hand === null || s.qty_on_hand === undefined
+              ? null
+              : Number(s.qty_on_hand),
+          preferred: true,
+          negative_flag: Boolean(s.negative_flag),
+        }))
+      : [];
+
+    const vendorSources = Array.isArray(vendorJson?.data)
+      ? vendorJson.data.map((s: any) => ({
+          source_type: s.source_type || "vendor",
+          source_name: s.source_name || s.source_label || "Vendor",
+          source_label: s.source_label || s.source_name || "Vendor",
+          source_reference_id: s.source_reference_id || null,
+          unit: s.unit || materialUnit || "ea",
+          cost: Number(s.cost) || 0,
+          available_qty:
+            s.available_qty === null || s.available_qty === undefined
+              ? null
+              : Number(s.available_qty),
+          preferred: Boolean(s.preferred),
+          negative_flag: false,
+        }))
+      : [];
+
+    const sources = [...inventorySources, ...vendorSources];
 
     setMaterialSources(sources);
 
@@ -590,7 +641,11 @@ async function loadMaterialSources(materialId: string) {
       return;
     }
 
-    let chosenIndex = sources.findIndex((s: any) => s.preferred === true);
+    let chosenIndex = sources.findIndex((s: any) => s.source_type === "inventory");
+
+    if (chosenIndex === -1) {
+      chosenIndex = sources.findIndex((s: any) => s.preferred === true);
+    }
 
     if (chosenIndex === -1) {
       chosenIndex = sources.reduce((bestIndex: number, s: any, i: number) => {
