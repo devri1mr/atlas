@@ -1903,7 +1903,6 @@ async function addLabor() {
                   ) : null}
                 </div>
               </div>
-<div className="col-span-2">
   <div className="col-span-2">
   <select
     className="border p-2 rounded w-full h-10"
