@@ -326,19 +326,41 @@ async function mergeMaterialRow(
 
     try {
       // 1) Bid
-      const bRes = await fetch(`/api/bids/${bidId}`, { cache: "no-store" });
-      const bJson = await bRes.json();
-      const b: Bid | null = bJson?.data ?? null;
+let b: any = null;
 
-      if (!b) {
-        setBid(null);
-        setLoading(false);
-        return;
-      }
+const bidCandidates = [
+  `/api/atlasbid/bids/${bidId}`,
+  `/api/bids/${bidId}`,
+];
 
-      setBidPricingDate(
-  (b as any)?.pricing_date
-    ? String((b as any).pricing_date).slice(0, 10)
+for (const url of bidCandidates) {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) continue;
+
+    const json = await res.json();
+    const row = json?.row ?? json?.data ?? json?.bid ?? json ?? null;
+
+    if (row && row.id) {
+      b = row;
+      break;
+    }
+  } catch {
+    // try next route
+  }
+}
+
+if (!b) {
+  setBid(null);
+  setLoading(false);
+  return;
+}
+
+setBid(b);
+
+setBidPricingDate(
+  b?.pricing_date
+    ? String(b.pricing_date).slice(0, 10)
     : new Date().toISOString().slice(0, 10)
 );
 
