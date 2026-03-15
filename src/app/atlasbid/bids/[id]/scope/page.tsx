@@ -337,8 +337,8 @@ async function mergeMaterialRow(
       }
 
       setBidPricingDate(
-  b?.pricing_date
-    ? String(b.pricing_date).slice(0, 10)
+  (b as any)?.pricing_date
+    ? String((b as any).pricing_date).slice(0, 10)
     : new Date().toISOString().slice(0, 10)
 );
 
