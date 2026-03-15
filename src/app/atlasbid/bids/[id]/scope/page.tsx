@@ -577,31 +577,32 @@ async function loadMaterialSources(materialId: string) {
     });
 
     const json = await res.json();
-
     const sources = Array.isArray(json?.data) ? json.data : [];
 
-setMaterialSources(sources);
+    setMaterialSources(sources);
 
-if (sources.length > 0) {
-  let cheapestIndex = 0;
-
-  for (let i = 1; i < sources.length; i++) {
-    if (Number(sources[i].cost) < Number(sources[cheapestIndex].cost)) {
-      cheapestIndex = i;
+    if (sources.length === 0) {
+      setSelectedSourceIndex(null);
+      return;
     }
-  }
 
-  const src = sources[cheapestIndex];
+    let chosenIndex = sources.findIndex((s: any) => s.preferred === true);
 
-  setSelectedSourceIndex(cheapestIndex);
+    if (chosenIndex === -1) {
+      chosenIndex = sources.reduce((bestIndex: number, s: any, i: number) => {
+        return Number(s.cost) < Number(sources[bestIndex].cost) ? i : bestIndex;
+      }, 0);
+    }
 
-  if (src.unit) setMaterialUnit(src.unit);
-  if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
-} else {
-  setSelectedSourceIndex(null);
-}
+    const src = sources[chosenIndex];
+
+    setSelectedSourceIndex(chosenIndex);
+
+    if (src.unit) setMaterialUnit(src.unit);
+    if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
   } catch {
     setMaterialSources([]);
+    setSelectedSourceIndex(null);
   }
 }
   function applyMaterialSelection(m: MaterialsCatalogRow) {
