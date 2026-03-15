@@ -177,6 +177,7 @@ const [materialUnit, setMaterialUnit] = useState<string>("ea");
 const [materialCost, setMaterialCost] = useState<number>(0);
 const [materialSources, setMaterialSources] = useState<any[]>([]);
 const [selectedSourceIndex, setSelectedSourceIndex] = useState<number | null>(null);
+const [bidPricingDate, setBidPricingDate] = useState<string>("");
   // Materials catalog predictive search
   const [materialsCatalog, setMaterialsCatalog] = useState<MaterialsCatalogRow[]>([]);
   const [materialSearch, setMaterialSearch] = useState("");
