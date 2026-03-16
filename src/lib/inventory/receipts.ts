@@ -41,12 +41,29 @@ export async function createReceiptTransaction(input: any) {
     input.total_cost !== null
       ? Number((input.total_cost / input.quantity).toFixed(4))
       : null;
+const unitCost =
+  input.total_cost != null
+    ? Number((input.total_cost / input.quantity).toFixed(4))
+    : null;
 
+const fallbackLocationId =
+  input.location_id ||
+  (
+    await supabase
+      .from("inventory_locations")
+      .select("id")
+      .limit(1)
+      .maybeSingle()
+  ).data?.id;
+
+if (!fallbackLocationId) {
+  throw new Error("No inventory location found. Create an inventory location first.");
+}
   const { data, error } = await supabase
     .from("inventory_transactions")
     .insert({
       material_id: material.id,
-      location_id: input.location_id,
+      location_id: fallbackLocationId,
       transaction_type: "receipt",
       quantity: input.quantity,
       total_cost: input.total_cost,
