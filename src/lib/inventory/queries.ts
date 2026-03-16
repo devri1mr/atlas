@@ -13,7 +13,7 @@ export async function getInventoryLedger(filters: any = {}) {
     .select(
       `
       *,
-      materials(id,name,display_name,inventory_unit,inventory_enabled),
+      materials(id,name,display_name,unit,inventory_unit,inventory_enabled,division_id),
       inventory_locations(id,name),
       vendors(id,name)
       `
@@ -22,6 +22,10 @@ export async function getInventoryLedger(filters: any = {}) {
 
   if (filters.material_id) q = q.eq("material_id", filters.material_id);
   if (filters.location_id) q = q.eq("location_id", filters.location_id);
+
+  if (filters.division_id) {
+    q = q.eq("materials.division_id", filters.division_id);
+  }
 
   const { data, error } = await q;
 
@@ -60,22 +64,21 @@ export function computePosition(rows: any[]) {
   };
 }
 
-export async function getInventorySummary() {
-  const rows = await getInventoryLedger();
+export async function getInventorySummary(filters: any = {}) {
+  const rows = await getInventoryLedger(filters);
 
-  const groups = new Map();
+  const groups = new Map<string, any[]>();
 
   for (const r of rows) {
     const key = `${r.material_id}_${r.location_id}`;
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r);
+    groups.get(key)!.push(r);
   }
 
   const out: any[] = [];
 
   for (const [, group] of groups.entries()) {
     const pos = computePosition(group);
-
     const r = group[0];
 
     out.push({
@@ -83,7 +86,7 @@ export async function getInventorySummary() {
       material_name: r.materials?.display_name || r.materials?.name || "",
       location_id: r.location_id,
       location_name: r.inventory_locations?.name || "",
-      inventory_unit: r.materials?.inventory_unit || null,
+      inventory_unit: r.materials?.unit || r.materials?.inventory_unit || null,
       inventory_enabled: r.materials?.inventory_enabled || false,
       ...pos,
     });
