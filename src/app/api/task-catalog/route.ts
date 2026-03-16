@@ -49,25 +49,25 @@ export async function GET(req: NextRequest) {
   const division_id = (searchParams.get("division_id") || "").trim();
 
   let query = supabase
-    .from("task_catalog")
-    .select(
-      `
-      id,
-      division_id,
-      name,
-      unit,
-      minutes_per_unit,
-      default_qty,
-      notes,
-      min_qty,
-      round_qty_to,
-      seasonal_multiplier,
-      difficulty_multiplier,
-      created_at,
-      updated_at
-      `
-    )
-    .order("name", { ascending: true });
+  .from("task_catalog")
+  .select(`
+    id,
+    division_id,
+    name,
+    unit,
+    minutes_per_unit,
+    default_qty,
+    notes,
+    min_qty,
+    round_qty_to,
+    seasonal_multiplier,
+    difficulty_multiplier,
+    active,
+    created_at,
+    updated_at
+  `)
+  .eq("active", true)
+  .order("name", { ascending: true });
 
   if (division_id) {
     if (!isUuid(division_id)) {
