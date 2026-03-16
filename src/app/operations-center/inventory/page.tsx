@@ -504,14 +504,20 @@ export default function InventoryPage() {
             />
           </div>
 
-          <div className="col-span-1">
-            <input
-              type="number"
-              value={totalCost === 0 ? "" : totalCost}
-              onChange={(e) => setTotalCost(Number(e.target.value))}
-              className="border rounded-md p-2 w-full h-10"
-            />
-          </div>
+          <div className="col-span-1 relative">
+
+  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+    $
+  </span>
+
+  <input
+    type="number"
+    value={totalCost === 0 ? "" : totalCost}
+    onChange={(e) => setTotalCost(Number(e.target.value))}
+    className="border rounded-md p-2 pl-7 w-full h-10"
+  />
+
+</div>
 
           <div className="col-span-2">
             <input
