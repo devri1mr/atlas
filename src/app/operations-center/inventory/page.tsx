@@ -153,9 +153,9 @@ export default function InventoryPage() {
 
     try {
       const [summaryRes, ledgerRes] = await Promise.all([
-        fetch("/api/inventory/summary", { cache: "no-store" }),
-        fetch("/api/inventory/ledger", { cache: "no-store" }),
-      ]);
+  fetch(`/api/inventory/summary?division_id=${activeDivisionId}`, { cache: "no-store" }),
+  fetch(`/api/inventory/ledger?division_id=${activeDivisionId}`, { cache: "no-store" }),
+]);
 
       const summaryJson = await summaryRes.json();
       const ledgerJson = await ledgerRes.json();
@@ -170,9 +170,13 @@ export default function InventoryPage() {
   }
 
   useEffect(() => {
-    loadLookups();
-    loadData();
-  }, []);
+  loadLookups();
+}, []);
+
+useEffect(() => {
+  if (!activeDivisionId) return;
+  loadData();
+}, [activeDivisionId]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
