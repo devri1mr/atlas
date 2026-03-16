@@ -66,6 +66,7 @@ if (!fallbackLocationId) {
       unit_cost: unitCost,
       transaction_date: input.transaction_date,
       reference_number: input.reference_number,
+      vendor_name: input.vendor_name,
       notes: input.notes,
       invoiced_final: input.invoiced_final,
     })
