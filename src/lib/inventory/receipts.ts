@@ -16,7 +16,7 @@ export async function findOrCreateMaterial(name: string, unit: string) {
     .insert({
       name,
       display_name: name,
-      inventory_unit: unit,
+      unit: unit,
       inventory_enabled: true,
       is_active: true,
     })
