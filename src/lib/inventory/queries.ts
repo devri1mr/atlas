@@ -13,9 +13,23 @@ export async function getInventoryLedger(filters: any = {}) {
     .select(
       `
       *,
-      materials(id,name,display_name,unit,inventory_unit,inventory_enabled,division_id),
-      inventory_locations(id,name),
-      vendors(id,name)
+      materials(
+        id,
+        name,
+        display_name,
+        unit,
+        inventory_unit,
+        inventory_enabled,
+        division_id
+      ),
+      inventory_locations(
+        id,
+        name
+      ),
+      vendors(
+        id,
+        name
+      )
       `
     )
     .order("transaction_date", { ascending: false });
@@ -23,15 +37,19 @@ export async function getInventoryLedger(filters: any = {}) {
   if (filters.material_id) q = q.eq("material_id", filters.material_id);
   if (filters.location_id) q = q.eq("location_id", filters.location_id);
 
-  if (filters.division_id) {
-    q = q.eq("materials.division_id", filters.division_id);
-  }
-
   const { data, error } = await q;
 
   if (error) throw new Error(error.message);
 
-  return data || [];
+  let rows = Array.isArray(data) ? data : [];
+
+  if (filters.division_id) {
+    rows = rows.filter(
+      (r) => (r.materials?.division_id || null) === filters.division_id
+    );
+  }
+
+  return rows;
 }
 
 export function computePosition(rows: any[]) {
@@ -70,7 +88,7 @@ export async function getInventorySummary(filters: any = {}) {
   const groups = new Map<string, any[]>();
 
   for (const r of rows) {
-    const key = `${r.material_id}_${r.location_id}`;
+    const key = `${r.material_id}_${r.location_id || "none"}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   }
@@ -92,5 +110,7 @@ export async function getInventorySummary(filters: any = {}) {
     });
   }
 
-  return out;
+  return out.sort(
+    (a, b) => Number(b.inventory_value || 0) - Number(a.inventory_value || 0)
+  );
 }
