@@ -41,10 +41,6 @@ export async function createReceiptTransaction(input: any) {
     input.total_cost !== null
       ? Number((input.total_cost / input.quantity).toFixed(4))
       : null;
-const unitCost =
-  input.total_cost != null
-    ? Number((input.total_cost / input.quantity).toFixed(4))
-    : null;
 
 const fallbackLocationId =
   input.location_id ||
