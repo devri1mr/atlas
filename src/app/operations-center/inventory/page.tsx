@@ -498,7 +498,7 @@ export default function InventoryPage() {
           <div className="col-span-1">
             <input
               type="number"
-              value={quantity}
+              value={quantity === 0 ? "" : quantity}
               onChange={(e) => setQuantity(Number(e.target.value))}
               className="border rounded-md p-2 w-full h-10"
             />
@@ -507,7 +507,7 @@ export default function InventoryPage() {
           <div className="col-span-1">
             <input
               type="number"
-              value={totalCost}
+              value={totalCost === 0 ? "" : totalCost}
               onChange={(e) => setTotalCost(Number(e.target.value))}
               className="border rounded-md p-2 w-full h-10"
             />
