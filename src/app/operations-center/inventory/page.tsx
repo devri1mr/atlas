@@ -808,7 +808,8 @@ function startEditReceipt(row: LedgerRow) {
 </td>
                       <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
                       <td className="py-3 px-3">
-  {!row.invoiced_final ? (
+  <td className="py-3 px-3 space-x-3">
+  {!row.invoiced_final && (
     <button
       type="button"
       onClick={() => startEditReceipt(row)}
@@ -816,7 +817,16 @@ function startEditReceipt(row: LedgerRow) {
     >
       Edit
     </button>
-  ) : (
+  )}
+
+  <button
+    type="button"
+    onClick={() => voidReceipt(row.id)}
+    className="text-red-600 hover:underline font-medium"
+  >
+    Void
+  </button>
+</td>
     <span className="text-gray-400">Locked</span>
   )}
 </td>
