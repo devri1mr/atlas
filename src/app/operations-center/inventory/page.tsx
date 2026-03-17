@@ -332,8 +332,6 @@ function startEditReceipt(row: LedgerRow) {
 }
 
 async function voidReceipt(id: string) {
-  if (!window.confirm("Void this inventory transaction?")) return;
-
   try {
     const res = await fetch(`/api/inventory/receipt/${id}`, {
       method: "DELETE",
