@@ -891,6 +891,44 @@ async function createReceipt() {
       {loading ? (
         <div className="text-sm text-gray-500">Loading inventory...</div>
       ) : null}
+      {loading ? (
+  <div className="text-sm text-gray-500">Loading inventory...</div>
+) : null}
+
+{showVoidConfirm && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg p-6 w-[420px]">
+      <div className="text-lg font-semibold mb-2">
+        Void Inventory Transaction
+      </div>
+
+      <div className="text-sm text-gray-600 mb-4">
+        Are you sure you want to void this transaction?
+      </div>
+
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setShowVoidConfirm(false)}
+          className="border px-4 py-2 rounded-md"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={() => {
+            if (voidTargetId) voidReceipt(voidTargetId);
+            setShowVoidConfirm(false);
+          }}
+          className="bg-red-600 text-white px-4 py-2 rounded-md"
+        >
+          Void
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+</div>
     </div>
   );
 }
