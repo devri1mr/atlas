@@ -341,32 +341,53 @@ function startEditReceipt(row: LedgerRow) {
   setError("");
 
   try {
-    const payload = {
-      material_id: selectedMaterialId || null,
-      material_name: materialName.trim(),
-      inventory_unit: unit,
-      quantity: Number(quantity) || 0,
-      total_cost: Number(totalCost) || 0,
-      transaction_date: date,
-      reference_number: referenceNumber.trim() || null,
-      vendor_name: vendorName.trim() || null,
-      notes: notes.trim() || null,
-      invoiced_final: invoicedFinal,
-      division_id: activeDivisionId || null,
-    };
+    let res: Response;
 
-    const res = await fetch(
-      editingReceiptId
-        ? `/api/inventory/receipt/${editingReceiptId}`
-        : "/api/inventory/receipt",
-      {
-        method: editingReceiptId ? "PATCH" : "POST",
+    if (editingReceiptId) {
+      const patchPayload = {
+        quantity: Number(quantity) || 0,
+        total_cost: Number(totalCost) || 0,
+        unit_cost:
+          (Number(quantity) || 0) > 0
+            ? Number((Number(totalCost) / Number(quantity)).toFixed(4))
+            : 0,
+        transaction_date: date,
+        reference_number: referenceNumber.trim() || null,
+        vendor_name: vendorName.trim() || null,
+        notes: notes.trim() || null,
+        invoiced_final: invoicedFinal,
+      };
+
+      res = await fetch(`/api/inventory/receipt/${editingReceiptId}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
-      }
-    );
+        body: JSON.stringify(patchPayload),
+      });
+    } else {
+      const postPayload = {
+        material_id: selectedMaterialId || null,
+        material_name: materialName.trim(),
+        inventory_unit: unit,
+        quantity: Number(quantity) || 0,
+        total_cost: Number(totalCost) || 0,
+        transaction_date: date,
+        reference_number: referenceNumber.trim() || null,
+        vendor_name: vendorName.trim() || null,
+        notes: notes.trim() || null,
+        invoiced_final: invoicedFinal,
+        division_id: activeDivisionId || null,
+      };
+
+      res = await fetch("/api/inventory/receipt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postPayload),
+      });
+    }
 
     if (!res.ok) {
       const json = await res.json().catch(() => null);
