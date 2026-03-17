@@ -715,7 +715,7 @@ function startEditReceipt(row: LedgerRow) {
             <tbody>
               {filteredLedger.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-6 px-3 text-gray-500">
+                  <td colSpan={11} className="py-6 px-3 text-gray-500">
                     No inventory ledger rows found.
                   </td>
                 </tr>
