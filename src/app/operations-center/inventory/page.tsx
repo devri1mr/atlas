@@ -125,6 +125,9 @@ export default function InventoryPage() {
   const [notes, setNotes] = useState("");
   const [tableSearch, setTableSearch] = useState("");
 
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
+  const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
+
   async function loadLookups() {
     try {
       const [dRes, mRes] = await Promise.all([
