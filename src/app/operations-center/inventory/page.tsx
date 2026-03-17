@@ -126,6 +126,7 @@ export default function InventoryPage() {
   const [invoicedFinal, setInvoicedFinal] = useState(false);
   const [notes, setNotes] = useState("");
   const [tableSearch, setTableSearch] = useState("");
+  const [selectedNote, setSelectedNote] = useState<string | null>(null);
 
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
