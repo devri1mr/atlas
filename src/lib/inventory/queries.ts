@@ -103,7 +103,10 @@ export async function getInventorySummary(filters: any = {}) {
     });
   }
 
-  return out.sort(
-    (a, b) => Number(b.inventory_value || 0) - Number(a.inventory_value || 0)
-  );
+  return out.sort((a, b) => {
+  const nameCompare = (a.material_name || "").localeCompare(b.material_name || "");
+  if (nameCompare !== 0) return nameCompare;
+
+  return (a.location_name || "").localeCompare(b.location_name || "");
+});
 }
