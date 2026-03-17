@@ -948,6 +948,26 @@ async function createReceipt() {
           </div>
         </div>
       )}
+      {selectedNote && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6">
+      <h3 className="text-sm font-semibold mb-3">Notes</h3>
+
+      <div className="text-sm text-gray-700 whitespace-pre-wrap">
+        {selectedNote}
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => setSelectedNote(null)}
+          className="px-4 py-2 bg-gray-900 text-white rounded-md text-sm"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
