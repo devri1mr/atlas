@@ -1,27 +1,67 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+function normalizeMaterialName(name: string) {
+  const raw = String(name || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    "brown mulch": "Mulch - Brown",
+    "mulch brown": "Mulch - Brown",
+    "black mulch": "Mulch - Black",
+    "mulch black": "Mulch - Black",
+    "cedar mulch": "Mulch - Cedar",
+    "mulch cedar": "Mulch - Cedar",
+  };
+
+  if (map[raw]) return map[raw];
+
+  return String(name || "").trim();
+}
+
 export async function findOrCreateMaterial(
   name: string,
   unit: string,
   divisionId?: string
 ) {
-
   const supabase = supabaseAdmin();
 
-  const { data } = await supabase
+  const normalizedName = normalizeMaterialName(name);
+
+  let existingQuery = supabase
     .from("materials")
     .select("*")
-    .ilike("name", name)
+    .ilike("name", normalizedName)
     .limit(1);
 
-  if (data && data.length) return data[0];
+  if (divisionId) {
+    existingQuery = existingQuery.eq("division_id", divisionId);
+  }
+
+  const { data: existing, error: existingError } = await existingQuery;
+
+  if (existingError) throw new Error(existingError.message);
+  if (existing && existing.length) return existing[0];
+
+  let displayQuery = supabase
+    .from("materials")
+    .select("*")
+    .ilike("display_name", normalizedName)
+    .limit(1);
+
+  if (divisionId) {
+    displayQuery = displayQuery.eq("division_id", divisionId);
+  }
+
+  const { data: displayExisting, error: displayError } = await displayQuery;
+
+  if (displayError) throw new Error(displayError.message);
+  if (displayExisting && displayExisting.length) return displayExisting[0];
 
   const { data: created, error } = await supabase
     .from("materials")
     .insert({
-      name,
-      display_name: name,
-      unit: unit,
+      name: normalizedName,
+      display_name: normalizedName,
+      unit,
       inventory_unit: unit,
       unit_cost: 0,
       inventory_enabled: true,
@@ -39,36 +79,39 @@ export async function findOrCreateMaterial(
 export async function createReceiptTransaction(input: any) {
   const supabase = supabaseAdmin();
 
+  const normalizedMaterialName = normalizeMaterialName(input.material_name);
+
   const material = await findOrCreateMaterial(
-  input.material_name,
-  input.inventory_unit,
-  input.division_id
-);
+    normalizedMaterialName,
+    input.inventory_unit,
+    input.division_id
+  );
 
   const unitCost =
-    input.total_cost !== null
-      ? Number((input.total_cost / input.quantity).toFixed(4))
+    input.total_cost !== null && Number(input.quantity) > 0
+      ? Number((Number(input.total_cost) / Number(input.quantity)).toFixed(4))
       : null;
 
-const fallbackLocationId =
-  input.location_id ||
-  (
-    await supabase
-      .from("inventory_locations")
-      .select("id")
-      .limit(1)
-      .maybeSingle()
-  ).data?.id;
+  const fallbackLocationId =
+    input.location_id ||
+    (
+      await supabase
+        .from("inventory_locations")
+        .select("id")
+        .limit(1)
+        .maybeSingle()
+    ).data?.id;
 
-if (!fallbackLocationId) {
-  throw new Error("No inventory location found. Create an inventory location first.");
-}
+  if (!fallbackLocationId) {
+    throw new Error("No inventory location found. Create an inventory location first.");
+  }
+
   const { data, error } = await supabase
     .from("inventory_transactions")
     .insert({
       material_id: material.id,
       location_id: fallbackLocationId,
-      division_id: input.division_id,
+      division_id: input.division_id ?? null,
       transaction_type: "receipt",
       quantity: input.quantity,
       total_cost: input.total_cost,
