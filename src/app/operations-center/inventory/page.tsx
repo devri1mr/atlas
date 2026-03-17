@@ -797,7 +797,7 @@ async function createReceipt() {
                 <th className="py-3 px-3">Vendor</th>
                 <th className="py-3 px-3">Reference</th>
                 <th className="py-3 px-0 text-center w-[70px]">Final</th>
-                <th className="py-3 px-3">Notes</th>
+                <th className="py-3 px-3 text-center w-[70px]">Notes</th>
                 <th className="py-3 px-3">Actions</th>
               </tr>
             </thead>
