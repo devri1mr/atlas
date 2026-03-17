@@ -843,13 +843,15 @@ async function createReceipt() {
 
           <td className="py-3 px-3">{row.reference_number || "—"}</td>
 
-          <td className="py-3 px-3 text-center">
-            {row.invoiced_final ? (
-              <span className="text-green-600 text-lg">✓</span>
-            ) : (
-              <span className="text-gray-400">—</span>
-            )}
-          </td>
+          <td className="py-3 px-3 text-center align-middle">
+  {row.invoiced_final ? (
+    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-xs font-bold">
+      ✓
+    </span>
+  ) : (
+    <span className="text-gray-300">—</span>
+  )}
+</td>
 
           <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
 
