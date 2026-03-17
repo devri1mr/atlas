@@ -31,11 +31,13 @@ type InventorySummaryRow = {
   negative_flag: boolean;
   inventory_unit: string | null;
   inventory_enabled: boolean;
+  division_id?: string | null;
 };
 
 type LedgerRow = {
   id: string;
   material_id: string;
+  division_id?: string | null;
   quantity: number;
   unit_cost: number | null;
   total_cost: number | null;
