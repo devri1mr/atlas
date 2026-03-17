@@ -110,6 +110,8 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
+
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialName, setMaterialName] = useState("");
   const [unit, setUnit] = useState("yd");
@@ -309,7 +311,21 @@ useEffect(() => {
     setShowMaterialResults(true);
     setUnitLocked(false);
   }
-
+function startEditReceipt(row: LedgerRow) {
+  setEditingReceiptId(row.id);
+  setSelectedMaterialId(row.material_id || "");
+  setMaterialName(row.materials?.display_name || row.materials?.name || "");
+  setMaterialSearch(row.materials?.display_name || row.materials?.name || "");
+  setUnit(row.materials?.inventory_unit || "yd");
+  setUnitLocked(false);
+  setQuantity(Number(row.quantity) || 0);
+  setTotalCost(Number(row.total_cost) || 0);
+  setDate(String(row.transaction_date || "").slice(0, 10));
+  setReferenceNumber(row.reference_number || "");
+  setVendorName(row.vendor_name || "");
+  setNotes(row.notes || "");
+  setInvoicedFinal(Boolean(row.invoiced_final));
+}
   async function createReceipt() {
     if (!materialName.trim()) {
       setError("Material is required.");
