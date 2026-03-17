@@ -888,7 +888,11 @@ async function loadBundleQuestions(bundleId: string) {
     if (!res.ok) {
       throw new Error(json?.error || "Failed applying bundle");
     }
-
+await fetch(`/api/bids/${bidId}/sync-bundle-materials`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ bundleId: selectedBundleId }),
+});
     const rows = json?.rows || [];
 
     if (rows.length) {
