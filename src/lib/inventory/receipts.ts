@@ -1,6 +1,11 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-export async function findOrCreateMaterial(name: string, unit: string) {
+export async function findOrCreateMaterial(
+  name: string,
+  unit: string,
+  divisionId?: string
+) {
+
   const supabase = supabaseAdmin();
 
   const { data } = await supabase
@@ -20,6 +25,7 @@ export async function findOrCreateMaterial(name: string, unit: string) {
       unit_cost: 0,
       inventory_enabled: true,
       is_active: true,
+      division_id: divisionId ?? null,
     })
     .select()
     .single();
@@ -33,9 +39,10 @@ export async function createReceiptTransaction(input: any) {
   const supabase = supabaseAdmin();
 
   const material = await findOrCreateMaterial(
-    input.material_name,
-    input.inventory_unit
-  );
+  input.material_name,
+  input.inventory_unit,
+  input.division_id
+);
 
   const unitCost =
     input.total_cost !== null
