@@ -784,9 +784,9 @@ async function createReceipt() {
       </div>
 
       <div className="border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
           <table className="w-full text-sm min-w-[1100px] table-fixed">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b sticky top-0 z-10">
               <tr className="text-left">
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">Material</th>
