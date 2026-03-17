@@ -22,6 +22,7 @@ export async function findOrCreateMaterial(
       name,
       display_name: name,
       unit: unit,
+      inventory_unit: unit,
       unit_cost: 0,
       inventory_enabled: true,
       is_active: true,
