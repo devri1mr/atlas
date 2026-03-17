@@ -827,9 +827,6 @@ function startEditReceipt(row: LedgerRow) {
     Void
   </button>
 </td>
-    <span className="text-gray-400">Locked</span>
-  )}
-</td>
                     </tr>
                   );
                 })
