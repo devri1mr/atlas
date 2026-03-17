@@ -711,7 +711,7 @@ useEffect(() => {
                   return (
                     <tr key={row.id} className="border-b">
                       <td className="py-3 px-3">
-                        {new Date(row.transaction_date).toLocaleDateString()}
+                        {formatDateOnly(row.transaction_date)}
                       </td>
                       <td className="py-3 px-3 font-medium">{materialText}</td>
                       <td className="py-3 px-3">
