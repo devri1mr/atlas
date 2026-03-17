@@ -870,7 +870,10 @@ async function createReceipt() {
 
             <button
               type="button"
-              onClick={() => voidReceipt(row.id)}
+              onClick={() => {
+  setVoidTargetId(row.id);
+  setShowVoidConfirm(true);
+}}
               className="text-red-600 hover:underline font-medium"
             >
               Void
