@@ -238,11 +238,9 @@ useEffect(() => {
 
     return summary
       .filter((row) => {
-        const rowDivisionId = materialDivisionMap.get(row.material_id) || null;
-
-        if (activeDivisionId && rowDivisionId && rowDivisionId !== activeDivisionId) {
-          return false;
-        }
+        if (activeDivisionId && row.division_id && row.division_id !== activeDivisionId) {
+  return false;
+}
 
         const hay = `${row.material_name || ""} ${row.location_name || ""} ${row.inventory_unit || ""}`.toLowerCase();
         return !q || hay.includes(q);
@@ -254,11 +252,9 @@ useEffect(() => {
     const q = tableSearch.trim().toLowerCase();
 
     return ledger.filter((row) => {
-      const rowDivisionId = materialDivisionMap.get(row.material_id) || null;
-
-      if (activeDivisionId && rowDivisionId && rowDivisionId !== activeDivisionId) {
-        return false;
-      }
+      if (activeDivisionId && row.division_id && row.division_id !== activeDivisionId) {
+  return false;
+}
 
       const materialText = row.materials?.display_name || row.materials?.name || "";
       const hay = `${materialText} ${row.transaction_type || ""} ${row.reference_number || ""} ${row.notes || ""} ${row.vendor_name || ""}`.toLowerCase();
