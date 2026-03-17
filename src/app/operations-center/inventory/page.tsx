@@ -725,7 +725,7 @@ async function createReceipt() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead className="bg-gray-50 border-b">
-              <tr className="text-left">
+              <tr className="text-center">
                 <th className="py-3 px-3">Material</th>
                 <th className="py-3 px-3">Location</th>
                 <th className="py-3 px-3">Qty On Hand</th>
@@ -787,7 +787,7 @@ async function createReceipt() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[1100px]">
             <thead className="bg-gray-50 border-b">
-              <tr className="text-left">
+              <tr className="text-center">
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">Material</th>
                 <th className="py-3 px-3">Type</th>
