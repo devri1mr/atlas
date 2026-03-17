@@ -66,7 +66,16 @@ const UNIT_OPTIONS = [
   { label: "bags", value: "bag" },
   { label: "gallons", value: "gal" },
 ];
+function formatDateOnly(v: string | null | undefined) {
+  if (!v) return "—";
 
+  const raw = String(v).slice(0, 10);
+  const [y, m, d] = raw.split("-");
+
+  if (!y || !m || !d) return raw;
+
+  return `${Number(m)}/${Number(d)}/${y}`;
+}
 function money(n: number) {
   return (Number(n) || 0).toLocaleString(undefined, {
     style: "currency",
