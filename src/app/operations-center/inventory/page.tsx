@@ -327,64 +327,73 @@ function startEditReceipt(row: LedgerRow) {
   setInvoicedFinal(Boolean(row.invoiced_final));
 }
   async function createReceipt() {
-    if (!materialName.trim()) {
-      setError("Material is required.");
-      return;
-    }
+  if (!materialName.trim()) {
+    setError("Material is required.");
+    return;
+  }
 
-    if ((Number(quantity) || 0) <= 0) {
-      setError("Quantity must be greater than 0.");
-      return;
-    }
+  if ((Number(quantity) || 0) <= 0) {
+    setError("Quantity must be greater than 0.");
+    return;
+  }
 
-    setSaving(true);
-    setError("");
+  setSaving(true);
+  setError("");
 
-    try {
-      const res = await fetch("/api/inventory/receipt", {
-        method: "POST",
+  try {
+    const payload = {
+      material_id: selectedMaterialId || null,
+      material_name: materialName.trim(),
+      inventory_unit: unit,
+      quantity: Number(quantity) || 0,
+      total_cost: Number(totalCost) || 0,
+      transaction_date: date,
+      reference_number: referenceNumber.trim() || null,
+      vendor_name: vendorName.trim() || null,
+      notes: notes.trim() || null,
+      invoiced_final: invoicedFinal,
+      division_id: activeDivisionId || null,
+    };
+
+    const res = await fetch(
+      editingReceiptId
+        ? `/api/inventory/receipt/${editingReceiptId}`
+        : "/api/inventory/receipt",
+      {
+        method: editingReceiptId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          material_id: selectedMaterialId || null,
-          material_name: materialName.trim(),
-          inventory_unit: unit,
-          quantity: Number(quantity) || 0,
-          total_cost: Number(totalCost) || 0,
-          transaction_date: date,
-          reference_number: referenceNumber.trim() || null,
-          vendor_name: vendorName.trim() || null,
-          notes: notes.trim() || null,
-          invoiced_final: invoicedFinal,
-          division_id: activeDivisionId || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Failed to add inventory.");
+        body: JSON.stringify(payload),
       }
+    );
 
-      setSelectedMaterialId("");
-      setMaterialName("");
-      setMaterialSearch("");
-      setUnit("yd");
-      setUnitLocked(false);
-      setQuantity(0);
-      setTotalCost(0);
-      setReferenceNumber("");
-      setVendorName("");
-      setNotes("");
-      setInvoicedFinal(false);
-
-      await loadData();
-    } catch (e: any) {
-      setError(e?.message || "Failed to add inventory.");
-    } finally {
-      setSaving(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      throw new Error(json?.error || "Failed to save inventory.");
     }
+
+    setEditingReceiptId(null);
+    setSelectedMaterialId("");
+    setMaterialName("");
+    setMaterialSearch("");
+    setUnit("yd");
+    setUnitLocked(false);
+    setQuantity(0);
+    setTotalCost(0);
+    setDate(new Date().toISOString().slice(0, 10));
+    setReferenceNumber("");
+    setVendorName("");
+    setNotes("");
+    setInvoicedFinal(false);
+
+    await loadData();
+  } catch (e: any) {
+    setError(e?.message || "Failed to save inventory.");
+  } finally {
+    setSaving(false);
   }
+}
 
   return (
     <div className="p-8 space-y-8">
