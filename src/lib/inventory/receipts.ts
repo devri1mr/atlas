@@ -68,6 +68,7 @@ if (!fallbackLocationId) {
     .insert({
       material_id: material.id,
       location_id: fallbackLocationId,
+      division_id: input.division_id,
       transaction_type: "receipt",
       quantity: input.quantity,
       total_cost: input.total_cost,
