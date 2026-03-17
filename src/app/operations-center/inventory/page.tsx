@@ -799,13 +799,13 @@ function startEditReceipt(row: LedgerRow) {
                       </td>
                       <td className="py-3 px-3">{row.vendor_name || "—"}</td>
                       <td className="py-3 px-3">{row.reference_number || "—"}</td>
-                      <td className="py-3 px-3">
-                        {row.invoiced_final ? (
-                          <span className="text-emerald-700 font-semibold">Yes</span>
-                        ) : (
-                          <span className="text-gray-500">No</span>
-                        )}
-                      </td>
+                      <td className="py-3 px-3 text-center">
+  {row.invoiced_final ? (
+    <span className="text-green-600 text-lg">✓</span>
+  ) : (
+    <span className="text-gray-400">—</span>
+  )}
+</td>
                       <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
                       <td className="py-3 px-3">
   {!row.invoiced_final ? (
