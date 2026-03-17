@@ -830,7 +830,6 @@ function startEditReceipt(row: LedgerRow) {
                     </tr>
                   );
                 })
-              )}
             </tbody>
           </table>
         </div>
