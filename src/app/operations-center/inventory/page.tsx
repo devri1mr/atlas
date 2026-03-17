@@ -753,6 +753,19 @@ function startEditReceipt(row: LedgerRow) {
                         )}
                       </td>
                       <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
+                      <td className="py-3 px-3">
+  {!row.invoiced_final ? (
+    <button
+      type="button"
+      onClick={() => startEditReceipt(row)}
+      className="text-blue-600 hover:underline font-medium"
+    >
+      Edit
+    </button>
+  ) : (
+    <span className="text-gray-400">Locked</span>
+  )}
+</td>
                     </tr>
                   );
                 })
