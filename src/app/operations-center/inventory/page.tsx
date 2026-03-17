@@ -796,7 +796,7 @@ async function createReceipt() {
                 <th className="py-3 px-3">Total</th>
                 <th className="py-3 px-3">Vendor</th>
                 <th className="py-3 px-3">Reference</th>
-                <th className="py-3 px-3">Final</th>
+                <th className="py-3 px-0 text-center w-[70px]">Final</th>
                 <th className="py-3 px-3">Notes</th>
                 <th className="py-3 px-3">Actions</th>
               </tr>
@@ -843,16 +843,14 @@ async function createReceipt() {
 
           <td className="py-3 px-3">{row.reference_number || "—"}</td>
 
-          <td className="py-3 px-0">
-  <div className="flex justify-center items-center">
-    {row.invoiced_final ? (
-      <span className="flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-xs font-bold">
-        ✓
-      </span>
-    ) : (
-      <span className="text-gray-300">—</span>
-    )}
-  </div>
+          <td className="py-3 px-0 text-center w-[70px]">
+  {row.invoiced_final ? (
+    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-xs font-bold">
+      ✓
+    </span>
+  ) : (
+    <span className="text-gray-300">—</span>
+  )}
 </td>
           <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
 
