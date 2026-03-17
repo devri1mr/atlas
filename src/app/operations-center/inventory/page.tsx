@@ -587,16 +587,40 @@ function startEditReceipt(row: LedgerRow) {
           </div>
 
           <div className="col-span-1 text-right">
-            <button
-              type="button"
-              onClick={createReceipt}
-              disabled={saving}
-              className="bg-black text-white px-4 py-2 rounded-md h-10 w-full disabled:opacity-50"
-            >
-              {saving ? "Saving..." : editingReceiptId ? "Save" : "Add"}
-            </button>
-          </div>
-        </div>
+  <button
+    type="button"
+    onClick={createReceipt}
+    disabled={saving}
+    className="bg-black text-white px-4 py-2 rounded-md h-10 w-full disabled:opacity-50"
+  >
+    {saving ? "Saving..." : editingReceiptId ? "Save" : "Add"}
+  </button>
+
+  {editingReceiptId ? (
+    <button
+      type="button"
+      onClick={() => {
+        setEditingReceiptId(null);
+        setSelectedMaterialId("");
+        setMaterialName("");
+        setMaterialSearch("");
+        setUnit("yd");
+        setUnitLocked(false);
+        setQuantity(0);
+        setTotalCost(0);
+        setDate(new Date().toISOString().slice(0, 10));
+        setReferenceNumber("");
+        setVendorName("");
+        setNotes("");
+        setInvoicedFinal(false);
+      }}
+      className="mt-2 border px-4 py-2 rounded-md h-10 w-full"
+    >
+      Cancel
+    </button>
+  ) : null}
+</div>
+</div>
 
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-4">
