@@ -17,7 +17,6 @@ export async function getInventoryLedger(filters: any = {}) {
         id,
         name,
         display_name,
-        unit,
         inventory_unit,
         inventory_enabled,
         division_id
@@ -104,7 +103,7 @@ export async function getInventorySummary(filters: any = {}) {
       material_name: r.materials?.display_name || r.materials?.name || "",
       location_id: r.location_id,
       location_name: r.inventory_locations?.name || "",
-      inventory_unit: r.materials?.unit || r.materials?.inventory_unit || null,
+      inventory_unit: r.materials?.inventory_unit || r.materials?.inventory_unit || null,
       inventory_enabled: r.materials?.inventory_enabled || false,
       ...pos,
     });
