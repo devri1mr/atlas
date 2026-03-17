@@ -885,15 +885,23 @@ async function loadBundleQuestions(bundleId: string) {
 
     const json = await res.json();
 
-    if (!res.ok) {
-      throw new Error(json?.error || "Failed applying bundle");
-    }
-await fetch(`/api/bids/${bidId}/sync-bundle-materials`, {
+if (!res.ok) {
+  throw new Error(json?.error || "Failed applying bundle");
+}
+
+const syncRes = await fetch(`/api/bids/${bidId}/sync-bundle-materials`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ bundleId: selectedBundleId }),
 });
-    const rows = json?.rows || [];
+
+const syncJson = await syncRes.json().catch(() => null);
+
+if (!syncRes.ok) {
+  throw new Error(syncJson?.error || "Failed syncing bundle materials");
+}
+
+const rows = json?.rows || [];
 
     if (rows.length) {
       setLabor(prev => [...prev, ...rows]);
