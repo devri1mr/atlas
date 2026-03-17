@@ -593,7 +593,7 @@ function startEditReceipt(row: LedgerRow) {
               disabled={saving}
               className="bg-black text-white px-4 py-2 rounded-md h-10 w-full disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Add"}
+              {saving ? "Saving..." : editingReceiptId ? "Save" : "Add"}
             </button>
           </div>
         </div>
