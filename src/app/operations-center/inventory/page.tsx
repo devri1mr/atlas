@@ -305,12 +305,13 @@ useEffect(() => {
   }
 
   function clearMaterialSelection(v: string) {
-    setSelectedMaterialId("");
-    setMaterialSearch(v);
-    setMaterialName(v);
-    setShowMaterialResults(true);
-    setUnitLocked(false);
-  }
+  setSelectedMaterialId("");
+  setMaterialSearch(v);
+  setMaterialName(v);
+  setShowMaterialResults(true);
+  setUnitLocked(false);
+}
+
 function startEditReceipt(row: LedgerRow) {
   setEditingReceiptId(row.id);
   setSelectedMaterialId(row.material_id || "");
@@ -326,7 +327,43 @@ function startEditReceipt(row: LedgerRow) {
   setNotes(row.notes || "");
   setInvoicedFinal(Boolean(row.invoiced_final));
 }
-  async function createReceipt() {
+
+async function voidReceipt(id: string) {
+  if (!window.confirm("Void this inventory transaction?")) return;
+
+  try {
+    const res = await fetch(`/api/inventory/receipt/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      throw new Error(json?.error || "Failed to void transaction.");
+    }
+
+    if (editingReceiptId === id) {
+      setEditingReceiptId(null);
+      setSelectedMaterialId("");
+      setMaterialName("");
+      setMaterialSearch("");
+      setUnit("yd");
+      setUnitLocked(false);
+      setQuantity(0);
+      setTotalCost(0);
+      setDate(new Date().toISOString().slice(0, 10));
+      setReferenceNumber("");
+      setVendorName("");
+      setNotes("");
+      setInvoicedFinal(false);
+    }
+
+    await loadData();
+  } catch (e: any) {
+    setError(e?.message || "Failed to void transaction.");
+  }
+}
+
+async function createReceipt() {
   if (!materialName.trim()) {
     setError("Material is required.");
     return;
