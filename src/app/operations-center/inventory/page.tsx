@@ -949,30 +949,6 @@ async function createReceipt() {
           </div>
         </div>
       )}
-      <td className="py-3 px-3 text-center w-[70px]">
-  {row.notes ? (
-    <button
-      type="button"
-      onClick={() => setSelectedNote(row.notes)}
-      className="flex justify-center w-full"
-    >
-      <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 hover:bg-gray-200">
-        <svg
-          className="w-4 h-4 text-gray-600"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <path d="M8 10h8M8 14h6M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        </svg>
-      </span>
-    </button>
-  ) : (
-    <span className="text-gray-300">—</span>
-  )}
-</td>
-
     </div>
   );
 }
