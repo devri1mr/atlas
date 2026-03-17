@@ -708,6 +708,7 @@ function startEditReceipt(row: LedgerRow) {
                 <th className="py-3 px-3">Reference</th>
                 <th className="py-3 px-3">Final</th>
                 <th className="py-3 px-3">Notes</th>
+                <th className="py-3 px-3">Actions</th>th></th>
               </tr>
             </thead>
 
