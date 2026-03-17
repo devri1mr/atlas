@@ -767,71 +767,80 @@ function startEditReceipt(row: LedgerRow) {
             </thead>
 
             <tbody>
-              {filteredLedger.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-6 px-3 text-gray-500">
-                    No inventory ledger rows found.
-                  </td>
-                </tr>
-              ) : (
-                filteredLedger.map((row) => {
-                  const materialText =
-                    row.materials?.display_name || row.materials?.name || "—";
-                  const rowUnit = row.materials?.inventory_unit || "—";
-
-                  return (
-                    <tr key={row.id} className="border-b">
-                      <td className="py-3 px-3">
-                        {formatDateOnly(row.transaction_date)}
-                      </td>
-                      <td className="py-3 px-3 font-medium">{materialText}</td>
-                      <td className="py-3 px-3">
-                        {titleizeTransactionType(row.transaction_type)}
-                      </td>
-                      <td className="py-3 px-3">
-                        {fmtQty(row.quantity)} {rowUnit}
-                      </td>
-                      <td className="py-3 px-3">
-                        {row.unit_cost !== null ? money(row.unit_cost) : "—"}
-                      </td>
-                      <td className="py-3 px-3">
-                        {row.total_cost !== null ? money(row.total_cost) : "—"}
-                      </td>
-                      <td className="py-3 px-3">{row.vendor_name || "—"}</td>
-                      <td className="py-3 px-3">{row.reference_number || "—"}</td>
-                      <td className="py-3 px-3 text-center">
-  {row.invoiced_final ? (
-    <span className="text-green-600 text-lg">✓</span>
+  {filteredLedger.length === 0 ? (
+    <tr>
+      <td colSpan={11} className="py-6 px-3 text-gray-500">
+        No inventory ledger rows found.
+      </td>
+    </tr>
   ) : (
-    <span className="text-gray-400">—</span>
-  )}
-</td>
-                      <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
-                      <td className="py-3 px-3">
-  <td className="py-3 px-3 space-x-3">
-  {!row.invoiced_final && (
-    <button
-      type="button"
-      onClick={() => startEditReceipt(row)}
-      className="text-blue-600 hover:underline font-medium"
-    >
-      Edit
-    </button>
-  )}
+    filteredLedger.map((row) => {
+      const materialText =
+        row.materials?.display_name || row.materials?.name || "—";
+      const rowUnit = row.materials?.inventory_unit || "—";
 
-  <button
-    type="button"
-    onClick={() => voidReceipt(row.id)}
-    className="text-red-600 hover:underline font-medium"
-  >
-    Void
-  </button>
-</td>
-                    </tr>
-                  );
-                })
-                }      
-            </tbody>
+      return (
+        <tr key={row.id} className="border-b">
+          <td className="py-3 px-3">
+            {formatDateOnly(row.transaction_date)}
+          </td>
+
+          <td className="py-3 px-3 font-medium">{materialText}</td>
+
+          <td className="py-3 px-3">
+            {titleizeTransactionType(row.transaction_type)}
+          </td>
+
+          <td className="py-3 px-3">
+            {fmtQty(row.quantity)} {rowUnit}
+          </td>
+
+          <td className="py-3 px-3">
+            {row.unit_cost !== null ? money(row.unit_cost) : "—"}
+          </td>
+
+          <td className="py-3 px-3">
+            {row.total_cost !== null ? money(row.total_cost) : "—"}
+          </td>
+
+          <td className="py-3 px-3">{row.vendor_name || "—"}</td>
+
+          <td className="py-3 px-3">{row.reference_number || "—"}</td>
+
+          <td className="py-3 px-3 text-center">
+            {row.invoiced_final ? (
+              <span className="text-green-600 text-lg">✓</span>
+            ) : (
+              <span className="text-gray-400">—</span>
+            )}
+          </td>
+
+          <td className="py-3 px-3 text-gray-600">{row.notes || "—"}</td>
+
+          <td className="py-3 px-3 space-x-3">
+            {!row.invoiced_final && (
+              <button
+                type="button"
+                onClick={() => startEditReceipt(row)}
+                className="text-blue-600 hover:underline font-medium"
+              >
+                Edit
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => voidReceipt(row.id)}
+              className="text-red-600 hover:underline font-medium"
+            >
+              Void
+            </button>
+          </td>
+        </tr>
+      );
+    })
+  )}
+</tbody>
           </table>
         </div>
       </div>
