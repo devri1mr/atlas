@@ -266,15 +266,17 @@ function findMatchingMaterialRow(
   const targetUnit = normalizeMaterialText(args.unit);
 
   return rows.find((row) => {
-    const rowUnit = normalizeMaterialText(row.unit);
-    if (rowUnit !== targetUnit) return false;
-
     const rowMaterialId = normalizeMaterialText(row.material_id);
 
+    // Match by material_id alone — the DB unique constraint is on (bid_id, material_id)
+    // so unit differences are irrelevant when we have a catalog ID on both sides.
     if (targetMaterialId && rowMaterialId) {
       return rowMaterialId === targetMaterialId;
     }
 
+    // Name-based fallback: require unit to match to avoid merging different-unit lines.
+    const rowUnit = normalizeMaterialText(row.unit);
+    if (rowUnit !== targetUnit) return false;
     return normalizeMaterialText(row.name) === targetName;
   });
 }
