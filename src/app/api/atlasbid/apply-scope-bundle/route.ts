@@ -423,7 +423,7 @@ export async function POST(req: NextRequest) {
 
       if (taskQty <= 0) continue;
 
-      const materialName = (m as any).materials?.[0]?.name;
+      const materialName = (m.materials as any)?.name;
 
       const qty = Number(
         (Number(m.qty_per_task_unit || 0) * taskQty).toFixed(2)
