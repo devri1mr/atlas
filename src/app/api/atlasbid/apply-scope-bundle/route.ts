@@ -375,6 +375,44 @@ if (deleteOldLaborError) {
       }
 
       insertedRows.push(inserted);
+    // =====================
+// MATERIALS INSERT
+// =====================
+
+// 1. get materials tied to this bundle
+const { data: materials, error: materialsError } = await supabase
+  .from("scope_bundle_task_materials")
+  .select(`
+    material_id,
+    qty_per_task_unit,
+    unit,
+    unit_cost,
+    bundle_task_id,
+    scope_bundle_tasks!inner(bundle_id)
+  `)
+  .eq("scope_bundle_tasks.bundle_id", bundleId);
+
+if (materialsError) {
+  return NextResponse.json({ error: materialsError.message }, { status: 500 });
+}
+
+// 2. insert into bid_materials
+for (const m of materials || []) {
+  const { error: insertMaterialError } = await supabase
+    .from("bid_materials")
+    .insert({
+      bid_id: bidId,
+      material_id: m.material_id,
+      qty: m.qty_per_task_unit,
+      unit: m.unit,
+      unit_cost: m.unit_cost,
+      source_type: "bundle",
+      source_task_id: m.bundle_task_id,
+    });
+
+  if (insertMaterialError) {
+    return NextResponse.json({ error: insertMaterialError.message }, { status: 500 });
+  }
     }
 
     return NextResponse.json({
