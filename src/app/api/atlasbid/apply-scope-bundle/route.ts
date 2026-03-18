@@ -418,36 +418,89 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Aggregate by material_id — multiple bundle tasks may reference the same
+    // material, and the unique constraint ux_bid_materials_bid_material prevents
+    // inserting duplicate (bid_id, material_id) rows.
+    type MatAgg = {
+      name: string;
+      unit: string;
+      unit_cost: number;
+      qty: number;
+      source_task_id: string;
+    };
+    const matAgg = new Map<string, MatAgg>();
+
     for (const m of materials || []) {
       const taskQty = taskQuantityByBundleTaskId.get(m.bundle_task_id) || 0;
-
       if (taskQty <= 0) continue;
 
-      const materialName = (m as any).materials?.[0]?.name;
+      const qty = Number((Number(m.qty_per_task_unit || 0) * taskQty).toFixed(2));
+      if (qty <= 0) continue;
 
-      const qty = Number(
-        (Number(m.qty_per_task_unit || 0) * taskQty).toFixed(2)
-      );
+      const materialName = (m as any).materials?.[0]?.name || (m as any).materials?.name;
 
-      const { error: insertMaterialError } = await supabase
-        .from("bid_materials")
-        .insert({
-          bid_id: bidId,
-          company_id: bidRow.company_id,
+      const key = m.material_id;
+      if (matAgg.has(key)) {
+        const agg = matAgg.get(key)!;
+        matAgg.set(key, { ...agg, qty: Number((agg.qty + qty).toFixed(2)) });
+      } else {
+        matAgg.set(key, {
           name: materialName || "Bundle Material",
-          material_id: m.material_id,
-          qty,
           unit: m.unit,
           unit_cost: Number(m.unit_cost || 0),
-          source_type: "bundle",
+          qty,
           source_task_id: m.bundle_task_id,
         });
+      }
+    }
 
-      if (insertMaterialError) {
-        return NextResponse.json(
-          { error: insertMaterialError.message },
-          { status: 500 }
-        );
+    // Fetch any existing non-bundle rows so we can PATCH instead of INSERT
+    // when a manual/template row for the same material already exists.
+    const { data: existingMats } = await supabase
+      .from("bid_materials")
+      .select("id, material_id, qty")
+      .eq("bid_id", bidId)
+      .not("material_id", "is", null);
+
+    const existingByMaterialId = new Map(
+      (existingMats || []).map((r: any) => [r.material_id, r])
+    );
+
+    for (const [materialId, agg] of matAgg) {
+      const existing = existingByMaterialId.get(materialId);
+
+      if (existing) {
+        // Row already exists (manual/template) — add bundle qty to it.
+        const { error: updateError } = await supabase
+          .from("bid_materials")
+          .update({ qty: Number((Number(existing.qty) + agg.qty).toFixed(2)) })
+          .eq("id", existing.id);
+
+        if (updateError) {
+          return NextResponse.json({ error: updateError.message }, { status: 500 });
+        }
+      } else {
+        // No existing row — insert fresh bundle material.
+        const { error: insertMaterialError } = await supabase
+          .from("bid_materials")
+          .insert({
+            bid_id: bidId,
+            company_id: bidRow.company_id,
+            name: agg.name,
+            material_id: materialId,
+            qty: agg.qty,
+            unit: agg.unit,
+            unit_cost: agg.unit_cost,
+            source_type: "bundle",
+            source_task_id: agg.source_task_id,
+          });
+
+        if (insertMaterialError) {
+          return NextResponse.json(
+            { error: insertMaterialError.message },
+            { status: 500 }
+          );
+        }
       }
     }
 
