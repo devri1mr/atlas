@@ -283,18 +283,8 @@ export async function POST(req: NextRequest) {
       (existingBundleLabor || []).map((r: any) => [r.task, r])
     );
 
-    const { error: deleteOldMaterialsError } = await supabase
-      .from("bid_materials")
-      .delete()
-      .eq("bid_id", bidId)
-      .eq("source_type", "bundle");
-
-    if (deleteOldMaterialsError) {
-      return NextResponse.json(
-        { error: deleteOldMaterialsError.message },
-        { status: 500 }
-      );
-    }
+    // No longer deleting bundle materials upfront — we use delta-based updates
+    // below so manual additions on top of bundle qty are preserved.
 
     const { data: questions, error: questionsError } = await supabase
       .from("scope_bundle_questions")
@@ -464,44 +454,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Aggregate by material_id — multiple bundle tasks may reference the same
-    // material, and the unique constraint ux_bid_materials_bid_material prevents
-    // inserting duplicate (bid_id, material_id) rows.
-    type MatAgg = {
+    // Build a lookup of bundle_task_id → old labor qty so we can compute deltas.
+    // On first load, old qty is 0 so delta = full new qty.
+    const taskById = new Map((tasks || []).map((t: any) => [t.id, t]));
+
+    // Aggregate delta by material_id across all bundle tasks.
+    // Delta = (new_qty_per_unit * new_labor_qty) - (old_qty_per_unit * old_labor_qty)
+    // This preserves any manual additions the user made on top of bundle qty.
+    type MatDelta = {
       name: string;
       unit: string;
       unit_cost: number;
-      qty: number;
+      delta: number;
       source_task_id: string;
     };
-    const matAgg = new Map<string, MatAgg>();
+    const matDeltaMap = new Map<string, MatDelta>();
 
     for (const m of materials || []) {
-      const taskQty = taskQuantityByBundleTaskId.get(m.bundle_task_id) || 0;
-      if (taskQty <= 0) continue;
+      const newTaskQty = taskQuantityByBundleTaskId.get(m.bundle_task_id) || 0;
+      const bundleTask = taskById.get(m.bundle_task_id) as BundleTask | undefined;
+      const oldLaborRow = bundleTask
+        ? existingLaborByTaskName.get(bundleTask.task_name)
+        : null;
+      const oldTaskQty = oldLaborRow ? Number((oldLaborRow as any).quantity || 0) : 0;
 
-      const qty = Number((Number(m.qty_per_task_unit || 0) * taskQty).toFixed(2));
-      if (qty <= 0) continue;
+      const qtyPerUnit = Number(m.qty_per_task_unit || 0);
+      const delta = Number(
+        (qtyPerUnit * newTaskQty - qtyPerUnit * oldTaskQty).toFixed(2)
+      );
+
+      if (delta === 0) continue;
 
       const materialName = (m as any).materials?.[0]?.name || (m as any).materials?.name;
-
       const key = m.material_id;
-      if (matAgg.has(key)) {
-        const agg = matAgg.get(key)!;
-        matAgg.set(key, { ...agg, qty: Number((agg.qty + qty).toFixed(2)) });
+
+      if (matDeltaMap.has(key)) {
+        const d = matDeltaMap.get(key)!;
+        matDeltaMap.set(key, { ...d, delta: Number((d.delta + delta).toFixed(2)) });
       } else {
-        matAgg.set(key, {
+        matDeltaMap.set(key, {
           name: materialName || "Bundle Material",
           unit: m.unit,
           unit_cost: Number(m.unit_cost || 0),
-          qty,
+          delta,
           source_task_id: m.bundle_task_id,
         });
       }
     }
 
-    // Fetch any existing non-bundle rows so we can PATCH instead of INSERT
-    // when a manual/template row for the same material already exists.
+    // Fetch existing bid_material rows to apply deltas.
     const { data: existingMats } = await supabase
       .from("bid_materials")
       .select("id, material_id, qty")
@@ -512,33 +513,37 @@ export async function POST(req: NextRequest) {
       (existingMats || []).map((r: any) => [r.material_id, r])
     );
 
-    for (const [materialId, agg] of matAgg) {
+    for (const [materialId, d] of matDeltaMap) {
       const existing = existingByMaterialId.get(materialId);
 
       if (existing) {
-        // Row already exists (manual/template) — add bundle qty to it.
+        // Apply delta — preserves manual additions.
+        const newQty = Math.max(
+          0,
+          Number((Number(existing.qty) + d.delta).toFixed(2))
+        );
         const { error: updateError } = await supabase
           .from("bid_materials")
-          .update({ qty: Number((Number(existing.qty) + agg.qty).toFixed(2)) })
+          .update({ qty: newQty })
           .eq("id", existing.id);
 
         if (updateError) {
           return NextResponse.json({ error: updateError.message }, { status: 500 });
         }
-      } else {
-        // No existing row — insert fresh bundle material.
+      } else if (d.delta > 0) {
+        // No existing row — insert with full delta as initial qty.
         const { error: insertMaterialError } = await supabase
           .from("bid_materials")
           .insert({
             bid_id: bidId,
             company_id: bidRow.company_id,
-            name: agg.name,
+            name: d.name,
             material_id: materialId,
-            qty: agg.qty,
-            unit: agg.unit,
-            unit_cost: agg.unit_cost,
+            qty: d.delta,
+            unit: d.unit,
+            unit_cost: d.unit_cost,
             source_type: "bundle",
-            source_task_id: agg.source_task_id,
+            source_task_id: d.source_task_id,
           });
 
         if (insertMaterialError) {

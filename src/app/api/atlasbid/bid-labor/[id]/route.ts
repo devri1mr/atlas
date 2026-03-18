@@ -380,24 +380,33 @@ export async function PATCH(
           .select("material_id, qty_per_task_unit, unit")
           .eq("bundle_task_id", bundleTask.id);
 
+        const oldLaborQty = toNumber(existingRow.quantity, 0);
         const newLaborQty = toNumber(updatedRow.quantity, 0);
 
         for (const tm of taskMaterials || []) {
-          const newMatQty = Number(
-            (toNumber(tm.qty_per_task_unit, 0) * newLaborQty).toFixed(2)
+          const qtyPerUnit = toNumber(tm.qty_per_task_unit, 0);
+          // Use delta so manual additions are preserved.
+          const delta = Number(
+            (qtyPerUnit * newLaborQty - qtyPerUnit * oldLaborQty).toFixed(2)
           );
+
+          if (delta === 0) continue;
 
           const { data: matRows } = await supabase
             .from("bid_materials")
-            .select("id")
+            .select("id, qty")
             .eq("bid_id", updatedRow.bid_id)
             .eq("material_id", tm.material_id)
             .limit(1);
 
-          if (matRows?.[0] && newMatQty >= 0) {
+          if (matRows?.[0]) {
+            const newQty = Math.max(
+              0,
+              Number((toNumber(matRows[0].qty, 0) + delta).toFixed(2))
+            );
             await supabase
               .from("bid_materials")
-              .update({ qty: newMatQty })
+              .update({ qty: newQty })
               .eq("id", matRows[0].id);
           }
         }
