@@ -90,18 +90,15 @@ function computeTask(
   const config = task.rule_config ?? {};
   const ruleType = String(task.rule_type || "");
   const unit = String(task.unit || "ea");
-// GLOBAL CHECKBOX GATE (THIS IS THE FIX)
-const gatingQuestionKey = String(
-  config?.question ??
-  config?.question_key ??
-  config?.enabled_question ??
-  config?.checkbox_question ??
-  ""
-).trim();
+  const questionKey =
+  config?.question ||
+  config?.question_key ||
+  config?.depends_on ||
+  "";
 
-if (gatingQuestionKey) {
+if (questionKey) {
   const isChecked = boolFromAnswer(
-    getAnswer(answers, questionsByKey, gatingQuestionKey)
+    getAnswer(answers, questionsByKey, questionKey)
   );
 
   if (!isChecked) {
@@ -114,8 +111,10 @@ if (gatingQuestionKey) {
       manHours: 0,
       showAsLineItem: Boolean(task.show_as_line_item_default ?? true),
       generatedByRule: ruleType,
-      generatedFromQuestionKeys: [gatingQuestionKey],
+      generatedFromQuestionKeys: [questionKey],
     };
+  }
+}
   }
 }
   const mulchSqft = num(getAnswer(answers, questionsByKey, "mulch_sqft"), 0);
