@@ -901,11 +901,7 @@ if (!syncRes.ok) {
   throw new Error(syncJson?.error || "Failed syncing bundle materials");
 }
 
-const rows = json?.rows || [];
-
-    if (rows.length) {
-      setLabor(prev => [...prev, ...rows]);
-    }
+await loadALL();
 
   } catch (e: any) {
     setError(e?.message || "Failed loading bundle.");
