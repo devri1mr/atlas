@@ -375,6 +375,7 @@ if (deleteOldLaborError) {
       }
 
       insertedRows.push(inserted);
+}      
     // =====================
 // MATERIALS INSERT
 // =====================
