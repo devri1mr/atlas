@@ -240,12 +240,14 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-if (!bidRow.company_id) {
-  return NextResponse.json(
-    { error: "Bid missing company_id." },
-    { status: 400 }
-  );
-}
+
+    if (!bidRow.company_id) {
+      return NextResponse.json(
+        { error: "Bid missing company_id." },
+        { status: 400 }
+      );
+    }
+
     if (!bidRow.division_id) {
       return NextResponse.json(
         { error: "Bid has no division_id." },
@@ -255,25 +257,38 @@ if (!bidRow.company_id) {
 
     const hourlyRate = num(body?.hourly_rate, 0);
 
-if (hourlyRate <= 0) {
-  return NextResponse.json(
-    { error: "Hourly rate is 0 or missing." },
-    { status: 400 }
-  );
-}
+    if (hourlyRate <= 0) {
+      return NextResponse.json(
+        { error: "Hourly rate is 0 or missing." },
+        { status: 400 }
+      );
+    }
 
-const { error: deleteOldLaborError } = await supabase
-  .from("bid_labor")
-  .delete()
-  .eq("bid_id", bidId)
-  .not("bundle_run_id", "is", null);
+    const { error: deleteOldLaborError } = await supabase
+      .from("bid_labor")
+      .delete()
+      .eq("bid_id", bidId)
+      .not("bundle_run_id", "is", null);
 
-if (deleteOldLaborError) {
-  return NextResponse.json(
-    { error: deleteOldLaborError.message },
-    { status: 500 }
-  );
-}
+    if (deleteOldLaborError) {
+      return NextResponse.json(
+        { error: deleteOldLaborError.message },
+        { status: 500 }
+      );
+    }
+
+    const { error: deleteOldMaterialsError } = await supabase
+      .from("bid_materials")
+      .delete()
+      .eq("bid_id", bidId)
+      .eq("source_type", "bundle");
+
+    if (deleteOldMaterialsError) {
+      return NextResponse.json(
+        { error: deleteOldMaterialsError.message },
+        { status: 500 }
+      );
+    }
 
     const { data: questions, error: questionsError } = await supabase
       .from("scope_bundle_questions")
@@ -337,6 +352,7 @@ if (deleteOldLaborError) {
     }
 
     const insertedRows: any[] = [];
+    const taskQuantityByBundleTaskId = new Map<string, number>();
 
     for (const task of (tasks || []) as BundleTask[]) {
       const computed = computeTask(task, answers, questionsByKey);
@@ -375,52 +391,67 @@ if (deleteOldLaborError) {
       }
 
       insertedRows.push(inserted);
-}      
+      taskQuantityByBundleTaskId.set(task.id, computed.quantity);
+    }
+
     // =====================
-// MATERIALS INSERT
-// =====================
+    // MATERIALS INSERT
+    // =====================
 
-// 1. get materials tied to this bundle
-const { data: materials, error: materialsError } = await supabase
-  .from("scope_bundle_task_materials")
-  .select(`
-    material_id,
-    qty_per_task_unit,
-    unit,
-    unit_cost,
-    bundle_task_id,
-    materials!inner(name),
-    scope_bundle_tasks!inner(bundle_id)
-  `)
-  .eq("scope_bundle_tasks.bundle_id", bundleId);
+    const { data: materials, error: materialsError } = await supabase
+      .from("scope_bundle_task_materials")
+      .select(`
+        material_id,
+        qty_per_task_unit,
+        unit,
+        unit_cost,
+        bundle_task_id,
+        materials!inner(name),
+        scope_bundle_tasks!inner(bundle_id)
+      `)
+      .eq("scope_bundle_tasks.bundle_id", bundleId);
 
-if (materialsError) {
-  return NextResponse.json({ error: materialsError.message }, { status: 500 });
-}
+    if (materialsError) {
+      return NextResponse.json(
+        { error: materialsError.message },
+        { status: 500 }
+      );
+    }
 
-// 2. insert into bid_materials
-for (const m of materials || []) {
-  const { error: insertMaterialError } = await supabase
-    .from("bid_materials")
-    .insert({
-      bid_id: bidId,
-      company_id: bidRow.company_id, // ✅ USE EXISTING VALUE
-      name: m.materials?.[0]?.name ?? "Bundle Material",
-      material_id: m.material_id,
-      qty: m.qty_per_task_unit,
-      unit: m.unit,
-      unit_cost: m.unit_cost,
-      source_type: "bundle",
-      source_task_id: m.bundle_task_id,
-    });
+    for (const m of materials || []) {
+      const taskQty = taskQuantityByBundleTaskId.get(m.bundle_task_id) || 0;
 
-  if (insertMaterialError) {
-    return NextResponse.json(
-      { error: insertMaterialError.message },
-      { status: 500 }
-    );
-  }
-}
+      if (taskQty <= 0) continue;
+
+      const materialName = Array.isArray(m.materials)
+        ? m.materials[0]?.name
+        : m.materials?.name;
+
+      const qty = Number(
+        (Number(m.qty_per_task_unit || 0) * taskQty).toFixed(2)
+      );
+
+      const { error: insertMaterialError } = await supabase
+        .from("bid_materials")
+        .insert({
+          bid_id: bidId,
+          company_id: bidRow.company_id,
+          name: materialName || "Bundle Material",
+          material_id: m.material_id,
+          qty,
+          unit: m.unit,
+          unit_cost: Number(m.unit_cost || 0),
+          source_type: "bundle",
+          source_task_id: m.bundle_task_id,
+        });
+
+      if (insertMaterialError) {
+        return NextResponse.json(
+          { error: insertMaterialError.message },
+          { status: 500 }
+        );
+      }
+    }
 
     return NextResponse.json({
       bundle_run: bundleRun,
