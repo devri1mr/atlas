@@ -264,27 +264,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch existing bundle labor rows so we can update in place instead of
-    // delete + re-insert (preserves proposal_text, show_as_line_item edits).
-    const { data: existingBundleLabor, error: existingLaborError } = await supabase
-      .from("bid_labor")
-      .select("id, task, quantity, man_hours, bundle_run_id")
-      .eq("bid_id", bidId)
-      .not("bundle_run_id", "is", null);
-
-    if (existingLaborError) {
-      return NextResponse.json(
-        { error: existingLaborError.message },
-        { status: 500 }
-      );
-    }
-
-    const existingLaborByTaskName = new Map(
-      (existingBundleLabor || []).map((r: any) => [r.task, r])
-    );
-
-    // No longer deleting bundle materials upfront — we use delta-based updates
-    // below so manual additions on top of bundle qty are preserved.
+    // Each bundle load creates a fresh set of labor rows under a new bundle_run_id.
+    // Users remove a whole load at once via the "Remove Bundle" button in the UI.
 
     const { data: questions, error: questionsError } = await supabase
       .from("scope_bundle_questions")
@@ -349,44 +330,15 @@ export async function POST(req: NextRequest) {
 
     const insertedRows: any[] = [];
     const taskQuantityByBundleTaskId = new Map<string, number>();
-    const processedTaskNames = new Set<string>();
 
     for (const task of (tasks || []) as BundleTask[]) {
       const computed = computeTask(task, answers, questionsByKey);
 
       if (computed.skip) continue;
 
-      processedTaskNames.add(computed.taskName);
-      const existing = existingLaborByTaskName.get(computed.taskName);
-
-      if (existing) {
-        // Update in place — preserves proposal_text, show_as_line_item, etc.
-        const { data: updated, error: updateError } = await supabase
-          .from("bid_labor")
-          .update({
-            quantity: computed.quantity,
-            suggested_quantity: computed.quantity,
-            unit: computed.unit,
-            man_hours: computed.manHours,
-            suggested_man_hours: computed.manHours,
-            hourly_rate: hourlyRate,
-            is_overridden: false,
-            bundle_run_id: bundleRun.id,
-            generated_by_rule: computed.generatedByRule,
-            generated_from_question_keys: computed.generatedFromQuestionKeys,
-          })
-          .eq("id", existing.id)
-          .select("*")
-          .single();
-
-        if (updateError) {
-          return NextResponse.json({ error: updateError.message }, { status: 500 });
-        }
-
-        insertedRows.push(updated);
-      } else {
-        // New task — insert fresh row.
-        const payload = {
+      const { data: inserted, error: insertError } = await supabase
+        .from("bid_labor")
+        .insert({
           company_id: bidRow.company_id,
           bid_id: bidId,
           task: computed.taskName,
@@ -402,32 +354,16 @@ export async function POST(req: NextRequest) {
           bundle_run_id: bundleRun.id,
           generated_by_rule: computed.generatedByRule,
           generated_from_question_keys: computed.generatedFromQuestionKeys,
-        };
+        })
+        .select("*")
+        .single();
 
-        const { data: inserted, error: insertError } = await supabase
-          .from("bid_labor")
-          .insert(payload)
-          .select("*")
-          .single();
-
-        if (insertError) {
-          return NextResponse.json(
-            { error: insertError.message },
-            { status: 500 }
-          );
-        }
-
-        insertedRows.push(inserted);
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
 
+      insertedRows.push(inserted);
       taskQuantityByBundleTaskId.set(task.id, computed.quantity);
-    }
-
-    // Remove any old bundle labor rows whose tasks are no longer in this bundle.
-    for (const [taskName, row] of existingLaborByTaskName) {
-      if (!processedTaskNames.has(taskName)) {
-        await supabase.from("bid_labor").delete().eq("id", (row as any).id);
-      }
     }
 
     // =====================
