@@ -90,30 +90,36 @@ function computeTask(
   const config = task.rule_config ?? {};
   const ruleType = String(task.rule_type || "");
   const unit = String(task.unit || "ea");
+
   const questionKey =
-  config?.question ||
-  config?.question_key ||
-  config?.depends_on ||
-  "";
+    config?.question ||
+    config?.question_key ||
+    config?.depends_on ||
+    "";
 
-if (questionKey) {
-  const isChecked = boolFromAnswer(
-    getAnswer(answers, questionsByKey, questionKey)
-  );
+  // GLOBAL CHECKBOX GATE
+  if (questionKey) {
+    const isChecked = boolFromAnswer(
+      getAnswer(answers, questionsByKey, questionKey)
+    );
 
-  if (!isChecked) {
-    return {
-      skip: true,
-      taskName: task.task_name,
-      itemName: task.item_name || "",
-      unit,
-      quantity: 0,
-      manHours: 0,
-      showAsLineItem: Boolean(task.show_as_line_item_default ?? true),
-      generatedByRule: ruleType,
-      generatedFromQuestionKeys: [questionKey],
-    };
+    if (!isChecked) {
+      return {
+        skip: true,
+        taskName: task.task_name,
+        itemName: task.item_name || "",
+        unit,
+        quantity: 0,
+        manHours: 0,
+        showAsLineItem: Boolean(task.show_as_line_item_default ?? true),
+        generatedByRule: ruleType,
+        generatedFromQuestionKeys: [questionKey],
+      };
+    }
   }
+
+  // ---- EVERYTHING BELOW MUST BE OUTSIDE THE IF ----
+
   const mulchSqft = num(getAnswer(answers, questionsByKey, "mulch_sqft"), 0);
   const depthFromAnswer = num(getAnswer(answers, questionsByKey, "mulch_depth"), 0);
 
@@ -129,27 +135,35 @@ if (questionKey) {
     quantity = mulchSqft > 0 ? (mulchSqft * depthInches) / 324 : 0;
     quantity = roundToIncrement(quantity, roundTo);
     generatedFromQuestionKeys = ["mulch_sqft", "mulch_depth"];
+
   } else if (ruleType === "hours_per_sqft") {
     const rateSqftPerHour = num(config?.rate_sqft_per_hour, 0);
     manHours = rateSqftPerHour > 0 ? mulchSqft / rateSqftPerHour : 0;
     generatedFromQuestionKeys = ["mulch_sqft"];
+
   } else if (ruleType === "hours_per_qty") {
     const qty = num(config?.quantity, 0);
     const rateQtyPerHour = num(config?.rate_qty_per_hour, 0);
     quantity = qty;
     manHours = rateQtyPerHour > 0 ? qty / rateQtyPerHour : 0;
+
   } else if (ruleType === "linear_feet_from_sqft") {
     const factor = num(config?.factor, 0);
     quantity = mulchSqft * factor;
     quantity = roundToIncrement(quantity, num(config?.round_to, 1));
     generatedFromQuestionKeys = ["mulch_sqft"];
+
   } else if (ruleType === "fixed_quantity") {
     quantity = num(config?.quantity, 0);
+
   } else if (ruleType === "fixed_hours") {
     manHours = num(config?.hours, 0);
+
   } else if (ruleType === "conditional_if_checked") {
-    const questionKey = String(config?.question || "");
-    const isChecked = boolFromAnswer(getAnswer(answers, questionsByKey, questionKey));
+    const conditionalKey = String(config?.question || "");
+    const isChecked = boolFromAnswer(
+      getAnswer(answers, questionsByKey, conditionalKey)
+    );
 
     if (!isChecked) {
       skip = true;
@@ -170,8 +184,9 @@ if (questionKey) {
         manHours = mulchSqft / rateSqftPerHour;
       }
 
-      generatedFromQuestionKeys = questionKey ? [questionKey] : [];
+      generatedFromQuestionKeys = conditionalKey ? [conditionalKey] : [];
     }
+
   } else {
     skip = true;
   }
