@@ -2,25 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: bidId } = await params;
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const bidId = params.id;
-
   try {
-    // 1. Delete existing labor-derived materials
-    await supabase
+    const { error: deleteError } = await supabase
       .from("bid_materials")
       .delete()
       .eq("bid_id", bidId)
       .eq("source_type", "labor");
 
-    // 2. Fetch labor rows
+    if (deleteError) throw deleteError;
+
     const { data: laborRows, error: laborError } = await supabase
       .from("bid_labor")
       .select("*")
@@ -32,29 +32,40 @@ export async function POST(
       return NextResponse.json({ rows: [] });
     }
 
-    // 3. Fetch all task mappings
     const { data: taskMaterials, error: tmError } = await supabase
       .from("labor_task_materials")
       .select("*");
 
     if (tmError) throw tmError;
 
-    const { data: tasks } = await supabase.from("labor_tasks").select("*");
-    const { data: materials } = await supabase.from("materials").select("*");
-    const { data: vendors } = await supabase.from("vendors").select("*");
+    const { data: tasks, error: tasksError } = await supabase
+      .from("labor_tasks")
+      .select("*");
 
-    // Build lookup maps
-    const taskMap = new Map(tasks.map((t) => [t.id, t]));
-    const materialMap = new Map(materials.map((m) => [m.id, m]));
-    const vendorMap = new Map(vendors.map((v) => [v.id, v]));
+    if (tasksError) throw tasksError;
+
+    const { data: materials, error: materialsError } = await supabase
+      .from("materials")
+      .select("*");
+
+    if (materialsError) throw materialsError;
+
+    const { data: vendors, error: vendorsError } = await supabase
+      .from("vendors")
+      .select("*");
+
+    if (vendorsError) throw vendorsError;
+
+    const materialMap = new Map((materials ?? []).map((m) => [m.id, m]));
+    const vendorMap = new Map((vendors ?? []).map((v) => [v.id, v]));
 
     const rowsToInsert: any[] = [];
 
     for (const bl of laborRows) {
-      const task = tasks.find((t) => t.name === bl.task);
+      const task = (tasks ?? []).find((t) => t.name === bl.task);
       if (!task) continue;
 
-      const mappings = taskMaterials.filter(
+      const mappings = (taskMaterials ?? []).filter(
         (m) => m.labor_task_id === task.id
       );
 
@@ -62,36 +73,40 @@ export async function POST(
         const material = materialMap.get(map.material_id);
         if (!material) continue;
 
-        const vendor = vendorMap.get(material.vendor_id);
+        const vendor = material.vendor_id
+          ? vendorMap.get(material.vendor_id)
+          : null;
 
         const baseQty =
-          bl.quantity > 0
-            ? bl.quantity
-            : bl.man_hours > 0
-            ? bl.man_hours
+          Number(bl.quantity ?? 0) > 0
+            ? Number(bl.quantity ?? 0)
+            : Number(bl.man_hours ?? 0) > 0
+            ? Number(bl.man_hours ?? 0)
             : 0;
 
-        const qty = baseQty * (map.default_quantity || 1);
+        const qty = baseQty * Number(map.default_quantity ?? 1);
+        const unitCost = Number(material.unit_cost ?? 0);
 
         rowsToInsert.push({
           id: crypto.randomUUID(),
           bid_id: bidId,
-          name: material.display_name || material.name,
+          name: material.display_name || material.name || "",
           vendor: vendor?.name || "",
-          unit: material.unit,
+          unit: material.unit || "",
           qty,
-          unit_cost: material.unit_cost || 0,
-          line_cost: qty * (material.unit_cost || 0),
+          unit_cost: unitCost,
+          line_cost: qty * unitCost,
           is_autofill: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           company_id: bl.company_id,
           source_type: "labor",
           source_task_id: bl.task_catalog_id,
+          details: null,
           material_id: material.id,
-          source_label: bl.task,
+          source_label: bl.task || "",
           source_reference_id: bl.bundle_run_id,
-          unit_cost_snapshot: material.unit_cost || 0,
+          unit_cost_snapshot: unitCost,
           pricing_date_used: new Date().toISOString().slice(0, 10),
         });
       }
@@ -108,7 +123,7 @@ export async function POST(
     return NextResponse.json({ rows: rowsToInsert });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Sync failed" },
+      { error: err?.message || "Sync failed" },
       { status: 500 }
     );
   }
