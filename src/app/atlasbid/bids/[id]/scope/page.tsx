@@ -1417,925 +1417,918 @@ async function addLabor() {
   if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
+    <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      {/* Page Header */}
       <div>
         <div className="text-sm text-gray-500">
-  Client:{" "}
-  <span className="font-semibold">
-    {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "-"}
-  </span>
-</div>
-        <h1 className="text-3xl font-bold mt-1">Scope</h1>
-        <div className="text-sm text-gray-600 mt-1">
-          Division: <span className="font-semibold">{divisionName}</span>
+          Client:{" "}
+          <span className="font-semibold">
+            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "-"}
+          </span>
+        </div>
+        <h1 className="text-2xl font-bold mt-1">Scope of Work</h1>
+        <div className="text-sm text-gray-500 mt-0.5">
+          Division: <span className="font-semibold text-gray-700">{divisionName}</span>
         </div>
         {isDebug ? <DebugPanel bidId={bid.id} /> : null}
       </div>
 
+      {/* Sticky Pricing Bar */}
+      <div className="sticky top-0 z-20 bg-white border-b shadow-sm -mx-6 px-6 py-3 flex items-center gap-8">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Labor</span>
+          <span className="text-sm font-semibold text-gray-900">{money(laborSubtotal)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Materials</span>
+          <span className="text-sm font-semibold text-gray-900">{money(materialsSubtotal)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Trucking</span>
+          <span className="text-sm font-semibold text-gray-900">{money(truckingCost)}</span>
+        </div>
+        <span className="text-gray-300 select-none">|</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Total Cost</span>
+          <span className="text-sm font-semibold text-gray-900">{money(totalCost)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Project Price</span>
+          <span className="text-lg font-bold text-emerald-700">{money(sellRounded)}</span>
+        </div>
+        {prepayEnabled && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Prepay</span>
+            <span className="text-sm font-semibold text-emerald-600">{money(sellWithPrepay)}</span>
+          </div>
+        )}
+      </div>
+
       {error ? (
-        <div className="border border-red-200 bg-red-50 text-red-700 rounded p-3 text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
           {error}
         </div>
       ) : null}
 
       {/* Division Gate */}
       {!bid.division_id ? (
-        <div className="border rounded-lg p-6 space-y-4">
-          <h2 className="text-xl font-semibold">Select Division to Continue</h2>
-          <p className="text-sm text-gray-600">
-            This bid has no division yet. We must set a division before labor/rates/pricing can calculate.
-          </p>
-
-          <div className="max-w-md space-y-2">
-            <label className="block text-sm text-gray-700">Division</label>
-            <select
-              className="border rounded p-2 w-full"
-              value={divisionPick}
-              onChange={(e) => setDivisionPick(e.target.value)}
-            >
-              <option value="">— Select —</option>
-              {divisions
-                .filter((d) => d.is_active !== false)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-            </select>
-
-            <button
-              className="bg-emerald-700 text-white rounded px-4 py-2 disabled:opacity-50"
-              disabled={!divisionPick || savingDivision}
-              onClick={saveDivision}
-            >
-              {savingDivision ? "Saving…" : "Save Division"}
-            </button>
+        <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-800">Select Division to Continue</h2>
+          </div>
+          <div className="px-5 py-5 space-y-4">
+            <p className="text-sm text-gray-600">
+              This bid has no division yet. We must set a division before labor/rates/pricing can calculate.
+            </p>
+            <div className="max-w-md space-y-2">
+              <label className="block text-sm text-gray-700">Division</label>
+              <select
+                className="border rounded w-full h-9 px-3 text-sm"
+                value={divisionPick}
+                onChange={(e) => setDivisionPick(e.target.value)}
+              >
+                <option value="">— Select —</option>
+                {divisions
+                  .filter((d) => d.is_active !== false)
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+              </select>
+              <button
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 h-9 disabled:opacity-50"
+                disabled={!divisionPick || savingDivision}
+                onClick={saveDivision}
+              >
+                {savingDivision ? "Saving…" : "Save Division"}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
         <>
-          {/* SCOPE BUNDLES */}
-<div className="border rounded-lg p-6 space-y-4 mb-6">
-  <div className="flex items-start justify-between gap-6 flex-wrap">
-    <div>
-      <h2 className="text-xl font-semibold">Scope Bundles</h2>
-      <div className="text-sm text-gray-500">
-        Load a prebuilt bundle of tasks into this bid.
-      </div>
-    </div>
-  </div>
-
-  <div className="grid grid-cols-12 gap-4 items-end">
-    <div className="col-span-8">
-      <label className="block text-xs font-semibold text-gray-600 mb-1">
-        Bundle
-      </label>
-
-      <select
-        className="border p-2 rounded w-full h-10"
-        value={selectedBundleId}
-        onChange={async (e) => {
-          const nextId = e.target.value;
-          setSelectedBundleId(nextId);
-          await loadBundleQuestions(nextId);
-        }}
-      >
-        <option value="">— Select Bundle —</option>
-
-        {scopeBundles.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div className="col-span-4">
+          {/* SCOPE BUNDLES CARD */}
+          <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center gap-3">
+              <h2 className="text-base font-semibold text-gray-800">Scope Bundles</h2>
+              <span className="text-sm text-gray-400">Load a prebuilt bundle of tasks into this bid.</span>
+            </div>
+            <div className="px-5 py-5 space-y-4">
+              {loadingBundles ? (
+                <div className="text-sm text-gray-500">Loading bundles…</div>
+              ) : null}
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Bundle</label>
+                  <select
+                    className="border rounded w-full h-9 px-3 text-sm"
+                    value={selectedBundleId}
+                    onChange={async (e) => {
+                      const nextId = e.target.value;
+                      setSelectedBundleId(nextId);
+                      await loadBundleQuestions(nextId);
+                    }}
+                  >
+                    <option value="">— Select Bundle —</option>
+                    {scopeBundles.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="shrink-0">
       <button
         onClick={loadSelectedBundleIntoBid}
-        disabled={
-          !selectedBundleId ||
-          loadingBundleIntoBid ||
-          loadingBundleQuestions
-        }
-        className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
-      >
-        {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
-      </button>
-    </div>
-  </div>
-
-  {loadingBundles ? (
-    <div className="text-sm text-gray-500">Loading bundles…</div>
-  ) : null}
-
-  {selectedBundleId && bundleQuestions.length > 0 ? (
-  <div className="border rounded p-3 bg-gray-50 text-sm space-y-3">
-    <div className="font-semibold mb-1">Bundle Questions</div>
-
-    {bundleQuestions.map((q) => (
-      <div key={q.id} className="space-y-1">
-        <label className="block text-xs font-semibold text-gray-600">
-          {q.label}
-          {q.unit ? ` (${q.unit})` : ""}
-        </label>
-
-        {q.input_type === "number" ? (
-          <input
-            type="number"
-            className="border p-2 rounded w-full"
-            value={bundleAnswers[q.question_key] ?? ""}
-            onChange={(e) =>
-              setBundleAnswers((prev) => ({
-                ...prev,
-                [q.question_key]: Number(e.target.value),
-              }))
-            }
-          />
-        ) : q.input_type === "checkbox" ? (
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={bundleAnswers[q.question_key] === true}
-              onChange={(e) =>
-                setBundleAnswers((prev) => ({
-                  ...prev,
-                  [q.question_key]: e.target.checked,
-                }))
-              }
-            />
-            <span>{q.label}</span>
-          </label>
-        ) : (
-          <input
-            type="text"
-            className="border p-2 rounded w-full"
-            value={bundleAnswers[q.question_key] ?? ""}
-            onChange={(e) =>
-              setBundleAnswers((prev) => ({
-                ...prev,
-                [q.question_key]: e.target.value,
-              }))
-            }
-          />
-        )}
-
-        {q.help_text ? (
-          <div className="text-xs text-gray-500">{q.help_text}</div>
-        ) : null}
-      </div>
-    ))}
-  </div>
-) : null}
-</div>
-{/* LABOR BUILDER */}
-<div className="border rounded-lg p-6 space-y-4">
-  <div className="flex items-start justify-between gap-6 flex-wrap">
-    <div>
-      <h2 className="text-xl font-semibold">Labor Builder</h2>
-    </div>
-
-    <div className="text-right">
-      <div className="text-sm text-gray-500">Labor Subtotal</div>
-      <div className="text-2xl font-bold">{money(laborSubtotal)}</div>
-    </div>
-  </div>
-
-  {/* Single header row */}
- <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 text-xs font-semibold text-gray-600 items-end px-3">
-    <div></div>
-    <div>Task</div>
-    <div>Details</div>
-    <div className="text-center">Qty</div>
-    <div className="text-center">Unit</div>
-    <div className="text-center">Hours</div>
-    <div className="text-right">Total</div>
-    <div className="text-right">Action</div>
-  </div>
-
-  {/* Add row */}
- <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center px-3">
-    <div className="flex justify-center">
-      <label className="flex items-center justify-center">
-        <input
-          type="checkbox"
-          checked={saveToCatalog}
-          onChange={(e) => setSaveToCatalog(e.target.checked)}
-        />
-      </label>
-    </div>
-
-    <div ref={taskDropdownRef}>
-      <div className="relative">
-        <input
-          className="border rounded w-full h-9 px-3"
-          placeholder="Search saved tasks..."
-          value={taskSearch}
-          onChange={(e) => {
-            const v = e.target.value;
-            setTaskSearch(v);
-            setTask(v);
-            setShowTaskResults(true);
-          }}
-          onFocus={() => setShowTaskResults(true)}
-        />
-
-        {showTaskResults && filteredTasks.length > 0 ? (
-          <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-            {filteredTasks.map((t) => (
-              <div
-                key={t.id}
-                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                onClick={() => applyTaskSelection(t)}
-              >
-                {t.name}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-
-    <div>
-      <input
-        className="border rounded w-full h-9 px-3"
-        placeholder="Optional details"
-        value={details}
-        onChange={(e) => setDetails(e.target.value)}
-      />
-    </div>
-
-    <div>
-      <input
-        className="border rounded w-full h-9 px-3 text-right"
-        type="number"
-        placeholder="0"
-        value={Number.isFinite(quantity) ? quantity : 0}
-        onChange={(e) => setQuantity(Number(e.target.value))}
-      />
-    </div>
-
-    <div>
-      <select
-        className="border rounded w-full h-9 px-2"
-        value={unit}
-        onChange={(e) => setUnit(e.target.value)}
-      >
-        {UNIT_OPTIONS.map((u) => (
-          <option key={u.value} value={u.value}>
-            {u.label}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div>
-      <input
-        className="border rounded w-full h-9 px-3 text-right"
-        type="number"
-        placeholder="0"
-        value={Number.isFinite(hours) ? hours : 0}
-        onChange={(e) => setHours(Number(e.target.value))}
-      />
-    </div>
-
-    <div className="text-right text-sm text-gray-400 tabular-nums">—</div>
-
-    <div className="text-right">
-      <button
-        onClick={addLabor}
-        className="bg-emerald-700 text-white rounded h-9 px-4"
-      >
-        Add
-      </button>
-    </div>
-  </div>
-
-  {/* Save to Catalog helper row */}
-  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1 px-3">
-    <div></div>
-    <div className="text-xs text-gray-600">
-      Save to Catalog
-    </div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div className="text-right text-[11px] text-gray-500">
-      {savingToCatalog ? "Saving…" : saveToCatalogMsg || ""}
-    </div>
-    <div></div>
-  </div>
-
-  {labor.length === 0 ? (
-  <div className="text-gray-400 text-sm py-4 border rounded px-3">
-    No labor added yet.
-  </div>
-) : (() => {
-  // Group labor rows: bundle rows clustered by bundle_run_id, standalone rows stay individual.
-  const seen = new Set<string>();
-  const groups: Array<{ type: "bundle"; runId: string; name: string; rows: LaborRow[] } | { type: "row"; row: LaborRow }> = [];
-
-  for (const row of labor) {
-    if (row.bundle_run_id) {
-      if (seen.has(row.bundle_run_id)) continue;
-      seen.add(row.bundle_run_id);
-      groups.push({
-        type: "bundle",
-        runId: row.bundle_run_id,
-        name: bundleRunNameMap.get(row.bundle_run_id) || "Bundle",
-        rows: labor.filter((r) => r.bundle_run_id === row.bundle_run_id),
-      });
-    } else {
-      groups.push({ type: "row", row });
-    }
-  }
-
-  const renderLaborRow = (row: LaborRow, showDelete: boolean) => {
-    const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
-    return (
-      <div
-        key={row.id}
-        className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 border rounded px-3 py-2 text-sm items-center"
-      >
-        <div className="flex justify-center">
-          <input
-            className="w-4 h-4"
-            type="checkbox"
-            checked={row.show_as_line_item === true}
-            onChange={async (e) => {
-              const checked = e.target.checked;
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ show_as_line_item: checked }),
-              });
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
-              );
-            }}
-          />
-        </div>
-
-        <div className="font-medium leading-tight truncate">{row.task}</div>
-
-        <div>
-          <input
-            className="border rounded w-full h-9 px-3 text-sm"
-            value={row.proposal_text ?? row.task}
-            onChange={async (e) => {
-              const value = e.target.value;
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
-              );
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proposal_text: value }),
-              });
-            }}
-          />
-        </div>
-
-        <div>
-          <input
-            className="border rounded w-full h-9 px-3 text-right"
-            type="number"
-            value={row.quantity === 0 ? "" : row.quantity}
-            onChange={(e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
-              );
-            }}
-            onBlur={async (e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              try {
-                const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
-                });
-                if (!res.ok) console.error("Failed to save labor row", await res.json());
-                else await loadAll();
-              } catch (err) {
-                console.error("Labor autosave failed", err);
-              }
-            }}
-          />
-        </div>
-
-        <div className="truncate">{row.unit}</div>
-
-        <div>
-          <input
-            className="border rounded w-full h-9 px-3 text-right"
-            type="number"
-            step="0.01"
-            value={row.man_hours === 0 ? "" : row.man_hours}
-            onChange={async (e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
-              );
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ man_hours: value, is_overridden: true }),
-              });
-            }}
-          />
-        </div>
-
-        <div className="text-right font-medium tabular-nums">
-          {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
-
-        <div className="text-right">
-          {showDelete && (
-            <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-3 pt-1">
-      {groups.map((g) => {
-        if (g.type === "row") {
-          return renderLaborRow(g.row, true);
-        }
-
-        const bundleTotal = g.rows.reduce(
-          (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
-          0
-        );
-
-        return (
-          <div key={g.runId} className="border rounded overflow-hidden">
-            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 border-b">
-              <span className="text-sm font-semibold text-gray-700">{g.name}</span>
-              <div className="flex items-center gap-4">
-                <span className="text-sm tabular-nums text-gray-600">
-                  {bundleTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                <button
-                  onClick={() => deleteBundleRun(g.runId)}
-                  className="text-red-600 hover:underline text-sm"
+                  disabled={
+                    !selectedBundleId ||
+                    loadingBundleIntoBid ||
+                    loadingBundleQuestions
+                  }
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 h-9 disabled:opacity-50"
                 >
-                  Remove Bundle
+                  {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
                 </button>
               </div>
             </div>
-            <div className="space-y-0 divide-y">
-              {g.rows.map((row) => renderLaborRow(row, true))}
+
+              {selectedBundleId && bundleQuestions.length > 0 ? (
+                <div className="border rounded-lg p-4 bg-gray-50 text-sm space-y-3 mt-2">
+                  <div className="font-semibold text-gray-700 mb-1">Bundle Questions</div>
+                  {bundleQuestions.map((q) => (
+                    <div key={q.id} className="space-y-1">
+                      <label className="block text-xs font-semibold text-gray-600">
+                        {q.label}
+                        {q.unit ? ` (${q.unit})` : ""}
+                      </label>
+                      {q.input_type === "number" ? (
+                        <input
+                          type="number"
+                          className="border rounded w-full h-9 px-3 text-sm"
+                          value={bundleAnswers[q.question_key] ?? ""}
+                          onChange={(e) =>
+                            setBundleAnswers((prev) => ({
+                              ...prev,
+                              [q.question_key]: Number(e.target.value),
+                            }))
+                          }
+                        />
+                      ) : q.input_type === "checkbox" ? (
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bundleAnswers[q.question_key] === true}
+                            onChange={(e) =>
+                              setBundleAnswers((prev) => ({
+                                ...prev,
+                                [q.question_key]: e.target.checked,
+                              }))
+                            }
+                          />
+                          <span>{q.label}</span>
+                        </label>
+                      ) : (
+                        <input
+                          type="text"
+                          className="border rounded w-full h-9 px-3 text-sm"
+                          value={bundleAnswers[q.question_key] ?? ""}
+                          onChange={(e) =>
+                            setBundleAnswers((prev) => ({
+                              ...prev,
+                              [q.question_key]: e.target.value,
+                            }))
+                          }
+                        />
+                      )}
+                      {q.help_text ? (
+                        <div className="text-xs text-gray-500">{q.help_text}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
-        );
-      })}
-    </div>
-  );
-})()}
-</div>
-          {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
-          <div className="border rounded-lg p-6 space-y-4">
-            <div className="flex items-start justify-between gap-6 flex-wrap">
-              <div>
-                <h2 className="text-xl font-semibold">Materials Builder</h2>
-                <div className="text-sm text-gray-500">
-                  Search your catalog, auto-fill unit + cost, then edit inline if needed.
-                </div>
-              </div>
 
-              <div className="text-right min-w-[240px]">
-                <div className="text-sm text-gray-500">Materials Subtotal</div>
-                <div className="text-2xl font-bold">{money(materialsSubtotal)}</div>
-              </div>
+          {/* LABOR BUILDER CARD */}
+          <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
+              <span className="text-sm font-bold text-gray-900">{money(laborSubtotal)}</span>
             </div>
-
-           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-  <div className="col-span-3">Material (catalog search)</div>
-  <div className="col-span-2">Source</div>
-  <div className="col-span-3">Details (optional)</div>
-  <div className="col-span-1">Qty</div>
-  <div className="col-span-1">Unit</div>
-  <div className="col-span-1">Unit Cost</div>
-  <div className="col-span-1 text-right">Action</div>
-</div>
-
-            <div className="grid grid-cols-12 gap-4 items-center">
-              {/* Catalog search */}
-              <div className="col-span-3" ref={materialDropdownRef}>
-                <div className="relative">
-                  <input
-                    className="border p-2 rounded w-full h-10"
-                    placeholder="Search materials catalog…"
-                    value={materialSearch}
-                    onChange={(e) => {
-  const v = e.target.value;
-  setSelectedMaterialId("");
-  setMaterialSearch(v);
-  setMaterialName(v);
-  setShowMaterialResults(true);
-}}
-                    onFocus={() => setShowMaterialResults(true)}
-                  />
-
-                  {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
-                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-                      {filteredMaterialsCatalog.map((m) => (
-                        <div
-                          key={m.id}
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          onClick={() => applyMaterialSelection(m)}
-                        >
-                          <div className="font-medium">{m.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {m.vendor ? `Vendor: ${m.vendor} • ` : ""}
-                            Unit: {m.unit || "ea"} • Cost:{" "}
-                            {money(Number(m.unit_cost) || 0)}
-                            {m.sku ? ` • SKU: ${m.sku}` : ""}
-                          </div>
+            <div className="px-5 py-5 space-y-4">
+              {/* Add row form */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_80px_80px_80px_auto] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <div>Task</div>
+                  <div>Proposal Text</div>
+                  <div className="text-center">Qty</div>
+                  <div className="text-center">Unit</div>
+                  <div className="text-center">Hours</div>
+                  <div></div>
+                </div>
+                <div className="grid grid-cols-[1fr_1fr_80px_80px_80px_auto] gap-2 items-center">
+                  <div ref={taskDropdownRef}>
+                    <div className="relative">
+                      <input
+                        className="border rounded w-full h-9 px-3 text-sm"
+                        placeholder="Search saved tasks..."
+                        value={taskSearch}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setTaskSearch(v);
+                          setTask(v);
+                          setShowTaskResults(true);
+                        }}
+                        onFocus={() => setShowTaskResults(true)}
+                      />
+                      {showTaskResults && filteredTasks.length > 0 ? (
+                        <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
+                          {filteredTasks.map((t) => (
+                            <div
+                              key={t.id}
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                              onClick={() => applyTaskSelection(t)}
+                            >
+                              {t.name}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : null}
                     </div>
+                  </div>
+                  <div>
+                    <input
+                      className="border rounded w-full h-9 px-3 text-sm"
+                      placeholder="Optional proposal text"
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      className="border rounded w-full h-9 px-3 text-sm text-right"
+                      type="number"
+                      placeholder="0"
+                      value={Number.isFinite(quantity) ? quantity : 0}
+                      onChange={(e) => setQuantity(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <select
+                      className="border rounded w-full h-9 px-2 text-sm"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                    >
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <input
+                      className="border rounded w-full h-9 px-3 text-sm text-right"
+                      type="number"
+                      placeholder="0"
+                      value={Number.isFinite(hours) ? hours : 0}
+                      onChange={(e) => setHours(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <button
+                      onClick={addLabor}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 h-9 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 pt-1">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={saveToCatalog}
+                      onChange={(e) => setSaveToCatalog(e.target.checked)}
+                    />
+                    <span>Save to Catalog</span>
+                  </label>
+                  {savingToCatalog ? (
+                    <span className="text-gray-400">Saving…</span>
+                  ) : saveToCatalogMsg ? (
+                    <span className="text-gray-400">{saveToCatalogMsg}</span>
                   ) : null}
                 </div>
               </div>
-  <div className="col-span-2">
-  <select
-    className="border p-2 rounded w-full h-10"
-    value={selectedSourceIndex ?? ""}
-    onChange={(e) => {
-      const idx = Number(e.target.value);
-      setSelectedSourceIndex(idx);
 
-      const src = materialSources[idx];
-      if (!src) return;
+              {/* Labor Table */}
+              {labor.length === 0 ? (
+                <div className=”text-gray-400 text-sm py-4 border rounded-lg px-4”>
+                  No labor added yet.
+                </div>
+              ) : (() => {
+                const seen = new Set<string>();
+                const groups: Array<{ type: “bundle”; runId: string; name: string; rows: LaborRow[] } | { type: “row”; row: LaborRow }> = [];
 
-      if (src.unit) setMaterialUnit(src.unit);
-      if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
-    }}
-  >
-    <option value="">Select source</option>
+                for (const row of labor) {
+                  if (row.bundle_run_id) {
+                    if (seen.has(row.bundle_run_id)) continue;
+                    seen.add(row.bundle_run_id);
+                    groups.push({
+                      type: “bundle”,
+                      runId: row.bundle_run_id,
+                      name: bundleRunNameMap.get(row.bundle_run_id) || “Bundle”,
+                      rows: labor.filter((r) => r.bundle_run_id === row.bundle_run_id),
+                    });
+                  } else {
+                    groups.push({ type: “row”, row });
+                  }
+                }
 
-    {materialSources.map((s, i) => {
-  const qty =
-    s.available_qty === null || s.available_qty === undefined
-      ? null
-      : Number(s.available_qty);
-
-  const qtyText =
-    qty === null
-      ? ""
-      : qty < 0
-      ? ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")} LOW)`
-      : ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")})`;
-
-  return (
-    <option key={i} value={i}>
-      {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
-      {qtyText}
-    </option>
-  );
-})}
-  </select>
-</div>
-              {/* Details */}
-              <div className="col-span-3">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  placeholder="Optional details (vendor, color, etc.)"
-                  value={materialDetails}
-                  onChange={(e) => setMaterialDetails(e.target.value)}
-                />
-              </div>
-
-              {/* Qty */}
-              <div className="col-span-1">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  type="number"
-                  placeholder="0"
-                  value={Number.isFinite(materialQty) ? materialQty : 0}
-                  onChange={(e) => setMaterialQty(Number(e.target.value))}
-                />
-              </div>
-
-              {/* Unit */}
-              <div className="col-span-1">
-                <select
-                  className="border p-2 rounded w-full h-10"
-                  value={materialUnit}
-                  onChange={(e) => setMaterialUnit(e.target.value)}
-                >
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Unit Cost */}
-              <div className="col-span-1">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  type="number"
-                  placeholder="0"
-                  value={Number.isFinite(materialCost) ? materialCost : 0}
-                  onChange={(e) => setMaterialCost(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="col-span-1 text-right">
-                <button
-  type="button"
-  onClick={addMaterial}
-  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
->
-  Add
-</button>
-              </div>
-            </div>
-
-            {/* List headers */}
-            <div className="grid grid-cols-10 gap-4 font-semibold text-sm border-b pb-2 mt-4">
-              <div className="col-span-2">Material</div>
-              <div className="col-span-3">Details</div>
-              <div>Qty</div>
-              <div>Unit</div>
-              <div>Unit Cost</div>
-              <div>Total ($)</div>
-              <div className="text-right">Actions</div>
-            </div>
-
-            {materials.length === 0 ? (
-              <div className="text-gray-400 text-sm py-3">No materials added yet.</div>
-            ) : (
-              materials.map((row) => {
-                const isEditing = editingMaterialId === row.id;
-
-                const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
-                const cost = isEditing ? Number(mEditUnitCost) || 0 : Number(row.unit_cost) || 0;
-                const total = qty * cost;
-
-                return (
-                  <div
-                    key={row.id}
-                    className="grid grid-cols-10 gap-4 border p-2 rounded text-sm items-center"
-                  >
-                    <div className="col-span-2">
-                      {isEditing ? (
+                const renderLaborTr = (row: LaborRow, showDelete: boolean, indent = false) => {
+                  const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+                  return (
+                    <tr key={row.id} className=”border-b last:border-b-0 hover:bg-gray-50/50”>
+                      <td className=”py-2 pr-3 align-middle text-center”>
                         <input
-                          className="border p-2 rounded w-full"
-                          value={mEditName}
-                          onChange={(e) => setMEditName(e.target.value)}
+                          className=”w-4 h-4”
+                          type=”checkbox”
+                          checked={row.show_as_line_item === true}
+                          onChange={async (e) => {
+                            const checked = e.target.checked;
+                            await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                              method: “PATCH”,
+                              headers: { “Content-Type”: “application/json” },
+                              body: JSON.stringify({ show_as_line_item: checked }),
+                            });
+                            setLabor((prev) =>
+                              prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
+                            );
+                          }}
                         />
-                      ) : (
-                        row.name
-                      )}
-                    </div>
-
-                    <div className="col-span-3 text-gray-600">
-                      {isEditing ? (
+                      </td>
+                      <td className=”py-2 pr-3 align-middle”>
+                        <span className={`font-medium text-sm leading-tight${indent ? “ pl-3” : “”}`}>{row.task}</span>
+                      </td>
+                      <td className=”py-2 pr-3 align-middle”>
                         <input
-                          className="border p-2 rounded w-full"
-                          value={mEditDetails}
-                          onChange={(e) => setMEditDetails(e.target.value)}
-                          placeholder="—"
+                          className=”border rounded w-full h-9 px-3 text-sm”
+                          value={row.proposal_text ?? row.task}
+                          onChange={async (e) => {
+                            const value = e.target.value;
+                            setLabor((prev) =>
+                              prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
+                            );
+                            await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                              method: “PATCH”,
+                              headers: { “Content-Type”: “application/json” },
+                              body: JSON.stringify({ proposal_text: value }),
+                            });
+                          }}
                         />
-                      ) : (
-                        row.details || "—"
-                      )}
-                    </div>
-
-                    <div>
-                      {isEditing ? (
+                      </td>
+                      <td className=”py-2 pr-3 align-middle”>
                         <input
-                          className="border p-2 rounded w-full"
-                          type="number"
-                          value={Number.isFinite(mEditQty) ? mEditQty : 0}
-                          onChange={(e) => setMEditQty(Number(e.target.value))}
+                          className=”border rounded w-full h-9 px-3 text-sm text-right”
+                          type=”number”
+                          value={row.quantity === 0 ? “” : row.quantity}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                            setLabor((prev) =>
+                              prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
+                            );
+                          }}
+                          onBlur={async (e) => {
+                            const raw = e.target.value;
+                            const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                            try {
+                              const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                method: “PATCH”,
+                                headers: { “Content-Type”: “application/json” },
+                                body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
+                              });
+                              if (!res.ok) console.error(“Failed to save labor row”, await res.json());
+                              else await loadAll();
+                            } catch (err) {
+                              console.error(“Labor autosave failed”, err);
+                            }
+                          }}
                         />
-                      ) : (
-                        row.qty
-                      )}
-                    </div>
-
-                    <div>
-                      {isEditing ? (
-                        <select
-                          className="border p-2 rounded w-full"
-                          value={mEditUnit}
-                          onChange={(e) => setMEditUnit(e.target.value)}
-                        >
-                          {UNIT_OPTIONS.map((u) => (
-                            <option key={u.value} value={u.value}>
-                              {u.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        row.unit
-                      )}
-                    </div>
-
-                    <div>
-                      {isEditing ? (
+                      </td>
+                      <td className=”py-2 pr-3 align-middle text-sm text-gray-600 truncate”>{row.unit}</td>
+                      <td className=”py-2 pr-3 align-middle”>
                         <input
-                          className="border p-2 rounded w-full"
-                          type="number"
-                          value={Number.isFinite(mEditUnitCost) ? mEditUnitCost : 0}
-                          onChange={(e) => setMEditUnitCost(Number(e.target.value))}
+                          className=”border rounded w-full h-9 px-3 text-sm text-right”
+                          type=”number”
+                          step=”0.01”
+                          value={row.man_hours === 0 ? “” : row.man_hours}
+                          onChange={async (e) => {
+                            const raw = e.target.value;
+                            const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                            setLabor((prev) =>
+                              prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
+                            );
+                            await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                              method: “PATCH”,
+                              headers: { “Content-Type”: “application/json” },
+                              body: JSON.stringify({ man_hours: value, is_overridden: true }),
+                            });
+                          }}
                         />
-                      ) : (
-                        money(row.unit_cost)
-                      )}
-                    </div>
-
-                    <div>{total.toFixed(2)}</div>
-
-                    <div className="text-right flex justify-end gap-3">
-                      {isEditing ? (
-                        <>
+                      </td>
+                      <td className=”py-2 pr-3 align-middle text-right font-medium tabular-nums text-sm”>
+                        {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className=”py-2 align-middle text-right”>
+                        {showDelete && (
                           <button
-                            onClick={() => saveEditMaterial(row.id)}
-                            className="text-emerald-700 hover:underline"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEditMaterial}
-                            className="text-gray-600 hover:underline"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => startEditMaterial(row)}
-                            className="text-blue-700 hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteMaterialRow(row.id)}
-                            className="text-red-600 hover:underline"
+                            onClick={() => deleteLaborRow(row.id)}
+                            className=”text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200”
                           >
                             Delete
                           </button>
-                        </>
-                      )}
+                        )}
+                      </td>
+                    </tr>
+                  );
+                };
+
+                return (
+                  <table className=”w-full text-sm”>
+                    <colgroup>
+                      <col style={{ width: “36px” }} />
+                      <col style={{ width: “16%” }} />
+                      <col />
+                      <col style={{ width: “72px” }} />
+                      <col style={{ width: “70px” }} />
+                      <col style={{ width: “80px” }} />
+                      <col style={{ width: “90px” }} />
+                      <col style={{ width: “80px” }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-center”>Show</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Task</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Proposal Text</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Qty</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Unit</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Hours</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Total</th>
+                        <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g) => {
+                        if (g.type === “row”) {
+                          return renderLaborTr(g.row, true);
+                        }
+                        const bundleTotal = g.rows.reduce(
+                          (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+                          0
+                        );
+                        return (
+                          <>
+                            <tr key={`bundle-hdr-${g.runId}`} className=”bg-gray-50”>
+                              <td colSpan={8} className=”py-2 px-3 border-b”>
+                                <div className=”flex items-center justify-between”>
+                                  <span className=”text-sm font-semibold text-gray-700”>{g.name}</span>
+                                  <div className=”flex items-center gap-4”>
+                                    <span className=”text-sm tabular-nums text-gray-600 font-medium”>
+                                      {bundleTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <button
+                                      onClick={() => deleteBundleRun(g.runId)}
+                                      className=”text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200”
+                                    >
+                                      Remove Bundle
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                            {g.rows.map((row) => renderLaborTr(row, true, true))}
+                          </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* MATERIALS BUILDER CARD */}
+          <div className=”bg-white border rounded-xl overflow-hidden shadow-sm”>
+            <div className=”bg-gray-50 border-b px-5 py-3 flex items-center justify-between”>
+              <h2 className=”text-base font-semibold text-gray-800”>Materials Builder</h2>
+              <span className=”text-sm font-bold text-gray-900”>{money(materialsSubtotal)}</span>
+            </div>
+            <div className=”px-5 py-5 space-y-4”>
+              {/* Add form */}
+              <div className=”space-y-2”>
+                <div className=”grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide”>
+                  <div className=”col-span-3”>Material</div>
+                  <div className=”col-span-2”>Source</div>
+                  <div className=”col-span-3”>Details</div>
+                  <div className=”col-span-1”>Qty</div>
+                  <div className=”col-span-1”>Unit</div>
+                  <div className=”col-span-1”>Unit Cost</div>
+                  <div className=”col-span-1 text-right”>Action</div>
+                </div>
+                <div className=”grid grid-cols-12 gap-2 items-center”>
+                  <div className=”col-span-3” ref={materialDropdownRef}>
+                    <div className=”relative”>
+                      <input
+                        className=”border rounded w-full h-9 px-3 text-sm”
+                        placeholder=”Search materials catalog…”
+                        value={materialSearch}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setSelectedMaterialId(“”);
+                          setMaterialSearch(v);
+                          setMaterialName(v);
+                          setShowMaterialResults(true);
+                        }}
+                        onFocus={() => setShowMaterialResults(true)}
+                      />
+                      {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
+                        <div className=”absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1”>
+                          {filteredMaterialsCatalog.map((m) => (
+                            <div
+                              key={m.id}
+                              className=”px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm”
+                              onClick={() => applyMaterialSelection(m)}
+                            >
+                              <div className=”font-medium”>{m.name}</div>
+                              <div className=”text-xs text-gray-500”>
+                                {m.vendor ? `Vendor: ${m.vendor} • ` : “”}
+                                Unit: {m.unit || “ea”} • Cost:{“ “}
+                                {money(Number(m.unit_cost) || 0)}
+                                {m.sku ? ` • SKU: ${m.sku}` : “”}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* TRUCKING */}
-          <div className="border rounded-lg p-6 space-y-3">
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <h2 className="text-xl font-semibold">Trucking</h2>
-                <div className="text-sm text-gray-500">
-                  Single trucking entry (Landscaping only). Uses the same division rate.
+                  <div className=”col-span-2”>
+                    <select
+                      className=”border rounded w-full h-9 px-2 text-sm”
+                      value={selectedSourceIndex ?? “”}
+                      onChange={(e) => {
+                        const idx = Number(e.target.value);
+                        setSelectedSourceIndex(idx);
+                        const src = materialSources[idx];
+                        if (!src) return;
+                        if (src.unit) setMaterialUnit(src.unit);
+                        if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
+                      }}
+                    >
+                      <option value=””>Select source</option>
+                      {materialSources.map((s, i) => {
+                        const qty =
+                          s.available_qty === null || s.available_qty === undefined
+                            ? null
+                            : Number(s.available_qty);
+                        const qtyText =
+                          qty === null
+                            ? “”
+                            : qty < 0
+                            ? ` (Qty: ${qty.toFixed(2).replace(/\.00$/, “”)} LOW)`
+                            : ` (Qty: ${qty.toFixed(2).replace(/\.00$/, “”)})`;
+                        return (
+                          <option key={i} value={i}>
+                            {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
+                            {qtyText}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className=”col-span-3”>
+                    <input
+                      className=”border rounded w-full h-9 px-3 text-sm”
+                      placeholder=”Optional details (vendor, color, etc.)”
+                      value={materialDetails}
+                      onChange={(e) => setMaterialDetails(e.target.value)}
+                    />
+                  </div>
+                  <div className=”col-span-1”>
+                    <input
+                      className=”border rounded w-full h-9 px-3 text-sm text-right”
+                      type=”number”
+                      placeholder=”0”
+                      value={Number.isFinite(materialQty) ? materialQty : 0}
+                      onChange={(e) => setMaterialQty(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className=”col-span-1”>
+                    <select
+                      className=”border rounded w-full h-9 px-2 text-sm”
+                      value={materialUnit}
+                      onChange={(e) => setMaterialUnit(e.target.value)}
+                    >
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className=”col-span-1”>
+                    <input
+                      className=”border rounded w-full h-9 px-3 text-sm text-right”
+                      type=”number”
+                      placeholder=”0”
+                      value={Number.isFinite(materialCost) ? materialCost : 0}
+                      onChange={(e) => setMaterialCost(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className=”col-span-1 text-right”>
+                    <button
+                      type=”button”
+                      onClick={addMaterial}
+                      className=”bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 h-9 disabled:opacity-50 w-full”
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="text-right text-sm">
-                {savingTrucking ? <span className="text-gray-500">Saving…</span> : null}
-              </div>
-            </div>
 
-            {truckingSaveError ? <div className="text-sm text-red-600">{truckingSaveError}</div> : null}
-
-            <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Hours</div>
-                <input
-                  className="border p-2 rounded w-full"
-                  type="number"
-                  value={Number.isFinite(truckingHours) ? truckingHours : 0}
-                  onChange={(e) => setTruckingHours(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Rate ($/hr)</div>
-                <div className="border p-2 rounded bg-gray-50">{money(divisionRate)}</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Cost</div>
-                <div className="border p-2 rounded bg-gray-50 font-semibold">{money(truckingCost)}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* PRICING PREVIEW */}
-          <div className="border rounded-lg p-6 space-y-5">
-            <h2 className="text-xl font-semibold">Pricing Preview</h2>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <label className="block text-sm text-gray-600">
-                  Target Gross Profit % (editable)
-                </label>
-                <input
-                  className="border p-2 rounded w-full"
-                  type="number"
-                  value={Number.isFinite(targetGpPct) ? targetGpPct : 0}
-                  onChange={(e) => setTargetGpPct(Number(e.target.value))}
-                />
-
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
-                  <input
-                    type="checkbox"
-                    checked={prepayEnabled}
-                    onChange={(e) => setPrepayEnabled(e.target.checked)}
-                  />
-                  Apply prepay discount (100% payment via check up-front)
-                </label>
-
-                <div className="text-xs text-gray-500">
-                  Rounding + contingency are “baked in” from Ops Settings (hidden from sales).
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Labor cost</span>
-                  <span className="font-semibold">{money(laborSubtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Materials cost</span>
-                  <span className="font-semibold">{money(materialsSubtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Trucking cost</span>
-                  <span className="font-semibold">{money(truckingCost)}</span>
-                </div>
-
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-800">Total cost</span>
-                  <span className="font-bold">{money(totalCost)}</span>
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <span className="text-gray-800">Project price</span>
-                  <span className="font-bold text-emerald-700">{money(sellRounded)}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-800">Project price (with prepay)</span>
-                  <span className="font-bold text-emerald-700">{money(sellWithPrepay)}</span>
-                </div>
-
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-800">Effective GP%</span>
-                  <span className="font-bold">{effectiveGpPct.toFixed(2)}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* PROPOSAL PREVIEW */}
-          <div className="border rounded-lg p-6 space-y-4 mt-6">
-            <h2 className="text-xl font-semibold">Proposal Preview</h2>
-
-            <button
-              onClick={copyProposal}
-              className="px-3 py-1 rounded bg-black text-white text-sm mb-3"
-            >
-              Copy Proposal
-            </button>
-
-            {/* Scope Lines */}
-            <div className="space-y-1 text-sm">
-              {labor.length === 0 ? (
-                <div className="text-gray-500">No scope items yet.</div>
+              {/* Materials Table */}
+              {materials.length === 0 ? (
+                <div className=”text-gray-400 text-sm py-4 border rounded-lg px-4”>No materials added yet.</div>
               ) : (
-                labor.map((row) => (
-                  <div key={row.id}>• {row.proposal_text || row.task}</div>
-                ))
+                <table className=”w-full text-sm mt-4”>
+                  <colgroup>
+                    <col style={{ width: “20%” }} />
+                    <col />
+                    <col style={{ width: “70px” }} />
+                    <col style={{ width: “70px” }} />
+                    <col style={{ width: “90px” }} />
+                    <col style={{ width: “90px” }} />
+                    <col style={{ width: “100px” }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Material</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Details</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Qty</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b”>Unit</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Unit Cost</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Total</th>
+                      <th className=”text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2 border-b text-right”>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {materials.map((row) => {
+                      const isEditing = editingMaterialId === row.id;
+                      const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
+                      const cost = isEditing ? Number(mEditUnitCost) || 0 : Number(row.unit_cost) || 0;
+                      const total = qty * cost;
+                      return (
+                        <tr key={row.id} className=”border-b last:border-b-0 hover:bg-gray-50/50”>
+                          <td className=”py-2 pr-3 align-middle”>
+                            {isEditing ? (
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm”
+                                value={mEditName}
+                                onChange={(e) => setMEditName(e.target.value)}
+                              />
+                            ) : (
+                              <span className=”font-medium”>{row.name}</span>
+                            )}
+                          </td>
+                          <td className=”py-2 pr-3 align-middle text-gray-600”>
+                            {isEditing ? (
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm”
+                                value={mEditDetails}
+                                onChange={(e) => setMEditDetails(e.target.value)}
+                                placeholder=”—“
+                              />
+                            ) : (
+                              row.details || “—“
+                            )}
+                          </td>
+                          <td className=”py-2 pr-3 align-middle text-right”>
+                            {isEditing ? (
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                type=”number”
+                                value={Number.isFinite(mEditQty) ? mEditQty : 0}
+                                onChange={(e) => setMEditQty(Number(e.target.value))}
+                              />
+                            ) : (
+                              row.qty
+                            )}
+                          </td>
+                          <td className=”py-2 pr-3 align-middle”>
+                            {isEditing ? (
+                              <select
+                                className=”border rounded w-full h-9 px-2 text-sm”
+                                value={mEditUnit}
+                                onChange={(e) => setMEditUnit(e.target.value)}
+                              >
+                                {UNIT_OPTIONS.map((u) => (
+                                  <option key={u.value} value={u.value}>
+                                    {u.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              row.unit
+                            )}
+                          </td>
+                          <td className=”py-2 pr-3 align-middle text-right”>
+                            {isEditing ? (
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                type=”number”
+                                value={Number.isFinite(mEditUnitCost) ? mEditUnitCost : 0}
+                                onChange={(e) => setMEditUnitCost(Number(e.target.value))}
+                              />
+                            ) : (
+                              money(row.unit_cost)
+                            )}
+                          </td>
+                          <td className=”py-2 pr-3 align-middle text-right tabular-nums”>{total.toFixed(2)}</td>
+                          <td className=”py-2 align-middle text-right”>
+                            <div className=”flex justify-end gap-1”>
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    onClick={() => saveEditMaterial(row.id)}
+                                    className=”text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200”
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={cancelEditMaterial}
+                                    className=”text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200”
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => startEditMaterial(row)}
+                                    className=”text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200”
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteMaterialRow(row.id)}
+                                    className=”text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200”
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
+          </div>
 
-            {/* Pricing */}
-            <div className="pt-4 border-t text-lg font-semibold space-y-1">
-              <div>Project Price: {money(sellRounded)}</div>
-
-              {prepayEnabled && (
-                <div className="text-green-700">
-                  Prepay Price: {money(sellWithPrepay)}
+          {/* TRUCKING CARD */}
+          <div className=”bg-white border rounded-xl overflow-hidden shadow-sm”>
+            <div className=”bg-gray-50 border-b px-5 py-3 flex items-center justify-between”>
+              <div>
+                <h2 className=”text-base font-semibold text-gray-800”>Trucking</h2>
+                <p className=”text-xs text-gray-400 mt-0.5”>Single trucking entry (Landscaping only). Uses the same division rate.</p>
+              </div>
+              {savingTrucking ? <span className=”text-xs text-gray-500”>Saving…</span> : null}
+            </div>
+            <div className=”px-5 py-5 space-y-4”>
+              {truckingSaveError ? <div className=”text-sm text-red-600”>{truckingSaveError}</div> : null}
+              <div className=”grid grid-cols-3 gap-4 max-w-lg items-end”>
+                <div>
+                  <div className=”text-xs font-semibold text-gray-600 mb-1”>Trucking Hours</div>
+                  <input
+                    className=”border rounded w-full h-9 px-3 text-sm”
+                    type=”number”
+                    value={Number.isFinite(truckingHours) ? truckingHours : 0}
+                    onChange={(e) => setTruckingHours(Number(e.target.value))}
+                  />
                 </div>
-              )}
+                <div>
+                  <div className=”text-xs font-semibold text-gray-600 mb-1”>Rate ($/hr)</div>
+                  <div className=”border rounded h-9 px-3 bg-gray-50 flex items-center text-sm”>{money(divisionRate)}</div>
+                </div>
+                <div>
+                  <div className=”text-xs font-semibold text-gray-600 mb-1”>Trucking Cost</div>
+                  <div className=”border rounded h-9 px-3 bg-gray-50 flex items-center text-sm font-semibold”>{money(truckingCost)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PRICING PREVIEW CARD */}
+          <div className=”bg-white border rounded-xl overflow-hidden shadow-sm”>
+            <div className=”bg-gray-50 border-b px-5 py-3 flex items-center justify-between”>
+              <h2 className=”text-base font-semibold text-gray-800”>Pricing Preview</h2>
+            </div>
+            <div className=”px-5 py-5”>
+              <div className=”grid grid-cols-2 gap-8”>
+                <div className=”space-y-4”>
+                  <div>
+                    <label className=”block text-xs font-semibold text-gray-600 mb-1”>
+                      Target Gross Profit %
+                    </label>
+                    <input
+                      className=”border rounded w-full h-9 px-3 text-sm”
+                      type=”number”
+                      value={Number.isFinite(targetGpPct) ? targetGpPct : 0}
+                      onChange={(e) => setTargetGpPct(Number(e.target.value))}
+                    />
+                  </div>
+                  <label className=”inline-flex items-center gap-2 text-sm text-gray-700”>
+                    <input
+                      type=”checkbox”
+                      checked={prepayEnabled}
+                      onChange={(e) => setPrepayEnabled(e.target.checked)}
+                    />
+                    Apply prepay discount (100% payment via check up-front)
+                  </label>
+                  <div className=”text-xs text-gray-400”>
+                    Rounding + contingency are “baked in” from Ops Settings (hidden from sales).
+                  </div>
+                </div>
+                <div className=”space-y-2 text-sm”>
+                  <div className=”flex justify-between py-1”>
+                    <span className=”text-gray-500”>Labor cost</span>
+                    <span className=”font-semibold tabular-nums”>{money(laborSubtotal)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1”>
+                    <span className=”text-gray-500”>Materials cost</span>
+                    <span className=”font-semibold tabular-nums”>{money(materialsSubtotal)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1”>
+                    <span className=”text-gray-500”>Trucking cost</span>
+                    <span className=”font-semibold tabular-nums”>{money(truckingCost)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1.5 border-t mt-1”>
+                    <span className=”text-gray-800 font-medium”>Total cost</span>
+                    <span className=”font-bold tabular-nums”>{money(totalCost)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1.5 pt-3”>
+                    <span className=”text-gray-800 font-medium”>Project price</span>
+                    <span className=”font-bold text-emerald-700 tabular-nums text-base”>{money(sellRounded)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1”>
+                    <span className=”text-gray-600”>Project price (with prepay)</span>
+                    <span className=”font-bold text-emerald-600 tabular-nums”>{money(sellWithPrepay)}</span>
+                  </div>
+                  <div className=”flex justify-between py-1.5 border-t mt-1”>
+                    <span className=”text-gray-800 font-medium”>Effective GP%</span>
+                    <span className=”font-bold tabular-nums”>{effectiveGpPct.toFixed(2)}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PROPOSAL PREVIEW CARD */}
+          <div className=”bg-white border rounded-xl overflow-hidden shadow-sm”>
+            <div className=”bg-gray-50 border-b px-5 py-3 flex items-center justify-between”>
+              <h2 className=”text-base font-semibold text-gray-800”>Proposal Preview</h2>
+              <button
+                onClick={copyProposal}
+                className=”bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 h-9 disabled:opacity-50”
+              >
+                Copy Proposal
+              </button>
+            </div>
+            <div className=”px-5 py-5 space-y-4”>
+              <div className=”space-y-1 text-sm”>
+                {labor.length === 0 ? (
+                  <div className=”text-gray-500”>No scope items yet.</div>
+                ) : (
+                  labor.map((row) => (
+                    <div key={row.id}>• {row.proposal_text || row.task}</div>
+                  ))
+                )}
+              </div>
+              <div className=”pt-4 border-t text-base font-semibold space-y-1”>
+                <div>Project Price: <span className=”text-emerald-700”>{money(sellRounded)}</span></div>
+                {prepayEnabled && (
+                  <div className=”text-green-700”>
+                    Prepay Price: {money(sellWithPrepay)}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </>
