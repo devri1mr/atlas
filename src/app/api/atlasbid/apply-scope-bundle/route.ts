@@ -389,7 +389,20 @@ const { data: materials, error: materialsError } = await supabase
 if (materialsError) {
   return NextResponse.json({ error: materialsError.message }, { status: 500 });
 }
+const { data: bidRow, error: bidError } = await supabase
+  .from("bids")
+  .select("company_id")
+  .eq("id", bidId)
+  .single();
 
+if (bidError || !bidRow) {
+  return NextResponse.json(
+    { error: "Failed to fetch company_id for bid" },
+    { status: 500 }
+  );
+}
+
+const companyId = bidRow.company_id;
 // 2. insert into bid_materials
 for (const m of materials || []) {
   const { error: insertMaterialError } = await supabase
