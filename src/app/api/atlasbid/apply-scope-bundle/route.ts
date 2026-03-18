@@ -405,7 +405,7 @@ for (const m of materials || []) {
     .insert({
       bid_id: bidId,
       company_id: bidRow.company_id, // ✅ USE EXISTING VALUE
-      name: "Bundle Material",
+      name: m.materials.name,
       material_id: m.material_id,
       qty: m.qty_per_task_unit,
       unit: m.unit,
