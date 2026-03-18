@@ -90,7 +90,34 @@ function computeTask(
   const config = task.rule_config ?? {};
   const ruleType = String(task.rule_type || "");
   const unit = String(task.unit || "ea");
+// GLOBAL CHECKBOX GATE (THIS IS THE FIX)
+const gatingQuestionKey = String(
+  config?.question ??
+  config?.question_key ??
+  config?.enabled_question ??
+  config?.checkbox_question ??
+  ""
+).trim();
 
+if (gatingQuestionKey) {
+  const isChecked = boolFromAnswer(
+    getAnswer(answers, questionsByKey, gatingQuestionKey)
+  );
+
+  if (!isChecked) {
+    return {
+      skip: true,
+      taskName: task.task_name,
+      itemName: task.item_name || "",
+      unit,
+      quantity: 0,
+      manHours: 0,
+      showAsLineItem: Boolean(task.show_as_line_item_default ?? true),
+      generatedByRule: ruleType,
+      generatedFromQuestionKeys: [gatingQuestionKey],
+    };
+  }
+}
   const mulchSqft = num(getAnswer(answers, questionsByKey, "mulch_sqft"), 0);
   const depthFromAnswer = num(getAnswer(answers, questionsByKey, "mulch_depth"), 0);
 
