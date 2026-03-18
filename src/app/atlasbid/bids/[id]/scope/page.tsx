@@ -1895,7 +1895,7 @@ async function addLabor() {
               </div>
             </div>
             <div className="space-y-0 divide-y">
-              {g.rows.map((row) => renderLaborRow(row, false))}
+              {g.rows.map((row) => renderLaborRow(row, true))}
             </div>
           </div>
         );
