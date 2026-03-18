@@ -114,9 +114,6 @@ if (questionKey) {
       generatedFromQuestionKeys: [questionKey],
     };
   }
-}
-  }
-}
   const mulchSqft = num(getAnswer(answers, questionsByKey, "mulch_sqft"), 0);
   const depthFromAnswer = num(getAnswer(answers, questionsByKey, "mulch_depth"), 0);
 
