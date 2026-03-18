@@ -901,7 +901,7 @@ if (!syncRes.ok) {
   throw new Error(syncJson?.error || "Failed syncing bundle materials");
 }
 
-await loadALL();
+await loadAll();
 
   } catch (e: any) {
     setError(e?.message || "Failed loading bundle.");
