@@ -1080,7 +1080,6 @@ async function addLabor() {
         }
 
         const payload = {
-          bidId,
           bid_id: bidId,
           material_id: catalog.id,
           company_id: bid?.company_id ?? null,
@@ -1272,7 +1271,6 @@ async function addLabor() {
     const selectedSource =
   selectedSourceIndex !== null ? materialSources[selectedSourceIndex] : null;
     const payload: any = {
-  bidId,
   bid_id: bidId,
   company_id: bid?.company_id ?? null,
   material_id: selectedMaterialId || null,
