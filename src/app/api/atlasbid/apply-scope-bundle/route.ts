@@ -383,33 +383,27 @@ if (deleteOldLaborError) {
 // 1. get materials tied to this bundle
 const { data: materials, error: materialsError } = await supabase
   .from("scope_bundle_task_materials")
-  .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id, scope_bundle_tasks!inner(bundle_id)")
+  .select(`
+    material_id,
+    qty_per_task_unit,
+    unit,
+    unit_cost,
+    bundle_task_id,
+    scope_bundle_tasks!inner(bundle_id)
+  `)
   .eq("scope_bundle_tasks.bundle_id", bundleId);
 
 if (materialsError) {
   return NextResponse.json({ error: materialsError.message }, { status: 500 });
 }
-const { data: bidRow, error: bidError } = await supabase
-  .from("bids")
-  .select("company_id")
-  .eq("id", bidId)
-  .single();
 
-if (bidError || !bidRow) {
-  return NextResponse.json(
-    { error: "Failed to fetch company_id for bid" },
-    { status: 500 }
-  );
-}
-
-const companyId = bidRow.company_id;
 // 2. insert into bid_materials
 for (const m of materials || []) {
   const { error: insertMaterialError } = await supabase
     .from("bid_materials")
     .insert({
       bid_id: bidId,
-      company_id: companyId,
+      company_id: bidRow.company_id, // ✅ USE EXISTING VALUE
       name: "Bundle Material",
       material_id: m.material_id,
       qty: m.qty_per_task_unit,
@@ -420,9 +414,12 @@ for (const m of materials || []) {
     });
 
   if (insertMaterialError) {
-    return NextResponse.json({ error: insertMaterialError.message }, { status: 500 });
+    return NextResponse.json(
+      { error: insertMaterialError.message },
+      { status: 500 }
+    );
   }
-    }
+}
 
     return NextResponse.json({
       bundle_run: bundleRun,
