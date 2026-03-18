@@ -856,7 +856,15 @@ async function loadBundleQuestions(bundleId: string) {
       }
     }
 
-    setBundleAnswers(defaults);
+    const normalized = Object.fromEntries(
+  Object.entries(defaults).map(([k, v]) => {
+    if (v === "true") return [k, true];
+    if (v === "false") return [k, false];
+    return [k, v];
+  })
+);
+
+setBundleAnswers(normalized);
   } catch {
     setBundleQuestions([]);
   } finally {
