@@ -262,6 +262,19 @@ if (hourlyRate <= 0) {
   );
 }
 
+const { error: deleteOldLaborError } = await supabase
+  .from("bid_labor")
+  .delete()
+  .eq("bid_id", bidId)
+  .not("bundle_run_id", "is", null);
+
+if (deleteOldLaborError) {
+  return NextResponse.json(
+    { error: deleteOldLaborError.message },
+    { status: 500 }
+  );
+}
+
     const { data: questions, error: questionsError } = await supabase
       .from("scope_bundle_questions")
       .select("*")
