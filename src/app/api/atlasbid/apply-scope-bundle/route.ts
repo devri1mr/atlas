@@ -396,8 +396,9 @@ for (const m of materials || []) {
     .from("bid_materials")
     .insert({
       bid_id: bidId,
+      company_id: companyId,
+      name: "Bundle Material",
       material_id: m.material_id,
-      name: m.material_id, // TEMP FIX
       qty: m.qty_per_task_unit,
       unit: m.unit,
       unit_cost: m.unit_cost,
