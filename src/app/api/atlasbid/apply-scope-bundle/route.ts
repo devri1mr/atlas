@@ -454,55 +454,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build a lookup of bundle_task_id → old labor qty so we can compute deltas.
-    // On first load, old qty is 0 so delta = full new qty.
-    const taskById = new Map((tasks || []).map((t: any) => [t.id, t]));
-
-    // Aggregate delta by material_id across all bundle tasks.
-    // Delta = (new_qty_per_unit * new_labor_qty) - (old_qty_per_unit * old_labor_qty)
-    // This preserves any manual additions the user made on top of bundle qty.
-    type MatDelta = {
+    // Aggregate the new bundle qty by material_id across all bundle tasks.
+    // We ADD the new bundle qty on top of whatever already exists — purely additive.
+    type MatAdd = {
       name: string;
       unit: string;
       unit_cost: number;
-      delta: number;
+      qty: number;
       source_task_id: string;
     };
-    const matDeltaMap = new Map<string, MatDelta>();
+    const matAddMap = new Map<string, MatAdd>();
 
     for (const m of materials || []) {
       const newTaskQty = taskQuantityByBundleTaskId.get(m.bundle_task_id) || 0;
-      const bundleTask = taskById.get(m.bundle_task_id) as BundleTask | undefined;
-      const oldLaborRow = bundleTask
-        ? existingLaborByTaskName.get(bundleTask.task_name)
-        : null;
-      const oldTaskQty = oldLaborRow ? Number((oldLaborRow as any).quantity || 0) : 0;
-
       const qtyPerUnit = Number(m.qty_per_task_unit || 0);
-      const delta = Number(
-        (qtyPerUnit * newTaskQty - qtyPerUnit * oldTaskQty).toFixed(2)
-      );
+      const addQty = Number((qtyPerUnit * newTaskQty).toFixed(2));
 
-      if (delta === 0) continue;
+      if (addQty === 0) continue;
 
       const materialName = (m as any).materials?.[0]?.name || (m as any).materials?.name;
       const key = m.material_id;
 
-      if (matDeltaMap.has(key)) {
-        const d = matDeltaMap.get(key)!;
-        matDeltaMap.set(key, { ...d, delta: Number((d.delta + delta).toFixed(2)) });
+      if (matAddMap.has(key)) {
+        const d = matAddMap.get(key)!;
+        matAddMap.set(key, { ...d, qty: Number((d.qty + addQty).toFixed(2)) });
       } else {
-        matDeltaMap.set(key, {
+        matAddMap.set(key, {
           name: materialName || "Bundle Material",
           unit: m.unit,
           unit_cost: Number(m.unit_cost || 0),
-          delta,
+          qty: addQty,
           source_task_id: m.bundle_task_id,
         });
       }
     }
 
-    // Fetch existing bid_material rows to apply deltas.
+    // Fetch existing bid_material rows to add onto.
     const { data: existingMats } = await supabase
       .from("bid_materials")
       .select("id, material_id, qty")
@@ -513,15 +500,12 @@ export async function POST(req: NextRequest) {
       (existingMats || []).map((r: any) => [r.material_id, r])
     );
 
-    for (const [materialId, d] of matDeltaMap) {
+    for (const [materialId, d] of matAddMap) {
       const existing = existingByMaterialId.get(materialId);
 
       if (existing) {
-        // Apply delta — preserves manual additions.
-        const newQty = Math.max(
-          0,
-          Number((Number(existing.qty) + d.delta).toFixed(2))
-        );
+        // Add bundle qty on top of existing qty — never overwrite.
+        const newQty = Number((Number(existing.qty) + d.qty).toFixed(2));
         const { error: updateError } = await supabase
           .from("bid_materials")
           .update({ qty: newQty })
@@ -530,8 +514,8 @@ export async function POST(req: NextRequest) {
         if (updateError) {
           return NextResponse.json({ error: updateError.message }, { status: 500 });
         }
-      } else if (d.delta > 0) {
-        // No existing row — insert with full delta as initial qty.
+      } else {
+        // No existing row — insert fresh.
         const { error: insertMaterialError } = await supabase
           .from("bid_materials")
           .insert({
@@ -539,7 +523,7 @@ export async function POST(req: NextRequest) {
             company_id: bidRow.company_id,
             name: d.name,
             material_id: materialId,
-            qty: d.delta,
+            qty: d.qty,
             unit: d.unit,
             unit_cost: d.unit_cost,
             source_type: "bundle",
