@@ -352,6 +352,59 @@ export async function PATCH(
     }
   }
 
+  // When qty changes on a bundle-generated labor row, recalculate the qty
+  // for any bid_materials that came from the same bundle task.
+  const shouldRecalcBundleMaterials =
+    "quantity" in body &&
+    !!updatedRow.bundle_run_id &&
+    !!updatedRow.bid_id;
+
+  if (shouldRecalcBundleMaterials) {
+    const { data: bundleRun } = await supabase
+      .from("scope_bundle_runs")
+      .select("bundle_id")
+      .eq("id", updatedRow.bundle_run_id)
+      .maybeSingle();
+
+    if (bundleRun?.bundle_id) {
+      const { data: bundleTask } = await supabase
+        .from("scope_bundle_tasks")
+        .select("id")
+        .eq("bundle_id", bundleRun.bundle_id)
+        .eq("task_name", updatedRow.task)
+        .maybeSingle();
+
+      if (bundleTask?.id) {
+        const { data: taskMaterials } = await supabase
+          .from("scope_bundle_task_materials")
+          .select("material_id, qty_per_task_unit, unit")
+          .eq("bundle_task_id", bundleTask.id);
+
+        const newLaborQty = toNumber(updatedRow.quantity, 0);
+
+        for (const tm of taskMaterials || []) {
+          const newMatQty = Number(
+            (toNumber(tm.qty_per_task_unit, 0) * newLaborQty).toFixed(2)
+          );
+
+          const { data: matRows } = await supabase
+            .from("bid_materials")
+            .select("id")
+            .eq("bid_id", updatedRow.bid_id)
+            .eq("material_id", tm.material_id)
+            .limit(1);
+
+          if (matRows?.[0] && newMatQty >= 0) {
+            await supabase
+              .from("bid_materials")
+              .update({ qty: newMatQty })
+              .eq("id", matRows[0].id);
+          }
+        }
+      }
+    }
+  }
+
   return NextResponse.json({ row: updatedRow });
 }
 
