@@ -922,6 +922,30 @@ await loadAll();
   const bundleRunNameMap = useMemo(() => {
   return new Map(bundleRunsMeta.map((x) => [x.id, x.bundle_name]));
 }, [bundleRunsMeta]);
+
+  const laborGroups = useMemo(() => {
+    const result: Array<
+      | { type: "bundle"; runId: string; name: string; rows: LaborRow[] }
+      | { type: "row"; row: LaborRow }
+    > = [];
+    const seen = new Set<string>();
+    for (const row of labor) {
+      if (row.bundle_run_id) {
+        if (seen.has(row.bundle_run_id)) continue;
+        seen.add(row.bundle_run_id);
+        result.push({
+          type: "bundle",
+          runId: row.bundle_run_id,
+          name: bundleRunNameMap.get(row.bundle_run_id) || "Bundle",
+          rows: labor.filter((r) => r.bundle_run_id === row.bundle_run_id),
+        });
+      } else {
+        result.push({ type: "row", row });
+      }
+    }
+    return result;
+  }, [labor, bundleRunNameMap]);
+
   const proposalGroups = useMemo(() => {
   const groups: Array<
     | {
@@ -1416,138 +1440,6 @@ async function addLabor() {
   if (loading) return <div className="p-6">Loading…</div>;
   if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
 
-  // Build grouped labor list outside JSX (Turbopack doesn't support IIFEs in JSX)
-  const laborGroups: Array<
-    | { type: "bundle"; runId: string; name: string; rows: LaborRow[] }
-    | { type: "row"; row: LaborRow }
-  > = [];
-  {
-    const seen = new Set<string>();
-    for (const row of labor) {
-      if (row.bundle_run_id) {
-        if (seen.has(row.bundle_run_id)) continue;
-        seen.add(row.bundle_run_id);
-        laborGroups.push({
-          type: "bundle",
-          runId: row.bundle_run_id,
-          name: bundleRunNameMap.get(row.bundle_run_id) || "Bundle",
-          rows: labor.filter((r) => r.bundle_run_id === row.bundle_run_id),
-        });
-      } else {
-        laborGroups.push({ type: "row", row });
-      }
-    }
-  }
-
-  function renderLaborTr(row: LaborRow, showDelete: boolean, indent = false) {
-    const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
-    return (
-      <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50/50">
-        <td className="py-2 pr-3 align-middle text-center">
-          <input
-            className="w-4 h-4"
-            type="checkbox"
-            checked={row.show_as_line_item === true}
-            onChange={async (e) => {
-              const checked = e.target.checked;
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ show_as_line_item: checked }),
-              });
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
-              );
-            }}
-          />
-        </td>
-        <td className="py-2 pr-3 align-middle">
-          <span className={`font-medium text-sm leading-tight${indent ? " pl-3" : ""}`}>{row.task}</span>
-        </td>
-        <td className="py-2 pr-3 align-middle">
-          <input
-            className="border rounded w-full h-9 px-3 text-sm"
-            value={row.proposal_text ?? row.task}
-            onChange={async (e) => {
-              const value = e.target.value;
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
-              );
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proposal_text: value }),
-              });
-            }}
-          />
-        </td>
-        <td className="py-2 pr-3 align-middle">
-          <input
-            className="border rounded w-full h-9 px-3 text-sm text-right"
-            type="number"
-            value={row.quantity === 0 ? "" : row.quantity}
-            onChange={(e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
-              );
-            }}
-            onBlur={async (e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              try {
-                const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
-                });
-                if (!res.ok) console.error("Failed to save labor row", await res.json());
-                else await loadAll();
-              } catch (err) {
-                console.error("Labor autosave failed", err);
-              }
-            }}
-          />
-        </td>
-        <td className="py-2 pr-3 align-middle text-sm text-gray-600">{row.unit}</td>
-        <td className="py-2 pr-3 align-middle">
-          <input
-            className="border rounded w-full h-9 px-3 text-sm text-right"
-            type="number"
-            step="0.01"
-            value={row.man_hours === 0 ? "" : row.man_hours}
-            onChange={async (e) => {
-              const raw = e.target.value;
-              const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-              setLabor((prev) =>
-                prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
-              );
-              await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ man_hours: value, is_overridden: true }),
-              });
-            }}
-          />
-        </td>
-        <td className="py-2 pr-3 align-middle text-right font-medium tabular-nums text-sm">
-          {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </td>
-        <td className="py-2 align-middle text-right">
-          {showDelete && (
-            <button
-              onClick={() => deleteLaborRow(row.id)}
-              className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
-            >
-              Delete
-            </button>
-          )}
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
       {/* Page Header */}
@@ -1887,7 +1779,110 @@ async function addLabor() {
                   <tbody>
                     {laborGroups.map((g) => {
                       if (g.type === “row”) {
-                        return renderLaborTr(g.row, true);
+                        const row = g.row;
+                        return (
+                          <tr key={row.id} className=”border-b last:border-b-0 hover:bg-gray-50/50”>
+                            <td className=”py-2 pr-3 align-middle text-center”>
+                              <input
+                                className=”w-4 h-4”
+                                type=”checkbox”
+                                checked={row.show_as_line_item === true}
+                                onChange={async (e) => {
+                                  const checked = e.target.checked;
+                                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                    method: “PATCH”,
+                                    headers: { “Content-Type”: “application/json” },
+                                    body: JSON.stringify({ show_as_line_item: checked }),
+                                  });
+                                  setLabor((prev) =>
+                                    prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
+                                  );
+                                }}
+                              />
+                            </td>
+                            <td className=”py-2 pr-3 align-middle”>
+                              <span className=”font-medium text-sm leading-tight”>{row.task}</span>
+                            </td>
+                            <td className=”py-2 pr-3 align-middle”>
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm”
+                                value={row.proposal_text ?? row.task}
+                                onChange={async (e) => {
+                                  const value = e.target.value;
+                                  setLabor((prev) =>
+                                    prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
+                                  );
+                                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                    method: “PATCH”,
+                                    headers: { “Content-Type”: “application/json” },
+                                    body: JSON.stringify({ proposal_text: value }),
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className=”py-2 pr-3 align-middle”>
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                type=”number”
+                                value={row.quantity === 0 ? “” : row.quantity}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                  setLabor((prev) =>
+                                    prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
+                                  );
+                                }}
+                                onBlur={async (e) => {
+                                  const raw = e.target.value;
+                                  const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                  try {
+                                    const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                      method: “PATCH”,
+                                      headers: { “Content-Type”: “application/json” },
+                                      body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
+                                    });
+                                    if (!res.ok) console.error(“Failed to save labor row”, await res.json());
+                                    else await loadAll();
+                                  } catch (err) {
+                                    console.error(“Labor autosave failed”, err);
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className=”py-2 pr-3 align-middle text-sm text-gray-600”>{row.unit}</td>
+                            <td className=”py-2 pr-3 align-middle”>
+                              <input
+                                className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                type=”number”
+                                step=”0.01”
+                                value={row.man_hours === 0 ? “” : row.man_hours}
+                                onChange={async (e) => {
+                                  const raw = e.target.value;
+                                  const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                  setLabor((prev) =>
+                                    prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
+                                  );
+                                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                    method: “PATCH”,
+                                    headers: { “Content-Type”: “application/json” },
+                                    body: JSON.stringify({ man_hours: value, is_overridden: true }),
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className=”py-2 pr-3 align-middle text-right font-medium tabular-nums text-sm”>
+                              {((Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className=”py-2 align-middle text-right”>
+                              <button
+                                onClick={() => deleteLaborRow(row.id)}
+                                className=”text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200”
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
                       }
                       const bundleTotal = g.rows.reduce(
                         (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
@@ -1913,7 +1908,109 @@ async function addLabor() {
                               </div>
                             </td>
                           </tr>
-                          {g.rows.map((row) => renderLaborTr(row, true, true))}
+                          {g.rows.map((row) => (
+                            <tr key={row.id} className=”border-b last:border-b-0 hover:bg-gray-50/50”>
+                              <td className=”py-2 pr-3 align-middle text-center”>
+                                <input
+                                  className=”w-4 h-4”
+                                  type=”checkbox”
+                                  checked={row.show_as_line_item === true}
+                                  onChange={async (e) => {
+                                    const checked = e.target.checked;
+                                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                      method: “PATCH”,
+                                      headers: { “Content-Type”: “application/json” },
+                                      body: JSON.stringify({ show_as_line_item: checked }),
+                                    });
+                                    setLabor((prev) =>
+                                      prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
+                                    );
+                                  }}
+                                />
+                              </td>
+                              <td className=”py-2 pr-3 align-middle”>
+                                <span className=”font-medium text-sm leading-tight pl-3”>{row.task}</span>
+                              </td>
+                              <td className=”py-2 pr-3 align-middle”>
+                                <input
+                                  className=”border rounded w-full h-9 px-3 text-sm”
+                                  value={row.proposal_text ?? row.task}
+                                  onChange={async (e) => {
+                                    const value = e.target.value;
+                                    setLabor((prev) =>
+                                      prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
+                                    );
+                                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                      method: “PATCH”,
+                                      headers: { “Content-Type”: “application/json” },
+                                      body: JSON.stringify({ proposal_text: value }),
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className=”py-2 pr-3 align-middle”>
+                                <input
+                                  className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                  type=”number”
+                                  value={row.quantity === 0 ? “” : row.quantity}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                    setLabor((prev) =>
+                                      prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
+                                    );
+                                  }}
+                                  onBlur={async (e) => {
+                                    const raw = e.target.value;
+                                    const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                    try {
+                                      const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                        method: “PATCH”,
+                                        headers: { “Content-Type”: “application/json” },
+                                        body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
+                                      });
+                                      if (!res.ok) console.error(“Failed to save labor row”, await res.json());
+                                      else await loadAll();
+                                    } catch (err) {
+                                      console.error(“Labor autosave failed”, err);
+                                    }
+                                  }}
+                                />
+                              </td>
+                              <td className=”py-2 pr-3 align-middle text-sm text-gray-600”>{row.unit}</td>
+                              <td className=”py-2 pr-3 align-middle”>
+                                <input
+                                  className=”border rounded w-full h-9 px-3 text-sm text-right”
+                                  type=”number”
+                                  step=”0.01”
+                                  value={row.man_hours === 0 ? “” : row.man_hours}
+                                  onChange={async (e) => {
+                                    const raw = e.target.value;
+                                    const value = raw === “” ? 0 : Math.max(0, parseFloat(raw) || 0);
+                                    setLabor((prev) =>
+                                      prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
+                                    );
+                                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                                      method: “PATCH”,
+                                      headers: { “Content-Type”: “application/json” },
+                                      body: JSON.stringify({ man_hours: value, is_overridden: true }),
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className=”py-2 pr-3 align-middle text-right font-medium tabular-nums text-sm”>
+                                {((Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className=”py-2 align-middle text-right”>
+                                <button
+                                  onClick={() => deleteLaborRow(row.id)}
+                                  className=”text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200”
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                         </React.Fragment>
                       );
                     })}
