@@ -382,14 +382,7 @@ if (deleteOldLaborError) {
 // 1. get materials tied to this bundle
 const { data: materials, error: materialsError } = await supabase
   .from("scope_bundle_task_materials")
-  .select(`
-    material_id,
-    qty_per_task_unit,
-    unit,
-    unit_cost,
-    bundle_task_id,
-    scope_bundle_tasks!inner(bundle_id)
-  `)
+  .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id, scope_bundle_tasks!inner(bundle_id)")
   .eq("scope_bundle_tasks.bundle_id", bundleId);
 
 if (materialsError) {
