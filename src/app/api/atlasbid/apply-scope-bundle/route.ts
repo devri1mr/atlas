@@ -389,6 +389,7 @@ const { data: materials, error: materialsError } = await supabase
     unit,
     unit_cost,
     bundle_task_id,
+    materials!inner(name),
     scope_bundle_tasks!inner(bundle_id)
   `)
   .eq("scope_bundle_tasks.bundle_id", bundleId);
