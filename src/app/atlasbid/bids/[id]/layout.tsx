@@ -20,15 +20,20 @@ export default async function BidLayout({
   return (
     <div className="min-h-screen bg-[#f6f8f6] px-6 py-6">
       <div className="mx-auto max-w-6xl">
-        {/* Header */}
-        <div className="mb-6 flex justify-center">
-          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-32 w-auto object-contain" style={{ mixBlendMode: "multiply" }} />
-        </div>
-
-        {/* Tabs */}
+        {/* Tabs with logo centered between them */}
         <div className="mb-6 rounded-xl border border-[#d7e6db] bg-white shadow-sm">
-          <div className="px-4 py-3">
-            <BidTabs tabs={tabs} />
+          <div className="px-4 py-4">
+            <BidTabs
+              tabs={tabs}
+              center={
+                <img
+                  src="/atlasbid-logo.png"
+                  alt="AtlasBid"
+                  className="h-24 w-auto object-contain"
+                  style={{ mixBlendMode: "multiply" }}
+                />
+              }
+            />
           </div>
         </div>
 
