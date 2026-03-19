@@ -13,10 +13,14 @@ export default function BidTabs({
 }) {
   const pathname = usePathname() || "";
 
+  // Find the longest-matching tab so Overview doesn't match when Scope/Pricing/Proposal are active
+  const activeHref = tabs
+    .slice()
+    .sort((a, b) => b.href.length - a.href.length)
+    .find((t) => pathname === t.href || pathname.startsWith(t.href + "/"))?.href;
+
   function renderTab(t: { name: string; href: string }) {
-    const isActive =
-      pathname === t.href ||
-      (t.href !== "/" && pathname.startsWith(t.href + "/"));
+    const isActive = t.href === activeHref;
     return (
       <Link
         key={t.href}
