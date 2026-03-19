@@ -192,6 +192,8 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   const [mEditQty, setMEditQty] = useState<number>(0);
   const [mEditUnit, setMEditUnit] = useState<string>("ea");
   const [mEditUnitCost, setMEditUnitCost] = useState<number>(0);
+  const [mEditSourceIndex, setMEditSourceIndex] = useState<number | null>(null);
+  const [editRowSources, setEditRowSources] = useState<any[]>([]);
 
   // Inputs (labor)
   const [task, setTask] = useState("");
@@ -1246,7 +1248,11 @@ async function addLabor() {
     if (res.ok) {
       setLabor((prev) => prev.filter((r) => r.bundle_run_id !== runId));
       setBundleRunsMeta((prev) => prev.filter((r) => r.id !== runId));
-      await loadAll(); // refresh materials after qty subtraction
+      // Refresh only materials since bundle deletion subtracts qtys
+      const matRes = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, { cache: "no-store" });
+      const matJson = await matRes.json();
+      if (Array.isArray(matJson?.rows)) setMaterials(matJson.rows);
+      else if (Array.isArray(matJson?.data)) setMaterials(matJson.data);
     } else {
       const json = await res.json().catch(() => ({}));
       setError(json?.error || "Failed to remove bundle");
@@ -1382,6 +1388,30 @@ async function addLabor() {
     setMEditQty(Number(row.qty) || 0);
     setMEditUnit(row.unit || "ea");
     setMEditUnitCost(Number(row.unit_cost) || 0);
+    setMEditSourceIndex(null);
+    setEditRowSources([]);
+
+    if (row.material_id) {
+      const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
+      Promise.all([
+        fetch(`/api/inventory/source?material_id=${row.material_id}&pricing_date=${pricingDate}`, { cache: "no-store" }),
+        fetch(`/api/material-sources?material_id=${row.material_id}`, { cache: "no-store" }),
+      ]).then(async ([invRes, vendorRes]) => {
+        const invJson = await invRes.json();
+        const vendorJson = await vendorRes.json();
+        const inv = Array.isArray(invJson?.data) ? invJson.data.map((s: any) => ({
+          source_name: s.source_label || "Inventory",
+          unit: s.unit || "ea",
+          cost: s.unit_cost ?? 0,
+        })) : [];
+        const vendors = Array.isArray(vendorJson?.data) ? vendorJson.data.map((s: any) => ({
+          source_name: s.vendor_name || s.source_name || "Vendor",
+          unit: s.unit || "ea",
+          cost: s.unit_cost ?? 0,
+        })) : [];
+        setEditRowSources([...inv, ...vendors]);
+      }).catch(() => {});
+    }
   }
 
   function cancelEditMaterial() {
@@ -1391,6 +1421,8 @@ async function addLabor() {
     setMEditQty(0);
     setMEditUnit("ea");
     setMEditUnitCost(0);
+    setMEditSourceIndex(null);
+    setEditRowSources([]);
   }
 
   async function saveEditMaterial(rowId: string) {
@@ -1653,7 +1685,7 @@ async function addLabor() {
     <div className="text-center">Details</div>
     <div className="text-center">Qty</div>
     <div className="text-center">Unit</div>
-    <div className="text-right">Hrs</div>
+    <div className="text-center">Hrs</div>
     <div></div>
     <div className="text-center">Action</div>
   </div>
@@ -1769,7 +1801,7 @@ async function addLabor() {
       <div className="text-center">Details</div>
       <div className="text-center">Qty</div>
       <div className="text-center">Unit</div>
-      <div className="text-right">Hrs</div>
+      <div className="text-center">Hrs</div>
       <div className="text-right">Total</div>
       <div className="text-center">Action</div>
     </div>
@@ -1860,7 +1892,7 @@ async function addLabor() {
             <div className="text-center text-sm">{row.unit}</div>
             <div>
               <input
-                className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
+                className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
                 type="number"
                 step="0.01"
                 value={row.man_hours === 0 ? "" : row.man_hours}
@@ -1993,7 +2025,7 @@ async function addLabor() {
                   <div className="text-center text-sm">{row.unit}</div>
                   <div>
                     <input
-                      className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
+                      className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
                       type="number"
                       step="0.01"
                       value={row.man_hours === 0 ? "" : row.man_hours}
@@ -2222,7 +2254,7 @@ async function addLabor() {
                     key={row.id}
                     className="grid grid-cols-12 gap-3 border rounded px-2 py-2 text-sm items-center"
                   >
-                    <div className="col-span-3 font-medium truncate">
+                    <div className="col-span-3 font-medium truncate text-center">
                       {isEditing ? (
                         <input
                           className="border p-2 rounded w-full"
@@ -2234,21 +2266,50 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div className="col-span-2 text-gray-500 text-xs truncate">
-                      {row.source_type || "—"}
+                    <div className="col-span-2 text-center text-xs">
+                      {isEditing && editRowSources.length > 0 ? (
+                        <select
+                          className="border p-1 rounded w-full text-xs"
+                          value={mEditSourceIndex ?? ""}
+                          onChange={(e) => {
+                            const idx = Number(e.target.value);
+                            setMEditSourceIndex(idx);
+                            const src = editRowSources[idx];
+                            if (src) {
+                              if (src.unit) setMEditUnit(src.unit);
+                              if (src.cost !== undefined) setMEditUnitCost(Number(Number(src.cost).toFixed(2)) || 0);
+                            }
+                          }}
+                        >
+                          <option value="">Current: {row.source_type || "—"}</option>
+                          {editRowSources.map((s, i) => (
+                            <option key={i} value={i}>{s.source_name} @ ${Number(s.cost).toFixed(2)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-gray-500">{row.source_type || "—"}</span>
+                      )}
                     </div>
 
-                    <div className="col-span-2 text-gray-600">
-                      {isEditing ? (
-                        <input
-                          className="border p-2 rounded w-full"
-                          value={mEditDetails}
-                          onChange={(e) => setMEditDetails(e.target.value)}
-                          placeholder="—"
-                        />
-                      ) : (
-                        row.details || "—"
-                      )}
+                    <div className="col-span-2 text-center">
+                      <input
+                        className="border-0 bg-transparent w-full text-center text-sm focus:border focus:border-gray-300 focus:rounded focus:outline-none px-1"
+                        placeholder="—"
+                        value={row.details || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setMaterials((prev) =>
+                            prev.map((r) => r.id === row.id ? { ...r, details: value } : r)
+                          );
+                        }}
+                        onBlur={async (e) => {
+                          await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ details: e.target.value.trim() || null }),
+                          });
+                        }}
+                      />
                     </div>
 
                     <div className="col-span-1 text-center tabular-nums">
@@ -2386,7 +2447,7 @@ async function addLabor() {
                 <label className="block text-sm text-gray-600">
                   Target Gross Profit % (editable)
                 </label>
-                <div className="relative">
+                <div className="relative max-w-[120px]">
                   <input
                     className="border p-2 rounded w-full pr-7"
                     type="number"
