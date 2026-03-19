@@ -25,7 +25,7 @@ export default async function BidLayout({
           <img
             src="/atlasbid-logo.png"
             alt="AtlasBid"
-            className="h-48 w-auto object-contain"
+            className="h-72 w-auto object-contain"
             style={{ mixBlendMode: "multiply" }}
           />
           <BidTabs tabs={tabs} />
