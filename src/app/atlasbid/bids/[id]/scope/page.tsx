@@ -1646,19 +1646,19 @@ async function addLabor() {
   <div className="p-5 space-y-4">
 
   {/* Single header row */}
- <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 text-xs font-semibold text-gray-600 items-end px-3">
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
     <div></div>
     <div>Task</div>
     <div>Details</div>
-    <div className="text-center">Qty</div>
-    <div className="text-center">Unit</div>
-    <div className="text-center">Hours</div>
+    <div className="text-right">Qty</div>
+    <div>Unit</div>
+    <div className="text-right">Hrs</div>
     <div className="text-right">Total</div>
-    <div className="text-right">Action</div>
+    <div className="text-right">Del</div>
   </div>
 
   {/* Add row */}
- <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center px-3">
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center px-2">
     <div className="flex justify-center">
       <label className="flex items-center justify-center">
         <input
@@ -1673,7 +1673,7 @@ async function addLabor() {
       <div className="relative">
         <input
           className="border rounded w-full h-9 px-3"
-          placeholder="Search saved tasks..."
+          placeholder="Task name…"
           value={taskSearch}
           onChange={(e) => {
             const v = e.target.value;
@@ -1703,7 +1703,7 @@ async function addLabor() {
     <div>
       <input
         className="border rounded w-full h-9 px-3"
-        placeholder="Optional details"
+        placeholder="Details"
         value={details}
         onChange={(e) => setDetails(e.target.value)}
       />
@@ -1756,7 +1756,7 @@ async function addLabor() {
   </div>
 
   {/* Save to Catalog helper row */}
-  <div className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 items-center -mt-1 px-3">
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center -mt-1 px-2">
     <div></div>
     <div className="text-xs text-gray-600">
       Save to Catalog
@@ -1784,7 +1784,7 @@ async function addLabor() {
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 border rounded px-3 py-2 text-sm items-center"
+            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center"
           >
             <div className="flex justify-center">
               <input
@@ -1911,7 +1911,7 @@ async function addLabor() {
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[34px_1.7fr_2.1fr_88px_82px_88px_96px_78px] gap-3 px-3 py-2 text-sm items-center"
+                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 px-2 py-2 text-sm items-center"
                 >
                   <div className="flex justify-center">
                     <input
@@ -2019,32 +2019,27 @@ async function addLabor() {
 </div>
 </div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
-          <div className="border rounded-lg p-6 space-y-4">
-            <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Materials Builder</h2>
-                <div className="text-sm text-gray-500">
-                  Search your catalog, auto-fill unit + cost, then edit inline if needed.
-                </div>
+                <h2 className="text-base font-semibold text-gray-800">Materials Builder</h2>
+                <div className="text-xs text-gray-500 mt-0.5">Search your catalog, auto-fill unit + cost, then edit inline.</div>
               </div>
+              <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
+            </div>
+            <div className="p-5 space-y-3">
 
-              <div className="text-right min-w-[240px]">
-                <div className="text-sm text-gray-500">Materials Subtotal</div>
-                <div className="text-2xl font-bold">{money(materialsSubtotal)}</div>
-              </div>
+            <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="col-span-3">Material</div>
+              <div className="col-span-2">Source</div>
+              <div className="col-span-3">Details</div>
+              <div className="col-span-1 text-right">Qty</div>
+              <div className="col-span-1">Unit</div>
+              <div className="col-span-1 text-right">Unit Cost</div>
+              <div className="col-span-1 text-right">Add</div>
             </div>
 
-           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-600">
-  <div className="col-span-3">Material (catalog search)</div>
-  <div className="col-span-2">Source</div>
-  <div className="col-span-3">Details (optional)</div>
-  <div className="col-span-1">Qty</div>
-  <div className="col-span-1">Unit</div>
-  <div className="col-span-1">Unit Cost</div>
-  <div className="col-span-1 text-right">Action</div>
-</div>
-
-            <div className="grid grid-cols-12 gap-4 items-center">
+            <div className="grid grid-cols-12 gap-3 items-center">
               {/* Catalog search */}
               <div className="col-span-3" ref={materialDropdownRef}>
                 <div className="relative">
@@ -2181,13 +2176,13 @@ async function addLabor() {
             </div>
 
             {/* List headers */}
-            <div className="grid grid-cols-10 gap-4 font-semibold text-sm border-b pb-2 mt-4">
+            <div className="grid grid-cols-10 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t pt-3 mt-1">
               <div className="col-span-2">Material</div>
               <div className="col-span-3">Details</div>
-              <div>Qty</div>
+              <div className="text-right">Qty</div>
               <div>Unit</div>
-              <div>Unit Cost</div>
-              <div>Total ($)</div>
+              <div className="text-right">Unit Cost</div>
+              <div className="text-right">Total</div>
               <div className="text-right">Actions</div>
             </div>
 
@@ -2204,7 +2199,7 @@ async function addLabor() {
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-10 gap-4 border p-2 rounded text-sm items-center"
+                    className="grid grid-cols-10 gap-3 border rounded px-2 py-2 text-sm items-center"
                   >
                     <div className="col-span-2">
                       {isEditing ? (
@@ -2231,10 +2226,10 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div>
+                    <div className="text-right tabular-nums">
                       {isEditing ? (
                         <input
-                          className="border p-2 rounded w-full"
+                          className="border p-2 rounded w-full text-right"
                           type="number"
                           value={Number.isFinite(mEditQty) ? mEditQty : 0}
                           onChange={(e) => setMEditQty(Number(e.target.value))}
@@ -2262,10 +2257,10 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div>
+                    <div className="text-right tabular-nums">
                       {isEditing ? (
                         <input
-                          className="border p-2 rounded w-full"
+                          className="border p-2 rounded w-full text-right"
                           type="number"
                           value={Number.isFinite(mEditUnitCost) ? mEditUnitCost : 0}
                           onChange={(e) => setMEditUnitCost(Number(e.target.value))}
@@ -2275,7 +2270,7 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div>{total.toFixed(2)}</div>
+                    <div className="text-right tabular-nums">{total.toFixed(2)}</div>
 
                     <div className="text-right flex justify-end gap-3">
                       {isEditing ? (
@@ -2314,49 +2309,53 @@ async function addLabor() {
                 );
               })
             )}
+            </div>
           </div>
 
           {/* TRUCKING */}
-          <div className="border rounded-lg p-6 space-y-3">
-            <div className="flex items-start justify-between gap-6">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Trucking</h2>
-                <div className="text-sm text-gray-500">
-                  Single trucking entry (Landscaping only). Uses the same division rate.
-                </div>
+                <h2 className="text-base font-semibold text-gray-800">Trucking</h2>
+                <div className="text-xs text-gray-500 mt-0.5">Single trucking entry (Landscaping only).</div>
               </div>
-              <div className="text-right text-sm">
-                {savingTrucking ? <span className="text-gray-500">Saving…</span> : null}
+              <div className="flex items-center gap-3">
+                {savingTrucking ? <span className="text-xs text-gray-500">Saving…</span> : null}
+                <span className="text-sm font-bold text-gray-800">{money(truckingCost)}</span>
               </div>
             </div>
+            <div className="p-5">
+            {truckingSaveError ? <div className="text-sm text-red-600 mb-3">{truckingSaveError}</div> : null}
 
-            {truckingSaveError ? <div className="text-sm text-red-600">{truckingSaveError}</div> : null}
-
-            <div className="grid grid-cols-3 gap-4 max-w-lg items-end">
+            <div className="grid grid-cols-3 gap-4 max-w-sm items-end">
               <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Hours</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hours</div>
                 <input
-                  className="border p-2 rounded w-full"
+                  className="border rounded h-9 px-3 w-full text-right"
                   type="number"
                   value={Number.isFinite(truckingHours) ? truckingHours : 0}
                   onChange={(e) => setTruckingHours(Number(e.target.value))}
                 />
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Rate ($/hr)</div>
-                <div className="border p-2 rounded bg-gray-50">{money(divisionRate)}</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Rate ($/hr)</div>
+                <div className="border rounded h-9 px-3 flex items-center bg-gray-50 text-sm tabular-nums">{money(divisionRate)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Trucking Cost</div>
-                <div className="border p-2 rounded bg-gray-50 font-semibold">{money(truckingCost)}</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Cost</div>
+                <div className="border rounded h-9 px-3 flex items-center bg-gray-50 text-sm font-semibold tabular-nums">{money(truckingCost)}</div>
               </div>
+            </div>
             </div>
           </div>
 
           {/* PRICING PREVIEW */}
-          <div className="border rounded-lg p-6 space-y-5">
-            <h2 className="text-xl font-semibold">Pricing Preview</h2>
-
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-800">Pricing Preview</h2>
+              <span className="text-sm font-bold text-emerald-700">{money(sellRounded)}</span>
+            </div>
+            <div className="p-5">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm text-gray-600">
@@ -2418,17 +2417,20 @@ async function addLabor() {
                 </div>
               </div>
             </div>
+            </div>
           </div>
           {/* PROPOSAL PREVIEW */}
-          <div className="border rounded-lg p-6 space-y-4 mt-6">
-            <h2 className="text-xl font-semibold">Proposal Preview</h2>
-
-            <button
-              onClick={copyProposal}
-              className="px-3 py-1 rounded bg-black text-white text-sm mb-3"
-            >
-              Copy Proposal
-            </button>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-800">Proposal Preview</h2>
+              <button
+                onClick={copyProposal}
+                className="px-3 py-1.5 rounded bg-gray-800 text-white text-xs font-medium"
+              >
+                Copy Proposal
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
 
             {/* Scope Lines */}
             <div className="space-y-1 text-sm">
@@ -2450,6 +2452,7 @@ async function addLabor() {
                   Prepay Price: {money(sellWithPrepay)}
                 </div>
               )}
+            </div>
             </div>
           </div>
         </>
