@@ -73,6 +73,33 @@ export async function findOrCreateMaterial(
 
   if (error) throw new Error(error.message);
 
+  // Sync to materials_catalog so this item is searchable for tasks/bundles/bids.
+  let catQuery = supabase.from("materials_catalog").select("id").ilike("name", normalizedName);
+  if (divisionId) catQuery = catQuery.eq("division_id", divisionId);
+  const { data: existingCat } = await catQuery.maybeSingle();
+
+  if (!existingCat) {
+    const { data: catEntry } = await supabase
+      .from("materials_catalog")
+      .insert({
+        name: normalizedName,
+        default_unit: unit,
+        default_unit_cost: 0,
+        division_id: divisionId ?? null,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    // Link the materials row back to the catalog entry
+    if (catEntry) {
+      await supabase.from("materials").update({ catalog_material_id: catEntry.id }).eq("id", created.id);
+    }
+  } else {
+    // Link to existing catalog entry
+    await supabase.from("materials").update({ catalog_material_id: existingCat.id }).eq("id", created.id);
+  }
+
   return created;
 }
 

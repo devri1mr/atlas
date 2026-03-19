@@ -115,8 +115,29 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // OPTIONAL FUTURE: auto-create inventory_items row here if you want.
-    // For Option A, we leave inventory creation to later logic/UI.
+    // Sync to materials table so inventory tracking works immediately.
+    // materials is what inventory_transactions references via material_id.
+    let matQuery = supabase.from("materials").select("id").ilike("name", name);
+    if (division_id) matQuery = matQuery.eq("division_id", division_id);
+    const { data: existingMat } = await matQuery.maybeSingle();
+
+    if (existingMat) {
+      // Link the existing materials row to this catalog entry
+      await supabase.from("materials").update({ catalog_material_id: data.id }).eq("id", existingMat.id);
+    } else {
+      // Create a new materials row linked to this catalog entry
+      await supabase.from("materials").insert({
+        name,
+        display_name: name,
+        unit: default_unit,
+        inventory_unit: default_unit,
+        unit_cost: default_unit_cost || 0,
+        inventory_enabled: true,
+        is_active: true,
+        division_id: division_id || null,
+        catalog_material_id: data.id,
+      });
+    }
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (e: any) {
