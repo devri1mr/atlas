@@ -146,12 +146,14 @@ export async function DELETE(
 
         for (const mat of matRows || []) {
           const subtract = matSubtractMap.get(mat.material_id) || 0;
-          const newQty = Math.max(0, Number((toNumber(mat.qty, 0) - subtract).toFixed(2)));
+          const newQty = Number((toNumber(mat.qty, 0) - subtract).toFixed(2));
 
-          await supabase
-            .from("bid_materials")
-            .update({ qty: newQty })
-            .eq("id", mat.id);
+          if (newQty <= 0) {
+            // Remove the row entirely — bundle was the only contributor
+            await supabase.from("bid_materials").delete().eq("id", mat.id);
+          } else {
+            await supabase.from("bid_materials").update({ qty: newQty }).eq("id", mat.id);
+          }
         }
       }
     }
