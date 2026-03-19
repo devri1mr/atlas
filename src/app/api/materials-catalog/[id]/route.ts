@@ -36,6 +36,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = supabaseAdmin();
+
+  // Clear any materials rows still pointing at this catalog entry
+  await supabase.from("materials").update({ catalog_material_id: null }).eq("catalog_material_id", id);
+
   const { error } = await supabase.from("materials_catalog").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
