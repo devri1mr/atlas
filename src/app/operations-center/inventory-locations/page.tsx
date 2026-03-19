@@ -155,13 +155,17 @@ export default function InventoryLocationsPage() {
     setCreateCategoryId("");
     setShowCreateForm(true);
 
-    // Pull latest unit_cost and vendor from the most recent receipt transaction
+    // Compute avg unit_cost across all receipt transactions for this material
+    setCreateVendor("Inventory");
     try {
       const res = await fetch(`/api/inventory/ledger?material_id=${mat.id}`, { cache: "no-store" });
       const json = await res.json();
-      const latest = json?.data?.[0];
-      if (latest?.unit_cost && latest.unit_cost > 0) setCreateCost(String(latest.unit_cost));
-      if (latest?.vendor_name) setCreateVendor(latest.vendor_name);
+      const rows: any[] = json?.data ?? [];
+      const costs = rows.map((r: any) => Number(r.unit_cost)).filter(v => v > 0);
+      if (costs.length > 0) {
+        const avg = costs.reduce((a, b) => a + b, 0) / costs.length;
+        setCreateCost(avg.toFixed(2));
+      }
     } catch {}
   }
 
@@ -408,7 +412,10 @@ export default function InventoryLocationsPage() {
                                 </div>
                                 <div>
                                   <label className="block text-xs text-gray-500 mb-1">Default Cost</label>
-                                  <input type="number" min="0" step="0.01" className={inputCls} value={createCost} onChange={e => setCreateCost(e.target.value)} placeholder="0.00" />
+                                  <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                                    <input type="number" min="0" step="0.01" className={inputCls + " pl-6"} value={createCost} onChange={e => setCreateCost(e.target.value)} placeholder="0.00" />
+                                  </div>
                                 </div>
                                 <div>
                                   <label className="block text-xs text-gray-500 mb-1">Vendor</label>
