@@ -268,6 +268,10 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   const [unit, setUnit] = useState<string>("yd");
   const [hours, setHours] = useState<number>(0);
 
+  // Yd calculator (sqft + depth → yds)
+  const [calcSqft, setCalcSqft] = useState("");
+  const [calcDepth, setCalcDepth] = useState("3");
+
   // Predictive task search
   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogRow[]>([]);
   const [taskSearch, setTaskSearch] = useState("");
@@ -1980,7 +1984,10 @@ async function addLabor() {
       <select
         className="border rounded w-full h-9 px-2"
         value={unit}
-        onChange={(e) => setUnit(e.target.value)}
+        onChange={(e) => {
+          setUnit(e.target.value);
+          if (e.target.value !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
+        }}
       >
         {UNIT_OPTIONS.map((u) => (
           <option key={u.value} value={u.value}>
@@ -1988,6 +1995,48 @@ async function addLabor() {
           </option>
         ))}
       </select>
+      {unit === "yd" && (
+        <div className="mt-1.5 flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+          <input
+            className="w-16 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-center"
+            type="number"
+            placeholder="sq ft"
+            value={calcSqft}
+            onChange={(e) => {
+              setCalcSqft(e.target.value);
+              const sqft = Number(e.target.value);
+              const depth = Number(calcDepth) || 3;
+              if (sqft > 0) {
+                const yds = Number(((sqft * depth) / 324).toFixed(2));
+                setQuantity(yds);
+                if (selectedTaskMinutesPerUnit && yds > 0) {
+                  setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
+                }
+              }
+            }}
+          />
+          <span className="text-xs text-gray-400">sq ft @</span>
+          <input
+            className="w-12 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-center"
+            type="number"
+            placeholder="in"
+            value={calcDepth}
+            onChange={(e) => {
+              setCalcDepth(e.target.value);
+              const sqft = Number(calcSqft);
+              const depth = Number(e.target.value) || 3;
+              if (sqft > 0) {
+                const yds = Number(((sqft * depth) / 324).toFixed(2));
+                setQuantity(yds);
+                if (selectedTaskMinutesPerUnit && yds > 0) {
+                  setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
+                }
+              }
+            }}
+          />
+          <span className="text-xs text-gray-400">in</span>
+        </div>
+      )}
     </div>
 
     <div>
