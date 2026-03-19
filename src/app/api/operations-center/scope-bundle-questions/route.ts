@@ -13,23 +13,15 @@ export async function POST(req: NextRequest) {
   if (!bundle_id || !question_key || !label)
     return NextResponse.json({ error: "bundle_id, question_key, and label required" }, { status: 400 });
 
-  // Fetch company_id — try 3 sources in order
+  // Fetch company_id (single-company app)
   let company_id: string | null = null;
+  const { data: r1 } = await supabase.from("companies").select("id").limit(1).maybeSingle();
+  if (r1?.id) { company_id = r1.id; }
   if (!company_id) {
-    const { data: r } = await supabase.from("companies").select("id").limit(1).maybeSingle();
-    company_id = r?.id ?? null;
+    const { data: r2 } = await supabase.from("bids").select("company_id").not("company_id", "is", null).limit(1).maybeSingle();
+    company_id = r2?.company_id ?? null;
   }
-  if (!company_id) {
-    const { data: r } = await supabase.from("scope_bundle_questions").select("company_id").eq("bundle_id", bundle_id).not("company_id", "is", null).limit(1).maybeSingle();
-    company_id = r?.company_id ?? null;
-  }
-  if (!company_id) {
-    const { data: r } = await supabase.from("bids").select("company_id").not("company_id", "is", null).limit(1).maybeSingle();
-    company_id = r?.company_id ?? null;
-  }
-  if (!company_id) {
-    return NextResponse.json({ error: "Could not determine company_id. Please contact support." }, { status: 500 });
-  }
+  if (!company_id) return NextResponse.json({ error: "Could not determine company_id." }, { status: 500 });
 
   const { data, error } = await supabase.from("scope_bundle_questions").insert({
     bundle_id,
