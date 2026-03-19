@@ -431,7 +431,7 @@ export async function POST(req: NextRequest) {
         matAddMap.set(key, { ...d, qty: Number((d.qty + addQty).toFixed(2)) });
       } else {
         matAddMap.set(key, {
-          name: materialName || "Bundle Material",
+          name: materialName || "Material",
           unit: m.unit,
           unit_cost: Number(m.unit_cost || 0),
           qty: addQty,

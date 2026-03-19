@@ -158,6 +158,27 @@ export async function DELETE(
       }
     }
 
+    // 4a. Also hard-delete any bid_materials rows stamped with source_type='bundle'
+    //     and source_task_id pointing to this bundle's tasks.
+    //     This catches rows where material_id was null or unresolvable (shows as "Bundle Material"),
+    //     which the material_id-based subtraction above would miss.
+    if (bundleId) {
+      const { data: bundleTasks } = await supabase
+        .from("scope_bundle_tasks")
+        .select("id")
+        .eq("bundle_id", bundleId);
+
+      const bundleTaskIds = (bundleTasks || []).map((t: any) => t.id);
+      if (bundleTaskIds.length > 0) {
+        await supabase
+          .from("bid_materials")
+          .delete()
+          .eq("bid_id", bidId)
+          .eq("source_type", "bundle")
+          .in("source_task_id", bundleTaskIds);
+      }
+    }
+
     // 4. Delete all labor rows for this run.
     const { error: deleteLaborError } = await supabase
       .from("bid_labor")
