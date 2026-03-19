@@ -41,8 +41,8 @@ const sections = [
   {
     title: "Materials Catalog",
     description:
-      "Manage materials, units, default costs, vendors, and future inventory links.",
-    href: "/operations-center/materials",
+      "Manage materials, units, default costs, vendors, and inventory links.",
+    href: "/atlasbid/materials",
     status: "Later",
   },
   {
