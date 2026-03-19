@@ -2046,9 +2046,9 @@ async function addLabor() {
             <div className="p-5 space-y-3">
 
             <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <div className="col-span-3">Material</div>
-              <div className="col-span-2">Source</div>
-              <div className="col-span-2">Details</div>
+              <div className="col-span-3 text-center">Material</div>
+              <div className="col-span-2 text-center">Source</div>
+              <div className="col-span-2 text-center">Details</div>
               <div className="col-span-1 text-center">Qty</div>
               <div className="col-span-1 text-center">Unit</div>
               <div className="col-span-1 text-center">Unit Cost</div>
@@ -2193,9 +2193,9 @@ async function addLabor() {
 
             {/* List headers */}
             <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t pt-3 mt-1">
-              <div className="col-span-3">Material</div>
-              <div className="col-span-2">Source</div>
-              <div className="col-span-2">Details</div>
+              <div className="col-span-3 text-center">Material</div>
+              <div className="col-span-2 text-center">Source</div>
+              <div className="col-span-2 text-center">Details</div>
               <div className="col-span-1 text-center">Qty</div>
               <div className="col-span-1 text-center">Unit</div>
               <div className="col-span-1 text-center">Unit Cost</div>
