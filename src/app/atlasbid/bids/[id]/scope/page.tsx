@@ -2017,6 +2017,7 @@ async function addLabor() {
   </div>
 )}
 </div>
+</div>
           {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
           <div className="border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-6 flex-wrap">
