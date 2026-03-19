@@ -172,6 +172,7 @@ const [materials, setMaterials] = useState<MaterialRow[]>([]);
 const addingMaterialRef = useRef(false);
 const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
 const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
+const [selectedTaskMinutesPerUnit, setSelectedTaskMinutesPerUnit] = useState<number | null>(null);
 const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
 const [loadingTemplateMaterials, setLoadingTemplateMaterials] = useState(false);
 const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
@@ -558,6 +559,7 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
   setShowTaskResults(false);
 
   setSelectedTaskCatalogId(t.id || "");
+  setSelectedTaskMinutesPerUnit(t.minutes_per_unit ?? null);
   setTemplateMaterials([]);
 
   if (t.unit) setUnit(t.unit);
@@ -1330,6 +1332,8 @@ async function addLabor() {
   setUnit("yd");
   setHours(0);
   setShowTaskResults(false);
+  setSelectedTaskCatalogId("");
+  setSelectedTaskMinutesPerUnit(null);
 }
 
   async function deleteLaborRow(rowId: string) {
@@ -1794,6 +1798,8 @@ async function addLabor() {
             setTaskSearch(v);
             setTask(v);
             setShowTaskResults(true);
+            setSelectedTaskCatalogId("");
+            setSelectedTaskMinutesPerUnit(null);
           }}
           onFocus={() => setShowTaskResults(true)}
         />
@@ -1861,7 +1867,14 @@ async function addLabor() {
         type="number"
         placeholder=""
         value={quantity === 0 ? "" : quantity}
-        onChange={(e) => setQuantity(Number(e.target.value))}
+        onChange={(e) => {
+          const newQty = Number(e.target.value) || 0;
+          setQuantity(newQty);
+          if (selectedTaskMinutesPerUnit && newQty > 0) {
+            const computed = hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, newQty);
+            setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
+          }
+        }}
       />
     </div>
 
