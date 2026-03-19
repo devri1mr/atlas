@@ -147,13 +147,22 @@ export default function InventoryLocationsPage() {
     setShowCreateForm(false);
   }
 
-  function openCreateForm(mat: RegisteredMaterial) {
+  async function openCreateForm(mat: RegisteredMaterial) {
     setCreateName(catSearch.trim() || mat.display_name || mat.name);
     setCreateUnit(mat.unit || "ea");
-    setCreateCost(mat.unit_cost && mat.unit_cost > 0 ? String(mat.unit_cost) : "");
-    setCreateVendor(mat.vendor || "");
+    setCreateCost("");
+    setCreateVendor("");
     setCreateCategoryId("");
     setShowCreateForm(true);
+
+    // Pull latest unit_cost and vendor from the most recent receipt transaction
+    try {
+      const res = await fetch(`/api/inventory/ledger?material_id=${mat.id}`, { cache: "no-store" });
+      const json = await res.json();
+      const latest = json?.data?.[0];
+      if (latest?.unit_cost && latest.unit_cost > 0) setCreateCost(String(latest.unit_cost));
+      if (latest?.vendor_name) setCreateVendor(latest.vendor_name);
+    } catch {}
   }
 
   useEffect(() => {
