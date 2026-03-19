@@ -49,6 +49,9 @@ export default function InventoryLocationsPage() {
   const [createCost, setCreateCost] = useState("");
   const [createVendor, setCreateVendor] = useState("");
   const [createCategoryId, setCreateCategoryId] = useState("");
+  const [catQuery, setCatQuery] = useState("");
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [suggestedCatId, setSuggestedCatId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -148,25 +151,38 @@ export default function InventoryLocationsPage() {
   }
 
   async function openCreateForm(mat: RegisteredMaterial) {
-    setCreateName(catSearch.trim() || mat.display_name || mat.name);
+    const name = catSearch.trim() || mat.display_name || mat.name;
+    setCreateName(name);
     setCreateUnit(mat.unit || "ea");
     setCreateCost("");
-    setCreateVendor("");
+    setCreateVendor("Inventory");
     setCreateCategoryId("");
+    setCatQuery("");
+    setExpandedCats(new Set());
+    setSuggestedCatId(null);
     setShowCreateForm(true);
 
-    // Compute avg unit_cost across all receipt transactions for this material
-    setCreateVendor("Inventory");
-    try {
-      const res = await fetch(`/api/inventory/ledger?material_id=${mat.id}`, { cache: "no-store" });
-      const json = await res.json();
+    // Run both fetches in parallel
+    const [ledgerRes, catRes] = await Promise.all([
+      fetch(`/api/inventory/ledger?material_id=${mat.id}`, { cache: "no-store" }).catch(() => null),
+      fetch(`/api/materials-catalog?q=${encodeURIComponent(name)}&limit=5`, { cache: "no-store" }).catch(() => null),
+    ]);
+
+    if (ledgerRes?.ok) {
+      const json = await ledgerRes.json();
       const rows: any[] = json?.data ?? [];
       const costs = rows.map((r: any) => Number(r.unit_cost)).filter(v => v > 0);
       if (costs.length > 0) {
         const avg = costs.reduce((a, b) => a + b, 0) / costs.length;
         setCreateCost(avg.toFixed(2));
       }
-    } catch {}
+    }
+
+    if (catRes?.ok) {
+      const json = await catRes.json();
+      const match = (json?.data ?? []).find((c: any) => c.category_id);
+      if (match?.category_id) setSuggestedCatId(match.category_id);
+    }
   }
 
   useEffect(() => {
@@ -214,11 +230,12 @@ export default function InventoryLocationsPage() {
     await handleLink(matId, cj.data.id);
   }
 
-  // Flatten categories for select: parents first, then children indented
-  const catOptions = [
-    ...categories.filter(c => !c.parent_id),
-    ...categories.filter(c => c.parent_id),
-  ];
+  const topCats = categories.filter(c => !c.parent_id);
+  const childrenOf = (id: string) => categories.filter(c => c.parent_id === id);
+  const filteredTopCats = catQuery.trim()
+    ? categories.filter(c => c.name.toLowerCase().includes(catQuery.toLowerCase()))
+    : topCats;
+  const suggestedCat = suggestedCatId ? categories.find(c => c.id === suggestedCatId) : null;
 
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
@@ -421,16 +438,56 @@ export default function InventoryLocationsPage() {
                                   <label className="block text-xs text-gray-500 mb-1">Vendor</label>
                                   <input className={inputCls} value={createVendor} onChange={e => setCreateVendor(e.target.value)} />
                                 </div>
-                                <div>
+                                <div className="col-span-2">
                                   <label className="block text-xs text-gray-500 mb-1">Category</label>
-                                  <select className={inputCls} value={createCategoryId} onChange={e => setCreateCategoryId(e.target.value)}>
-                                    <option value="">None</option>
-                                    {catOptions.map(c => (
-                                      <option key={c.id} value={c.id}>
-                                        {c.parent_id ? "  ↳ " : ""}{c.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  {suggestedCat && !createCategoryId && (
+                                    <button onClick={() => setCreateCategoryId(suggestedCat.id)}
+                                      className="mb-1.5 w-full text-left text-xs px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                      Suggested: <strong>{suggestedCat.name}</strong> — based on similar items
+                                    </button>
+                                  )}
+                                  {createCategoryId && (
+                                    <div className="mb-1.5 flex items-center justify-between text-xs px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700">
+                                      <span>✓ {categories.find(c => c.id === createCategoryId)?.name}</span>
+                                      <button onClick={() => setCreateCategoryId("")} className="text-gray-400 hover:text-gray-600 ml-2">✕</button>
+                                    </div>
+                                  )}
+                                  <input className={inputCls} placeholder="Search categories…" value={catQuery} onChange={e => setCatQuery(e.target.value)} />
+                                  {(catQuery.trim() || !createCategoryId) && (
+                                    <div className="mt-1 border border-gray-200 rounded-lg bg-white max-h-48 overflow-y-auto text-sm">
+                                      <button onClick={() => { setCreateCategoryId(""); setCatQuery(""); }}
+                                        className="w-full text-left px-3 py-2 text-gray-400 hover:bg-gray-50 border-b text-xs">
+                                        None
+                                      </button>
+                                      {filteredTopCats.map(c => {
+                                        const children = childrenOf(c.id);
+                                        const isExpanded = expandedCats.has(c.id);
+                                        const showChildren = catQuery.trim() ? false : isExpanded;
+                                        return (
+                                          <div key={c.id}>
+                                            <div className={`flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer ${createCategoryId === c.id ? "bg-green-50" : ""}`}>
+                                              <span onClick={() => { setCreateCategoryId(c.id); setCatQuery(""); }} className="flex-1 font-medium">{c.name}</span>
+                                              {children.length > 0 && !catQuery.trim() && (
+                                                <button onClick={() => setExpandedCats(prev => {
+                                                  const next = new Set(prev);
+                                                  next.has(c.id) ? next.delete(c.id) : next.add(c.id);
+                                                  return next;
+                                                })} className="text-gray-400 hover:text-gray-600 px-1 text-xs">
+                                                  {isExpanded ? "▲" : "▼"}
+                                                </button>
+                                              )}
+                                            </div>
+                                            {showChildren && children.map(ch => (
+                                              <div key={ch.id} onClick={() => { setCreateCategoryId(ch.id); setCatQuery(""); }}
+                                                className={`pl-7 pr-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer text-gray-600 ${createCategoryId === ch.id ? "bg-green-50" : ""}`}>
+                                                {ch.name}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex gap-2 pt-1">
