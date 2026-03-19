@@ -2541,16 +2541,11 @@ async function addLabor() {
                       {filteredMaterialsCatalog.map((m) => (
                         <div
                           key={m.id}
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between"
                           onClick={() => applyMaterialSelection(m)}
                         >
-                          <div className="font-medium">{m.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {m.vendor ? `Vendor: ${m.vendor} • ` : ""}
-                            Unit: {m.unit || "ea"} • Cost:{" "}
-                            {money(Number(m.unit_cost) || 0)}
-                            {m.sku ? ` • SKU: ${m.sku}` : ""}
-                          </div>
+                          <span className="font-medium">{m.name}</span>
+                          {m.unit && <span className="text-xs text-gray-400 ml-2">{m.unit}</span>}
                         </div>
                       ))}
                     </div>
