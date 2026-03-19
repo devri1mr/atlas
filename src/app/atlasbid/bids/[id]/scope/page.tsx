@@ -200,6 +200,7 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   const [matSourcesCache, setMatSourcesCache] = useState<Record<string, any[]>>({});
   const [suggestingFor, setSuggestingFor] = useState<string | null>(null); // labor row id or "add"
   const [suggestion, setSuggestion] = useState<string>("");
+  const [suggestionFor, setSuggestionFor] = useState<string | null>(null); // which row the suggestion belongs to
   const [editingBundleNameId, setEditingBundleNameId] = useState<string | null>(null);
   const [bundleNameDraft, setBundleNameDraft] = useState<string>("");
 
@@ -702,6 +703,7 @@ async function loadMaterialSources(materialId: string) {
   async function suggestDescription(rowId: string, taskName: string, qty: number, unit: string) {
     setSuggestingFor(rowId);
     setSuggestion("");
+    setSuggestionFor(null);
     try {
       // Gather material names from the materials list for context
       const matNames = materials.slice(0, 5).map((m) => m.name).filter(Boolean);
@@ -711,7 +713,10 @@ async function loadMaterialSources(materialId: string) {
         body: JSON.stringify({ task: taskName, qty, unit, materials: matNames }),
       });
       const json = await res.json();
-      if (json?.suggestion) setSuggestion(json.suggestion);
+      if (json?.suggestion) {
+        setSuggestion(json.suggestion);
+        setSuggestionFor(rowId);
+      }
     } catch {}
     setSuggestingFor(null);
   }
@@ -1812,7 +1817,7 @@ async function addLabor() {
         autoComplete="off"
         value={details}
         onFocus={() => setShowTaskResults(false)}
-        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); }}
+        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); }}
       />
       {task.trim() && (
         <button
@@ -1827,13 +1832,21 @@ async function addLabor() {
           {suggestingFor === "add" ? "…" : "✨"}
         </button>
       )}
-      {suggestion && suggestingFor === null && (
-        <div
-          className="absolute left-0 top-full mt-1 z-30 bg-white border rounded shadow-lg px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 w-full"
-          onClick={() => { setDetails(suggestion); setSuggestion(""); }}
-        >
-          <span className="text-gray-500 text-xs mr-1">✨</span>{suggestion}
-          <span className="text-gray-400 text-xs ml-2">(click to use)</span>
+      {suggestion && suggestionFor === "add" && suggestingFor === null && (
+        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+          <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
+              onClick={() => { setDetails(suggestion); setSuggestion(""); setSuggestionFor(null); }}
+            >Use this</button>
+            <button
+              type="button"
+              className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600"
+              onClick={() => { setSuggestion(""); setSuggestionFor(null); }}
+            >Dismiss</button>
+          </div>
         </div>
       )}
     </div>
@@ -1971,6 +1984,23 @@ async function addLabor() {
               >
                 {suggestingFor === row.id ? "…" : "✨"}
               </button>
+              {suggestion && suggestionFor === row.id && suggestingFor === null && (
+                <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+                  <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
+                      onClick={async () => {
+                        setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
+                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
+                        setSuggestion(""); setSuggestionFor(null);
+                      }}
+                    >Use this</button>
+                    <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <input
@@ -2139,6 +2169,23 @@ async function addLabor() {
                     >
                       {suggestingFor === row.id ? "…" : "✨"}
                     </button>
+                    {suggestion && suggestionFor === row.id && suggestingFor === null && (
+                      <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+                        <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
+                            onClick={async () => {
+                              setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
+                              await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
+                              setSuggestion(""); setSuggestionFor(null);
+                            }}
+                          >Use this</button>
+                          <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <input

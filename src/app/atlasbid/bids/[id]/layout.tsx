@@ -21,8 +21,8 @@ export default async function BidLayout({
     <div className="min-h-screen bg-[#f6f8f6] px-6 py-6">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-4 flex justify-center">
-          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-20 w-auto object-contain" />
+        <div className="mb-6 flex justify-center">
+          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-32 w-auto object-contain" style={{ mixBlendMode: "multiply" }} />
         </div>
 
         {/* Tabs */}
