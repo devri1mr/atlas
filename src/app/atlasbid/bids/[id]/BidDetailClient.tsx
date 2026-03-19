@@ -13,11 +13,7 @@ type LaborRatesGet = {
 };
 
 type Status = { id: number; name: string; color?: string | null };
-
-type StatusesGet = {
-  data?: Status[];
-  error?: string;
-};
+type StatusesGet = { data?: Status[]; error?: string };
 
 type BidRecord = {
   id: string;
@@ -36,95 +32,52 @@ type BidRecord = {
   created_at?: string | null;
 };
 
-type ApiBidByIdResponse = {
-  data?: BidRecord;
-  error?: string;
-};
+type ApiBidByIdResponse = { data?: BidRecord; error?: string };
+
 function cleanText(value?: string | null) {
   const s = String(value ?? "").trim();
-  if (!s) return "";
-  if (s.toLowerCase() === "null") return "";
-  if (s.toLowerCase() === "undefined") return "";
+  if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return "";
   return s;
 }
-function safeJoinName(first?: string | null, last?: string | null) {
-  const parts = [cleanText(first), cleanText(last)].filter(Boolean);
+
+function displayClientName(bid?: Partial<BidRecord> | null) {
+  const company = cleanText(bid?.customer_name);
+  if (company) return company;
+  const parts = [cleanText(bid?.client_name), cleanText(bid?.client_last_name)].filter(Boolean);
   return parts.length ? parts.join(" ") : "—";
 }
 
-function displayClientName(bid?: BidRecord | null) {
-  const company = cleanText(bid?.customer_name);
-  if (company) return company;
-  return safeJoinName(bid?.client_name, bid?.client_last_name);
-}
-
-function fmtDate(s?: string | null) {
-  if (!s) return "—";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString();
-}
-
-/**
- * Reads response as text first, then JSON-parses.
- * If the server returns HTML (DOCTYPE), you get a useful error instead of a crash.
- */
 async function readJsonOrThrow(res: Response) {
   const text = await res.text();
   const looksLikeHtml = /^\s*</.test(text) && /<!doctype|<html/i.test(text);
-
   if (!res.ok) {
-    if (looksLikeHtml) {
-      throw new Error(
-        `Request failed (HTTP ${res.status}) and returned HTML. Likely a bad API route or redirect.`
-      );
-    }
-    try {
-      const j = JSON.parse(text || "{}");
-      throw new Error(j?.error || `HTTP ${res.status}`);
-    } catch {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+    if (looksLikeHtml) throw new Error(`Request failed (HTTP ${res.status}) — bad API route.`);
+    try { throw new Error(JSON.parse(text || "{}")?.error || `HTTP ${res.status}`); }
+    catch { throw new Error(text || `HTTP ${res.status}`); }
   }
-
   if (!text) return {};
-  if (looksLikeHtml) {
-    throw new Error(
-      `Expected JSON but got HTML. Likely a bad API route or redirect.`
-    );
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`Response was not valid JSON.`);
-  }
+  if (looksLikeHtml) throw new Error("Expected JSON but got HTML.");
+  try { return JSON.parse(text); }
+  catch { throw new Error("Response was not valid JSON."); }
 }
 
 async function fetchBidById(bidId: string): Promise<BidRecord> {
-  const url = `/api/bids/${encodeURIComponent(bidId)}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, { cache: "no-store" });
   const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
-
-  const bid = json?.data;
-  if (!bid?.id) throw new Error("Bid not found.");
-  return bid;
+  if (!json?.data?.id) throw new Error("Bid not found.");
+  return json.data;
 }
 
-async function patchBid(
-  bidId: string,
-  payload: Partial<BidRecord>
-): Promise<BidRecord> {
+async function patchBid(bidId: string, payload: Partial<BidRecord>): Promise<BidRecord> {
   const res = await fetch(`/api/bids/${encodeURIComponent(bidId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
     body: JSON.stringify(payload),
   });
-
   const json = (await readJsonOrThrow(res)) as ApiBidByIdResponse;
-  const bid = json?.data;
-  if (!bid?.id) throw new Error("Bid update failed.");
-  return bid;
+  if (!json?.data?.id) throw new Error("Bid update failed.");
+  return json.data;
 }
 
 export default function BidDetailClient({ bidId }: { bidId: string }) {
@@ -132,26 +85,17 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-
   const [bid, setBid] = React.useState<BidRecord | null>(null);
-
   const [divisions, setDivisions] = React.useState<Division[]>([]);
+  const [statuses, setStatuses] = React.useState<Status[]>([]);
+  const [saving, setSaving] = React.useState(false);
+  const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
+
   const divisionNameById = React.useMemo(() => {
     const m = new Map<string, string>();
     divisions.forEach((d) => m.set(d.id, d.name));
     return m;
   }, [divisions]);
-
-  const [statuses, setStatuses] = React.useState<Status[]>([]);
-  const statusNameById = React.useMemo(() => {
-    const m = new Map<number, string>();
-    statuses.forEach((s) => m.set(s.id, s.name));
-    return m;
-  }, [statuses]);
-
-  const [savingStatus, setSavingStatus] = React.useState(false);
-  const [savingDetails, setSavingDetails] = React.useState(false);
-  const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
     customer_name: "",
@@ -166,101 +110,34 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     status_id: "",
   });
 
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #d7e6db",
-    borderRadius: 12,
-    padding: 18,
-    background: "white",
-  };
-
-  const btnStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    background: "white",
-    padding: "10px 14px",
-    borderRadius: 10,
-    cursor: "pointer",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "10px 12px",
-    background: "white",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 600,
-    color: "#374151",
-    fontSize: 14,
-  };
-
-  const backBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #16a34a",
-    background: "#16a34a",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-    fontWeight: 600,
-  };
-
-  const nextBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #123b1f",
-    background: "#123b1f",
-    color: "white",
-    textDecoration: "none",
-    display: "inline-block",
-    fontWeight: 600,
-  };
-
-  const saveBtnStyle: React.CSSProperties = {
-    ...btnStyle,
-    border: "1px solid #111827",
-    background: "#111827",
-    color: "white",
-    fontWeight: 600,
-  };
-
-  const base = `/atlasbid/bids/${effectiveBidId}`;
-
- function syncFormFromBid(nextBid: BidRecord) {
-  setForm({
-    customer_name: cleanText(nextBid.customer_name),
-    client_name: cleanText(nextBid.client_name),
-    client_last_name: cleanText(nextBid.client_last_name),
-    address1: cleanText(nextBid.address1 ?? nextBid.address),
-    address2: cleanText(nextBid.address2),
-    city: cleanText(nextBid.city),
-    state: cleanText(nextBid.state),
-    zip: cleanText(nextBid.zip),
-    internal_notes: cleanText(nextBid.internal_notes),
-    status_id:
-      nextBid.status_id === null || nextBid.status_id === undefined
-        ? ""
-        : String(nextBid.status_id),
-  });
-}
+  function syncFormFromBid(b: BidRecord) {
+    setForm({
+      customer_name: cleanText(b.customer_name),
+      client_name: cleanText(b.client_name),
+      client_last_name: cleanText(b.client_last_name),
+      address1: cleanText(b.address1 ?? b.address),
+      address2: cleanText(b.address2),
+      city: cleanText(b.city),
+      state: cleanText(b.state),
+      zip: cleanText(b.zip),
+      internal_notes: cleanText(b.internal_notes),
+      status_id: b.status_id == null ? "" : String(b.status_id),
+    });
+  }
 
   async function loadAll() {
     setLoading(true);
     setError(null);
-    setSaveMessage(null);
-
     try {
-      if (!effectiveBidId) throw new Error(`Missing bid id.`);
-
-      const divRes = await fetch("/api/labor-rates", { cache: "no-store" });
+      if (!effectiveBidId) throw new Error("Missing bid id.");
+      const [divRes, stRes] = await Promise.all([
+        fetch("/api/labor-rates", { cache: "no-store" }),
+        fetch("/api/statuses", { cache: "no-store" }),
+      ]);
       const divJson = (await readJsonOrThrow(divRes)) as LaborRatesGet;
-      setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
-
-      const stRes = await fetch("/api/statuses", { cache: "no-store" });
       const stJson = (await readJsonOrThrow(stRes)) as StatusesGet;
+      setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
       setStatuses(Array.isArray(stJson?.data) ? stJson.data : []);
-
       const b = await fetchBidById(effectiveBidId);
       setBid(b);
       syncFormFromBid(b);
@@ -272,31 +149,21 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     }
   }
 
-  React.useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveBidId]);
+  React.useEffect(() => { loadAll(); }, [effectiveBidId]);
 
-  const divId = bid?.division_id ?? "";
-  const divName = divId ? divisionNameById.get(divId) ?? divId : "—";
+  const computedDisplayName = React.useMemo(() => displayClientName({
+    customer_name: form.customer_name,
+    client_name: form.client_name,
+    client_last_name: form.client_last_name,
+  }), [form.customer_name, form.client_name, form.client_last_name]);
 
-  const computedDisplayName = React.useMemo(() => {
-    return displayClientName({
-      customer_name: form.customer_name,
-      client_name: form.client_name,
-      client_last_name: form.client_last_name,
-    } as BidRecord);
-  }, [form.customer_name, form.client_name, form.client_last_name]);
-
-  async function handleSaveDetails() {
+  async function handleSave() {
     if (!bid) return;
-
-    setSavingDetails(true);
+    setSaving(true);
     setError(null);
     setSaveMessage(null);
-
     try {
-      const payload = {
+      const updated = await patchBid(effectiveBidId, {
         customer_name: form.customer_name.trim() || null,
         client_name: form.client_name.trim() || null,
         client_last_name: form.client_last_name.trim() || null,
@@ -306,275 +173,163 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         state: form.state.trim() || null,
         zip: form.zip.trim() || null,
         internal_notes: form.internal_notes.trim() || null,
-        status_id:
-          form.status_id === "" ? null : Number(form.status_id),
-      };
-
-      const updated = await patchBid(effectiveBidId, payload);
+        status_id: form.status_id === "" ? null : Number(form.status_id),
+      });
       setBid(updated);
       syncFormFromBid(updated);
-      setSaveMessage("Details saved.");
+      setSaveMessage("Saved successfully.");
+      setTimeout(() => setSaveMessage(null), 3000);
     } catch (e: any) {
       setError(e?.message || "Save failed");
     } finally {
-      setSavingDetails(false);
+      setSaving(false);
     }
   }
 
-  if (loading) return <div>Loading…</div>;
+  const base = `/atlasbid/bids/${effectiveBidId}`;
+  const divName = bid?.division_id ? divisionNameById.get(bid.division_id) ?? "—" : "—";
 
-  if (error && !bid) {
-    return (
-      <div style={cardStyle}>
-        <div
-          style={{
-            border: "1px solid #fecaca",
-            background: "#fef2f2",
-            color: "#991b1b",
-            padding: 14,
-            borderRadius: 12,
-          }}
-        >
-          {error}
-          <div style={{ marginTop: 10 }}>
-            <button onClick={loadAll} style={btnStyle}>
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
 
-  if (!bid) {
-    return <div style={{ ...cardStyle, color: "#b91c1c" }}>Bid not found.</div>;
-  }
+  if (error && !bid) return (
+    <div className="p-6">
+      <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">{error}</div>
+    </div>
+  );
+
+  if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
+
+  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500";
+  const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
 
   return (
-    <div style={cardStyle}>
-      {error ? (
-        <div
-          style={{
-            border: "1px solid #fecaca",
-            background: "#fef2f2",
-            color: "#991b1b",
-            padding: 12,
-            borderRadius: 12,
-            marginBottom: 16,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+    <div className="max-w-5xl mx-auto space-y-6">
 
-      {saveMessage ? (
-        <div
-          style={{
-            border: "1px solid #bbf7d0",
-            background: "#f0fdf4",
-            color: "#166534",
-            padding: 12,
-            borderRadius: 12,
-            marginBottom: 16,
-          }}
-        >
-          {saveMessage}
-        </div>
-      ) : null}
+      {/* Overview banner */}
+      <div className="-mx-6 -mt-6 px-8 py-4 bg-[#123b1f] text-center">
+        <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Overview</div>
+      </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
-          Client / Property Display Name
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 20 }}>
-          {computedDisplayName}
+      {/* Alerts */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>
+      )}
+      {saveMessage && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-4 py-3 text-sm">{saveMessage}</div>
+      )}
+
+      {/* Client name preview */}
+      <div className="bg-[#f6f8f6] rounded-xl border border-[#d7e6db] px-6 py-4">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Client / Account</div>
+        <div className="text-2xl font-extrabold text-gray-900">{computedDisplayName}</div>
+      </div>
+
+      {/* Client info */}
+      <div className="bg-white rounded-xl border border-[#d7e6db] px-6 py-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-2">Client Information</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className={labelCls}>Company / Commercial Name</label>
+            <input className={inputCls} value={form.customer_name} placeholder="ABC Property Management"
+              onChange={(e) => setForm((p) => ({ ...p, customer_name: e.target.value }))} />
+          </div>
+          <div>
+            <label className={labelCls}>First Name</label>
+            <input className={inputCls} value={form.client_name} placeholder="John"
+              onChange={(e) => setForm((p) => ({ ...p, client_name: e.target.value }))} />
+          </div>
+          <div>
+            <label className={labelCls}>Last Name</label>
+            <input className={inputCls} value={form.client_last_name} placeholder="Smith"
+              onChange={(e) => setForm((p) => ({ ...p, client_last_name: e.target.value }))} />
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: 16,
-        }}
-      >
-        <div>
-          <label style={labelStyle}>Company / Commercial Name</label>
-          <input
-            value={form.customer_name}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, customer_name: e.target.value }))
-            }
-            placeholder="ABC Property Management"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Client First Name</label>
-          <input
-            value={form.client_name}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, client_name: e.target.value }))
-            }
-            placeholder="John"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Client Last Name</label>
-          <input
-            value={form.client_last_name}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, client_last_name: e.target.value }))
-            }
-            placeholder="Smith"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Division</label>
-          <div
-            style={{
-              ...inputStyle,
-              background: "#f9fafb",
-              color: "#374151",
-            }}
-          >
-            {divName}
+      {/* Address */}
+      <div className="bg-white rounded-xl border border-[#d7e6db] px-6 py-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-2">Job Location</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className={labelCls}>Address Line 1</label>
+            <input className={inputCls} value={form.address1} placeholder="123 Main St"
+              onChange={(e) => setForm((p) => ({ ...p, address1: e.target.value }))} />
           </div>
-          <div style={{ marginTop: 6, color: "#6b7280", fontSize: 12 }}>
-            Division display only for now. We can safely add guarded editing next.
+          <div className="col-span-2">
+            <label className={labelCls}>Address Line 2 <span className="text-gray-300 font-normal normal-case tracking-normal">(optional)</span></label>
+            <input className={inputCls} value={form.address2} placeholder="Suite, unit, building…"
+              onChange={(e) => setForm((p) => ({ ...p, address2: e.target.value }))} />
           </div>
-        </div>
-
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Address Line 1</label>
-          <input
-            value={form.address1}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, address1: e.target.value }))
-            }
-            placeholder="123 Main St"
-            style={inputStyle}
-          />
-        </div>
-
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Address Line 2</label>
-          <input
-            value={form.address2}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, address2: e.target.value }))
-            }
-            placeholder="Suite, unit, building, etc. (optional)"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>City</label>
-          <input
-            value={form.city}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, city: e.target.value }))
-            }
-            placeholder="Saginaw"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>State</label>
-          <input
-            value={form.state}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, state: e.target.value }))
-            }
-            placeholder="MI"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>ZIP</label>
-          <input
-            value={form.zip}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, zip: e.target.value }))
-            }
-            placeholder="48604"
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Status</label>
-          <select
-            value={form.status_id}
-            disabled={savingStatus || savingDetails}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, status_id: e.target.value }))
-            }
-            style={inputStyle}
-          >
-            <option value="">(None)</option>
-            {statuses.map((s) => (
-              <option key={s.id} value={String(s.id)}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <div style={{ marginTop: 6, color: "#6b7280", fontSize: 13 }}>
-            Current saved status:{" "}
-            {bid.status_id
-              ? statusNameById.get(bid.status_id) ?? `#${bid.status_id}`
-              : "(None)"}
+          <div>
+            <label className={labelCls}>City</label>
+            <input className={inputCls} value={form.city} placeholder="Saginaw"
+              onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} />
           </div>
-        </div>
-
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Internal Notes</label>
-          <textarea
-            value={form.internal_notes}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, internal_notes: e.target.value }))
-            }
-            rows={5}
-            style={{ ...inputStyle, resize: "vertical" }}
-            placeholder="Internal notes..."
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>State</label>
+              <input className={inputCls} value={form.state} placeholder="MI"
+                onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>ZIP</label>
+              <input className={inputCls} value={form.zip} placeholder="48604"
+                onChange={(e) => setForm((p) => ({ ...p, zip: e.target.value }))} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <p style={{ margin: 0 }}>
-          <strong>Created At:</strong> {fmtDate(bid.created_at)}
-        </p>
+      {/* Bid settings */}
+      <div className="bg-white rounded-xl border border-[#d7e6db] px-6 py-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-2">Bid Settings</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Division</label>
+            <div className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700">{divName}</div>
+          </div>
+          <div>
+            <label className={labelCls}>Status</label>
+            <select className={inputCls} value={form.status_id} disabled={saving}
+              onChange={(e) => setForm((p) => ({ ...p, status_id: e.target.value }))}>
+              <option value="">(None)</option>
+              {statuses.map((s) => (
+                <option key={s.id} value={String(s.id)}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+      {/* Internal notes */}
+      <div className="bg-white rounded-xl border border-[#d7e6db] px-6 py-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-2">Internal Notes</h2>
+        <textarea
+          className={`${inputCls} resize-vertical`}
+          value={form.internal_notes}
+          rows={4}
+          placeholder="Notes visible only to your team…"
+          onChange={(e) => setForm((p) => ({ ...p, internal_notes: e.target.value }))}
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3 pb-4">
         <button
-          onClick={handleSaveDetails}
-          disabled={savingDetails}
-          style={{
-            ...saveBtnStyle,
-            opacity: savingDetails ? 0.7 : 1,
-          }}
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[#123b1f] text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors"
         >
-          {savingDetails ? "Saving…" : "Save Details"}
+          {saving ? "Saving…" : "Save"}
         </button>
-
-        <Link href="/atlasbid/bids" style={backBtnStyle}>
-          Back to bids
+        <Link href="/atlasbid/bids" className="bg-white border border-gray-200 text-gray-700 font-semibold px-5 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+          ← All Bids
         </Link>
-
-        <Link href={`${base}/scope`} style={nextBtnStyle}>
-          Next → Scope
+        <Link href={`${base}/scope`} className="ml-auto bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors">
+          Scope →
         </Link>
       </div>
+
     </div>
   );
 }
