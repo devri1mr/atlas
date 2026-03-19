@@ -134,6 +134,9 @@ function computeTask(
 
     quantity = mulchSqft > 0 ? (mulchSqft * depthInches) / 324 : 0;
     quantity = roundToIncrement(quantity, roundTo);
+    // Compute hours from yd quantity if minutes_per_unit is configured
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && quantity > 0) manHours = quantity * mpu / 60;
     generatedFromQuestionKeys = ["mulch_sqft", "mulch_depth"];
 
   } else if (ruleType === "hours_per_sqft") {
@@ -146,15 +149,21 @@ function computeTask(
     const rateQtyPerHour = num(config?.rate_qty_per_hour, 0);
     quantity = qty;
     manHours = rateQtyPerHour > 0 ? qty / rateQtyPerHour : 0;
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && qty > 0) manHours = qty * mpu / 60;
 
   } else if (ruleType === "linear_feet_from_sqft") {
     const factor = num(config?.factor, 0);
     quantity = mulchSqft * factor;
     quantity = roundToIncrement(quantity, num(config?.round_to, 1));
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && quantity > 0) manHours = quantity * mpu / 60;
     generatedFromQuestionKeys = ["mulch_sqft"];
 
   } else if (ruleType === "fixed_quantity") {
     quantity = num(config?.quantity, 0);
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && quantity > 0) manHours = quantity * mpu / 60;
 
   } else if (ruleType === "fixed_hours") {
     manHours = num(config?.hours, 0);
@@ -370,25 +379,31 @@ export async function POST(req: NextRequest) {
     // MATERIALS INSERT
     // =====================
 
-    const { data: materials, error: materialsError } = await supabase
-      .from("scope_bundle_task_materials")
-      .select(`
-        material_id,
-        qty_per_task_unit,
-        unit,
-        unit_cost,
-        bundle_task_id,
-        materials!inner(name),
-        scope_bundle_tasks!inner(bundle_id)
-      `)
-      .eq("scope_bundle_tasks.bundle_id", bundleId);
+    // Fetch task materials by bundle task IDs (avoids FK join assumptions)
+    const taskIds = (tasks || []).map((t: any) => t.id);
+    const { data: rawTaskMaterials, error: materialsError } = taskIds.length > 0
+      ? await supabase
+          .from("scope_bundle_task_materials")
+          .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id")
+          .in("bundle_task_id", taskIds)
+      : { data: [], error: null };
 
     if (materialsError) {
-      return NextResponse.json(
-        { error: materialsError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: materialsError.message }, { status: 500 });
     }
+
+    // Resolve material names from materials_catalog
+    const matIds = [...new Set((rawTaskMaterials || []).map((m: any) => m.material_id).filter(Boolean))];
+    const { data: catalogItems } = matIds.length > 0
+      ? await supabase.from("materials_catalog").select("id, name").in("id", matIds)
+      : { data: [] };
+    const nameMap = new Map((catalogItems || []).map((c: any) => [c.id, c.name]));
+
+    // Shape into the same structure the rest of the code expects
+    const materials = (rawTaskMaterials || []).map((m: any) => ({
+      ...m,
+      materials: { name: nameMap.get(m.material_id) || "Bundle Material" },
+    }));
 
     // Aggregate the new bundle qty by material_id across all bundle tasks.
     // We ADD the new bundle qty on top of whatever already exists — purely additive.
@@ -408,7 +423,7 @@ export async function POST(req: NextRequest) {
 
       if (addQty === 0) continue;
 
-      const materialName = (m as any).materials?.[0]?.name || (m as any).materials?.name;
+      const materialName = (m as any).materials?.name;
       const key = m.material_id;
 
       if (matAddMap.has(key)) {

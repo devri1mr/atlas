@@ -1047,18 +1047,6 @@ if (json?.bundle_run?.id) {
   ]);
 }
 
-const syncRes = await fetch(`/api/bids/${bidId}/sync-bundle-materials`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ bundleId: selectedBundleId }),
-});
-
-const syncJson = await syncRes.json().catch(() => null);
-
-if (!syncRes.ok) {
-  throw new Error(syncJson?.error || "Failed syncing bundle materials");
-}
-
 // Targeted refresh: only reload materials (bundle apply adds/updates material qtys)
 const matRes = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, { cache: "no-store" });
 const matJson = await matRes.json();
