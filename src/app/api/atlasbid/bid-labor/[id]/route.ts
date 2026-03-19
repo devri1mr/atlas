@@ -57,11 +57,19 @@ async function recalcBidMaterialDisplayQty(
 
   if (!materialRow) return;
 
+  if (totalQty <= 0) {
+    // No contributions remain — remove the material row entirely
+    const { error: deleteError } = await supabase
+      .from("bid_materials")
+      .delete()
+      .eq("id", materialRow.id);
+    if (deleteError) throw new Error(deleteError.message);
+    return;
+  }
+
   const { error: updateError } = await supabase
     .from("bid_materials")
-    .update({
-      qty: totalQty,
-    })
+    .update({ qty: totalQty })
     .eq("id", materialRow.id);
 
   if (updateError) {
