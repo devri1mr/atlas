@@ -701,7 +701,7 @@ async function loadMaterialSources(materialId: string) {
 
   if (m.unit) setMaterialUnit(m.unit);
   if (typeof m.unit_cost === "number") {
-    setMaterialCost(Number(m.unit_cost) || 0);
+    setMaterialCost(Number(Number(m.unit_cost).toFixed(2)) || 0);
   }
 
   if (!materialDetails.trim()) {
@@ -1654,7 +1654,7 @@ async function addLabor() {
     <div className="text-center">Qty</div>
     <div className="text-center">Unit</div>
     <div className="text-right">Hrs</div>
-    <div className="text-right">Total</div>
+    <div></div>
     <div className="text-center">Action</div>
   </div>
 
@@ -1730,7 +1730,7 @@ async function addLabor() {
 
     <div>
       <input
-        className="border rounded w-full h-9 px-3 text-center"
+        className="border rounded w-full h-9 px-3 text-right"
         type="number"
         placeholder=""
         value={hours === 0 ? "" : hours}
@@ -2106,7 +2106,7 @@ async function addLabor() {
       if (!src) return;
 
       if (src.unit) setMaterialUnit(src.unit);
-      if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
+      if (src.cost !== undefined) setMaterialCost(Number(Number(src.cost).toFixed(2)) || 0);
     }}
   >
     <option value="">Select source</option>
@@ -2171,13 +2171,17 @@ async function addLabor() {
 
               {/* Unit Cost */}
               <div className="col-span-1">
-                <input
-                  className="border rounded w-full h-10 px-2 text-right"
-                  type="number"
-                  placeholder=""
-                  value={materialCost === 0 ? "" : materialCost}
-                  onChange={(e) => setMaterialCost(Number(e.target.value))}
-                />
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                  <input
+                    className="border rounded w-full h-10 pl-6 pr-2 text-right"
+                    type="number"
+                    step="0.01"
+                    placeholder=""
+                    value={materialCost === 0 ? "" : materialCost}
+                    onChange={(e) => setMaterialCost(Number(e.target.value))}
+                  />
+                </div>
               </div>
 
               <div className="col-span-2">
@@ -2354,7 +2358,7 @@ async function addLabor() {
                 <input
                   className="border rounded h-9 px-3 w-full text-center"
                   type="number"
-                  value={Number.isFinite(truckingHours) ? truckingHours : 0}
+                  value={truckingHours === 0 ? "" : truckingHours}
                   onChange={(e) => setTruckingHours(Number(e.target.value))}
                 />
               </div>
@@ -2382,12 +2386,15 @@ async function addLabor() {
                 <label className="block text-sm text-gray-600">
                   Target Gross Profit % (editable)
                 </label>
-                <input
-                  className="border p-2 rounded w-full"
-                  type="number"
-                  value={Number.isFinite(targetGpPct) ? targetGpPct : 0}
-                  onChange={(e) => setTargetGpPct(Number(e.target.value))}
-                />
+                <div className="relative">
+                  <input
+                    className="border p-2 rounded w-full pr-7"
+                    type="number"
+                    value={targetGpPct === 0 ? "" : targetGpPct}
+                    onChange={(e) => setTargetGpPct(Number(e.target.value))}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+                </div>
 
                 <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
                   <input
