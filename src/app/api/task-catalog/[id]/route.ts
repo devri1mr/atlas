@@ -35,19 +35,9 @@ export async function PATCH(
   const allowed = [
     "division_id",
     "name",
-    "category",
-    "internal_situation",
     "unit",
-    "hours_per_unit",
-    "min_qty",
-    "round_qty_to",
-    "default_material_name",
-    "default_material_unit",
-    "default_material_qty_multiplier",
-    "client_facing_template",
-    "keywords",
-    "seasonal_multiplier",
-    "difficulty_multiplier",
+    "minutes_per_unit",
+    "default_qty",
     "notes",
     "active",
   ];
@@ -72,4 +62,22 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data });
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+  if (!id || !isUuid(id)) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  const supabase = getSupabase();
+  // Soft delete — mark inactive
+  const { error } = await supabase
+    .from("task_catalog")
+    .update({ active: false })
+    .eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
