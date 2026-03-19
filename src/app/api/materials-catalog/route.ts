@@ -32,21 +32,24 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Flag inventory links
+    // Flag inventory links and capture linked materials.id for un-register
     const catalogIds = (data ?? []).map((r: any) => r.id);
-    const inInventorySet = new Set<string>();
+    const inventoryIdByCatalog = new Map<string, string>();
     if (catalogIds.length > 0) {
       const { data: linked } = await supabase
         .from("materials")
-        .select("catalog_material_id")
-        .in("catalog_material_id", catalogIds)
-        .eq("is_active", true);
+        .select("id, catalog_material_id")
+        .in("catalog_material_id", catalogIds);
       for (const r of linked ?? []) {
-        if (r.catalog_material_id) inInventorySet.add(r.catalog_material_id);
+        if (r.catalog_material_id) inventoryIdByCatalog.set(r.catalog_material_id, r.id);
       }
     }
 
-    const rows = (data ?? []).map((r: any) => ({ ...r, in_inventory: inInventorySet.has(r.id) }));
+    const rows = (data ?? []).map((r: any) => ({
+      ...r,
+      in_inventory: inventoryIdByCatalog.has(r.id),
+      inventory_material_id: inventoryIdByCatalog.get(r.id) ?? null,
+    }));
     return NextResponse.json({ data: rows });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });

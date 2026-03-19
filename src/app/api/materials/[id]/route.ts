@@ -136,3 +136,19 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = supabaseAdmin();
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "Invalid material id" }, { status: 400 });
+    const { error } = await supabase.from("materials").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
+  }
+}

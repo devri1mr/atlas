@@ -26,6 +26,7 @@ type Material = {
   is_active: boolean;
   category_id: string | null;
   in_inventory?: boolean;
+  inventory_material_id?: string | null;
 };
 
 type Tab = "materials" | "categories";
@@ -187,7 +188,7 @@ function CategoryMgmtRow({
 
 // ── Material Drawer ────────────────────────────────────────────────────────────
 function MaterialDrawer({
-  mode, material, categories, onSave, onDelete, onAddToInventory, onClose, saving, deleting, addingToInventory,
+  mode, material, categories, onSave, onDelete, onAddToInventory, onUnregister, onClose, saving, deleting, addingToInventory,
 }: {
   mode: DrawerMode;
   material: Partial<Material>;
@@ -195,6 +196,7 @@ function MaterialDrawer({
   onSave: (data: Partial<Material>) => void;
   onDelete?: () => void;
   onAddToInventory?: () => void;
+  onUnregister?: () => void;
   onClose: () => void;
   saving: boolean;
   deleting: boolean;
@@ -294,11 +296,23 @@ function MaterialDrawer({
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-0.5">Inventory</div>
                   {material.in_inventory ? (
-                    <div className="text-sm text-emerald-700 font-medium">✓ Registered — add receipts on the Inventory page</div>
+                    <div>
+                      <div className="text-sm text-emerald-700 font-medium">✓ Registered — add receipts on the Inventory page</div>
+                      <div className="text-xs text-gray-400 mt-0.5">Inventory summary shows items once a receipt is added</div>
+                    </div>
                   ) : (
                     <div className="text-sm text-gray-500">Register to enable receipt tracking</div>
                   )}
                 </div>
+                {material.in_inventory && onUnregister && (
+                  <button
+                    onClick={onUnregister}
+                    disabled={addingToInventory}
+                    className="text-xs text-red-400 hover:text-red-600 underline disabled:opacity-40"
+                  >
+                    {addingToInventory ? "Removing…" : "Un-register"}
+                  </button>
+                )}
                 {!material.in_inventory && onAddToInventory && (
                   <div className="text-right">
                     <button
@@ -453,6 +467,19 @@ export default function MaterialsCatalogPage() {
     setAllMaterials(prev => prev.filter(m => m.id !== drawer.material.id));
     setDeleting(false);
     setDrawer(null);
+  }
+
+  async function handleUnregisterInventory() {
+    const invId = drawer?.material.inventory_material_id;
+    if (!invId) return;
+    if (!confirm(`Remove "${drawer?.material.name}" from inventory? This only un-registers it — it won't delete any existing transactions.`)) return;
+    setAddingToInventory(true);
+    const r = await fetch(`/api/materials/${invId}`, { method: "DELETE" });
+    if (!r.ok) { setMatError("Failed to un-register"); setAddingToInventory(false); return; }
+    setMaterials(prev => prev.map(m => m.id === drawer!.material.id ? { ...m, in_inventory: false, inventory_material_id: null } : m));
+    setAllMaterials(prev => prev.map(m => m.id === drawer!.material.id ? { ...m, in_inventory: false, inventory_material_id: null } : m));
+    setDrawer(prev => prev ? { ...prev, material: { ...prev.material, in_inventory: false, inventory_material_id: null } } : null);
+    setAddingToInventory(false);
   }
 
   async function handleAddToInventory() {
@@ -787,6 +814,7 @@ export default function MaterialsCatalogPage() {
           onSave={handleSave}
           onDelete={drawer.mode === "edit" ? handleDelete : undefined}
           onAddToInventory={drawer.mode === "edit" && !drawer.material.in_inventory ? handleAddToInventory : undefined}
+          onUnregister={drawer.mode === "edit" && drawer.material.in_inventory ? handleUnregisterInventory : undefined}
           onClose={() => setDrawer(null)}
           saving={saving}
           deleting={deleting}
