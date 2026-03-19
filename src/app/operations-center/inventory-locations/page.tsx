@@ -127,12 +127,11 @@ export default function InventoryLocationsPage() {
   }
 
   useEffect(() => {
-    if (linkingId === null) return;
+    if (linkingId === null || !catSearch.trim()) { setCatResults([]); return; }
     if (catSearchRef.current) clearTimeout(catSearchRef.current);
     catSearchRef.current = setTimeout(async () => {
       setCatSearching(true);
-      const q = catSearch.trim() ? `&q=${encodeURIComponent(catSearch)}` : "";
-      const res = await fetch(`/api/materials-catalog?limit=20${q}`, { cache: "no-store" });
+      const res = await fetch(`/api/materials-catalog?limit=20&q=${encodeURIComponent(catSearch.trim())}`, { cache: "no-store" });
       const json = await res.json();
       setCatResults(json?.data ?? []);
       setCatSearching(false);
@@ -151,6 +150,19 @@ export default function InventoryLocationsPage() {
     setRegMaterials(prev => prev.map(m => m.id === matId ? { ...m, catalog_material_id: catalogId } : m));
     setLinkSaving(false);
     closeLink();
+  }
+
+  async function handleCreateAndLink(matId: string, mat: RegisteredMaterial) {
+    setLinkSaving(true);
+    // Create catalog entry using the material's name and unit
+    const cr = await fetch("/api/materials-catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: catSearch.trim() || mat.display_name || mat.name, default_unit: mat.unit || "ea" }),
+    });
+    const cj = await cr.json();
+    if (!cr.ok) { setError(cj?.error || "Failed to create catalog entry"); setLinkSaving(false); return; }
+    await handleLink(matId, cj.data.id);
   }
 
   return (
@@ -303,19 +315,16 @@ export default function InventoryLocationsPage() {
                     {linkingId === m.id && (
                       <tr key={m.id + "-link"} className="border-b bg-blue-50">
                         <td colSpan={4} className="px-5 py-4">
-                          <p className="text-xs text-gray-500 mb-2">Search the catalog and pick the matching entry for <strong>{m.display_name || m.name}</strong>:</p>
+                          <p className="text-xs text-gray-500 mb-2">Search for an existing catalog entry, or create a new one for <strong>{m.display_name || m.name}</strong>:</p>
                           <input
                             className={inputCls + " mb-2"}
-                            placeholder="Search catalog…"
+                            placeholder="Type to search catalog…"
                             value={catSearch}
                             onChange={e => setCatSearch(e.target.value)}
                             autoFocus
                           />
                           {catSearching && <div className="text-xs text-gray-400 py-1">Searching…</div>}
-                          {!catSearching && catResults.length === 0 && catSearch && (
-                            <div className="text-xs text-gray-400 py-1">No matches found.</div>
-                          )}
-                          {catResults.length > 0 && (
+                          {catSearch.trim() && !catSearching && (
                             <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
                               {catResults.map(c => (
                                 <button key={c.id} onClick={() => handleLink(m.id, c.id)}
@@ -325,6 +334,11 @@ export default function InventoryLocationsPage() {
                                   <span className="text-xs text-gray-400">{c.default_unit || ""}</span>
                                 </button>
                               ))}
+                              <button onClick={() => handleCreateAndLink(m.id, m)}
+                                disabled={linkSaving}
+                                className="w-full text-left px-4 py-2.5 text-sm text-green-700 font-semibold hover:bg-green-50 flex items-center gap-2 disabled:opacity-40">
+                                <span>+ Create "{catSearch.trim()}" as new catalog entry</span>
+                              </button>
                             </div>
                           )}
                         </td>
