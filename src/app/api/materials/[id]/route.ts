@@ -117,6 +117,13 @@ export async function PATCH(
       updates.is_active = Boolean(body.is_active);
     }
 
+    if ("catalog_material_id" in body) {
+      if (body.catalog_material_id && !isUuid(body.catalog_material_id)) {
+        return NextResponse.json({ error: "catalog_material_id must be uuid" }, { status: 400 });
+      }
+      updates.catalog_material_id = body.catalog_material_id || null;
+    }
+
     const { data, error } = await supabase
       .from("materials")
       .update(updates)
