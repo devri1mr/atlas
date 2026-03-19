@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type Location = { id: string; name: string; is_active: boolean };
+type RegisteredMaterial = { id: string; name: string; display_name: string | null; unit: string | null; catalog_material_id: string | null };
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 const btnPrimary = "bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";
@@ -22,6 +23,10 @@ export default function InventoryLocationsPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [regMaterials, setRegMaterials] = useState<RegisteredMaterial[]>([]);
+  const [regLoading, setRegLoading] = useState(true);
+  const [deletingMatId, setDeletingMatId] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
     const res = await fetch("/api/inventory-locations", { cache: "no-store" });
@@ -30,7 +35,15 @@ export default function InventoryLocationsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadMaterials() {
+    setRegLoading(true);
+    const res = await fetch("/api/materials-search?limit=50&include_inactive=true", { cache: "no-store" });
+    const json = await res.json();
+    setRegMaterials(json?.data ?? []);
+    setRegLoading(false);
+  }
+
+  useEffect(() => { load(); loadMaterials(); }, []);
 
   async function handleAdd() {
     if (!newName.trim()) return;
@@ -84,6 +97,15 @@ export default function InventoryLocationsPage() {
     const j = await r.json();
     if (!r.ok) { setError(j?.error || "Failed to update"); return; }
     setLocations(prev => prev.map(l => l.id === loc.id ? { ...l, is_active: !loc.is_active } : l));
+  }
+
+  async function handleDeleteMaterial(id: string, name: string) {
+    if (!confirm(`Remove "${name}" from inventory? This will fail if it has transaction history.`)) return;
+    setDeletingMatId(id);
+    const r = await fetch(`/api/materials/${id}`, { method: "DELETE" });
+    if (!r.ok) { const j = await r.json(); setError(j?.error || "Failed to remove"); setDeletingMatId(null); return; }
+    setRegMaterials(prev => prev.filter(m => m.id !== id));
+    setDeletingMatId(null);
   }
 
   return (
@@ -181,6 +203,54 @@ export default function InventoryLocationsPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Registered Materials */}
+        <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-gray-900">Registered Materials</h2>
+              <p className="text-xs text-gray-400 mt-0.5">All items enabled for inventory tracking. Remove any you no longer need.</p>
+            </div>
+            <span className="text-xs text-gray-400">{regMaterials.length} total</span>
+          </div>
+
+          {regLoading ? (
+            <div className="px-5 py-8 text-sm text-gray-400 text-center">Loading…</div>
+          ) : regMaterials.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-gray-400 text-center">No registered materials.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50/50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-5 py-3">Name</th>
+                  <th className="text-left px-5 py-3">Unit</th>
+                  <th className="text-left px-5 py-3">Linked to Catalog</th>
+                  <th className="text-right px-5 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regMaterials.map(m => (
+                  <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="px-5 py-3 font-medium text-gray-900">{m.display_name || m.name}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs">{m.unit || "—"}</td>
+                    <td className="px-5 py-3">
+                      {m.catalog_material_id
+                        ? <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Yes</span>
+                        : <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unlinked</span>}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <button onClick={() => handleDeleteMaterial(m.id, m.display_name || m.name)}
+                        disabled={deletingMatId === m.id}
+                        className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-40">
+                        {deletingMatId === m.id ? "…" : "Remove"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="flex justify-center">
