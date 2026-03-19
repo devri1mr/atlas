@@ -59,6 +59,7 @@ type TaskCatalogRow = {
   unit?: string | null;
   minutes_per_unit?: number | null;
   default_qty?: number | null;
+  client_facing_template?: string | null;
   notes?: string | null;
 };
 
@@ -141,6 +142,14 @@ const UNIT_OPTIONS = [
   { label: "hours", value: "hr" },
 ];
 
+function renderDescriptionTemplate(template: string, qty: number, unit: string, matNames: string[]): string {
+  return template
+    .replace(/\{qty\}/gi, String(qty))
+    .replace(/\{unit\}/gi, unit)
+    .replace(/\{material\}/gi, matNames[0] || "")
+    .replace(/\{materials\}/gi, matNames.join(", "));
+}
+
 function hoursFromMinutesPerUnit(minutesPerUnit: number, qty: number) {
   const m = Number(minutesPerUnit) || 0;
   const q = Number(qty) || 0;
@@ -173,6 +182,8 @@ const addingMaterialRef = useRef(false);
 const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
 const [selectedTaskCatalogId, setSelectedTaskCatalogId] = useState<string>("");
 const [selectedTaskMinutesPerUnit, setSelectedTaskMinutesPerUnit] = useState<number | null>(null);
+const [selectedTaskTemplate, setSelectedTaskTemplate] = useState<string>("");
+const [detailsFromTemplate, setDetailsFromTemplate] = useState(false);
 const [templateMaterials, setTemplateMaterials] = useState<TemplateMaterialRow[]>([]);
 const [loadingTemplateMaterials, setLoadingTemplateMaterials] = useState(false);
 const [applyTemplateMaterials, setApplyTemplateMaterials] = useState(true);
@@ -560,6 +571,7 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
 
   setSelectedTaskCatalogId(t.id || "");
   setSelectedTaskMinutesPerUnit(t.minutes_per_unit ?? null);
+  setSelectedTaskTemplate(t.client_facing_template || "");
   setTemplateMaterials([]);
 
   if (t.unit) setUnit(t.unit);
@@ -576,24 +588,34 @@ setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
     setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
   }
 
-  if (!details.trim() && t.notes) {
-    setDetails(String(t.notes));
-  }
-
   // Load template materials for this task
   if (bid?.division_id && t.id) {
     setLoadingTemplateMaterials(true);
-
     try {
       const res = await fetch(
         `/api/task-template-materials?division_id=${bid.division_id}&task_catalog_id=${t.id}`,
         { cache: "no-store" }
       );
-
       const json = await res.json();
-      setTemplateMaterials(Array.isArray(json?.rows) ? json.rows : []);
+      const rows = Array.isArray(json?.rows) ? json.rows : [];
+      setTemplateMaterials(rows);
+
+      // Render description template now that we have materials
+      const template = t.client_facing_template || t.notes || "";
+      if (template && !details.trim()) {
+        const matNames = rows.map((r: any) => r.materials_catalog?.name || "").filter(Boolean);
+        const rendered = renderDescriptionTemplate(template, nextQty, t.unit || unit, matNames);
+        setDetails(rendered);
+        setDetailsFromTemplate(true);
+      }
     } catch {
       setTemplateMaterials([]);
+      // Fallback: render template without materials
+      const template = t.client_facing_template || t.notes || "";
+      if (template && !details.trim()) {
+        setDetails(renderDescriptionTemplate(template, nextQty, t.unit || unit, []));
+        setDetailsFromTemplate(true);
+      }
     } finally {
       setLoadingTemplateMaterials(false);
     }
@@ -1334,6 +1356,8 @@ async function addLabor() {
   setShowTaskResults(false);
   setSelectedTaskCatalogId("");
   setSelectedTaskMinutesPerUnit(null);
+  setSelectedTaskTemplate("");
+  setDetailsFromTemplate(false);
 }
 
   async function deleteLaborRow(rowId: string) {
@@ -1800,6 +1824,8 @@ async function addLabor() {
             setShowTaskResults(true);
             setSelectedTaskCatalogId("");
             setSelectedTaskMinutesPerUnit(null);
+            setSelectedTaskTemplate("");
+            setDetailsFromTemplate(false);
           }}
           onFocus={() => setShowTaskResults(true)}
         />
@@ -1827,7 +1853,7 @@ async function addLabor() {
         autoComplete="off"
         value={details}
         onFocus={() => setShowTaskResults(false)}
-        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); }}
+        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); setDetailsFromTemplate(false); }}
       />
       {task.trim() && (
         <button
@@ -1873,6 +1899,10 @@ async function addLabor() {
           if (selectedTaskMinutesPerUnit && newQty > 0) {
             const computed = hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, newQty);
             setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
+          }
+          if (detailsFromTemplate && selectedTaskTemplate && newQty > 0) {
+            const matNames = templateMaterials.map((r: any) => r.materials_catalog?.name || "").filter(Boolean);
+            setDetails(renderDescriptionTemplate(selectedTaskTemplate, newQty, unit, matNames));
           }
         }}
       />

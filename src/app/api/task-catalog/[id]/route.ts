@@ -38,6 +38,7 @@ export async function PATCH(
     "unit",
     "minutes_per_unit",
     "default_qty",
+    "client_facing_template",
     "notes",
     "active",
   ];

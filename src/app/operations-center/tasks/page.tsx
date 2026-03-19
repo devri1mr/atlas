@@ -21,6 +21,7 @@ type Task = {
   unit: string | null;
   minutes_per_unit: number | null;
   default_qty: number | null;
+  client_facing_template: string | null;
   notes: string | null;
 };
 
@@ -65,6 +66,7 @@ export default function TaskCatalogPage() {
   const [fUnit, setFUnit] = useState("");
   const [fHrsPerUnit, setFHrsPerUnit] = useState("");
   const [fDefaultQty, setFDefaultQty] = useState("");
+  const [fTemplate, setFTemplate] = useState("");
   const [fNotes, setFNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -127,7 +129,7 @@ export default function TaskCatalogPage() {
   }
 
   function resetForm() {
-    setFName(""); setFUnit(""); setFHrsPerUnit(""); setFDefaultQty(""); setFNotes("");
+    setFName(""); setFUnit(""); setFHrsPerUnit(""); setFDefaultQty(""); setFTemplate(""); setFNotes("");
     setMatSearch(""); setMatResults([]); setSelectedMat(null); setMatQty(""); setMatUnit("");
   }
 
@@ -144,6 +146,7 @@ export default function TaskCatalogPage() {
     setFUnit(task.unit ?? "");
     setFHrsPerUnit(minToHrs(task.minutes_per_unit));
     setFDefaultQty(task.default_qty != null ? String(task.default_qty) : "");
+    setFTemplate(task.client_facing_template ?? "");
     setFNotes(task.notes ?? "");
     // Load materials
     setLoadingMaterials(true);
@@ -165,6 +168,7 @@ export default function TaskCatalogPage() {
         unit: fUnit.trim() || null,
         minutes_per_unit: hrsToMin(fHrsPerUnit),
         default_qty: fDefaultQty ? Number(fDefaultQty) : null,
+        client_facing_template: fTemplate.trim() || null,
         notes: fNotes.trim() || null,
       };
 
@@ -346,9 +350,44 @@ export default function TaskCatalogPage() {
                     <input className={inputCls} type="number" step="1" min="0" value={fDefaultQty} onChange={(e) => setFDefaultQty(e.target.value)} placeholder="—" />
                   </div>
                 </div>
+
+                {/* Computed total hours */}
+                {fHrsPerUnit && fDefaultQty && (
+                  <div className="bg-[#eef6f0] rounded-lg px-4 py-2 text-sm text-[#123b1f]">
+                    ⏱ Default estimate: <strong>{(Number(fHrsPerUnit) * Number(fDefaultQty)).toFixed(2)} hrs</strong> for {fDefaultQty} {fUnit || "units"}
+                  </div>
+                )}
+
                 <div>
-                  <label className={labelCls}>Notes</label>
-                  <textarea className={inputCls} rows={2} value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder="Bidding guidance, assumptions…" />
+                  <label className={labelCls}>
+                    Default Estimate Description
+                    <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal text-xs">
+                      use {"{qty}"}, {"{unit}"}, {"{material}"}
+                    </span>
+                  </label>
+                  <textarea
+                    className={inputCls}
+                    rows={2}
+                    value={fTemplate}
+                    onChange={(e) => setFTemplate(e.target.value)}
+                    placeholder={`e.g. "Installation of {qty} {unit} of {material} to designated planting beds"`}
+                  />
+                  {/* Live preview of rendered description */}
+                  {fTemplate && fDefaultQty && (
+                    <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2">
+                      <span className="font-semibold text-gray-400 mr-1">Preview:</span>
+                      {fTemplate
+                        .replace(/\{qty\}/gi, fDefaultQty)
+                        .replace(/\{unit\}/gi, fUnit || "unit")
+                        .replace(/\{material\}/gi, taskMaterials[0] ? matDisplayName(taskMaterials[0]) : "{material}")
+                        .replace(/\{materials\}/gi, taskMaterials.map(matDisplayName).join(", ") || "{materials}")}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelCls}>Internal Notes</label>
+                  <textarea className={inputCls} rows={2} value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder="Bidding guidance, crew notes…" />
                 </div>
               </div>
 

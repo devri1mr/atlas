@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     unit,
     minutes_per_unit,
     default_qty,
+    client_facing_template,
     notes,
     min_qty,
     round_qty_to,
