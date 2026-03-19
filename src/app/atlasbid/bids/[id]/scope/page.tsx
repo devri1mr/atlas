@@ -2007,7 +2007,7 @@ async function addLabor() {
               const sqft = Number(e.target.value);
               const depth = Number(calcDepth) || 3;
               if (sqft > 0) {
-                const yds = Number(((sqft * depth) / 324).toFixed(2));
+                const yds = Math.ceil((sqft * depth) / 324);
                 setQuantity(yds);
                 if (selectedTaskMinutesPerUnit && yds > 0) {
                   setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
@@ -2026,7 +2026,7 @@ async function addLabor() {
               const sqft = Number(calcSqft);
               const depth = Number(e.target.value) || 3;
               if (sqft > 0) {
-                const yds = Number(((sqft * depth) / 324).toFixed(2));
+                const yds = Math.ceil((sqft * depth) / 324);
                 setQuantity(yds);
                 if (selectedTaskMinutesPerUnit && yds > 0) {
                   setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));

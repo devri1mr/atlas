@@ -66,7 +66,7 @@ function roundToIncrement(value: number, increment: number) {
   const v = num(value, 0);
   const inc = num(increment, 0);
   if (inc <= 0) return v;
-  return Math.round(v / inc) * inc;
+  return Math.ceil(v / inc) * inc;
 }
 
 function getAnswer(
