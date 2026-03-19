@@ -41,6 +41,7 @@ type LaborRow = {
   bundle_run_id?: string | null;
   difficulty_level?: number | null;
   task_catalog?: {
+    minutes_per_unit?: number | null;
     spring_multiplier?: number | null;
     summer_multiplier?: number | null;
     fall_multiplier?: number | null;
@@ -318,24 +319,27 @@ function findMatchingMaterialRow(
     material_id?: string | null;
     name: string;
     unit: string;
+    source_type?: string | null;
   }
 ) {
   const targetMaterialId = normalizeMaterialText(args.material_id);
   const targetName = normalizeMaterialText(args.name);
   const targetUnit = normalizeMaterialText(args.unit);
+  const targetSource = normalizeMaterialText(args.source_type);
 
   return rows.find((row) => {
     const rowMaterialId = normalizeMaterialText(row.material_id);
+    const rowSource = normalizeMaterialText(row.source_type);
 
-    // Match by material_id alone — the DB unique constraint is on (bid_id, material_id)
-    // so unit differences are irrelevant when we have a catalog ID on both sides.
+    // Match by (material_id, source_type) so different sources stay as separate rows.
     if (targetMaterialId && rowMaterialId) {
-      return rowMaterialId === targetMaterialId;
+      return rowMaterialId === targetMaterialId && rowSource === targetSource;
     }
 
-    // Name-based fallback: require unit to match to avoid merging different-unit lines.
+    // Name-based fallback: require unit and source to match.
     const rowUnit = normalizeMaterialText(row.unit);
     if (rowUnit !== targetUnit) return false;
+    if (rowSource !== targetSource) return false;
     return normalizeMaterialText(row.name) === targetName;
   });
 }
@@ -703,7 +707,7 @@ async function loadMaterialSources(materialId: string) {
           source_label: s.source_label || "Inventory",
           source_reference_id: s.source_reference_id || null,
           unit: s.unit || materialUnit || "ea",
-          cost: Number(s.avg_unit_cost) || 0,
+          cost: Number(s.avg_unit_cost ?? s.unit_cost) || 0,
           available_qty:
             s.qty_on_hand === null || s.qty_on_hand === undefined
               ? null
@@ -1459,10 +1463,15 @@ async function addLabor() {
       return;
     }
 
+    const selectedSource =
+      selectedSourceIndex !== null ? materialSources[selectedSourceIndex] : null;
+    const sourceType = selectedSource?.source_name || null;
+
     const existing = findMatchingMaterialRow(materials, {
       material_id: selectedMaterialId || null,
       name: trimmedName,
       unit: materialUnit,
+      source_type: sourceType,
     });
 
     if (existing) {
@@ -1489,19 +1498,18 @@ async function addLabor() {
       return;
     }
 
-    const selectedSource =
-  selectedSourceIndex !== null ? materialSources[selectedSourceIndex] : null;
     const payload: any = {
-  bid_id: bidId,
-  company_id: bid?.company_id ?? null,
-  material_id: selectedMaterialId || null,
-  name: trimmedName,
-  details: materialDetails.trim() || null,
-  qty: Number(materialQty) || 0,
-  unit: materialUnit,
-  unitCost: Number(materialCost) || 0,
-  unit_cost: Number(materialCost) || 0,
-};
+      bid_id: bidId,
+      company_id: bid?.company_id ?? null,
+      material_id: selectedMaterialId || null,
+      name: trimmedName,
+      details: materialDetails.trim() || null,
+      qty: Number(materialQty) || 0,
+      unit: materialUnit,
+      unitCost: Number(materialCost) || 0,
+      unit_cost: Number(materialCost) || 0,
+      source_type: sourceType,
+    };
 
     const res = await fetch(`/api/atlasbid/bid-materials`, {
       method: "POST",
@@ -2124,18 +2132,27 @@ async function addLabor() {
                 onChange={(e) => {
                   const raw = e.target.value;
                   const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                  const mpu = row.task_catalog?.minutes_per_unit;
+                  const newHours = mpu && value > 0
+                    ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2))
+                    : row.man_hours;
                   setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
+                    prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r)
                   );
                 }}
                 onBlur={async (e) => {
                   const raw = e.target.value;
                   const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                  const mpu = row.task_catalog?.minutes_per_unit;
+                  const patchBody: any = { quantity: value, unit: row.unit };
+                  if (mpu && value > 0) {
+                    patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                  }
                   try {
                     const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
+                      body: JSON.stringify(patchBody),
                     });
                     if (!res.ok) console.error("Failed to save labor row", await res.json());
                   } catch (err) {
@@ -2332,18 +2349,27 @@ async function addLabor() {
                       onChange={(e) => {
                         const raw = e.target.value;
                         const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                        const mpu = row.task_catalog?.minutes_per_unit;
+                        const newHours = mpu && value > 0
+                          ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2))
+                          : row.man_hours;
                         setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, quantity: value } : r)
+                          prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r)
                         );
                       }}
                       onBlur={async (e) => {
                         const raw = e.target.value;
                         const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                        const mpu = row.task_catalog?.minutes_per_unit;
+                        const patchBody: any = { quantity: value, unit: row.unit };
+                        if (mpu && value > 0) {
+                          patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                        }
                         try {
                           const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
+                            body: JSON.stringify(patchBody),
                           });
                           if (!res.ok) console.error("Failed to save labor row", await res.json());
                         } catch (err) {
@@ -2480,7 +2506,7 @@ async function addLabor() {
               </div>
   <div className="col-span-2">
   <select
-    className="border p-2 rounded w-full h-10"
+    className="border p-1 rounded w-full h-10 text-xs"
     value={selectedSourceIndex ?? ""}
     onChange={(e) => {
       const idx = Number(e.target.value);
@@ -2631,16 +2657,37 @@ async function addLabor() {
                             if (!src) return;
                             const newCost = Number(Number(src.cost).toFixed(2));
                             const newUnit = src.unit || row.unit;
-                            setMaterials((prev) =>
-                              prev.map((r) => r.id === row.id
-                                ? { ...r, source_type: src.source_name, unit: newUnit, unit_cost: newCost }
-                                : r)
+                            const newSource = src.source_name;
+                            // Auto-merge if another row for same material+source already exists
+                            const duplicate = materials.find(r =>
+                              r.id !== row.id &&
+                              r.material_id && row.material_id &&
+                              r.material_id === row.material_id &&
+                              normalizeMaterialText(r.source_type) === normalizeMaterialText(newSource) &&
+                              r.unit === newUnit
                             );
-                            await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ source_type: src.source_name, unit: newUnit, unit_cost: newCost }),
-                            });
+                            if (duplicate) {
+                              const mergedQty = Number((Number(duplicate.qty || 0) + Number(row.qty || 0)).toFixed(2));
+                              await Promise.all([
+                                fetch(`/api/atlasbid/bid-materials/${duplicate.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ qty: mergedQty }) }),
+                                fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "DELETE" }),
+                              ]);
+                              setMaterials((prev) => prev
+                                .map(r => r.id === duplicate.id ? { ...r, qty: mergedQty } : r)
+                                .filter(r => r.id !== row.id)
+                              );
+                            } else {
+                              setMaterials((prev) =>
+                                prev.map((r) => r.id === row.id
+                                  ? { ...r, source_type: newSource, unit: newUnit, unit_cost: newCost }
+                                  : r)
+                              );
+                              await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ source_type: newSource, unit: newUnit, unit_cost: newCost }),
+                              });
+                            }
                           }}
                         >
                           <option value="" disabled>
@@ -2973,7 +3020,7 @@ async function addLabor() {
                     return (
                       <div className="border rounded-lg overflow-hidden">
                         <div className="flex justify-between items-center bg-gray-50 px-4 py-2 border-b">
-                          <span className="font-bold text-gray-900">General Labor</span>
+                          <span className="font-bold text-gray-900">Additional Services</span>
                           <span className="font-semibold tabular-nums">{money(groupTotal)}</span>
                         </div>
                         <div className="px-4 py-2 space-y-1">

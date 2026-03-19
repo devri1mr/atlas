@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       difficulty_level,
       created_at,
       task_catalog:task_catalog_id (
+        minutes_per_unit,
         spring_multiplier,
         summer_multiplier,
         fall_multiplier,
@@ -149,6 +150,7 @@ export async function POST(req: NextRequest) {
       difficulty_level,
       created_at,
       task_catalog:task_catalog_id (
+        minutes_per_unit,
         spring_multiplier,
         summer_multiplier,
         fall_multiplier,
