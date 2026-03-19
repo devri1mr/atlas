@@ -191,29 +191,43 @@ export async function PATCH(
     !!updatedRow.company_id;
 
   if (shouldRecalcMaterials) {
-    const { data: templateRows, error: templateError } = await supabase
-      .from("task_template_materials")
-      .select(
-        `
-        id,
-        task_catalog_id,
-        material_id,
-        qty_per_task_unit,
-        unit,
-        unit_cost,
-        details
-        `
-      )
+    // Read from task_catalog_materials (where the task builder saves material links).
+    // Fall back to task_template_materials if nothing found there.
+    let templateRows: any[] = [];
+    const { data: catalogMatRows, error: catalogMatError } = await supabase
+      .from("task_catalog_materials")
+      .select("id, task_catalog_id, material_id, material_name, qty_per_unit, unit")
       .eq("task_catalog_id", updatedRow.task_catalog_id);
 
-    if (templateError) {
-      return NextResponse.json(
-        { error: templateError.message },
-        { status: 500 }
-      );
+    if (catalogMatError) {
+      return NextResponse.json({ error: catalogMatError.message }, { status: 500 });
     }
 
-    if (templateRows && templateRows.length > 0) {
+    if (catalogMatRows && catalogMatRows.length > 0) {
+      // Normalize to the shape the rest of the code expects
+      templateRows = catalogMatRows.map((r: any) => ({
+        id: r.id,
+        task_catalog_id: r.task_catalog_id,
+        material_id: r.material_id,
+        material_name: r.material_name,
+        qty_per_task_unit: r.qty_per_unit,
+        unit: r.unit,
+        unit_cost: null,
+        details: null,
+      }));
+    } else {
+      // Legacy fallback
+      const { data: legacyRows, error: legacyError } = await supabase
+        .from("task_template_materials")
+        .select("id, task_catalog_id, material_id, qty_per_task_unit, unit, unit_cost, details")
+        .eq("task_catalog_id", updatedRow.task_catalog_id);
+      if (legacyError) return NextResponse.json({ error: legacyError.message }, { status: 500 });
+      templateRows = legacyRows || [];
+    }
+
+    if (templateRows.length > 0) {
+      // For task_catalog_materials rows, material_id may be null (FK issue workaround).
+      // Look up by material_name in materials_catalog when material_id is missing.
       const materialIds = templateRows.map((r) => r.material_id).filter(Boolean);
 
       const { data: catalogRows, error: catalogError } = await supabase
@@ -235,10 +249,24 @@ export async function PATCH(
         );
       }
 
+      // Also look up by name for rows where material_id is null
+      const nameOnlyRows = templateRows.filter((r) => !r.material_id && r.material_name);
+      let nameMap = new Map<string, any>();
+      if (nameOnlyRows.length > 0) {
+        const names = nameOnlyRows.map((r: any) => r.material_name);
+        const { data: namedCats } = await supabase
+          .from("materials_catalog")
+          .select("id, name, default_unit, default_unit_cost")
+          .in("name", names);
+        for (const c of namedCats || []) nameMap.set(c.name, c);
+      }
+
       const catalogMap = new Map((catalogRows || []).map((r) => [r.id, r]));
 
       for (const tm of templateRows) {
-        const catalog = catalogMap.get(tm.material_id);
+        const catalog = tm.material_id
+          ? catalogMap.get(tm.material_id)
+          : nameMap.get(tm.material_name);
         if (!catalog?.id || !catalog?.name) continue;
 
         const resolvedUnit = String(
