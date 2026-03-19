@@ -59,6 +59,13 @@ const sections = [
     href: "/operations-center/inventory",
     status: "Active",
   },
+  {
+    title: "Inventory Locations",
+    description:
+      "Manage physical storage sites (e.g. Main Yard, North Lot) used when logging inventory receipts.",
+    href: "/operations-center/inventory-locations",
+    status: "Active",
+  },
 ];
 
 function statusClasses(status: string) {

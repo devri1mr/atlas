@@ -82,12 +82,15 @@ function titleize(s: string) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+type InventoryLocation = { id: string; name: string; division_id?: string | null; is_active?: boolean | null };
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
   // ── Data ──────────────────────────────────────────────────────────────────
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [activeDivisionId, setActiveDivisionId] = useState("");
   const [materials, setMaterials] = useState<InventoryMaterial[]>([]);
+  const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,6 +109,7 @@ export default function InventoryPage() {
   const [date, setDate] = useState(today);
   const [refNum, setRefNum] = useState("");
   const [vendor, setVendor] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [notes, setNotes] = useState("");
   const [invoicedFinal, setInvoicedFinal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -120,12 +124,14 @@ export default function InventoryPage() {
 
   // ── Load ───────────────────────────────────────────────────────────────────
   async function loadLookups() {
-    const [dRes, mRes] = await Promise.all([
+    const [dRes, mRes, lRes] = await Promise.all([
       fetch("/api/divisions", { cache: "no-store" }),
       fetch("/api/materials-search?limit=50", { cache: "no-store" }),
+      fetch("/api/inventory-locations", { cache: "no-store" }),
     ]);
     const dJson = await dRes.json();
     const mJson = await mRes.json();
+    const lJson = await lRes.json();
     const divs: Division[] = (dJson?.divisions ?? dJson?.data ?? dJson ?? []).filter((d: any) => d?.is_active !== false);
     setDivisions(divs);
     if (!activeDivisionId && divs.length > 0) {
@@ -134,6 +140,9 @@ export default function InventoryPage() {
     }
     const mRows: InventoryMaterial[] = mJson?.data ?? mJson?.rows ?? mJson ?? [];
     setMaterials(Array.isArray(mRows) ? mRows.filter(m => m?.is_active !== false) : []);
+    const lRows: InventoryLocation[] = lJson?.data ?? [];
+    setLocations(lRows.filter(l => l.is_active !== false));
+    if (lRows.length > 0 && !locationId) setLocationId(lRows[0].id);
   }
 
   async function loadData() {
@@ -200,6 +209,7 @@ export default function InventoryPage() {
     setVendor("");
     setNotes("");
     setInvoicedFinal(false);
+    // keep locationId set
   }
 
   function startEdit(row: LedgerRow) {
@@ -259,6 +269,7 @@ export default function InventoryPage() {
             notes: notes.trim() || null,
             invoiced_final: invoicedFinal,
             division_id: activeDivisionId || null,
+            location_id: locationId || null,
           }),
         });
       }
@@ -443,6 +454,23 @@ export default function InventoryPage() {
                     placeholder="Invoice / PO" value={refNum} onChange={e => setRefNum(e.target.value)} />
                 </div>
               </div>
+
+              {/* Location */}
+              {locations.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Location</label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={locationId} onChange={e => setLocationId(e.target.value)}>
+                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {locations.length === 0 && (
+                <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠ No locations found. <Link href="/operations-center/inventory-locations" className="underline font-semibold">Add a location</Link> before adding receipts.
+                </div>
+              )}
 
               {/* Vendor + Final */}
               <div className="grid grid-cols-2 gap-3 items-end">
