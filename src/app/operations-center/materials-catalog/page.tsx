@@ -310,7 +310,7 @@ function MaterialDrawer({
                     disabled={addingToInventory}
                     className="text-xs text-red-400 hover:text-red-600 underline disabled:opacity-40"
                   >
-                    {addingToInventory ? "Removing…" : "Un-register"}
+                    {addingToInventory ? "Unlinking…" : "Unlink from catalog"}
                   </button>
                 )}
                 {!material.in_inventory && onAddToInventory && (
@@ -472,9 +472,13 @@ export default function MaterialsCatalogPage() {
   async function handleUnregisterInventory() {
     const invId = drawer?.material.inventory_material_id;
     if (!invId) return;
-    if (!confirm(`Remove "${drawer?.material.name}" from inventory? This only un-registers it — it won't delete any existing transactions.`)) return;
+    if (!confirm(`Unlink "${drawer?.material.name}" from this catalog entry? Existing transactions are preserved.`)) return;
     setAddingToInventory(true);
-    const r = await fetch(`/api/materials/${invId}`, { method: "DELETE" });
+    const r = await fetch(`/api/materials/${invId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ catalog_material_id: null }),
+    });
     if (!r.ok) { setMatError("Failed to un-register"); setAddingToInventory(false); return; }
     setMaterials(prev => prev.map(m => m.id === drawer!.material.id ? { ...m, in_inventory: false, inventory_material_id: null } : m));
     setAllMaterials(prev => prev.map(m => m.id === drawer!.material.id ? { ...m, in_inventory: false, inventory_material_id: null } : m));
