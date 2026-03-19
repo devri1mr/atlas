@@ -196,7 +196,7 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   // Inputs (labor)
   const [task, setTask] = useState("");
   const [details, setDetails] = useState("");
-  const [quantity, setQuantity] = useState<number>(0);
+  const [quantity, setQuantity] = useState<number>(1);
   const [unit, setUnit] = useState<string>("yd");
   const [hours, setHours] = useState<number>(0);
 
@@ -1220,7 +1220,7 @@ async function addLabor() {
   setTask("");
   setTaskSearch("");
   setDetails("");
-  setQuantity(0);
+  setQuantity(1);
   setUnit("yd");
   setHours(0);
   setShowTaskResults(false);
@@ -1648,13 +1648,13 @@ async function addLabor() {
 
   {/* Single header row */}
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
-    <div></div>
+    <div className="text-center">Show</div>
     <div className="text-center">Task</div>
     <div className="text-center">Details</div>
     <div className="text-center">Qty</div>
     <div className="text-center">Unit</div>
-    <div className="text-center">Hrs</div>
-    <div className="text-center">Total</div>
+    <div className="text-right">Hrs</div>
+    <div className="text-right">Total</div>
     <div className="text-center">Action</div>
   </div>
 
@@ -1738,7 +1738,7 @@ async function addLabor() {
 
     <div>
       <input
-        className="border rounded w-full h-9 px-3 text-center"
+        className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
         type="number"
         placeholder=""
         value={hours === 0 ? "" : hours}
@@ -1787,7 +1787,7 @@ async function addLabor() {
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center"
+            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center hover:bg-gray-50"
           >
             <div className="flex justify-center">
               <input
@@ -1904,7 +1904,7 @@ async function addLabor() {
             <span className="text-sm font-semibold text-gray-700">{g.name}</span>
             <div className="flex items-center gap-4">
               <span className="text-sm tabular-nums text-gray-600">
-                {bundleTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {money(bundleTotal)}
               </span>
               <button
                 onClick={() => deleteBundleRun(g.runId)}
@@ -1920,7 +1920,7 @@ async function addLabor() {
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 px-2 py-2 text-sm items-center"
+                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 px-2 py-2 text-sm items-center hover:bg-gray-50"
                 >
                   <div className="flex justify-center">
                     <input
