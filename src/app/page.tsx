@@ -15,12 +15,15 @@ export default function Home() {
       const { data } = await supabase.auth.getSession();
       const sessionEmail = data.session?.user?.email ?? null;
 
-      // Optional domain restriction
       if (sessionEmail && !sessionEmail.endsWith("@garpielgroup.com")) {
         await supabase.auth.signOut();
         setEmail(null);
+      } else if (sessionEmail) {
+        // Already logged in — send to dashboard
+        window.location.replace("/dashboard");
+        return;
       } else {
-        setEmail(sessionEmail);
+        setEmail(null);
       }
 
       setLoading(false);
@@ -50,99 +53,83 @@ export default function Home() {
     await supabase.auth.signOut();
   }
 
-  if (loading) return <div style={{ padding: 24 }}>Loading...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 100%)" }}>
+        <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // LOGIN SCREEN
   if (!email) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <Image
-            src="/atlas-logo.png"
-            alt="Atlas Logo"
-            width={420}
-            height={420}
-            priority
-          />
+      <div className="min-h-screen flex" style={{ fontFamily: "var(--font-geist-sans)" }}>
 
-          <p
-            style={{
-              marginTop: 6,
-              fontSize: 11,
-              color: "#777",
-              letterSpacing: 1,
-            }}
-          >
-            Crafted by MRD
+        {/* Left panel — brand */}
+        <div className="hidden lg:flex flex-col justify-between w-1/2 p-12 relative overflow-hidden"
+          style={{ background: "linear-gradient(160deg, #0a1f10 0%, #123b1f 45%, #1a5c2a 100%)" }}>
+
+          {/* Decorative rings */}
+          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full border border-white/5" />
+          <div className="absolute -top-16 -left-16 w-[350px] h-[350px] rounded-full border border-white/5" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle, #4ade80, transparent 70%)" }} />
+
+          <div className="relative">
+            <Image src="/atlas-logo.png" alt="Atlas" width={160} height={52} style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }} priority />
+          </div>
+
+          <div className="relative space-y-6">
+            <h2 className="text-4xl font-bold text-white leading-tight">
+              Every job.<br />Every detail.<br />
+              <span className="text-green-400">In one place.</span>
+            </h2>
+            <p className="text-white/50 text-sm leading-relaxed max-w-xs">
+              Atlas is the complete operations platform for landscaping — bids, inventory, materials, and your team, unified.
+            </p>
+          </div>
+
+          <p className="relative text-white/20 text-xs tracking-widest uppercase">
+            Powered by InterRivus Systems
           </p>
+        </div>
 
-          <button
-            onClick={signInWithGoogle}
-            style={{
-              marginTop: 26,
-              padding: "12px 20px",
-              fontSize: 14,
-              fontWeight: 500,
-              borderRadius: 6,
-              border: "1px solid #dadce0",
-              backgroundColor: "#ffffff",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              minWidth: 240,
-              marginLeft: "auto",
-              marginRight: "auto",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-            }}
-          >
-            <GoogleIcon />
-            Sign in with Google
-          </button>
+        {/* Right panel — sign in */}
+        <div className="flex-1 flex flex-col items-center justify-center bg-white px-8 py-12">
+          <div className="w-full max-w-sm">
+
+            {/* Mobile logo */}
+            <div className="lg:hidden mb-10 text-center">
+              <Image src="/atlas-logo.png" alt="Atlas" width={120} height={40} style={{ objectFit: "contain" }} priority />
+            </div>
+
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
+            <p className="text-gray-400 text-sm mb-8">Sign in to your Atlas account</p>
+
+            <button
+              onClick={signInWithGoogle}
+              className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
+
+            <p className="mt-6 text-center text-xs text-gray-400">
+              Access restricted to authorized accounts only.
+            </p>
+
+            <div className="mt-16 pt-8 border-t border-gray-100 text-center">
+              <p className="text-[11px] text-gray-300 tracking-widest uppercase">Atlas · InterRivus Systems</p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // AUTHENTICATED VIEW
-  return (
-    <div style={{ padding: 24 }}>
-      <Image
-        src="/atlas-logo.png"
-        alt="Atlas Logo"
-        width={180}
-        height={180}
-        priority
-      />
-
-      <p style={{ marginTop: 16 }}>
-        Signed in as: <strong>{email}</strong>
-      </p>
-
-      <button
-        onClick={signOut}
-        style={{
-          marginTop: 12,
-          padding: "10px 14px",
-          cursor: "pointer",
-          borderRadius: 6,
-          border: "1px solid #dadce0",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        Sign out
-      </button>
-    </div>
-  );
+  // Authenticated — redirect handled in useEffect
+  return null;
 }
 
 function GoogleIcon() {

@@ -13,7 +13,7 @@ export default function AuthCallbackPage() {
     (async () => {
       const sb = getSupabaseClient();
       await sb.auth.getSession(); // allows Supabase to process the URL if needed
-      router.replace("/"); // or wherever you want to land after auth
+      router.replace("/dashboard");
     })();
   }, [router]);
 
