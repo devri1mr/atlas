@@ -93,7 +93,7 @@ export default function Home() {
           </div>
 
           {/* Bottom green section — slogan */}
-          <div className="relative flex flex-col items-center justify-center flex-1 px-16 text-center pb-10">
+          <div className="relative flex flex-col items-center justify-center flex-1 px-16 text-center">
             <div className="w-16 h-px bg-green-300/30 mb-8" />
             <h2 className="text-3xl font-bold text-white leading-snug tracking-tight mb-5">
               Precision in the number.<br />
@@ -102,16 +102,6 @@ export default function Home() {
             <p className="text-white/45 text-sm leading-relaxed max-w-sm">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
-            <a
-              href="https://interrivus.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="absolute bottom-5 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/35 transition-all group"
-            >
-              <span className="w-4 h-4 rounded-full bg-green-400/80 flex items-center justify-center text-[8px] font-black text-green-950 shrink-0 group-hover:bg-green-300 transition-colors">IR</span>
-              <span className="text-white/50 text-[10px] tracking-[0.2em] uppercase group-hover:text-white/80 transition-colors">Powered by InterRivus Systems</span>
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/30 group-hover:text-white/60 transition-colors"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
-            </a>
           </div>
         </div>
 
@@ -145,11 +135,14 @@ export default function Home() {
                 href="https://interrivus.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group"
+                className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group shadow-sm"
               >
-                <span className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[9px] font-black text-white shrink-0 group-hover:bg-green-500 transition-colors">IR</span>
-                <span className="text-[11px] font-medium text-gray-400 tracking-wide group-hover:text-green-700 transition-colors">Built by InterRivus Systems</span>
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-green-500 transition-colors"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+                <InterRivusLogo />
+                <div className="text-left">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-widest leading-none mb-0.5 group-hover:text-green-600 transition-colors">Powered by</div>
+                  <div className="text-[13px] font-semibold text-gray-600 tracking-wide group-hover:text-green-800 transition-colors">InterRivus Systems</div>
+                </div>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-green-500 transition-colors ml-1"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
               </a>
             </div>
           </div>
@@ -160,6 +153,19 @@ export default function Home() {
 
   // Authenticated — redirect handled in useEffect
   return null;
+}
+
+function InterRivusLogo() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Circle background */}
+      <circle cx="16" cy="16" r="15" fill="#0d2616" className="group-hover:fill-[#123b1f] transition-colors" />
+      {/* IR lettermark */}
+      <text x="6" y="19" fontFamily="Georgia, serif" fontSize="13" fontWeight="700" fill="white" letterSpacing="0.5">IR</text>
+      {/* River wave line */}
+      <path d="M5 24 Q9 21.5 13 24 Q17 26.5 21 24 Q25 21.5 27 23" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.8"/>
+    </svg>
+  );
 }
 
 function GoogleIcon() {
