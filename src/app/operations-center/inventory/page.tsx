@@ -15,6 +15,7 @@ type InventoryMaterial = {
   vendor?: string | null;
   sku?: string | null;
   division_id?: string | null;
+  is_active?: boolean | null;
 };
 
 type SummaryRow = {
