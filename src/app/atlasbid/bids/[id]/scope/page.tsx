@@ -67,6 +67,7 @@ type MaterialRow = {
   qty: number;
   unit: string;
   unit_cost: number;
+  source_type?: string | null;
   created_at?: string;
 };
 type TemplateMaterialRow = {
@@ -1650,11 +1651,11 @@ async function addLabor() {
     <div></div>
     <div>Task</div>
     <div>Details</div>
-    <div className="text-right">Qty</div>
-    <div>Unit</div>
-    <div className="text-right">Hrs</div>
-    <div className="text-right">Total</div>
-    <div className="text-right">Del</div>
+    <div className="text-center">Qty</div>
+    <div className="text-center">Unit</div>
+    <div className="text-center">Hrs</div>
+    <div className="text-center">Total</div>
+    <div className="text-center">Del</div>
   </div>
 
   {/* Add row */}
@@ -1711,10 +1712,10 @@ async function addLabor() {
 
     <div>
       <input
-        className="border rounded w-full h-9 px-3 text-right"
+        className="border rounded w-full h-9 px-3 text-center"
         type="number"
-        placeholder="0"
-        value={Number.isFinite(quantity) ? quantity : 0}
+        placeholder=""
+        value={quantity === 0 ? "" : quantity}
         onChange={(e) => setQuantity(Number(e.target.value))}
       />
     </div>
@@ -1735,10 +1736,10 @@ async function addLabor() {
 
     <div>
       <input
-        className="border rounded w-full h-9 px-3 text-right"
+        className="border rounded w-full h-9 px-3 text-center"
         type="number"
-        placeholder="0"
-        value={Number.isFinite(hours) ? hours : 0}
+        placeholder=""
+        value={hours === 0 ? "" : hours}
         onChange={(e) => setHours(Number(e.target.value))}
       />
     </div>
@@ -1824,7 +1825,7 @@ async function addLabor() {
             </div>
             <div>
               <input
-                className="border rounded w-full h-9 px-3 text-right"
+                className="border rounded w-full h-9 px-3 text-center"
                 type="number"
                 value={row.quantity === 0 ? "" : row.quantity}
                 onChange={(e) => {
@@ -1854,7 +1855,7 @@ async function addLabor() {
             <div className="truncate">{row.unit}</div>
             <div>
               <input
-                className="border rounded w-full h-9 px-3 text-right"
+                className="border rounded w-full h-9 px-3 text-center"
                 type="number"
                 step="0.01"
                 value={row.man_hours === 0 ? "" : row.man_hours}
@@ -2032,11 +2033,11 @@ async function addLabor() {
             <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
               <div className="col-span-3">Material</div>
               <div className="col-span-2">Source</div>
-              <div className="col-span-3">Details</div>
-              <div className="col-span-1 text-right">Qty</div>
-              <div className="col-span-1">Unit</div>
-              <div className="col-span-1 text-right">Unit Cost</div>
-              <div className="col-span-1 text-right">Add</div>
+              <div className="col-span-2">Details</div>
+              <div className="col-span-1 text-center">Qty</div>
+              <div className="col-span-1 text-center">Unit</div>
+              <div className="col-span-1 text-center">Unit Cost</div>
+              <div className="col-span-2 text-center">Action</div>
             </div>
 
             <div className="grid grid-cols-12 gap-3 items-center">
@@ -2118,10 +2119,10 @@ async function addLabor() {
   </select>
 </div>
               {/* Details */}
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <input
                   className="border p-2 rounded w-full h-10"
-                  placeholder="Optional details (vendor, color, etc.)"
+                  placeholder="Details"
                   value={materialDetails}
                   onChange={(e) => setMaterialDetails(e.target.value)}
                 />
@@ -2130,10 +2131,10 @@ async function addLabor() {
               {/* Qty */}
               <div className="col-span-1">
                 <input
-                  className="border p-2 rounded w-full h-10"
+                  className="border rounded w-full h-10 px-2 text-center"
                   type="number"
-                  placeholder="0"
-                  value={Number.isFinite(materialQty) ? materialQty : 0}
+                  placeholder=""
+                  value={materialQty === 0 ? "" : materialQty}
                   onChange={(e) => setMaterialQty(Number(e.target.value))}
                 />
               </div>
@@ -2156,34 +2157,35 @@ async function addLabor() {
               {/* Unit Cost */}
               <div className="col-span-1">
                 <input
-                  className="border p-2 rounded w-full h-10"
+                  className="border rounded w-full h-10 px-2 text-right"
                   type="number"
-                  placeholder="0"
-                  value={Number.isFinite(materialCost) ? materialCost : 0}
+                  placeholder=""
+                  value={materialCost === 0 ? "" : materialCost}
                   onChange={(e) => setMaterialCost(Number(e.target.value))}
                 />
               </div>
 
-              <div className="col-span-1 text-right">
+              <div className="col-span-2">
                 <button
-  type="button"
-  onClick={addMaterial}
-  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
->
-  Add
-</button>
+                  type="button"
+                  onClick={addMaterial}
+                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+                >
+                  Add
+                </button>
               </div>
             </div>
 
             {/* List headers */}
-            <div className="grid grid-cols-10 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t pt-3 mt-1">
-              <div className="col-span-2">Material</div>
-              <div className="col-span-3">Details</div>
-              <div className="text-right">Qty</div>
-              <div>Unit</div>
-              <div className="text-right">Unit Cost</div>
-              <div className="text-right">Total</div>
-              <div className="text-right">Actions</div>
+            <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t pt-3 mt-1">
+              <div className="col-span-3">Material</div>
+              <div className="col-span-2">Source</div>
+              <div className="col-span-2">Details</div>
+              <div className="col-span-1 text-center">Qty</div>
+              <div className="col-span-1 text-center">Unit</div>
+              <div className="col-span-1 text-center">Unit Cost</div>
+              <div className="col-span-1 text-center">Total</div>
+              <div className="col-span-1 text-center">Actions</div>
             </div>
 
             {materials.length === 0 ? (
@@ -2199,9 +2201,9 @@ async function addLabor() {
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-10 gap-3 border rounded px-2 py-2 text-sm items-center"
+                    className="grid grid-cols-12 gap-3 border rounded px-2 py-2 text-sm items-center"
                   >
-                    <div className="col-span-2">
+                    <div className="col-span-3 font-medium truncate">
                       {isEditing ? (
                         <input
                           className="border p-2 rounded w-full"
@@ -2213,7 +2215,11 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div className="col-span-3 text-gray-600">
+                    <div className="col-span-2 text-gray-500 text-xs truncate">
+                      {row.source_type || "—"}
+                    </div>
+
+                    <div className="col-span-2 text-gray-600">
                       {isEditing ? (
                         <input
                           className="border p-2 rounded w-full"
@@ -2226,12 +2232,12 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div className="text-right tabular-nums">
+                    <div className="col-span-1 text-center tabular-nums">
                       {isEditing ? (
                         <input
-                          className="border p-2 rounded w-full text-right"
+                          className="border p-1 rounded w-full text-center"
                           type="number"
-                          value={Number.isFinite(mEditQty) ? mEditQty : 0}
+                          value={mEditQty === 0 ? "" : mEditQty}
                           onChange={(e) => setMEditQty(Number(e.target.value))}
                         />
                       ) : (
@@ -2239,10 +2245,10 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div>
+                    <div className="col-span-1 text-center">
                       {isEditing ? (
                         <select
-                          className="border p-2 rounded w-full"
+                          className="border p-1 rounded w-full"
                           value={mEditUnit}
                           onChange={(e) => setMEditUnit(e.target.value)}
                         >
@@ -2257,12 +2263,12 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div className="text-right tabular-nums">
+                    <div className="col-span-1 text-center tabular-nums">
                       {isEditing ? (
                         <input
-                          className="border p-2 rounded w-full text-right"
+                          className="border p-1 rounded w-full text-right"
                           type="number"
-                          value={Number.isFinite(mEditUnitCost) ? mEditUnitCost : 0}
+                          value={mEditUnitCost === 0 ? "" : mEditUnitCost}
                           onChange={(e) => setMEditUnitCost(Number(e.target.value))}
                         />
                       ) : (
@@ -2270,9 +2276,9 @@ async function addLabor() {
                       )}
                     </div>
 
-                    <div className="text-right tabular-nums">{total.toFixed(2)}</div>
+                    <div className="col-span-1 text-center tabular-nums">{money(total)}</div>
 
-                    <div className="text-right flex justify-end gap-3">
+                    <div className="col-span-1 text-center flex justify-center gap-2">
                       {isEditing ? (
                         <>
                           <button
