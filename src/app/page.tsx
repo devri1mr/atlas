@@ -102,9 +102,16 @@ export default function Home() {
             <p className="text-white/45 text-sm leading-relaxed max-w-sm">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
-            <p className="absolute bottom-5 text-white/20 text-[10px] tracking-[0.25em] uppercase">
-              Powered by InterRivus Systems
-            </p>
+            <a
+              href="https://interrivus.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute bottom-5 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/35 transition-all group"
+            >
+              <span className="w-4 h-4 rounded-full bg-green-400/80 flex items-center justify-center text-[8px] font-black text-green-950 shrink-0 group-hover:bg-green-300 transition-colors">IR</span>
+              <span className="text-white/50 text-[10px] tracking-[0.2em] uppercase group-hover:text-white/80 transition-colors">Powered by InterRivus Systems</span>
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/30 group-hover:text-white/60 transition-colors"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+            </a>
           </div>
         </div>
 
@@ -134,7 +141,16 @@ export default function Home() {
             </p>
 
             <div className="mt-16 pt-8 border-t border-gray-100 text-center">
-              <p className="text-[11px] text-gray-300 tracking-widest uppercase">Atlas · InterRivus Systems</p>
+              <a
+                href="https://interrivus.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group"
+              >
+                <span className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[9px] font-black text-white shrink-0 group-hover:bg-green-500 transition-colors">IR</span>
+                <span className="text-[11px] font-medium text-gray-400 tracking-wide group-hover:text-green-700 transition-colors">Built by InterRivus Systems</span>
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-green-500 transition-colors"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+              </a>
             </div>
           </div>
         </div>
