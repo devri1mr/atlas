@@ -67,32 +67,54 @@ export default function Home() {
       <div className="min-h-screen flex" style={{ fontFamily: "var(--font-geist-sans)" }}>
 
         {/* Left panel — brand */}
-        <div className="hidden lg:flex flex-col justify-between w-1/2 p-12 relative overflow-hidden"
-          style={{ background: "linear-gradient(160deg, #0a1f10 0%, #123b1f 45%, #1a5c2a 100%)" }}>
+        <div className="hidden lg:flex flex-col w-[55%] relative overflow-hidden"
+          style={{ background: "linear-gradient(160deg, #071510 0%, #0d2618 40%, #123b1f 75%, #174d28 100%)" }}>
 
-          {/* Decorative rings */}
-          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full border border-white/5" />
-          <div className="absolute -top-16 -left-16 w-[350px] h-[350px] rounded-full border border-white/5" />
-          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle, #4ade80, transparent 70%)" }} />
-
-          <div className="relative">
-            <Image src="/atlas-logo.png" alt="Atlas" width={160} height={52} style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }} priority />
+          {/* Decorative elements */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full h-full opacity-[0.03]"
+              style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #4ade80 0%, transparent 50%), radial-gradient(circle at 80% 20%, #22c55e 0%, transparent 50%)" }} />
+            <div className="absolute -bottom-24 -right-24 w-[500px] h-[500px] rounded-full border border-white/[0.04]" />
+            <div className="absolute -bottom-12 -right-12 w-[340px] h-[340px] rounded-full border border-white/[0.06]" />
+            <div className="absolute top-1/3 -left-20 w-[280px] h-[280px] rounded-full border border-white/[0.03]" />
           </div>
 
-          <div className="relative space-y-6">
-            <h2 className="text-4xl font-bold text-white leading-tight">
-              Every job.<br />Every detail.<br />
-              <span className="text-green-400">In one place.</span>
+          {/* Content — vertically centered */}
+          <div className="relative flex flex-col items-center justify-center flex-1 px-16 text-center">
+
+            {/* Logo — large, prominent */}
+            <div className="mb-10">
+              <Image
+                src="/atlas-logo.png"
+                alt="Atlas"
+                width={320}
+                height={320}
+                style={{ objectFit: "contain", maxHeight: 220 }}
+                priority
+              />
+            </div>
+
+            {/* Divider */}
+            <div className="w-16 h-px bg-green-500/40 mb-10" />
+
+            {/* Main slogan */}
+            <h2 className="text-3xl font-bold text-white leading-snug tracking-tight mb-6">
+              Precision in the number.<br />
+              <span className="text-green-400">Profit in the job.</span>
             </h2>
-            <p className="text-white/50 text-sm leading-relaxed max-w-xs">
-              Atlas is the complete operations platform for landscaping — bids, inventory, materials, and your team, unified.
+
+            {/* Description */}
+            <p className="text-white/40 text-sm leading-relaxed max-w-sm">
+              Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
           </div>
 
-          <p className="relative text-white/20 text-xs tracking-widest uppercase">
-            Powered by InterRivus Systems
-          </p>
+          {/* Footer */}
+          <div className="relative px-16 pb-8 text-center">
+            <p className="text-white/15 text-[10px] tracking-[0.25em] uppercase">
+              Powered by InterRivus Systems
+            </p>
+          </div>
         </div>
 
         {/* Right panel — sign in */}
@@ -101,11 +123,12 @@ export default function Home() {
 
             {/* Mobile logo */}
             <div className="lg:hidden mb-10 text-center">
-              <Image src="/atlas-logo.png" alt="Atlas" width={120} height={40} style={{ objectFit: "contain" }} priority />
+              <Image src="/atlas-logo.png" alt="Atlas" width={180} height={60} style={{ objectFit: "contain" }} priority />
+              <p className="mt-3 text-xs text-gray-400 italic">Precision in the number. Profit in the job.</p>
             </div>
 
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
-            <p className="text-gray-400 text-sm mb-8">Sign in to your Atlas account</p>
+            <p className="text-gray-400 text-sm mb-8">Sign in to your Atlas account to continue.</p>
 
             <button
               onClick={signInWithGoogle}
@@ -115,7 +138,7 @@ export default function Home() {
               Continue with Google
             </button>
 
-            <p className="mt-6 text-center text-xs text-gray-400">
+            <p className="mt-5 text-center text-xs text-gray-400">
               Access restricted to authorized accounts only.
             </p>
 
