@@ -82,7 +82,7 @@ function titleize(s: string) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-type InventoryLocation = { id: string; name: string; division_id?: string | null; is_active?: boolean | null };
+type InventoryLocation = { id: string; name: string; is_active?: boolean | null };
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function InventoryPage() {

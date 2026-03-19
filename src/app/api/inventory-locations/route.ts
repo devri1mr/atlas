@@ -9,7 +9,7 @@ export async function GET() {
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
     .from("inventory_locations")
-    .select("id, name, division_id, is_active, created_at")
+    .select("id, name, is_active, created_at")
     .order("name", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data: data ?? [] });
@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
   const { data, error } = await supabase
     .from("inventory_locations")
-    .insert({ name, division_id: body.division_id || null, is_active: true })
-    .select("id, name, division_id, is_active, created_at")
+    .insert({ name, is_active: true })
+    .select("id, name, is_active, created_at")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data }, { status: 201 });

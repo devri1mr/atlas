@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-type Location = { id: string; name: string; division_id: string | null; is_active: boolean };
-type Division = { id: string; name: string };
+type Location = { id: string; name: string; is_active: boolean };
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 const btnPrimary = "bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";
@@ -12,37 +11,26 @@ const btnGhost = "text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg
 
 export default function InventoryLocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [newName, setNewName] = useState("");
-  const [newDivId, setNewDivId] = useState("");
   const [adding, setAdding] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editDivId, setEditDivId] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    const [lRes, dRes] = await Promise.all([
-      fetch("/api/inventory-locations", { cache: "no-store" }),
-      fetch("/api/divisions", { cache: "no-store" }),
-    ]);
-    const lJson = await lRes.json();
-    const dJson = await dRes.json();
-    setLocations(lJson?.data ?? []);
-    const divs: Division[] = dJson?.divisions ?? dJson?.data ?? dJson ?? [];
-    setDivisions(Array.isArray(divs) ? divs : []);
+    const res = await fetch("/api/inventory-locations", { cache: "no-store" });
+    const json = await res.json();
+    setLocations(json?.data ?? []);
     setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
-
-  const divById = new Map(divisions.map(d => [d.id, d]));
 
   async function handleAdd() {
     if (!newName.trim()) return;
@@ -50,20 +38,18 @@ export default function InventoryLocationsPage() {
     const r = await fetch("/api/inventory-locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim(), division_id: newDivId || null }),
+      body: JSON.stringify({ name: newName.trim() }),
     });
     const j = await r.json();
     if (!r.ok) { setError(j?.error || "Failed to add"); setAdding(false); return; }
     setLocations(prev => [...prev, j.data].sort((a, b) => a.name.localeCompare(b.name)));
     setNewName("");
-    setNewDivId("");
     setAdding(false);
   }
 
   function startEdit(loc: Location) {
     setEditingId(loc.id);
     setEditName(loc.name);
-    setEditDivId(loc.division_id ?? "");
   }
 
   async function handleSave(id: string) {
@@ -71,7 +57,7 @@ export default function InventoryLocationsPage() {
     const r = await fetch(`/api/inventory-locations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName.trim(), division_id: editDivId || null }),
+      body: JSON.stringify({ name: editName.trim() }),
     });
     const j = await r.json();
     if (!r.ok) { setError(j?.error || "Failed to save"); setSavingId(null); return; }
@@ -134,7 +120,6 @@ export default function InventoryLocationsPage() {
               <thead>
                 <tr className="border-b bg-gray-50/50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <th className="text-left px-5 py-3">Name</th>
-                  <th className="text-left px-5 py-3">Division</th>
                   <th className="text-center px-5 py-3">Status</th>
                   <th className="text-right px-5 py-3">Actions</th>
                 </tr>
@@ -143,15 +128,11 @@ export default function InventoryLocationsPage() {
                 {locations.map(loc => (
                   <tr key={loc.id} className="border-b last:border-0 hover:bg-gray-50">
                     {editingId === loc.id ? (
-                      <td colSpan={4} className="px-5 py-3">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <input className={inputCls + " flex-1 min-w-[160px]"} value={editName}
+                      <td colSpan={3} className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <input className={inputCls + " flex-1"} value={editName}
                             onChange={e => setEditName(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleSave(loc.id)} autoFocus />
-                          <select className={inputCls + " w-40"} value={editDivId} onChange={e => setEditDivId(e.target.value)}>
-                            <option value="">All divisions</option>
-                            {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                          </select>
                           <button onClick={() => handleSave(loc.id)} disabled={savingId === loc.id || !editName.trim()}
                             className="text-xs font-semibold text-green-600 hover:text-green-800 disabled:opacity-40">
                             {savingId === loc.id ? "Saving…" : "Save"}
@@ -162,7 +143,6 @@ export default function InventoryLocationsPage() {
                     ) : (
                       <>
                         <td className="px-5 py-3 font-medium text-gray-900">{loc.name}</td>
-                        <td className="px-5 py-3 text-gray-500 text-xs">{loc.division_id ? (divById.get(loc.division_id)?.name ?? "—") : "All"}</td>
                         <td className="px-5 py-3 text-center">
                           <button onClick={() => toggleActive(loc)}
                             className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer ${loc.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
@@ -189,19 +169,12 @@ export default function InventoryLocationsPage() {
           {/* Add form */}
           <div className="px-5 py-4 border-t bg-gray-50 space-y-3">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Location</div>
-            <div className="flex gap-3 flex-wrap items-end">
-              <div className="flex-1 min-w-[180px]">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
                 <label className="block text-xs text-gray-500 mb-1">Name *</label>
                 <input className={inputCls} placeholder='e.g. "Main Yard", "North Lot"'
                   value={newName} onChange={e => setNewName(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleAdd()} />
-              </div>
-              <div className="w-44">
-                <label className="block text-xs text-gray-500 mb-1">Division (optional)</label>
-                <select className={inputCls} value={newDivId} onChange={e => setNewDivId(e.target.value)}>
-                  <option value="">All divisions</option>
-                  {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
               </div>
               <button onClick={handleAdd} disabled={adding || !newName.trim()} className={btnPrimary}>
                 {adding ? "Adding…" : "+ Add"}
