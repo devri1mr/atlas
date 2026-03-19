@@ -35,7 +35,7 @@ const INPUT_TYPES = ["number", "checkbox", "text"];
 const UNITS = ["yd", "sqft", "lft", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
 
 const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
+const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 const sectionHeader = "text-xs font-bold text-gray-500 uppercase tracking-wide mb-2";
 
 function RuleConfigFields({
@@ -193,7 +193,7 @@ export default function BundleBuilderPage() {
   useEffect(() => {
     if (matSearch.length < 2) { setMatResults([]); return; }
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/materials-catalog?search=${encodeURIComponent(matSearch)}&limit=8`, { cache: "no-store" });
+      const r = await fetch(`/api/materials-catalog?q=${encodeURIComponent(matSearch)}`, { cache: "no-store" });
       const j = await r.json(); setMatResults(j?.data ?? []);
     }, 250);
     return () => clearTimeout(t);
@@ -350,7 +350,7 @@ export default function BundleBuilderPage() {
                   onKeyDown={e => { if (e.key === "Enter") createBundle(); }}
                 />
                 <button onClick={createBundle} disabled={creatingBundle || !newBundleName.trim()}
-                  className="bg-emerald-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap">
+                  className="bg-green-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 whitespace-nowrap">
                   + Add
                 </button>
               </div>
@@ -359,7 +359,7 @@ export default function BundleBuilderPage() {
               {bundles.length === 0 && <div className="px-4 py-6 text-sm text-gray-400 text-center">No bundles yet.</div>}
               {bundles.map(b => (
                 <button key={b.id} onClick={() => loadBundle(b)}
-                  className={`w-full text-left px-4 py-3 hover:bg-[#f6f8f6] transition-colors text-sm ${selectedBundle?.id === b.id ? "bg-[#eef6f0] border-l-4 border-emerald-600" : ""}`}>
+                  className={`w-full text-left px-4 py-3 hover:bg-[#f6f8f6] transition-colors text-sm ${selectedBundle?.id === b.id ? "bg-[#eef6f0] border-l-4 border-green-500" : ""}`}>
                   <div className="font-medium text-gray-900">{b.name}</div>
                   {b.description && <div className="text-xs text-gray-400 mt-0.5">{b.description}</div>}
                 </button>
@@ -432,7 +432,7 @@ export default function BundleBuilderPage() {
                       Required
                     </label>
                     <button onClick={addQuestion} disabled={addingQ || !qKey.trim() || !qLabel.trim()}
-                      className="ml-auto bg-emerald-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                      className="ml-auto bg-green-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-green-600 disabled:opacity-50">
                       {addingQ ? "Adding…" : "+ Add Question"}
                     </button>
                   </div>
@@ -544,7 +544,7 @@ export default function BundleBuilderPage() {
                               </div>
                               <div className="flex gap-2">
                                 <button onClick={() => addMaterial(task.id)} disabled={addingMat || !matSelected || !matQty}
-                                  className="bg-emerald-600 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                                  className="bg-green-500 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-green-600 disabled:opacity-50">
                                   {addingMat ? "Adding…" : "+ Link Material"}
                                 </button>
                                 <button onClick={() => { setMatTaskId(null); setMatSelected(null); setMatSearch(""); setMatQty(""); }}
