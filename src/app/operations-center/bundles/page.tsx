@@ -20,6 +20,7 @@ type TaskMaterial = {
   qty_per_task_unit: number; unit: string; unit_cost?: number | null;
 };
 type MatCatalogRow = { id: string; name: string; default_unit?: string | null; default_unit_cost?: number | null };
+type TaskCatalogRow = { id: string; name: string; unit?: string | null; minutes_per_unit?: number | null; default_qty?: number | null };
 
 const RULE_TYPES = [
   { value: "mulch_yards_from_sqft_depth", label: "Mulch Volume (sq ft + depth → yd)" },
@@ -157,17 +158,23 @@ export default function BundleBuilderPage() {
   const [newBundleName, setNewBundleName] = useState("");
   const [creatingBundle, setCreatingBundle] = useState(false);
 
-  // Question add form — no key field, auto-generated from label
-  const [qLabel, setQLabel] = useState("");
-  const [qType, setQType] = useState("number"); const [qUnit, setQUnit] = useState("");
-  const [qRequired, setQRequired] = useState(false); const [qDefault, setQDefault] = useState("");
-  const [qHelp, setQHelp] = useState(""); const [addingQ, setAddingQ] = useState(false);
+  // Question draft rows — multiple can be filled in before saving
+  type QDraft = { label: string; type: string; unit: string; required: boolean; defaultVal: string; help: string };
+  const emptyDraft = (): QDraft => ({ label: "", type: "number", unit: "", required: false, defaultVal: "", help: "" });
+  const [qDrafts, setQDrafts] = useState<QDraft[]>([emptyDraft()]);
+  const [addingQ, setAddingQ] = useState(false);
 
   // Task add form
   const [tName, setTName] = useState(""); const [tUnit, setTUnit] = useState("yd");
   const [tRule, setTRule] = useState("mulch_yards_from_sqft_depth");
   const [tConfig, setTConfig] = useState<Record<string, any>>({});
   const [tLineItem, setTLineItem] = useState(true); const [addingT, setAddingT] = useState(false);
+
+  // Task catalog search for pre-populate
+  const [catalogTasks, setCatalogTasks] = useState<TaskCatalogRow[]>([]);
+  const [tCatalogSearch, setTCatalogSearch] = useState("");
+  const [tCatalogSelected, setTCatalogSelected] = useState<TaskCatalogRow | null>(null);
+  const [tCatalogOpen, setTCatalogOpen] = useState(false);
 
   // Material add form (per task)
   const [matTaskId, setMatTaskId] = useState<string | null>(null);
@@ -196,6 +203,8 @@ export default function BundleBuilderPage() {
     if (!divisionId) return;
     fetch(`/api/atlasbid/scope-bundles?division_id=${divisionId}`, { cache: "no-store" })
       .then(r => r.json()).then(j => setBundles(j?.rows ?? []));
+    fetch(`/api/task-catalog?division_id=${divisionId}`, { cache: "no-store" })
+      .then(r => r.json()).then(j => setCatalogTasks(j?.data ?? []));
   }, [divisionId]);
 
   const loadBundle = useCallback(async (b: Bundle) => {
@@ -255,24 +264,31 @@ export default function BundleBuilderPage() {
     flash("Bundle deleted.");
   }
 
-  async function addQuestion() {
-    if (!selectedBundle || !qLabel.trim()) return;
+  async function addQuestions() {
+    if (!selectedBundle) return;
+    const valid = qDrafts.filter(d => d.label.trim());
+    if (valid.length === 0) return;
     setAddingQ(true);
-    const autoKey = slugify(qLabel);
-    const r = await fetch("/api/operations-center/scope-bundle-questions", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bundle_id: selectedBundle.id, question_key: autoKey, label: qLabel.trim(),
-        input_type: qType, unit: qUnit.trim() || null, required: qRequired,
-        default_value: qDefault.trim() || null, help_text: qHelp.trim() || null,
-        sort_order: questions.length,
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) { err(j?.error || "Failed to add question"); setAddingQ(false); return; }
-    setQuestions(prev => [...prev, j.row]);
-    setQLabel(""); setQType("number"); setQUnit(""); setQRequired(false); setQDefault(""); setQHelp("");
-    setAddingQ(false); flash("Question added.");
+    const added: Question[] = [];
+    for (const d of valid) {
+      const r = await fetch("/api/operations-center/scope-bundle-questions", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bundle_id: selectedBundle.id, question_key: slugify(d.label),
+          label: d.label.trim(), input_type: d.type,
+          unit: d.unit.trim() || null, required: d.required,
+          default_value: d.defaultVal.trim() || null, help_text: d.help.trim() || null,
+          sort_order: questions.length + added.length,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { err(j?.error || `Failed to add "${d.label}"`); continue; }
+      added.push(j.row);
+    }
+    setQuestions(prev => [...prev, ...added]);
+    setQDrafts([emptyDraft()]);
+    setAddingQ(false);
+    flash(`${added.length} question${added.length !== 1 ? "s" : ""} added.`);
   }
 
   async function deleteQuestion(id: string) {
@@ -297,6 +313,7 @@ export default function BundleBuilderPage() {
     setTasks(prev => [...prev, j.row]);
     setTaskMaterials(prev => ({ ...prev, [j.row.id]: [] }));
     setTName(""); setTUnit("yd"); setTRule("mulch_yards_from_sqft_depth"); setTConfig({});
+    setTCatalogSelected(null); setTCatalogSearch(""); setTCatalogOpen(false);
     setAddingT(false); flash("Task added.");
   }
 
@@ -461,46 +478,55 @@ export default function BundleBuilderPage() {
                   </div>
                 ))}
 
-                {/* Add question form */}
+                {/* Add question form — multiple rows */}
                 <div className="bg-[#f6f8f6] rounded-lg p-3 space-y-2 border border-dashed border-gray-200">
-                  <div className="text-xs font-semibold text-gray-500">Add Question</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="col-span-2">
-                      <label className={labelCls}>Question Label (shown to salesperson)</label>
-                      <input className={inputCls} placeholder='e.g. "How many sq ft of mulch area?"' value={qLabel} onChange={e => setQLabel(e.target.value)} />
-                      {qLabel.trim() && (
-                        <p className="text-xs text-gray-400 mt-1">Internal key: <code className="bg-gray-100 px-1 rounded">{slugify(qLabel)}</code></p>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold text-gray-500">Add Questions</div>
+                    <button onClick={() => setQDrafts(prev => [...prev, emptyDraft()])}
+                      className="text-xs text-green-600 font-semibold hover:text-green-800">+ Add Row</button>
+                  </div>
+
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide px-0.5">
+                    <div>Label</div><div>Type</div><div>Unit</div><div />
+                  </div>
+
+                  {qDrafts.map((d, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-center">
+                        <input className={inputCls} placeholder='e.g. "Area (sq ft)"'
+                          value={d.label}
+                          onChange={e => setQDrafts(prev => prev.map((r, j) => j === i ? { ...r, label: e.target.value } : r))} />
+                        <select className={inputCls} value={d.type}
+                          onChange={e => setQDrafts(prev => prev.map((r, j) => j === i ? { ...r, type: e.target.value } : r))}>
+                          <option value="number">Number</option>
+                          <option value="checkbox">Checkbox</option>
+                          <option value="text">Text</option>
+                        </select>
+                        <input className={inputCls} placeholder="sq ft, in…"
+                          value={d.unit}
+                          onChange={e => setQDrafts(prev => prev.map((r, j) => j === i ? { ...r, unit: e.target.value } : r))} />
+                        <button onClick={() => setQDrafts(prev => prev.length === 1 ? [emptyDraft()] : prev.filter((_, j) => j !== i))}
+                          className="text-gray-300 hover:text-red-400 text-lg leading-none">✕</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pl-0">
+                        <input className={inputCls} placeholder="Default value (optional)"
+                          value={d.defaultVal}
+                          onChange={e => setQDrafts(prev => prev.map((r, j) => j === i ? { ...r, defaultVal: e.target.value } : r))} />
+                        <input className={inputCls} placeholder="Helper text (optional)"
+                          value={d.help}
+                          onChange={e => setQDrafts(prev => prev.map((r, j) => j === i ? { ...r, help: e.target.value } : r))} />
+                      </div>
+                      {d.label.trim() && (
+                        <p className="text-xs text-gray-400 pl-0.5">Key: <code className="bg-gray-100 px-1 rounded">{slugify(d.label)}</code></p>
                       )}
                     </div>
-                    <div>
-                      <label className={labelCls}>Answer Type</label>
-                      <select className={inputCls} value={qType} onChange={e => setQType(e.target.value)}>
-                        <option value="number">Number (quantity)</option>
-                        <option value="checkbox">Checkbox (yes/no add-on)</option>
-                        <option value="text">Text</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Unit (display, optional)</label>
-                      <input className={inputCls} placeholder="e.g. sq ft, inches" value={qUnit} onChange={e => setQUnit(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Default Value</label>
-                      <input className={inputCls} placeholder="optional" value={qDefault} onChange={e => setQDefault(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Helper Text</label>
-                      <input className={inputCls} placeholder="optional tip shown below the field" value={qHelp} onChange={e => setQHelp(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-sm text-gray-600">
-                      <input type="checkbox" checked={qRequired} onChange={e => setQRequired(e.target.checked)} />
-                      Required
-                    </label>
-                    <button onClick={addQuestion} disabled={addingQ || !qLabel.trim()}
-                      className={`ml-auto ${btnPrimary}`}>
-                      {addingQ ? "Adding…" : "+ Add Question"}
+                  ))}
+
+                  <div className="flex items-center justify-end pt-1">
+                    <button onClick={addQuestions} disabled={addingQ || qDrafts.every(d => !d.label.trim())}
+                      className={btnPrimary}>
+                      {addingQ ? "Saving…" : `Save ${qDrafts.filter(d => d.label.trim()).length || ""} Question${qDrafts.filter(d => d.label.trim()).length !== 1 ? "s" : ""}`}
                     </button>
                   </div>
                 </div>
@@ -660,6 +686,60 @@ export default function BundleBuilderPage() {
                 {/* Add task form */}
                 <div className="bg-[#f6f8f6] rounded-lg p-4 space-y-3 border border-dashed border-gray-300">
                   <div className="text-xs font-semibold text-gray-500">Add Task</div>
+
+                  {/* Catalog task picker */}
+                  {catalogTasks.length > 0 && (
+                    <div className="relative">
+                      <label className={labelCls}>Pre-fill from Labor Task Catalog <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
+                      <input
+                        className={inputCls}
+                        placeholder="Search existing labor tasks…"
+                        value={tCatalogSelected ? tCatalogSelected.name : tCatalogSearch}
+                        onFocus={() => setTCatalogOpen(true)}
+                        onBlur={() => setTimeout(() => setTCatalogOpen(false), 150)}
+                        onChange={e => {
+                          setTCatalogSearch(e.target.value);
+                          setTCatalogSelected(null);
+                          setTCatalogOpen(true);
+                        }}
+                      />
+                      {tCatalogSelected && (
+                        <button
+                          className="absolute right-2 top-7 text-gray-400 hover:text-gray-600 text-sm"
+                          onClick={() => { setTCatalogSelected(null); setTCatalogSearch(""); }}
+                        >✕</button>
+                      )}
+                      {tCatalogOpen && !tCatalogSelected && (
+                        <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-full max-h-48 overflow-y-auto">
+                          {catalogTasks
+                            .filter(t => !tCatalogSearch || t.name.toLowerCase().includes(tCatalogSearch.toLowerCase()))
+                            .map(ct => (
+                              <button key={ct.id} className="w-full text-left px-3 py-2 text-sm hover:bg-green-50 flex justify-between items-center"
+                                onMouseDown={e => {
+                                  e.preventDefault();
+                                  setTCatalogSelected(ct);
+                                  setTCatalogOpen(false);
+                                  setTCatalogSearch("");
+                                  // Auto-fill form fields
+                                  setTName(ct.name);
+                                  if (ct.unit) setTUnit(ct.unit);
+                                  setTConfig(prev => ({
+                                    ...prev,
+                                    ...(ct.minutes_per_unit != null ? { minutes_per_unit: ct.minutes_per_unit } : {}),
+                                  }));
+                                }}>
+                                <span className="font-medium text-gray-800">{ct.name}</span>
+                                <span className="text-gray-400 text-xs">{ct.unit || "—"}{ct.minutes_per_unit != null ? ` · ${ct.minutes_per_unit} min/unit` : ""}</span>
+                              </button>
+                            ))}
+                          {catalogTasks.filter(t => !tCatalogSearch || t.name.toLowerCase().includes(tCatalogSearch.toLowerCase())).length === 0 && (
+                            <div className="px-3 py-3 text-sm text-gray-400 text-center">No matching tasks.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-1">
                       <label className={labelCls}>Task Name</label>

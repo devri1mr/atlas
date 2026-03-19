@@ -12,6 +12,25 @@ export async function POST(req: NextRequest) {
   const input_type = String(body.input_type ?? "number").trim();
   if (!bundle_id || !question_key || !label)
     return NextResponse.json({ error: "bundle_id, question_key, and label required" }, { status: 400 });
+
+  // Fetch company_id — try 3 sources in order
+  let company_id: string | null = null;
+  if (!company_id) {
+    const { data: r } = await supabase.from("companies").select("id").limit(1).maybeSingle();
+    company_id = r?.id ?? null;
+  }
+  if (!company_id) {
+    const { data: r } = await supabase.from("scope_bundle_questions").select("company_id").eq("bundle_id", bundle_id).not("company_id", "is", null).limit(1).maybeSingle();
+    company_id = r?.company_id ?? null;
+  }
+  if (!company_id) {
+    const { data: r } = await supabase.from("bids").select("company_id").not("company_id", "is", null).limit(1).maybeSingle();
+    company_id = r?.company_id ?? null;
+  }
+  if (!company_id) {
+    return NextResponse.json({ error: "Could not determine company_id. Please contact support." }, { status: 500 });
+  }
+
   const { data, error } = await supabase.from("scope_bundle_questions").insert({
     bundle_id,
     question_key,
@@ -22,6 +41,7 @@ export async function POST(req: NextRequest) {
     default_value: body.default_value || null,
     help_text: body.help_text || null,
     sort_order: Number(body.sort_order) || 0,
+    company_id,
   }).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ row: data }, { status: 201 });
