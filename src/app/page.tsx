@@ -106,31 +106,31 @@ export default function Home() {
         </div>
 
         {/* Right panel — sign in */}
-        <div className="flex-1 flex flex-col items-center justify-center bg-white px-8 py-12">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12" style={{ background: "#f5f7f5" }}>
           <div className="w-full max-w-sm">
 
             {/* Mobile logo */}
             <div className="lg:hidden mb-10 text-center">
-              <Image src="/atlas-logo.png" alt="Atlas" width={180} height={60} style={{ objectFit: "contain" }} priority />
-              <p className="mt-3 text-xs text-gray-400 italic">Precision in the number. Profit in the job.</p>
+              <Image src="/atlas-logo.png" alt="Atlas" width={180} height={60} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
+              <p className="mt-3 text-xs text-gray-500 italic">Precision in the number. Profit in the job.</p>
             </div>
 
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
-            <p className="text-gray-400 text-sm mb-8">Sign in to your Atlas account to continue.</p>
+            <p className="text-gray-500 text-sm mb-8">Sign in to your Atlas account to continue.</p>
 
             <button
               onClick={signInWithGoogle}
-              className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+              className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-xl px-5 py-3.5 text-sm font-medium text-gray-800 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-md"
             >
               <GoogleIcon />
               Continue with Google
             </button>
 
-            <p className="mt-5 text-center text-xs text-gray-400">
+            <p className="mt-5 text-center text-xs text-gray-500 font-medium">
               Access restricted to authorized accounts only.
             </p>
 
-            <div className="mt-16 pt-8 border-t border-gray-100 text-center">
+            <div className="mt-16 pt-8 border-t border-gray-200 text-center">
               <a
                 href="https://interrivus.com"
                 target="_blank"
