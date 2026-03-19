@@ -70,22 +70,15 @@ export default function DashboardPage() {
       setLoading(false);
     });
 
-    // Weather via geolocation → Open-Meteo (free, no key)
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        try {
-          const [meteo, geo] = await Promise.all([
-            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&temperature_unit=fahrenheit`).then(r => r.json()),
-            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`).then(r => r.json()),
-          ]);
-          const code = meteo?.current?.weathercode ?? 0;
-          const temp = Math.round(meteo?.current?.temperature_2m ?? 0);
-          const city = geo?.address?.city || geo?.address?.town || geo?.address?.suburb || "";
-          setWeather({ temp, city, ...( WEATHER_CODES[code] ?? { desc: "Clear", icon: "☀️" }) });
-        } catch {}
-      });
-    }
+    // Weather for Saginaw, MI (hardcoded)
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=43.4195&longitude=-83.9508&current=temperature_2m,weathercode&temperature_unit=fahrenheit")
+      .then(r => r.json())
+      .then(meteo => {
+        const code = meteo?.current?.weathercode ?? 0;
+        const temp = Math.round(meteo?.current?.temperature_2m ?? 0);
+        setWeather({ temp, city: "Saginaw, MI", ...( WEATHER_CODES[code] ?? { desc: "Clear", icon: "☀️" }) });
+      })
+      .catch(() => {});
   }, []);
 
   const openBids = bids.filter(b => !["won", "lost", "archived"].includes((b.status ?? "").toLowerCase()));
