@@ -2696,7 +2696,7 @@ async function addLabor() {
                     <div className="col-span-2 text-center text-xs">
                       {row.material_id ? (
                         <select
-                          className="border rounded w-full text-xs px-1 h-8"
+                          className={`border rounded w-full text-xs px-1 h-8 ${!row.source_type || row.source_type === "template" ? "border-amber-400 bg-amber-50 text-amber-700 font-semibold" : ""}`}
                           value=""
                           onFocus={() => ensureMatSources(row.material_id!)}
                           onChange={async (e) => {
@@ -2739,7 +2739,7 @@ async function addLabor() {
                           }}
                         >
                           <option value="" disabled>
-                            {row.source_type && row.source_type !== "bundle" ? row.source_type : "Select source…"}
+                            {!row.source_type || row.source_type === "template" ? "⚠ Select source" : row.source_type}
                           </option>
                           {(matSourcesCache[row.material_id] || []).map((s, i) => (
                             <option key={i} value={i}>
