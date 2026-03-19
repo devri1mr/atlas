@@ -1646,18 +1646,6 @@ async function addLabor() {
   </div>
   <div className="p-5 space-y-4">
 
-  {/* Single header row */}
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
-    <div className="text-center">Show</div>
-    <div className="text-center">Task</div>
-    <div className="text-center">Details</div>
-    <div className="text-center">Qty</div>
-    <div className="text-center">Unit</div>
-    <div className="text-right">Hrs</div>
-    <div className="text-right">Total</div>
-    <div className="text-center">Action</div>
-  </div>
-
   {/* Add row */}
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center px-2">
     <div />
@@ -1730,7 +1718,7 @@ async function addLabor() {
 
     <div>
       <input
-        className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
+        className="border rounded w-full h-9 px-3 text-center"
         type="number"
         placeholder=""
         value={hours === 0 ? "" : hours}
@@ -1742,13 +1730,13 @@ async function addLabor() {
       <button
         type="button"
         onClick={() => setSaveToCatalog((v) => !v)}
-        className={`text-[11px] px-2 py-1 rounded-full border font-semibold transition-colors whitespace-nowrap ${
+        className={`text-[10px] px-2 py-1 rounded-full border font-semibold transition-colors whitespace-nowrap leading-tight ${
           saveToCatalog
             ? "bg-emerald-50 border-emerald-500 text-emerald-700"
             : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500"
         }`}
       >
-        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Catalog" : "Catalog"}
+        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Save to Catalog" : "Save to Catalog"}
       </button>
     </div>
 
@@ -1761,6 +1749,19 @@ async function addLabor() {
       </button>
     </div>
   </div>
+
+  {labor.length > 0 && (
+    <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 pt-2 border-t">
+      <div className="text-center">Show</div>
+      <div className="text-center">Task</div>
+      <div className="text-center">Details</div>
+      <div className="text-center">Qty</div>
+      <div className="text-center">Unit</div>
+      <div className="text-right">Hrs</div>
+      <div className="text-right">Total</div>
+      <div className="text-center">Action</div>
+    </div>
+  )}
 
   {labor.length === 0 ? (
   <div className="text-gray-400 text-sm py-4 border rounded px-3">
