@@ -294,19 +294,22 @@ function MaterialDrawer({
                 <div>
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-0.5">Inventory</div>
                   {material.in_inventory ? (
-                    <div className="text-sm text-emerald-700 font-medium">✓ This item is in your inventory</div>
+                    <div className="text-sm text-emerald-700 font-medium">✓ Registered — add receipts on the Inventory page</div>
                   ) : (
-                    <div className="text-sm text-gray-500">Not yet added to inventory</div>
+                    <div className="text-sm text-gray-500">Register to enable receipt tracking</div>
                   )}
                 </div>
                 {!material.in_inventory && onAddToInventory && (
-                  <button
-                    onClick={onAddToInventory}
-                    disabled={addingToInventory}
-                    className={btnSuccess}
-                  >
-                    {addingToInventory ? "Adding…" : "+ Add to Inventory"}
-                  </button>
+                  <div className="text-right">
+                    <button
+                      onClick={onAddToInventory}
+                      disabled={addingToInventory}
+                      className={btnSuccess}
+                    >
+                      {addingToInventory ? "Registering…" : "Register for Inventory"}
+                    </button>
+                    <div className="text-[10px] text-gray-400 mt-1">Enables receipts on inventory page</div>
+                  </div>
                 )}
               </div>
             </div>
