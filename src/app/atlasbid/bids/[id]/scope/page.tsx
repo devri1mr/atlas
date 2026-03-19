@@ -41,7 +41,6 @@ type LaborRow = {
   bundle_run_id?: string | null;
   difficulty_level?: number | null;
   task_catalog?: {
-    difficulty_multiplier?: number | null;
     spring_multiplier?: number | null;
     summer_multiplier?: number | null;
     fall_multiplier?: number | null;
@@ -71,7 +70,6 @@ type TaskCatalogRow = {
   default_qty?: number | null;
   client_facing_template?: string | null;
   notes?: string | null;
-  difficulty_multiplier?: number | null;
   spring_multiplier?: number | null;
   summer_multiplier?: number | null;
   fall_multiplier?: number | null;
@@ -176,12 +174,11 @@ function hoursFromMinutesPerUnit(minutesPerUnit: number, qty: number) {
 
 const DIFFICULTY_LABELS = ["Standard", "Low", "Moderate", "High", "Very High", "Extreme"];
 
+// Fixed scale: L1=1.10×, L2=1.20×, L3=1.30×, L4=1.40×, L5=1.50×
 function getDifficultyMultiplier(row: LaborRow): number {
   const level = Number(row.difficulty_level) || 0;
   if (level === 0) return 1;
-  const max = Number(row.task_catalog?.difficulty_multiplier) || 1;
-  if (max <= 1) return 1;
-  return 1 + (level / 5) * (max - 1);
+  return 1 + level * 0.1;
 }
 
 function getSeasonMultiplier(row: LaborRow, season: string): number {
@@ -2049,7 +2046,6 @@ async function addLabor() {
         const row = g.row;
         const rowEffectiveHrs = effectiveHours(row, season);
         const rowTotal = rowEffectiveHrs * (Number(row.hourly_rate) || 0);
-        const hasDiffMult = !!(row.task_catalog?.difficulty_multiplier && Number(row.task_catalog.difficulty_multiplier) > 1);
         return (
           <div
             key={row.id}
@@ -2174,28 +2170,26 @@ async function addLabor() {
               />
             </div>
             <div className="flex justify-center">
-              {hasDiffMult ? (
-                <select
-                  title="Difficulty level"
-                  value={row.difficulty_level ?? 0}
-                  className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
-                  onChange={async (e) => {
-                    const level = Number(e.target.value);
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ difficulty_level: level }),
-                    });
-                    setLabor((prev) =>
-                      prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
-                    );
-                  }}
-                >
-                  {DIFFICULTY_LABELS.map((label, i) => (
-                    <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
-                  ))}
-                </select>
-              ) : <div />}
+              <select
+                title="Difficulty level"
+                value={row.difficulty_level ?? 0}
+                className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
+                onChange={async (e) => {
+                  const level = Number(e.target.value);
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ difficulty_level: level }),
+                  });
+                  setLabor((prev) =>
+                    prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
+                  );
+                }}
+              >
+                {DIFFICULTY_LABELS.map((label, i) => (
+                  <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
+                ))}
+              </select>
             </div>
             <div className="text-right font-medium tabular-nums text-sm">
               {money(rowTotal)}
@@ -2260,7 +2254,6 @@ async function addLabor() {
             {g.rows.map((row) => {
               const bundleRowEffHrs = effectiveHours(row, season);
               const rowTotal = bundleRowEffHrs * (Number(row.hourly_rate) || 0);
-              const rowHasDiffMult = !!(row.task_catalog?.difficulty_multiplier && Number(row.task_catalog.difficulty_multiplier) > 1);
               return (
                 <div
                   key={row.id}
@@ -2385,28 +2378,26 @@ async function addLabor() {
                     />
                   </div>
                   <div className="flex justify-center">
-                    {rowHasDiffMult ? (
-                      <select
-                        title="Difficulty level"
-                        value={row.difficulty_level ?? 0}
-                        className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
-                        onChange={async (e) => {
-                          const level = Number(e.target.value);
-                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ difficulty_level: level }),
-                          });
-                          setLabor((prev) =>
-                            prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
-                          );
-                        }}
-                      >
-                        {DIFFICULTY_LABELS.map((label, i) => (
-                          <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
-                        ))}
-                      </select>
-                    ) : <div />}
+                    <select
+                      title="Difficulty level"
+                      value={row.difficulty_level ?? 0}
+                      className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
+                      onChange={async (e) => {
+                        const level = Number(e.target.value);
+                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ difficulty_level: level }),
+                        });
+                        setLabor((prev) =>
+                          prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
+                        );
+                      }}
+                    >
+                      {DIFFICULTY_LABELS.map((label, i) => (
+                        <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="text-right font-medium tabular-nums text-sm">
                     {money(rowTotal)}

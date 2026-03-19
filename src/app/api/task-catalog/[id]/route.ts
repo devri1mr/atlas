@@ -41,7 +41,6 @@ export async function PATCH(
     "client_facing_template",
     "notes",
     "active",
-    "difficulty_multiplier",
     "spring_multiplier",
     "summer_multiplier",
     "fall_multiplier",

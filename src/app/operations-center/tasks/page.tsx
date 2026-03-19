@@ -23,7 +23,6 @@ type Task = {
   default_qty: number | null;
   client_facing_template: string | null;
   notes: string | null;
-  difficulty_multiplier: number | null;
   spring_multiplier: number | null;
   summer_multiplier: number | null;
   fall_multiplier: number | null;
@@ -74,7 +73,6 @@ export default function TaskCatalogPage() {
   const [fDefaultQty, setFDefaultQty] = useState(""); // default qty when added to bid
   const [fTemplate, setFTemplate] = useState("");
   const [fNotes, setFNotes] = useState("");
-  const [fDifficultyMultiplier, setFDifficultyMultiplier] = useState("");
   const [fSpringMultiplier, setFSpringMultiplier] = useState("");
   const [fSummerMultiplier, setFSummerMultiplier] = useState("");
   const [fFallMultiplier, setFFallMultiplier] = useState("");
@@ -141,7 +139,7 @@ export default function TaskCatalogPage() {
 
   function resetForm() {
     setFName(""); setFUnit(""); setFRateUnits(""); setFRateHours(""); setFDefaultQty(""); setFTemplate(""); setFNotes("");
-    setFDifficultyMultiplier(""); setFSpringMultiplier(""); setFSummerMultiplier(""); setFFallMultiplier(""); setFWinterMultiplier("");
+    setFSpringMultiplier(""); setFSummerMultiplier(""); setFFallMultiplier(""); setFWinterMultiplier("");
     setMatSearch(""); setMatResults([]); setSelectedMat(null); setMatQty(""); setMatUnit("");
   }
 
@@ -161,7 +159,6 @@ export default function TaskCatalogPage() {
     setFDefaultQty(task.default_qty != null ? String(task.default_qty) : "");
     setFTemplate(task.client_facing_template ?? "");
     setFNotes(task.notes ?? "");
-    setFDifficultyMultiplier(task.difficulty_multiplier != null ? String(task.difficulty_multiplier) : "");
     setFSpringMultiplier(task.spring_multiplier != null ? String(task.spring_multiplier) : "");
     setFSummerMultiplier(task.summer_multiplier != null ? String(task.summer_multiplier) : "");
     setFFallMultiplier(task.fall_multiplier != null ? String(task.fall_multiplier) : "");
@@ -190,7 +187,6 @@ export default function TaskCatalogPage() {
         default_qty: fDefaultQty ? Number(fDefaultQty) : null,
         client_facing_template: fTemplate.trim() || null,
         notes: fNotes.trim() || null,
-        difficulty_multiplier: fDifficultyMultiplier ? Number(fDifficultyMultiplier) : null,
         spring_multiplier: fSpringMultiplier ? Number(fSpringMultiplier) : null,
         summer_multiplier: fSummerMultiplier ? Number(fSummerMultiplier) : null,
         fall_multiplier: fFallMultiplier ? Number(fFallMultiplier) : null,
@@ -341,7 +337,6 @@ export default function TaskCatalogPage() {
                   <div className="text-xs text-gray-400 mt-0.5 flex gap-3 flex-wrap">
                     {t.unit && <span>{t.unit}</span>}
                     {t.minutes_per_unit != null && <span>{minToHrs(t.minutes_per_unit)} hrs/{t.unit || "unit"}</span>}
-                    {t.difficulty_multiplier != null && t.difficulty_multiplier > 1 && <span className="text-amber-500">⚡ {t.difficulty_multiplier}× max</span>}
                     {t.spring_multiplier != null && t.spring_multiplier > 1 && <span className="text-green-500">🌱{t.spring_multiplier}×</span>}
                     {t.summer_multiplier != null && t.summer_multiplier > 1 && <span className="text-yellow-500">☀️{t.summer_multiplier}×</span>}
                     {t.fall_multiplier != null && t.fall_multiplier > 1 && <span className="text-orange-500">🍂{t.fall_multiplier}×</span>}
@@ -425,36 +420,6 @@ export default function TaskCatalogPage() {
                     <span className="font-bold text-[#123b1f]">⏱ {(hrsPerUnit * Number(fDefaultQty)).toFixed(2)} hrs for {fDefaultQty} {fUnit || "units"}</span>
                   </div>
                 )}
-
-                {/* Difficulty multiplier */}
-                <div>
-                  <label className={labelCls}>
-                    Extreme Difficulty Multiplier
-                    <span className="ml-1 text-gray-500 font-normal normal-case tracking-normal text-xs">applied at level 5 — site conditions, access, equipment</span>
-                  </label>
-                  <div className="space-y-2">
-                    <select
-                      className={inputCls}
-                      value={fDifficultyMultiplier}
-                      onChange={(e) => setFDifficultyMultiplier(e.target.value)}
-                    >
-                      <option value="">No difficulty scaling</option>
-                      <option value="1.1">Low (1.10× at L5)</option>
-                      <option value="1.25">Moderate (1.25× at L5)</option>
-                      <option value="1.5">High (1.50× at L5)</option>
-                      <option value="1.75">Very High (1.75× at L5)</option>
-                      <option value="2">Extreme (2.00× at L5)</option>
-                    </select>
-                    {fDifficultyMultiplier && Number(fDifficultyMultiplier) > 1 && (
-                      <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
-                        {[1,2,3,4,5].map((lvl) => {
-                          const m = 1 + (lvl / 5) * (Number(fDifficultyMultiplier) - 1);
-                          return <span key={lvl} className="bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">L{lvl}: {m.toFixed(2)}×</span>;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
 
                 {/* Seasonal difficulty ranking */}
                 <div>

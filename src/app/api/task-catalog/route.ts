@@ -61,7 +61,6 @@ export async function GET(req: NextRequest) {
     notes,
     min_qty,
     round_qty_to,
-    difficulty_multiplier,
     spring_multiplier,
     summer_multiplier,
     fall_multiplier,
