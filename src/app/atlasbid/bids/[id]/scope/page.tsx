@@ -1880,6 +1880,7 @@ async function addLabor() {
   </div>
 
   {/* Add row */}
+  <div className="space-y-2">
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 items-center px-2">
     <div />
 
@@ -1995,48 +1996,6 @@ async function addLabor() {
           </option>
         ))}
       </select>
-      {unit === "yd" && (
-        <div className="mt-1.5 flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-          <input
-            className="w-16 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-center"
-            type="number"
-            placeholder="sq ft"
-            value={calcSqft}
-            onChange={(e) => {
-              setCalcSqft(e.target.value);
-              const sqft = Number(e.target.value);
-              const depth = Number(calcDepth) || 3;
-              if (sqft > 0) {
-                const yds = Math.ceil((sqft * depth) / 324);
-                setQuantity(yds);
-                if (selectedTaskMinutesPerUnit && yds > 0) {
-                  setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
-                }
-              }
-            }}
-          />
-          <span className="text-xs text-gray-400">sq ft @</span>
-          <input
-            className="w-12 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-center"
-            type="number"
-            placeholder="in"
-            value={calcDepth}
-            onChange={(e) => {
-              setCalcDepth(e.target.value);
-              const sqft = Number(calcSqft);
-              const depth = Number(e.target.value) || 3;
-              if (sqft > 0) {
-                const yds = Math.ceil((sqft * depth) / 324);
-                setQuantity(yds);
-                if (selectedTaskMinutesPerUnit && yds > 0) {
-                  setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
-                }
-              }
-            }}
-          />
-          <span className="text-xs text-gray-400">in</span>
-        </div>
-      )}
     </div>
 
     <div>
@@ -2073,6 +2032,54 @@ async function addLabor() {
         Add
       </button>
     </div>
+  </div>
+
+  {unit === "yd" && (
+    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 ml-2">
+      <span className="text-xs font-semibold text-amber-700">Yd calc:</span>
+      <input
+        className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-center"
+        type="number"
+        placeholder="sq ft"
+        value={calcSqft}
+        onChange={(e) => {
+          setCalcSqft(e.target.value);
+          const sqft = Number(e.target.value);
+          const depth = Number(calcDepth) || 3;
+          if (sqft > 0) {
+            const yds = Math.ceil((sqft * depth) / 324);
+            setQuantity(yds);
+            if (selectedTaskMinutesPerUnit && yds > 0) {
+              setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
+            }
+          }
+        }}
+      />
+      <span className="text-xs text-gray-500">sq ft @</span>
+      <input
+        className="w-14 border border-gray-200 rounded px-2 py-1 text-xs text-center"
+        type="number"
+        placeholder="in"
+        value={calcDepth}
+        onChange={(e) => {
+          setCalcDepth(e.target.value);
+          const sqft = Number(calcSqft);
+          const depth = Number(e.target.value) || 3;
+          if (sqft > 0) {
+            const yds = Math.ceil((sqft * depth) / 324);
+            setQuantity(yds);
+            if (selectedTaskMinutesPerUnit && yds > 0) {
+              setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
+            }
+          }
+        }}
+      />
+      <span className="text-xs text-gray-500">in deep</span>
+      {calcSqft && Number(calcSqft) > 0 && (
+        <span className="text-xs font-semibold text-amber-800 ml-1">= {Math.ceil((Number(calcSqft) * (Number(calcDepth) || 3)) / 324)} yds</span>
+      )}
+    </div>
+  )}
   </div>
 
   {labor.length > 0 && (
