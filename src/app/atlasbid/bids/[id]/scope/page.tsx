@@ -1660,15 +1660,7 @@ async function addLabor() {
 
   {/* Add row */}
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center px-2">
-    <div className="flex justify-center">
-      <label className="flex items-center justify-center">
-        <input
-          type="checkbox"
-          checked={saveToCatalog}
-          onChange={(e) => setSaveToCatalog(e.target.checked)}
-        />
-      </label>
-    </div>
+    <div />
 
     <div ref={taskDropdownRef}>
       <div className="relative">
@@ -1746,7 +1738,19 @@ async function addLabor() {
       />
     </div>
 
-    <div className="text-right text-sm text-gray-400 tabular-nums">—</div>
+    <div className="flex justify-center">
+      <button
+        type="button"
+        onClick={() => setSaveToCatalog((v) => !v)}
+        className={`text-[11px] px-2 py-1 rounded-full border font-semibold transition-colors whitespace-nowrap ${
+          saveToCatalog
+            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
+            : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500"
+        }`}
+      >
+        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Catalog" : "Catalog"}
+      </button>
+    </div>
 
     <div className="text-right">
       <button
@@ -1756,22 +1760,6 @@ async function addLabor() {
         Add
       </button>
     </div>
-  </div>
-
-  {/* Save to Catalog helper row */}
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center -mt-1 px-2">
-    <div></div>
-    <div className="text-xs text-gray-600">
-      Save to Catalog
-    </div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div className="text-right text-[11px] text-gray-500">
-      {savingToCatalog ? "Saving…" : saveToCatalogMsg || ""}
-    </div>
-    <div></div>
   </div>
 
   {labor.length === 0 ? (
