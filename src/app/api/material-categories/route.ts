@@ -1,54 +1,49 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function supabaseAdmin() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error(
-      "Missing Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
-    );
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
+function slugify(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 60);
 }
 
 export async function GET() {
-  try {
-    const supabase = supabaseAdmin();
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
+    .from("material_categories")
+    .select("id, name, slug, parent_id, sort_order, is_active, color, icon, created_at")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ data: data ?? [] });
+}
 
-    const { data, error } = await supabase
-      .from("material_categories")
-      .select(
-        `
-        id,
-        name,
-        slug,
-        parent_id,
-        sort_order,
-        is_active,
-        created_at
-        `
-      )
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
+export async function POST(req: NextRequest) {
+  const supabase = supabaseAdmin();
+  const body = await req.json().catch(() => ({}));
+  const name = String(body.name ?? "").trim();
+  if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+  // Get company_id from bids table
+  const { data: co } = await supabase.from("bids").select("company_id").not("company_id", "is", null).limit(1).maybeSingle();
+  const company_id = co?.company_id ?? null;
 
-    return NextResponse.json({ data: data ?? [] }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || "Unknown error" },
-      { status: 500 }
-    );
-  }
+  const slug = slugify(name);
+  const { data, error } = await supabase
+    .from("material_categories")
+    .insert({
+      name,
+      slug,
+      parent_id: body.parent_id || null,
+      sort_order: Number(body.sort_order) || 0,
+      color: body.color || null,
+      icon: body.icon || null,
+      is_active: true,
+      company_id,
+    })
+    .select("id, name, slug, parent_id, sort_order, is_active, color, icon, created_at")
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ data }, { status: 201 });
 }

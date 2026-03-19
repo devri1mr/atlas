@@ -42,7 +42,7 @@ const sections = [
     title: "Materials Catalog",
     description:
       "Manage materials, units, default costs, vendors, and inventory links.",
-    href: "/atlasbid/materials",
+    href: "/operations-center/materials-catalog",
     status: "Later",
   },
   {
