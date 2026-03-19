@@ -69,8 +69,9 @@ export default function TaskCatalogPage() {
   // Task form
   const [fName, setFName] = useState("");
   const [fUnit, setFUnit] = useState("");
-  const [fHrsPerUnit, setFHrsPerUnit] = useState("");
-  const [fDefaultQty, setFDefaultQty] = useState("");
+  const [fRateUnits, setFRateUnits] = useState("");   // "X units..."
+  const [fRateHours, setFRateHours] = useState("");   // "...in Y hours"
+  const [fDefaultQty, setFDefaultQty] = useState(""); // default qty when added to bid
   const [fTemplate, setFTemplate] = useState("");
   const [fNotes, setFNotes] = useState("");
   const [fDifficultyMultiplier, setFDifficultyMultiplier] = useState("");
@@ -139,7 +140,7 @@ export default function TaskCatalogPage() {
   }
 
   function resetForm() {
-    setFName(""); setFUnit(""); setFHrsPerUnit(""); setFDefaultQty(""); setFTemplate(""); setFNotes("");
+    setFName(""); setFUnit(""); setFRateUnits(""); setFRateHours(""); setFDefaultQty(""); setFTemplate(""); setFNotes("");
     setFDifficultyMultiplier(""); setFSpringMultiplier(""); setFSummerMultiplier(""); setFFallMultiplier(""); setFWinterMultiplier("");
     setMatSearch(""); setMatResults([]); setSelectedMat(null); setMatQty(""); setMatUnit("");
   }
@@ -155,7 +156,8 @@ export default function TaskCatalogPage() {
     setEditingTask(task);
     setFName(task.name);
     setFUnit(task.unit ?? "");
-    setFHrsPerUnit(minToHrs(task.minutes_per_unit));
+    setFRateUnits("1");
+    setFRateHours(minToHrs(task.minutes_per_unit));
     setFDefaultQty(task.default_qty != null ? String(task.default_qty) : "");
     setFTemplate(task.client_facing_template ?? "");
     setFNotes(task.notes ?? "");
@@ -182,7 +184,9 @@ export default function TaskCatalogPage() {
         division_id: divisionId,
         name: fName.trim(),
         unit: fUnit.trim() || null,
-        minutes_per_unit: hrsToMin(fHrsPerUnit),
+        minutes_per_unit: fRateUnits && fRateHours && Number(fRateUnits) > 0
+          ? Math.round((Number(fRateHours) / Number(fRateUnits)) * 60 * 1000) / 1000
+          : null,
         default_qty: fDefaultQty ? Number(fDefaultQty) : null,
         client_facing_template: fTemplate.trim() || null,
         notes: fNotes.trim() || null,
@@ -267,8 +271,11 @@ export default function TaskCatalogPage() {
   }
 
   const previewN = Number(previewQty) || 0;
-  const previewHrs = fHrsPerUnit && previewN
-    ? `${(previewN * (Number(fHrsPerUnit) || 0)).toFixed(2)} hrs labor`
+  const hrsPerUnit = fRateUnits && fRateHours && Number(fRateUnits) > 0
+    ? Number(fRateHours) / Number(fRateUnits)
+    : null;
+  const previewHrs = hrsPerUnit && previewN
+    ? `${(previewN * hrsPerUnit).toFixed(2)} hrs labor`
     : null;
   const previewMats = taskMaterials.map((m) => ({
     name: matDisplayName(m),
@@ -368,35 +375,54 @@ export default function TaskCatalogPage() {
                   </select>
                 </div>
 
-                {/* Hrs/unit and Default Qty — always visible separate cells */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                    <label className={labelCls}># of {fUnit || "Units"} (Default Qty)</label>
-                    <input
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
-                      type="number" step="1" min="0"
-                      value={fDefaultQty}
-                      onChange={(e) => setFDefaultQty(e.target.value)}
-                      placeholder="e.g. 15"
-                    />
+                {/* Task rate: "X units in Y hrs" + Default Qty */}
+                <div>
+                  <label className={labelCls}>Task Rate</label>
+                  <p className="text-xs text-gray-500 mb-2">How many {fUnit || "units"} can the crew complete in how many hours?</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1"># of {fUnit || "Units"}</label>
+                      <input
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
+                        type="number" step="1" min="0.01"
+                        value={fRateUnits}
+                        onChange={(e) => setFRateUnits(e.target.value)}
+                        placeholder="e.g. 10"
+                      />
+                    </div>
+                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1"># of Hrs</label>
+                      <input
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
+                        type="number" step="0.25" min="0"
+                        value={fRateHours}
+                        onChange={(e) => setFRateHours(e.target.value)}
+                        placeholder="e.g. 2.5"
+                      />
+                    </div>
+                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Default Qty</label>
+                      <input
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
+                        type="number" step="1" min="0"
+                        value={fDefaultQty}
+                        onChange={(e) => setFDefaultQty(e.target.value)}
+                        placeholder="e.g. 15"
+                      />
+                    </div>
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                    <label className={labelCls}>Hrs / {fUnit || "Unit"}</label>
-                    <input
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
-                      type="number" step="0.01" min="0"
-                      value={fHrsPerUnit}
-                      onChange={(e) => setFHrsPerUnit(e.target.value)}
-                      placeholder="e.g. 0.25"
-                    />
-                  </div>
+                  {fRateUnits && fRateHours && Number(fRateUnits) > 0 && (
+                    <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-1.5">
+                      Rate: {(Number(fRateHours) / Number(fRateUnits)).toFixed(4)} hrs/{fUnit || "unit"} &nbsp;·&nbsp; {((Number(fRateHours) / Number(fRateUnits)) * 60).toFixed(1)} min/{fUnit || "unit"}
+                    </div>
+                  )}
                 </div>
 
                 {/* Computed default estimate */}
-                {fHrsPerUnit && fDefaultQty && (
+                {hrsPerUnit && fDefaultQty && (
                   <div className="bg-[#eef6f0] rounded-lg px-4 py-2.5 flex items-center justify-between">
                     <span className="text-sm text-[#123b1f]">Default estimate:</span>
-                    <span className="font-bold text-[#123b1f]">⏱ {(Number(fHrsPerUnit) * Number(fDefaultQty)).toFixed(2)} hrs for {fDefaultQty} {fUnit || "units"}</span>
+                    <span className="font-bold text-[#123b1f]">⏱ {(hrsPerUnit * Number(fDefaultQty)).toFixed(2)} hrs for {fDefaultQty} {fUnit || "units"}</span>
                   </div>
                 )}
 
@@ -404,10 +430,21 @@ export default function TaskCatalogPage() {
                 <div>
                   <label className={labelCls}>
                     Extreme Difficulty Multiplier
-                    <span className="ml-1 text-gray-300 font-normal normal-case tracking-normal text-xs">applied at level 5 — site conditions, access, equipment</span>
+                    <span className="ml-1 text-gray-500 font-normal normal-case tracking-normal text-xs">applied at level 5 — site conditions, access, equipment</span>
                   </label>
-                  <div className="flex items-center gap-3">
-                    <input className={`${inputCls} w-28`} type="number" step="0.05" min="1" value={fDifficultyMultiplier} onChange={(e) => setFDifficultyMultiplier(e.target.value)} placeholder="e.g. 1.5" />
+                  <div className="space-y-2">
+                    <select
+                      className={inputCls}
+                      value={fDifficultyMultiplier}
+                      onChange={(e) => setFDifficultyMultiplier(e.target.value)}
+                    >
+                      <option value="">No difficulty scaling</option>
+                      <option value="1.1">Low (1.10× at L5)</option>
+                      <option value="1.25">Moderate (1.25× at L5)</option>
+                      <option value="1.5">High (1.50× at L5)</option>
+                      <option value="1.75">Very High (1.75× at L5)</option>
+                      <option value="2">Extreme (2.00× at L5)</option>
+                    </select>
                     {fDifficultyMultiplier && Number(fDifficultyMultiplier) > 1 && (
                       <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
                         {[1,2,3,4,5].map((lvl) => {
@@ -423,7 +460,7 @@ export default function TaskCatalogPage() {
                 <div>
                   <label className={labelCls}>
                     Seasonal Difficulty Rating
-                    <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal text-xs">rank each season 1 (easiest) → 4 (hardest) · each rank used once</span>
+                    <span className="ml-2 text-gray-500 font-normal normal-case tracking-normal text-xs">rank each season 1 (easiest) → 4 (hardest) · each rank used once</span>
                   </label>
                   {(() => {
                     const TIER_MULTS: Record<string, number> = { "1": 1.0, "2": 1.15, "3": 1.30, "4": 1.50 };
@@ -480,7 +517,7 @@ export default function TaskCatalogPage() {
                 <div>
                   <label className={labelCls}>
                     Default Estimate Description
-                    <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal text-xs">
+                    <span className="ml-2 text-gray-500 font-normal normal-case tracking-normal text-xs">
                       use {"{qty}"}, {"{unit}"}, {"{material}"}
                     </span>
                   </label>
@@ -593,7 +630,7 @@ export default function TaskCatalogPage() {
               )}
 
               {/* Live preview */}
-              {(fHrsPerUnit || taskMaterials.length > 0) && panel === "edit" && (
+              {(hrsPerUnit || taskMaterials.length > 0) && panel === "edit" && (
                 <div className="border-t border-gray-100 pt-4">
                   <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Live Preview</div>
                   <div className="flex items-center gap-2 mb-3">
