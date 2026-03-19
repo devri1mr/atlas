@@ -166,6 +166,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const catalog_material_id = nullableText(body?.catalog_material_id);
+    if (catalog_material_id && !isUuid(catalog_material_id)) {
+      return NextResponse.json({ error: "catalog_material_id must be a uuid" }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("materials")
       .insert({
@@ -187,6 +192,7 @@ export async function POST(req: NextRequest) {
         unit_cost,
         category_id,
         is_active,
+        ...(catalog_material_id ? { catalog_material_id } : {}),
       })
       .select(
         `

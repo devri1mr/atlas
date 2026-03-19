@@ -30,6 +30,7 @@ type Material = {
 
 type Tab = "materials" | "categories";
 type DrawerMode = "add" | "edit";
+const btnSuccess = "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function buildTree(flat: Category[]): CategoryNode[] {
@@ -186,16 +187,18 @@ function CategoryMgmtRow({
 
 // ── Material Drawer ────────────────────────────────────────────────────────────
 function MaterialDrawer({
-  mode, material, categories, onSave, onDelete, onClose, saving, deleting,
+  mode, material, categories, onSave, onDelete, onAddToInventory, onClose, saving, deleting, addingToInventory,
 }: {
   mode: DrawerMode;
   material: Partial<Material>;
   categories: Category[];
   onSave: (data: Partial<Material>) => void;
   onDelete?: () => void;
+  onAddToInventory?: () => void;
   onClose: () => void;
   saving: boolean;
   deleting: boolean;
+  addingToInventory: boolean;
 }) {
   const [form, setForm] = useState<Partial<Material>>(material);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -283,6 +286,31 @@ function MaterialDrawer({
             </button>
             <span className="text-sm text-gray-600">{form.is_active !== false ? "Active" : "Inactive"}</span>
           </div>
+
+          {/* Inventory section — edit mode only */}
+          {mode === "edit" && (
+            <div className={`rounded-lg border px-4 py-3 mt-2 ${material.in_inventory ? "border-emerald-200 bg-emerald-50" : "border-gray-200 bg-gray-50"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-0.5">Inventory</div>
+                  {material.in_inventory ? (
+                    <div className="text-sm text-emerald-700 font-medium">✓ This item is in your inventory</div>
+                  ) : (
+                    <div className="text-sm text-gray-500">Not yet added to inventory</div>
+                  )}
+                </div>
+                {!material.in_inventory && onAddToInventory && (
+                  <button
+                    onClick={onAddToInventory}
+                    disabled={addingToInventory}
+                    className={btnSuccess}
+                  >
+                    {addingToInventory ? "Adding…" : "+ Add to Inventory"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between gap-3">
@@ -337,6 +365,7 @@ export default function MaterialsCatalogPage() {
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; material: Partial<Material> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [addingToInventory, setAddingToInventory] = useState(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   async function loadCategories() {
@@ -421,6 +450,31 @@ export default function MaterialsCatalogPage() {
     setAllMaterials(prev => prev.filter(m => m.id !== drawer.material.id));
     setDeleting(false);
     setDrawer(null);
+  }
+
+  async function handleAddToInventory() {
+    if (!drawer?.material.id) return;
+    setAddingToInventory(true);
+    const m = drawer.material;
+    const r = await fetch("/api/materials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: m.name,
+        display_name: m.name,
+        unit: m.default_unit,
+        unit_cost: m.default_unit_cost ?? null,
+        catalog_material_id: m.id,
+        is_active: true,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) { setMatError(j?.error || "Failed to add to inventory"); setAddingToInventory(false); return; }
+    // Update in_inventory flag locally
+    setMaterials(prev => prev.map(mat => mat.id === m.id ? { ...mat, in_inventory: true } : mat));
+    setAllMaterials(prev => prev.map(mat => mat.id === m.id ? { ...mat, in_inventory: true } : mat));
+    setDrawer(prev => prev ? { ...prev, material: { ...prev.material, in_inventory: true } } : null);
+    setAddingToInventory(false);
   }
 
   // ── Category CRUD (management tab) ────────────────────────────────────────
@@ -729,9 +783,11 @@ export default function MaterialsCatalogPage() {
           categories={categories}
           onSave={handleSave}
           onDelete={drawer.mode === "edit" ? handleDelete : undefined}
+          onAddToInventory={drawer.mode === "edit" && !drawer.material.in_inventory ? handleAddToInventory : undefined}
           onClose={() => setDrawer(null)}
           saving={saving}
           deleting={deleting}
+          addingToInventory={addingToInventory}
         />
       )}
     </div>
