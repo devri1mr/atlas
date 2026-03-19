@@ -1558,10 +1558,14 @@ async function addLabor() {
   const jobAddress = [bid.address, bid.city, bid.state].filter(Boolean).join(", ");
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-      {/* Header */}
-      <div className="text-center space-y-1 pb-2">
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Scope of Work</div>
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Scope of Work banner */}
+      <div className="-mx-6 -mt-6 px-8 py-4 bg-[#123b1f] text-center">
+        <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Scope of Work</div>
+      </div>
+
+      {/* Client info */}
+      <div className="text-center space-y-1 pt-2">
         <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
         {jobAddress && (
           <div className="text-sm text-gray-500">{jobAddress}</div>
