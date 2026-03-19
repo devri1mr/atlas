@@ -87,7 +87,7 @@ export default function Home() {
               alt="Atlas"
               width={500}
               height={500}
-              style={{ objectFit: "contain", maxHeight: "72%", maxWidth: "80%" }}
+              style={{ objectFit: "contain", maxHeight: "72%", maxWidth: "80%", mixBlendMode: "multiply" }}
               priority
             />
           </div>
