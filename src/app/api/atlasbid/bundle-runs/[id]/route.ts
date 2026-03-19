@@ -21,6 +21,41 @@ function toNumber(v: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// PATCH /api/atlasbid/bundle-runs/[id]
+// Updates display_name stored in answers_json._display_name
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = getSupabase();
+    const { id: runId } = await ctx.params;
+    if (!runId) return NextResponse.json({ error: "Missing run id" }, { status: 400 });
+
+    const body = await req.json().catch(() => ({}));
+    const displayName = String(body?.display_name ?? "").trim();
+
+    const { data: run } = await supabase
+      .from("scope_bundle_runs")
+      .select("answers_json")
+      .eq("id", runId)
+      .single();
+
+    const updated = { ...(run?.answers_json || {}), _display_name: displayName || null };
+
+    const { error } = await supabase
+      .from("scope_bundle_runs")
+      .update({ answers_json: updated })
+      .eq("id", runId);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Failed to update bundle run." }, { status: 500 });
+  }
+}
+
 // DELETE /api/atlasbid/bundle-runs/[id]
 // Removes all labor rows for the bundle run and subtracts their material
 // contributions from bid_materials, then deletes the run record itself.

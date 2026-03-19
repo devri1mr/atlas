@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const { data: runs, error: runsError } = await supabase
       .from("scope_bundle_runs")
-      .select("id, bundle_id")
+      .select("id, bundle_id, answers_json")
       .eq("bid_id", bidId);
 
     if (runsError) {
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const rows = (runs || []).map((r: any) => ({
       id: r.id,
       bundle_id: r.bundle_id,
-      bundle_name: bundleNameMap.get(r.bundle_id) || "Bundled Scope",
+      bundle_name: r.answers_json?._display_name || bundleNameMap.get(r.bundle_id) || "Bundled Scope",
     }));
 
     return NextResponse.json({ rows });

@@ -198,6 +198,10 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   const [mEditUnitCost, setMEditUnitCost] = useState<number>(0);
   // Cache of vendor/inventory sources keyed by material_id, loaded lazily on source cell focus
   const [matSourcesCache, setMatSourcesCache] = useState<Record<string, any[]>>({});
+  const [suggestingFor, setSuggestingFor] = useState<string | null>(null); // labor row id or "add"
+  const [suggestion, setSuggestion] = useState<string>("");
+  const [editingBundleNameId, setEditingBundleNameId] = useState<string | null>(null);
+  const [bundleNameDraft, setBundleNameDraft] = useState<string>("");
 
   // Inputs (labor)
   const [task, setTask] = useState("");
@@ -695,6 +699,36 @@ async function loadMaterialSources(materialId: string) {
     setSelectedSourceIndex(null);
   }
 }
+  async function suggestDescription(rowId: string, taskName: string, qty: number, unit: string) {
+    setSuggestingFor(rowId);
+    setSuggestion("");
+    try {
+      // Gather material names from the materials list for context
+      const matNames = materials.slice(0, 5).map((m) => m.name).filter(Boolean);
+      const res = await fetch("/api/suggest-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: taskName, qty, unit, materials: matNames }),
+      });
+      const json = await res.json();
+      if (json?.suggestion) setSuggestion(json.suggestion);
+    } catch {}
+    setSuggestingFor(null);
+  }
+
+  async function saveBundleName(runId: string, name: string) {
+    await fetch(`/api/atlasbid/bundle-runs/${runId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: name }),
+    });
+    setBundleRunsMeta((prev) =>
+      prev.map((r) => r.id === runId ? { ...r, bundle_name: name || r.bundle_name } : r)
+    );
+    setEditingBundleNameId(null);
+    setBundleNameDraft("");
+  }
+
   async function ensureMatSources(materialId: string) {
     if (!materialId || matSourcesCache[materialId]) return;
     const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
@@ -1044,22 +1078,43 @@ else if (Array.isArray(matJson?.data)) setMaterials(matJson.data);
   return groups;
 }, [labor, bundleRunNameMap]);
 function copyProposal() {
-  const scopeLines = proposalGroups.map((g) => {
-    if (g.type === "bundle") {
-      return `• ${g.name}`;
+  const lines: string[] = [];
+
+  // Bundle scopes
+  for (const g of laborGroups) {
+    if (g.type !== "bundle") continue;
+    const bundleTotal = g.rows.reduce(
+      (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0), 0
+    );
+    lines.push(`${g.name}  ${money(bundleTotal)}`);
+    for (const row of g.rows.filter((r) => r.show_as_line_item)) {
+      lines.push(`  • ${row.task}${row.proposal_text ? "\n    " + row.proposal_text : ""}`);
     }
-
-    return `• ${g.row.proposal_text || g.row.task}`;
-  });
-
-  let text = `Scope of Work
-${scopeLines.join("\n")}
-
-Project Price: ${money(sellRounded)}`;
-
-  if (prepayEnabled) {
-    text += `\nPrepay Price: ${money(sellWithPrepay)}`;
   }
+
+  // Checked standalone tasks
+  for (const g of laborGroups) {
+    if (g.type !== "row" || !g.row.show_as_line_item) continue;
+    const rowTotal = (Number(g.row.man_hours) || 0) * (Number(g.row.hourly_rate) || 0);
+    lines.push(`${g.row.task}  ${money(rowTotal)}${g.row.proposal_text ? "\n  " + g.row.proposal_text : ""}`);
+  }
+
+  // Unchecked standalone tasks grouped
+  const ungrouped = laborGroups.filter((g) => g.type === "row" && !g.row.show_as_line_item);
+  if (ungrouped.length > 0) {
+    const groupTotal = ungrouped.reduce((sum, g) => {
+      if (g.type !== "row") return sum;
+      return sum + (Number(g.row.man_hours) || 0) * (Number(g.row.hourly_rate) || 0);
+    }, 0);
+    lines.push(`General Labor  ${money(groupTotal)}`);
+    for (const g of ungrouped) {
+      if (g.type !== "row") continue;
+      lines.push(`  • ${g.row.task}`);
+    }
+  }
+
+  let text = `Scope of Work\n\n${lines.join("\n")}\n\nProject Price: ${money(sellRounded)}`;
+  if (prepayEnabled) text += `\nPrepay Price: ${money(sellWithPrepay)}`;
 
   navigator.clipboard.writeText(text);
 }
@@ -1501,6 +1556,11 @@ async function addLabor() {
     <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4 mb-2">
+          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-10 w-auto object-contain" />
+        </div>
+      </div>
+      <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Scope of Work</div>
           <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
@@ -1752,15 +1812,37 @@ async function addLabor() {
       </div>
     </div>
 
-    <div>
+    <div className="relative">
       <input
-        className="border rounded w-full h-9 px-3"
+        className="border rounded w-full h-9 px-3 pr-8"
         placeholder="Details"
         autoComplete="off"
         value={details}
         onFocus={() => setShowTaskResults(false)}
-        onChange={(e) => setDetails(e.target.value)}
+        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); }}
       />
+      {task.trim() && (
+        <button
+          type="button"
+          title="AI suggest description"
+          disabled={suggestingFor === "add"}
+          onClick={async () => {
+            await suggestDescription("add", task.trim(), quantity, unit);
+          }}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
+        >
+          {suggestingFor === "add" ? "…" : "✨"}
+        </button>
+      )}
+      {suggestion && suggestingFor === null && (
+        <div
+          className="absolute left-0 top-full mt-1 z-30 bg-white border rounded shadow-lg px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 w-full"
+          onClick={() => { setDetails(suggestion); setSuggestion(""); }}
+        >
+          <span className="text-gray-500 text-xs mr-1">✨</span>{suggestion}
+          <span className="text-gray-400 text-xs ml-2">(click to use)</span>
+        </div>
+      )}
     </div>
 
     <div>
@@ -1868,9 +1950,9 @@ async function addLabor() {
               />
             </div>
             <div className="font-medium leading-tight truncate text-center">{row.task}</div>
-            <div>
+            <div className="relative">
               <input
-                className="border rounded w-full h-9 px-3 text-sm"
+                className="border rounded w-full h-9 px-3 pr-8 text-sm"
                 autoComplete="off"
                 value={row.proposal_text ?? ""}
                 onChange={(e) => {
@@ -1887,6 +1969,15 @@ async function addLabor() {
                   });
                 }}
               />
+              <button
+                type="button"
+                title="AI suggest description"
+                disabled={suggestingFor === row.id}
+                onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
+              >
+                {suggestingFor === row.id ? "…" : "✨"}
+              </button>
             </div>
             <div>
               <input
@@ -1961,7 +2052,33 @@ async function addLabor() {
       return (
         <div key={g.runId} className="border rounded overflow-hidden">
           <div className="flex items-center justify-between bg-gray-50 px-3 py-2 border-b">
-            <span className="text-sm font-semibold text-gray-700">{g.name}</span>
+            <div className="flex items-center gap-2">
+              {editingBundleNameId === g.runId ? (
+                <input
+                  autoFocus
+                  className="border rounded px-2 h-7 text-sm font-semibold text-gray-700 w-48"
+                  value={bundleNameDraft}
+                  onChange={(e) => setBundleNameDraft(e.target.value)}
+                  onBlur={() => saveBundleName(g.runId, bundleNameDraft || g.name)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveBundleName(g.runId, bundleNameDraft || g.name);
+                    if (e.key === "Escape") { setEditingBundleNameId(null); setBundleNameDraft(""); }
+                  }}
+                />
+              ) : (
+                <>
+                  <span className="text-sm font-semibold text-gray-700">{g.name}</span>
+                  <button
+                    type="button"
+                    title="Edit scope name"
+                    onClick={() => { setEditingBundleNameId(g.runId); setBundleNameDraft(g.name); }}
+                    className="text-gray-400 hover:text-gray-600 text-xs"
+                  >
+                    ✏️
+                  </button>
+                </>
+              )}
+            </div>
             <div className="flex items-center gap-4">
               <span className="text-sm tabular-nums text-gray-600">
                 {money(bundleTotal)}
@@ -2001,9 +2118,9 @@ async function addLabor() {
                     />
                   </div>
                   <div className="font-medium leading-tight truncate text-center">{row.task}</div>
-                  <div>
+                  <div className="relative">
                     <input
-                      className="border rounded w-full h-9 px-3 text-sm"
+                      className="border rounded w-full h-9 px-3 pr-8 text-sm"
                       autoComplete="off"
                       value={row.proposal_text ?? ""}
                       onChange={(e) => {
@@ -2020,6 +2137,15 @@ async function addLabor() {
                         });
                       }}
                     />
+                    <button
+                      type="button"
+                      title="AI suggest description"
+                      disabled={suggestingFor === row.id}
+                      onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
+                    >
+                      {suggestingFor === row.id ? "…" : "✨"}
+                    </button>
                   </div>
                   <div>
                     <input
@@ -2578,29 +2704,112 @@ async function addLabor() {
                 Copy Proposal
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 text-sm">
 
-            {/* Scope Lines */}
-            <div className="space-y-1 text-sm">
               {labor.length === 0 ? (
                 <div className="text-gray-500">No scope items yet.</div>
               ) : (
-                labor.map((row) => (
-                  <div key={row.id}>• {row.proposal_text || row.task}</div>
-                ))
-              )}
-            </div>
+                <div className="space-y-4">
+                  {/* Bundle scopes */}
+                  {laborGroups.filter((g) => g.type === "bundle").map((g) => {
+                    if (g.type !== "bundle") return null;
+                    const bundleTotal = g.rows.reduce(
+                      (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+                      0
+                    );
+                    const visibleRows = g.rows.filter((r) => r.show_as_line_item);
+                    return (
+                      <div key={g.runId} className="border rounded-lg overflow-hidden">
+                        <div className="flex justify-between items-center bg-gray-50 px-4 py-2 border-b">
+                          <span className="font-bold text-gray-900">{g.name}</span>
+                          <span className="font-semibold tabular-nums">{money(bundleTotal)}</span>
+                        </div>
+                        {visibleRows.length > 0 && (
+                          <div className="px-4 py-2 space-y-1.5">
+                            {visibleRows.map((row) => (
+                              <div key={row.id} className="pl-2">
+                                <div className="font-medium text-gray-800">• {row.task}</div>
+                                {row.proposal_text && (
+                                  <div className="pl-4 text-xs text-gray-500 italic mt-0.5">{row.proposal_text}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
 
-            {/* Pricing */}
-            <div className="pt-4 border-t text-lg font-semibold space-y-1">
-              <div>Project Price: {money(sellRounded)}</div>
+                  {/* Checked standalone tasks — each as own line */}
+                  {laborGroups
+                    .filter((g) => g.type === "row" && g.row.show_as_line_item)
+                    .map((g) => {
+                      if (g.type !== "row") return null;
+                      const rowTotal = (Number(g.row.man_hours) || 0) * (Number(g.row.hourly_rate) || 0);
+                      return (
+                        <div key={g.row.id} className="border rounded-lg overflow-hidden">
+                          <div className="flex justify-between items-center px-4 py-2">
+                            <div>
+                              <div className="font-bold text-gray-900">{g.row.task}</div>
+                              {g.row.proposal_text && (
+                                <div className="text-xs text-gray-500 italic mt-0.5">{g.row.proposal_text}</div>
+                              )}
+                            </div>
+                            <span className="font-semibold tabular-nums ml-4">{money(rowTotal)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
 
-              {prepayEnabled && (
-                <div className="text-green-700">
-                  Prepay Price: {money(sellWithPrepay)}
+                  {/* Unchecked standalone tasks — grouped under General Labor */}
+                  {(() => {
+                    const ungrouped = laborGroups.filter(
+                      (g) => g.type === "row" && !g.row.show_as_line_item
+                    );
+                    if (ungrouped.length === 0) return null;
+                    const groupTotal = ungrouped.reduce((sum, g) => {
+                      if (g.type !== "row") return sum;
+                      return sum + (Number(g.row.man_hours) || 0) * (Number(g.row.hourly_rate) || 0);
+                    }, 0);
+                    return (
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="flex justify-between items-center bg-gray-50 px-4 py-2 border-b">
+                          <span className="font-bold text-gray-900">General Labor</span>
+                          <span className="font-semibold tabular-nums">{money(groupTotal)}</span>
+                        </div>
+                        <div className="px-4 py-2 space-y-1">
+                          {ungrouped.map((g) => {
+                            if (g.type !== "row") return null;
+                            return (
+                              <div key={g.row.id} className="pl-2">
+                                <div className="text-gray-700">• {g.row.task}</div>
+                                {g.row.proposal_text && (
+                                  <div className="pl-4 text-xs text-gray-500 italic mt-0.5">{g.row.proposal_text}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
-            </div>
+
+              {/* Project pricing */}
+              <div className="border-t pt-4 space-y-1">
+                <div className="flex justify-between text-base font-bold text-gray-900">
+                  <span>Project Price</span>
+                  <span>{money(sellRounded)}</span>
+                </div>
+                {prepayEnabled && (
+                  <div className="flex justify-between text-sm font-semibold text-emerald-700">
+                    <span>Prepay Price (check discount)</span>
+                    <span>{money(sellWithPrepay)}</span>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         </>
