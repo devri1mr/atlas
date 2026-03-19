@@ -23,6 +23,11 @@ type Task = {
   default_qty: number | null;
   client_facing_template: string | null;
   notes: string | null;
+  difficulty_multiplier: number | null;
+  spring_multiplier: number | null;
+  summer_multiplier: number | null;
+  fall_multiplier: number | null;
+  winter_multiplier: number | null;
 };
 
 type MaterialSearchResult = {
@@ -68,6 +73,11 @@ export default function TaskCatalogPage() {
   const [fDefaultQty, setFDefaultQty] = useState("");
   const [fTemplate, setFTemplate] = useState("");
   const [fNotes, setFNotes] = useState("");
+  const [fDifficultyMultiplier, setFDifficultyMultiplier] = useState("");
+  const [fSpringMultiplier, setFSpringMultiplier] = useState("");
+  const [fSummerMultiplier, setFSummerMultiplier] = useState("");
+  const [fFallMultiplier, setFFallMultiplier] = useState("");
+  const [fWinterMultiplier, setFWinterMultiplier] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Material form
@@ -130,6 +140,7 @@ export default function TaskCatalogPage() {
 
   function resetForm() {
     setFName(""); setFUnit(""); setFHrsPerUnit(""); setFDefaultQty(""); setFTemplate(""); setFNotes("");
+    setFDifficultyMultiplier(""); setFSpringMultiplier(""); setFSummerMultiplier(""); setFFallMultiplier(""); setFWinterMultiplier("");
     setMatSearch(""); setMatResults([]); setSelectedMat(null); setMatQty(""); setMatUnit("");
   }
 
@@ -148,6 +159,11 @@ export default function TaskCatalogPage() {
     setFDefaultQty(task.default_qty != null ? String(task.default_qty) : "");
     setFTemplate(task.client_facing_template ?? "");
     setFNotes(task.notes ?? "");
+    setFDifficultyMultiplier(task.difficulty_multiplier != null ? String(task.difficulty_multiplier) : "");
+    setFSpringMultiplier(task.spring_multiplier != null ? String(task.spring_multiplier) : "");
+    setFSummerMultiplier(task.summer_multiplier != null ? String(task.summer_multiplier) : "");
+    setFFallMultiplier(task.fall_multiplier != null ? String(task.fall_multiplier) : "");
+    setFWinterMultiplier(task.winter_multiplier != null ? String(task.winter_multiplier) : "");
     // Load materials
     setLoadingMaterials(true);
     try {
@@ -170,6 +186,11 @@ export default function TaskCatalogPage() {
         default_qty: fDefaultQty ? Number(fDefaultQty) : null,
         client_facing_template: fTemplate.trim() || null,
         notes: fNotes.trim() || null,
+        difficulty_multiplier: fDifficultyMultiplier ? Number(fDifficultyMultiplier) : null,
+        spring_multiplier: fSpringMultiplier ? Number(fSpringMultiplier) : null,
+        summer_multiplier: fSummerMultiplier ? Number(fSummerMultiplier) : null,
+        fall_multiplier: fFallMultiplier ? Number(fFallMultiplier) : null,
+        winter_multiplier: fWinterMultiplier ? Number(fWinterMultiplier) : null,
       };
 
       if (panel === "add") {
@@ -310,9 +331,14 @@ export default function TaskCatalogPage() {
                   className={`w-full text-left px-5 py-3 hover:bg-[#f6f8f6] transition-colors ${editingTask?.id === t.id ? "bg-[#eef6f0] border-l-4 border-emerald-600" : ""}`}
                 >
                   <div className="font-medium text-gray-900 text-sm">{t.name}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
+                  <div className="text-xs text-gray-400 mt-0.5 flex gap-3 flex-wrap">
                     {t.unit && <span>{t.unit}</span>}
                     {t.minutes_per_unit != null && <span>{minToHrs(t.minutes_per_unit)} hrs/{t.unit || "unit"}</span>}
+                    {t.difficulty_multiplier != null && t.difficulty_multiplier > 1 && <span className="text-amber-500">⚡ {t.difficulty_multiplier}× max</span>}
+                    {t.spring_multiplier != null && t.spring_multiplier > 1 && <span className="text-green-500">🌱{t.spring_multiplier}×</span>}
+                    {t.summer_multiplier != null && t.summer_multiplier > 1 && <span className="text-yellow-500">☀️{t.summer_multiplier}×</span>}
+                    {t.fall_multiplier != null && t.fall_multiplier > 1 && <span className="text-orange-500">🍂{t.fall_multiplier}×</span>}
+                    {t.winter_multiplier != null && t.winter_multiplier > 1 && <span className="text-blue-400">❄️{t.winter_multiplier}×</span>}
                   </div>
                 </button>
               ))}
@@ -333,30 +359,123 @@ export default function TaskCatalogPage() {
                   <label className={labelCls}>Task Name</label>
                   <input className={inputCls} value={fName} onChange={(e) => setFName(e.target.value)} placeholder='e.g. "Install Brown Mulch"' />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className={labelCls}>Unit</label>
-                    <select className={inputCls} value={fUnit} onChange={(e) => setFUnit(e.target.value)}>
-                      <option value="">—</option>
-                      {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
+                {/* Unit type */}
+                <div>
+                  <label className={labelCls}>Unit Type</label>
+                  <select className={inputCls} value={fUnit} onChange={(e) => setFUnit(e.target.value)}>
+                    <option value="">—</option>
+                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+
+                {/* Hrs/unit and Default Qty — always visible separate cells */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <label className={labelCls}># of {fUnit || "Units"} (Default Qty)</label>
+                    <input
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
+                      type="number" step="1" min="0"
+                      value={fDefaultQty}
+                      onChange={(e) => setFDefaultQty(e.target.value)}
+                      placeholder="e.g. 15"
+                    />
                   </div>
-                  <div>
-                    <label className={labelCls}>Hrs / {fUnit || "unit"}</label>
-                    <input className={inputCls} type="number" step="0.01" min="0" value={fHrsPerUnit} onChange={(e) => setFHrsPerUnit(e.target.value)} placeholder="0.25" />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Default Qty</label>
-                    <input className={inputCls} type="number" step="1" min="0" value={fDefaultQty} onChange={(e) => setFDefaultQty(e.target.value)} placeholder="—" />
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <label className={labelCls}>Hrs / {fUnit || "Unit"}</label>
+                    <input
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center font-semibold text-lg"
+                      type="number" step="0.01" min="0"
+                      value={fHrsPerUnit}
+                      onChange={(e) => setFHrsPerUnit(e.target.value)}
+                      placeholder="e.g. 0.25"
+                    />
                   </div>
                 </div>
 
-                {/* Computed total hours */}
+                {/* Computed default estimate */}
                 {fHrsPerUnit && fDefaultQty && (
-                  <div className="bg-[#eef6f0] rounded-lg px-4 py-2 text-sm text-[#123b1f]">
-                    ⏱ Default estimate: <strong>{(Number(fHrsPerUnit) * Number(fDefaultQty)).toFixed(2)} hrs</strong> for {fDefaultQty} {fUnit || "units"}
+                  <div className="bg-[#eef6f0] rounded-lg px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-sm text-[#123b1f]">Default estimate:</span>
+                    <span className="font-bold text-[#123b1f]">⏱ {(Number(fHrsPerUnit) * Number(fDefaultQty)).toFixed(2)} hrs for {fDefaultQty} {fUnit || "units"}</span>
                   </div>
                 )}
+
+                {/* Difficulty multiplier */}
+                <div>
+                  <label className={labelCls}>
+                    Extreme Difficulty Multiplier
+                    <span className="ml-1 text-gray-300 font-normal normal-case tracking-normal text-xs">applied at level 5 — site conditions, access, equipment</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input className={`${inputCls} w-28`} type="number" step="0.05" min="1" value={fDifficultyMultiplier} onChange={(e) => setFDifficultyMultiplier(e.target.value)} placeholder="e.g. 1.5" />
+                    {fDifficultyMultiplier && Number(fDifficultyMultiplier) > 1 && (
+                      <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
+                        {[1,2,3,4,5].map((lvl) => {
+                          const m = 1 + (lvl / 5) * (Number(fDifficultyMultiplier) - 1);
+                          return <span key={lvl} className="bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">L{lvl}: {m.toFixed(2)}×</span>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seasonal difficulty ranking */}
+                <div>
+                  <label className={labelCls}>
+                    Seasonal Difficulty Rating
+                    <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal text-xs">rank each season 1 (easiest) → 4 (hardest) · each rank used once</span>
+                  </label>
+                  {(() => {
+                    const TIER_MULTS: Record<string, number> = { "1": 1.0, "2": 1.15, "3": 1.30, "4": 1.50 };
+                    const TIER_LABELS = ["Standard", "Moderate", "Difficult", "Extreme"];
+                    const allVals = [fSpringMultiplier, fSummerMultiplier, fFallMultiplier, fWinterMultiplier];
+                    const seasons: { label: string; state: string; set: (v: string) => void }[] = [
+                      { label: "🌱 Spring", state: fSpringMultiplier, set: setFSpringMultiplier },
+                      { label: "☀️ Summer", state: fSummerMultiplier, set: setFSummerMultiplier },
+                      { label: "🍂 Fall",   state: fFallMultiplier,   set: setFFallMultiplier   },
+                      { label: "❄️ Winter", state: fWinterMultiplier, set: setFWinterMultiplier },
+                    ];
+                    return (
+                      <>
+                        <div className="grid grid-cols-4 gap-2">
+                          {seasons.map(({ label, state, set }) => {
+                            const usedTiers = allVals
+                              .filter((v) => v !== "" && v !== state)
+                              .map((v) => Object.entries(TIER_MULTS).find(([, m]) => String(m) === v)?.[0])
+                              .filter(Boolean) as string[];
+                            const currentTier = Object.entries(TIER_MULTS).find(([, m]) => String(m) === state)?.[0] || "";
+                            return (
+                              <div key={label}>
+                                <div className="text-xs text-gray-500 mb-1">{label}</div>
+                                <select
+                                  className={inputCls}
+                                  value={currentTier}
+                                  onChange={(e) => {
+                                    const tier = e.target.value;
+                                    set(tier ? String(TIER_MULTS[tier]) : "");
+                                  }}
+                                >
+                                  <option value="">—</option>
+                                  {["1","2","3","4"].map((t) => (
+                                    <option key={t} value={t} disabled={usedTiers.includes(t)}>
+                                      {t} — {TIER_LABELS[Number(t)-1]} ({TIER_MULTS[t]}×)
+                                    </option>
+                                  ))}
+                                </select>
+                                {currentTier && (
+                                  <div className="text-xs text-gray-400 mt-0.5 text-center">{TIER_MULTS[currentTier]}× applied</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-1.5 text-xs text-gray-400 flex gap-4 flex-wrap">
+                          <span>1 = Standard (1.0×)</span><span>2 = Moderate (1.15×)</span><span>3 = Difficult (1.30×)</span><span>4 = Extreme (1.50×)</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
 
                 <div>
                   <label className={labelCls}>

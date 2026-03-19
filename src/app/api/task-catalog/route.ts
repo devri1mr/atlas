@@ -61,8 +61,11 @@ export async function GET(req: NextRequest) {
     notes,
     min_qty,
     round_qty_to,
-    seasonal_multiplier,
     difficulty_multiplier,
+    spring_multiplier,
+    summer_multiplier,
+    fall_multiplier,
+    winter_multiplier,
     active,
     created_at,
     updated_at
@@ -101,7 +104,10 @@ export async function GET(req: NextRequest) {
  *   notes?: string|null,
  *   min_qty?: number|null,
  *   round_qty_to?: number|null,
- *   seasonal_multiplier?: number|null,
+ *   spring_multiplier?: number|null,
+ *   summer_multiplier?: number|null,
+ *   fall_multiplier?: number|null,
+ *   winter_multiplier?: number|null,
  *   difficulty_multiplier?: number|null
  * }
  */
@@ -149,8 +155,11 @@ export async function POST(req: NextRequest) {
 
   const min_qty = body?.min_qty ?? null;
   const round_qty_to = body?.round_qty_to ?? null;
-  const seasonal_multiplier = body?.seasonal_multiplier ?? null;
   const difficulty_multiplier = body?.difficulty_multiplier ?? null;
+  const spring_multiplier = body?.spring_multiplier ?? null;
+  const summer_multiplier = body?.summer_multiplier ?? null;
+  const fall_multiplier = body?.fall_multiplier ?? null;
+  const winter_multiplier = body?.winter_multiplier ?? null;
 
   const { data, error } = await supabase
     .from("task_catalog")
@@ -163,8 +172,11 @@ export async function POST(req: NextRequest) {
       notes,
       min_qty,
       round_qty_to,
-      seasonal_multiplier,
       difficulty_multiplier,
+      spring_multiplier,
+      summer_multiplier,
+      fall_multiplier,
+      winter_multiplier,
     })
     .select(
       `
@@ -177,8 +189,11 @@ export async function POST(req: NextRequest) {
       notes,
       min_qty,
       round_qty_to,
-      seasonal_multiplier,
       difficulty_multiplier,
+      spring_multiplier,
+      summer_multiplier,
+      fall_multiplier,
+      winter_multiplier,
       created_at,
       updated_at
       `

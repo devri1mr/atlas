@@ -105,6 +105,7 @@ export async function PATCH(
       hourly_rate,
       show_as_line_item,
       bundle_run_id,
+      difficulty_level,
       created_at
       `
     )
@@ -138,6 +139,10 @@ export async function PATCH(
         ? body.task_catalog_id.trim()
         : null;
   }
+  if ("difficulty_level" in body) {
+    const level = Number(body.difficulty_level);
+    updates.difficulty_level = Number.isFinite(level) && level >= 0 && level <= 5 ? Math.round(level) : 0;
+  }
 
   const { data: updatedRow, error: updateError } = await supabase
     .from("bid_labor")
@@ -158,6 +163,7 @@ export async function PATCH(
       hourly_rate,
       show_as_line_item,
       bundle_run_id,
+      difficulty_level,
       created_at
       `
     )

@@ -17,6 +17,7 @@ type Bid = {
   division_id?: string | null;
   status_id?: string | null;
   trucking_hours?: number | null;
+  season?: string | null;
 };
 
 type Division = {
@@ -28,6 +29,7 @@ type Division = {
 type LaborRow = {
   id: string;
   bid_id: string;
+  task_catalog_id?: string | null;
   task: string;
   item: string;
   proposal_text?: string | null;
@@ -37,6 +39,14 @@ type LaborRow = {
   hourly_rate: number;
   show_as_line_item?: boolean | null;
   bundle_run_id?: string | null;
+  difficulty_level?: number | null;
+  task_catalog?: {
+    difficulty_multiplier?: number | null;
+    spring_multiplier?: number | null;
+    summer_multiplier?: number | null;
+    fall_multiplier?: number | null;
+    winter_multiplier?: number | null;
+  } | null;
   created_at?: string;
 };
 type BundleRunMeta = {
@@ -61,6 +71,11 @@ type TaskCatalogRow = {
   default_qty?: number | null;
   client_facing_template?: string | null;
   notes?: string | null;
+  difficulty_multiplier?: number | null;
+  spring_multiplier?: number | null;
+  summer_multiplier?: number | null;
+  fall_multiplier?: number | null;
+  winter_multiplier?: number | null;
 };
 
 type MaterialRow = {
@@ -159,6 +174,28 @@ function hoursFromMinutesPerUnit(minutesPerUnit: number, qty: number) {
   return (m * q) / 60;
 }
 
+const DIFFICULTY_LABELS = ["Standard", "Low", "Moderate", "High", "Very High", "Extreme"];
+
+function getDifficultyMultiplier(row: LaborRow): number {
+  const level = Number(row.difficulty_level) || 0;
+  if (level === 0) return 1;
+  const max = Number(row.task_catalog?.difficulty_multiplier) || 1;
+  if (max <= 1) return 1;
+  return 1 + (level / 5) * (max - 1);
+}
+
+function getSeasonMultiplier(row: LaborRow, season: string): number {
+  if (!season || !row.task_catalog) return 1;
+  const key = `${season}_multiplier` as keyof typeof row.task_catalog;
+  const v = Number(row.task_catalog[key]) || 0;
+  return v > 1 ? v : 1;
+}
+
+function effectiveHours(row: LaborRow, season: string): number {
+  const base = Number(row.man_hours) || 0;
+  return base * getDifficultyMultiplier(row) * getSeasonMultiplier(row, season);
+}
+
 export default function BidScopePage() {
   const params = useParams();
   const bidId = paramToString((params as any)?.id).trim();
@@ -174,6 +211,7 @@ export default function BidScopePage() {
 
   // Labor
   const [labor, setLabor] = useState<LaborRow[]>([]);
+  const [season, setSeason] = useState<string>("");
 const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
 // Materials (bid rows)
@@ -473,7 +511,10 @@ try {
       });
 
       const lJson = await lRes.json();
-      setLabor(lJson?.rows || lJson?.data || []);
+      const lRows: LaborRow[] = lJson?.rows || lJson?.data || [];
+      setLabor(lRows);
+      // Restore season from bid
+      if (b?.season) setSeason(b.season);
       const brRes = await fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, {
   cache: "no-store",
 });
@@ -810,10 +851,10 @@ async function loadMaterialSources(materialId: string) {
   // Labor math
   const laborSubtotal = useMemo(() => {
     return labor.reduce(
-      (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+      (sum, r) => sum + effectiveHours(r, season) * (Number(r.hourly_rate) || 0),
       0
     );
-  }, [labor]);
+  }, [labor, season]);
 
   // Materials math
   const materialsSubtotal = useMemo(() => {
@@ -1676,8 +1717,8 @@ async function addLabor() {
       ) : (
         <>
           {/* SCOPE BUNDLES */}
-<div className="border rounded-lg overflow-hidden">
-  <div className="bg-gray-50 border-b px-5 py-3">
+<div className="border rounded-lg">
+  <div className="bg-gray-50 border-b px-5 py-3 rounded-t-lg">
     <h2 className="text-base font-semibold text-gray-800">Scope Bundles</h2>
     <div className="text-xs text-gray-500 mt-0.5">Load a prebuilt bundle of tasks into this bid.</div>
   </div>
@@ -1788,15 +1829,39 @@ async function addLabor() {
   </div>
 </div>
 {/* LABOR BUILDER */}
-<div className="border rounded-lg overflow-hidden">
-  <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+<div className="border rounded-lg">
+  <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between gap-3 rounded-t-lg">
     <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
-    <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
+    <div className="flex items-center gap-3 ml-auto">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Season</span>
+        <select
+          className="border border-gray-200 rounded-lg px-2 py-1 text-sm h-8 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          value={season}
+          onChange={async (e) => {
+            const s = e.target.value;
+            setSeason(s);
+            await fetch(`/api/bids/${bidId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ season: s || null }),
+            });
+          }}
+        >
+          <option value="">— None —</option>
+          <option value="spring">🌱 Spring</option>
+          <option value="summer">☀️ Summer</option>
+          <option value="fall">🍂 Fall</option>
+          <option value="winter">❄️ Winter</option>
+        </select>
+      </div>
+      <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
+    </div>
   </div>
   <div className="p-5 space-y-4">
 
   {/* Column headers above add row */}
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
     <div></div>
     <div className="text-center">Task</div>
     <div className="text-center">Details</div>
@@ -1804,11 +1869,12 @@ async function addLabor() {
     <div className="text-center">Unit</div>
     <div className="text-center">Hrs</div>
     <div></div>
+    <div></div>
     <div className="text-center">Action</div>
   </div>
 
   {/* Add row */}
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center px-2">
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 items-center px-2">
     <div />
 
     <div ref={taskDropdownRef}>
@@ -1932,6 +1998,8 @@ async function addLabor() {
       />
     </div>
 
+    <div />
+
     <div className="flex justify-center">
       <button
         type="button"
@@ -1957,13 +2025,14 @@ async function addLabor() {
   </div>
 
   {labor.length > 0 && (
-    <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 pt-2 border-t">
+    <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 pt-2 border-t">
       <div className="text-center">Show</div>
       <div className="text-center">Task</div>
       <div className="text-center">Details</div>
       <div className="text-center">Qty</div>
       <div className="text-center">Unit</div>
       <div className="text-center">Hrs</div>
+      <div className="text-center" title="Difficulty level (0–5)">Diff</div>
       <div className="text-right">Total</div>
       <div className="text-center">Action</div>
     </div>
@@ -1978,11 +2047,13 @@ async function addLabor() {
     {laborGroups.map((g) => {
       if (g.type === "row") {
         const row = g.row;
-        const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+        const rowEffectiveHrs = effectiveHours(row, season);
+        const rowTotal = rowEffectiveHrs * (Number(row.hourly_rate) || 0);
+        const hasDiffMult = !!(row.task_catalog?.difficulty_multiplier && Number(row.task_catalog.difficulty_multiplier) > 1);
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center hover:bg-gray-50"
+            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center hover:bg-gray-50"
           >
             <div className="flex justify-center">
               <input
@@ -2102,6 +2173,30 @@ async function addLabor() {
                 }}
               />
             </div>
+            <div className="flex justify-center">
+              {hasDiffMult ? (
+                <select
+                  title="Difficulty level"
+                  value={row.difficulty_level ?? 0}
+                  className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
+                  onChange={async (e) => {
+                    const level = Number(e.target.value);
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ difficulty_level: level }),
+                    });
+                    setLabor((prev) =>
+                      prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
+                    );
+                  }}
+                >
+                  {DIFFICULTY_LABELS.map((label, i) => (
+                    <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
+                  ))}
+                </select>
+              ) : <div />}
+            </div>
             <div className="text-right font-medium tabular-nums text-sm">
               {money(rowTotal)}
             </div>
@@ -2115,7 +2210,7 @@ async function addLabor() {
       }
 
       const bundleTotal = g.rows.reduce(
-        (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+        (sum, r) => sum + effectiveHours(r, season) * (Number(r.hourly_rate) || 0),
         0
       );
 
@@ -2163,11 +2258,13 @@ async function addLabor() {
           </div>
           <div className="space-y-0 divide-y">
             {g.rows.map((row) => {
-              const rowTotal = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+              const bundleRowEffHrs = effectiveHours(row, season);
+              const rowTotal = bundleRowEffHrs * (Number(row.hourly_rate) || 0);
+              const rowHasDiffMult = !!(row.task_catalog?.difficulty_multiplier && Number(row.task_catalog.difficulty_multiplier) > 1);
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 px-2 py-2 text-sm items-center hover:bg-gray-50"
+                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 px-2 py-2 text-sm items-center hover:bg-gray-50"
                 >
                   <div className="flex justify-center">
                     <input
@@ -2286,6 +2383,30 @@ async function addLabor() {
                         });
                       }}
                     />
+                  </div>
+                  <div className="flex justify-center">
+                    {rowHasDiffMult ? (
+                      <select
+                        title="Difficulty level"
+                        value={row.difficulty_level ?? 0}
+                        className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
+                        onChange={async (e) => {
+                          const level = Number(e.target.value);
+                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ difficulty_level: level }),
+                          });
+                          setLabor((prev) =>
+                            prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
+                          );
+                        }}
+                      >
+                        {DIFFICULTY_LABELS.map((label, i) => (
+                          <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
+                        ))}
+                      </select>
+                    ) : <div />}
                   </div>
                   <div className="text-right font-medium tabular-nums text-sm">
                     {money(rowTotal)}

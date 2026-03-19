@@ -36,7 +36,15 @@ export async function GET(req: NextRequest) {
       hourly_rate,
       show_as_line_item,
       bundle_run_id,
-      created_at
+      difficulty_level,
+      created_at,
+      task_catalog:task_catalog_id (
+        difficulty_multiplier,
+        spring_multiplier,
+        summer_multiplier,
+        fall_multiplier,
+        winter_multiplier
+      )
     `)
     .eq("bid_id", bid_id)
     .order("id", { ascending: true });
@@ -139,7 +147,15 @@ export async function POST(req: NextRequest) {
       hourly_rate,
       show_as_line_item,
       bundle_run_id,
-      created_at
+      difficulty_level,
+      created_at,
+      task_catalog:task_catalog_id (
+        difficulty_multiplier,
+        spring_multiplier,
+        summer_multiplier,
+        fall_multiplier,
+        winter_multiplier
+      )
     `)
     .single();
 
