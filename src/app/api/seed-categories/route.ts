@@ -142,6 +142,9 @@ export async function GET() {
   const { data: co } = await supabase.from("bids").select("company_id").not("company_id", "is", null).limit(1).maybeSingle();
   const company_id = co?.company_id ?? null;
 
+  // Clear existing categories first
+  await supabase.from("material_categories").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
   const created: string[] = [];
 
   for (let ri = 0; ri < TREE.length; ri++) {
