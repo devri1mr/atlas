@@ -74,6 +74,13 @@ export async function PATCH(
       patch.unit = unit;
     }
 
+    if (body?.source_type !== undefined) {
+      patch.source_type =
+        body.source_type === null || String(body.source_type || "").trim() === ""
+          ? null
+          : String(body.source_type).trim();
+    }
+
     if (body?.unit_cost !== undefined || body?.unitCost !== undefined) {
       const unitCost = Number(body?.unit_cost ?? body?.unitCost);
       if (!Number.isFinite(unitCost) || unitCost < 0) {

@@ -192,8 +192,8 @@ const [bidPricingDate, setBidPricingDate] = useState<string>("");
   const [mEditQty, setMEditQty] = useState<number>(0);
   const [mEditUnit, setMEditUnit] = useState<string>("ea");
   const [mEditUnitCost, setMEditUnitCost] = useState<number>(0);
-  const [mEditSourceIndex, setMEditSourceIndex] = useState<number | null>(null);
-  const [editRowSources, setEditRowSources] = useState<any[]>([]);
+  // Cache of vendor/inventory sources keyed by material_id, loaded lazily on source cell focus
+  const [matSourcesCache, setMatSourcesCache] = useState<Record<string, any[]>>({});
 
   // Inputs (labor)
   const [task, setTask] = useState("");
@@ -691,6 +691,30 @@ async function loadMaterialSources(materialId: string) {
     setSelectedSourceIndex(null);
   }
 }
+  async function ensureMatSources(materialId: string) {
+    if (!materialId || matSourcesCache[materialId]) return;
+    const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
+    try {
+      const [invRes, vendorRes] = await Promise.all([
+        fetch(`/api/inventory/source?material_id=${materialId}&pricing_date=${pricingDate}`, { cache: "no-store" }),
+        fetch(`/api/material-sources?material_id=${materialId}`, { cache: "no-store" }),
+      ]);
+      const invJson = await invRes.json();
+      const vendorJson = await vendorRes.json();
+      const inv = Array.isArray(invJson?.data) ? invJson.data.map((s: any) => ({
+        source_name: s.source_label || "Inventory",
+        unit: s.unit || "ea",
+        cost: s.unit_cost ?? 0,
+      })) : [];
+      const vendors = Array.isArray(vendorJson?.data) ? vendorJson.data.map((s: any) => ({
+        source_name: s.vendor_name || s.source_name || "Vendor",
+        unit: s.unit || "ea",
+        cost: s.unit_cost ?? 0,
+      })) : [];
+      setMatSourcesCache((prev) => ({ ...prev, [materialId]: [...inv, ...vendors] }));
+    } catch {}
+  }
+
   function applyMaterialSelection(m: MaterialsCatalogRow) {
   const nm = (m.name || "").trim();
 
@@ -1404,30 +1428,6 @@ async function addLabor() {
     setMEditQty(Number(row.qty) || 0);
     setMEditUnit(row.unit || "ea");
     setMEditUnitCost(Number(row.unit_cost) || 0);
-    setMEditSourceIndex(null);
-    setEditRowSources([]);
-
-    if (row.material_id) {
-      const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
-      Promise.all([
-        fetch(`/api/inventory/source?material_id=${row.material_id}&pricing_date=${pricingDate}`, { cache: "no-store" }),
-        fetch(`/api/material-sources?material_id=${row.material_id}`, { cache: "no-store" }),
-      ]).then(async ([invRes, vendorRes]) => {
-        const invJson = await invRes.json();
-        const vendorJson = await vendorRes.json();
-        const inv = Array.isArray(invJson?.data) ? invJson.data.map((s: any) => ({
-          source_name: s.source_label || "Inventory",
-          unit: s.unit || "ea",
-          cost: s.unit_cost ?? 0,
-        })) : [];
-        const vendors = Array.isArray(vendorJson?.data) ? vendorJson.data.map((s: any) => ({
-          source_name: s.vendor_name || s.source_name || "Vendor",
-          unit: s.unit || "ea",
-          cost: s.unit_cost ?? 0,
-        })) : [];
-        setEditRowSources([...inv, ...vendors]);
-      }).catch(() => {});
-    }
   }
 
   function cancelEditMaterial() {
@@ -1437,8 +1437,6 @@ async function addLabor() {
     setMEditQty(0);
     setMEditUnit("ea");
     setMEditUnitCost(0);
-    setMEditSourceIndex(null);
-    setEditRowSources([]);
   }
 
   async function saveEditMaterial(rowId: string) {
@@ -2282,35 +2280,67 @@ async function addLabor() {
                       )}
                     </div>
 
+                    {/* Source — always-inline dropdown (lazy-loads per material_id) */}
                     <div className="col-span-2 text-center text-xs">
-                      {isEditing && editRowSources.length > 0 ? (
+                      {row.material_id ? (
                         <select
-                          className="border p-1 rounded w-full text-xs"
-                          value={mEditSourceIndex ?? ""}
-                          onChange={(e) => {
+                          className="border rounded w-full text-xs px-1 h-8"
+                          value=""
+                          onFocus={() => ensureMatSources(row.material_id!)}
+                          onChange={async (e) => {
                             const idx = Number(e.target.value);
-                            setMEditSourceIndex(idx);
-                            const src = editRowSources[idx];
-                            if (src) {
-                              if (src.unit) setMEditUnit(src.unit);
-                              if (src.cost !== undefined) setMEditUnitCost(Number(Number(src.cost).toFixed(2)) || 0);
-                            }
+                            const src = (matSourcesCache[row.material_id!] || [])[idx];
+                            if (!src) return;
+                            const newCost = Number(Number(src.cost).toFixed(2));
+                            const newUnit = src.unit || row.unit;
+                            setMaterials((prev) =>
+                              prev.map((r) => r.id === row.id
+                                ? { ...r, source_type: src.source_name, unit: newUnit, unit_cost: newCost }
+                                : r)
+                            );
+                            await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ source_type: src.source_name, unit: newUnit, unit_cost: newCost }),
+                            });
                           }}
                         >
-                          <option value="">Current: {row.source_type || "—"}</option>
-                          {editRowSources.map((s, i) => (
-                            <option key={i} value={i}>{s.source_name} @ ${Number(s.cost).toFixed(2)}</option>
+                          <option value="" disabled>
+                            {row.source_type && row.source_type !== "bundle" ? row.source_type : "Select source…"}
+                          </option>
+                          {(matSourcesCache[row.material_id] || []).map((s, i) => (
+                            <option key={i} value={i}>
+                              {s.source_name} @ ${Number(s.cost).toFixed(2)}
+                            </option>
                           ))}
                         </select>
                       ) : (
-                        <span className="text-gray-500">{row.source_type || "—"}</span>
+                        <input
+                          className="border rounded w-full text-center text-xs px-1 h-8"
+                          placeholder="Source"
+                          value={row.source_type || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMaterials((prev) =>
+                              prev.map((r) => r.id === row.id ? { ...r, source_type: value } : r)
+                            );
+                          }}
+                          onBlur={async (e) => {
+                            await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ source_type: e.target.value.trim() || null }),
+                            });
+                          }}
+                        />
                       )}
                     </div>
 
+                    {/* Details — always-inline input with visible border */}
                     <div className="col-span-2 text-center">
                       <input
-                        className="border-0 bg-transparent w-full text-center text-sm focus:border focus:border-gray-300 focus:rounded focus:outline-none px-1"
-                        placeholder="—"
+                        className="border rounded w-full text-center text-sm px-1 h-8"
+                        placeholder="Details"
                         value={row.details || ""}
                         onChange={(e) => {
                           const value = e.target.value;
