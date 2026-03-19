@@ -902,6 +902,18 @@ if (!res.ok) {
   throw new Error(json?.error || "Failed applying bundle");
 }
 
+// Optimistically update labor + bundle run meta from the API response
+if (Array.isArray(json?.rows)) {
+  setLabor((prev) => [...prev, ...json.rows]);
+}
+if (json?.bundle_run?.id) {
+  const bundleName = scopeBundles.find((b) => b.id === selectedBundleId)?.name || "Bundle";
+  setBundleRunsMeta((prev) => [
+    ...prev,
+    { id: json.bundle_run.id, bundle_id: selectedBundleId, bundle_name: bundleName },
+  ]);
+}
+
 const syncRes = await fetch(`/api/bids/${bidId}/sync-bundle-materials`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -914,7 +926,11 @@ if (!syncRes.ok) {
   throw new Error(syncJson?.error || "Failed syncing bundle materials");
 }
 
-await loadAll();
+// Targeted refresh: only reload materials (bundle apply adds/updates material qtys)
+const matRes = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, { cache: "no-store" });
+const matJson = await matRes.json();
+if (Array.isArray(matJson?.rows)) setMaterials(matJson.rows);
+else if (Array.isArray(matJson?.data)) setMaterials(matJson.data);
 
   } catch (e: any) {
     setError(e?.message || "Failed loading bundle.");
