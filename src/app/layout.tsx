@@ -13,8 +13,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AtlasBid",
-  description: "Atlas - Powered by InterRivus Systems",
+  title: "Atlas",
+  description: "Accountability Through Logic, Analysis & Strategy. Operational intelligence powered by InterRivus Systems.",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
+  openGraph: {
+    title: "Atlas",
+    description: "Accountability Through Logic, Analysis & Strategy.",
+    url: "https://atlas.interrivus.com",
+    siteName: "Atlas",
+    images: [{ url: "https://atlas.interrivus.com/og-image.jpg", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Atlas",
+    description: "Accountability Through Logic, Analysis & Strategy.",
+    images: ["https://atlas.interrivus.com/og-image.jpg"],
+  },
 };
 
 export default function RootLayout({
