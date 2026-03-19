@@ -108,6 +108,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     zip: "",
     internal_notes: "",
     status_id: "",
+    division_id: "",
   });
 
   function syncFormFromBid(b: BidRecord) {
@@ -122,6 +123,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       zip: cleanText(b.zip),
       internal_notes: cleanText(b.internal_notes),
       status_id: b.status_id == null ? "" : String(b.status_id),
+      division_id: cleanText(b.division_id),
     });
   }
 
@@ -174,6 +176,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         zip: form.zip.trim() || null,
         internal_notes: form.internal_notes.trim() || null,
         status_id: form.status_id === "" ? null : Number(form.status_id),
+        division_id: form.division_id || null,
       });
       setBid(updated);
       syncFormFromBid(updated);
@@ -187,7 +190,6 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   }
 
   const base = `/atlasbid/bids/${effectiveBidId}`;
-  const divName = bid?.division_id ? divisionNameById.get(bid.division_id) ?? "—" : "—";
 
   if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
 
@@ -229,7 +231,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-2">Client Information</h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className={labelCls}>Company / Commercial Name</label>
+            <label className={labelCls}>Account Name <span className="text-gray-300 font-normal normal-case tracking-normal">(company, HOA, organization…)</span></label>
             <input className={inputCls} value={form.customer_name} placeholder="ABC Property Management"
               onChange={(e) => setForm((p) => ({ ...p, customer_name: e.target.value }))} />
           </div>
@@ -286,7 +288,13 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Division</label>
-            <div className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700">{divName}</div>
+            <select className={inputCls} value={form.division_id} disabled={saving}
+              onChange={(e) => setForm((p) => ({ ...p, division_id: e.target.value }))}>
+              <option value="">(None)</option>
+              {divisions.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Status</label>
