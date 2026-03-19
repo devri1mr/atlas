@@ -1649,8 +1649,8 @@ async function addLabor() {
   {/* Single header row */}
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
     <div></div>
-    <div>Task</div>
-    <div>Details</div>
+    <div className="text-center">Task</div>
+    <div className="text-center">Details</div>
     <div className="text-center">Qty</div>
     <div className="text-center">Unit</div>
     <div className="text-center">Hrs</div>
@@ -1859,7 +1859,7 @@ async function addLabor() {
             <div className="text-center text-sm">{row.unit}</div>
             <div>
               <input
-                className="border rounded w-full h-9 px-3 text-center"
+                className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
                 type="number"
                 step="0.01"
                 value={row.man_hours === 0 ? "" : row.man_hours}
@@ -1881,8 +1881,8 @@ async function addLabor() {
                 }}
               />
             </div>
-            <div className="text-center font-medium tabular-nums">
-              {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="text-right font-medium tabular-nums text-sm">
+              {money(rowTotal)}
             </div>
             <div className="text-center">
               <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
@@ -1992,7 +1992,7 @@ async function addLabor() {
                   <div className="text-center text-sm">{row.unit}</div>
                   <div>
                     <input
-                      className="border rounded w-full h-9 px-3 text-center"
+                      className="w-full text-right text-sm bg-transparent border-0 focus:outline-none tabular-nums"
                       type="number"
                       step="0.01"
                       value={row.man_hours === 0 ? "" : row.man_hours}
@@ -2014,8 +2014,8 @@ async function addLabor() {
                       }}
                     />
                   </div>
-                  <div className="text-center font-medium tabular-nums">
-                    {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div className="text-right font-medium tabular-nums text-sm">
+                    {money(rowTotal)}
                   </div>
                   <div className="text-center">
                     <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
@@ -2349,21 +2349,21 @@ async function addLabor() {
 
             <div className="grid grid-cols-3 gap-4 max-w-sm items-end">
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Hours</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Hours</div>
                 <input
-                  className="border rounded h-9 px-3 w-full text-right"
+                  className="border rounded h-9 px-3 w-full text-center"
                   type="number"
                   value={Number.isFinite(truckingHours) ? truckingHours : 0}
                   onChange={(e) => setTruckingHours(Number(e.target.value))}
                 />
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Rate ($/hr)</div>
-                <div className="border rounded h-9 px-3 flex items-center bg-gray-50 text-sm tabular-nums">{money(divisionRate)}</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Rate ($/hr)</div>
+                <div className="border rounded h-9 px-3 flex items-center justify-center bg-gray-50 text-sm tabular-nums">{money(divisionRate)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Cost</div>
-                <div className="border rounded h-9 px-3 flex items-center bg-gray-50 text-sm font-semibold tabular-nums">{money(truckingCost)}</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Cost</div>
+                <div className="border rounded h-9 px-3 flex items-center justify-center bg-gray-50 text-sm font-semibold tabular-nums">{money(truckingCost)}</div>
               </div>
             </div>
             </div>
