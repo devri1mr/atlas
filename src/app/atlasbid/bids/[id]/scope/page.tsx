@@ -1036,8 +1036,8 @@ async function addLabor() {
       bid_id: bidId,
       task_catalog_id: selectedTaskCatalogId || null,
       task: task.trim(),
-      item: safeDetails,
-      proposal_text: task.trim(),
+      item: safeDetails || task.trim(),
+      proposal_text: safeDetails || task.trim(),
       quantity: Number(quantity) || 0,
       unit,
       man_hours: Number(hours) || 0,
@@ -1655,7 +1655,7 @@ async function addLabor() {
     <div className="text-center">Unit</div>
     <div className="text-center">Hrs</div>
     <div className="text-center">Total</div>
-    <div className="text-center">Del</div>
+    <div className="text-center">Action</div>
   </div>
 
   {/* Add row */}
@@ -1705,7 +1705,9 @@ async function addLabor() {
       <input
         className="border rounded w-full h-9 px-3"
         placeholder="Details"
+        autoComplete="off"
         value={details}
+        onFocus={() => setShowTaskResults(false)}
         onChange={(e) => setDetails(e.target.value)}
       />
     </div>
@@ -1809,16 +1811,19 @@ async function addLabor() {
             <div>
               <input
                 className="border rounded w-full h-9 px-3 text-sm"
+                autoComplete="off"
                 value={row.proposal_text ?? row.task}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const value = e.target.value;
                   setLabor((prev) =>
                     prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
                   );
+                }}
+                onBlur={async (e) => {
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ proposal_text: value }),
+                    body: JSON.stringify({ proposal_text: e.target.value }),
                   });
                 }}
               />
@@ -1845,26 +1850,29 @@ async function addLabor() {
                       body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
                     });
                     if (!res.ok) console.error("Failed to save labor row", await res.json());
-                    else await loadAll();
                   } catch (err) {
                     console.error("Labor autosave failed", err);
                   }
                 }}
               />
             </div>
-            <div className="truncate">{row.unit}</div>
+            <div className="text-center text-sm">{row.unit}</div>
             <div>
               <input
                 className="border rounded w-full h-9 px-3 text-center"
                 type="number"
                 step="0.01"
                 value={row.man_hours === 0 ? "" : row.man_hours}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const raw = e.target.value;
                   const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                   setLabor((prev) =>
                     prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
                   );
+                }}
+                onBlur={async (e) => {
+                  const raw = e.target.value;
+                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
@@ -1873,10 +1881,10 @@ async function addLabor() {
                 }}
               />
             </div>
-            <div className="text-right font-medium tabular-nums">
+            <div className="text-center font-medium tabular-nums">
               {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="text-right">
+            <div className="text-center">
               <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
                 Delete
               </button>
@@ -1936,23 +1944,26 @@ async function addLabor() {
                   <div>
                     <input
                       className="border rounded w-full h-9 px-3 text-sm"
+                      autoComplete="off"
                       value={row.proposal_text ?? row.task}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const value = e.target.value;
                         setLabor((prev) =>
                           prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
                         );
+                      }}
+                      onBlur={async (e) => {
                         await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ proposal_text: value }),
+                          body: JSON.stringify({ proposal_text: e.target.value }),
                         });
                       }}
                     />
                   </div>
                   <div>
                     <input
-                      className="border rounded w-full h-9 px-3 text-right"
+                      className="border rounded w-full h-9 px-3 text-center"
                       type="number"
                       value={row.quantity === 0 ? "" : row.quantity}
                       onChange={(e) => {
@@ -1972,26 +1983,29 @@ async function addLabor() {
                             body: JSON.stringify({ quantity: value, unit: row.unit, man_hours: row.man_hours, is_overridden: true }),
                           });
                           if (!res.ok) console.error("Failed to save labor row", await res.json());
-                          else await loadAll();
                         } catch (err) {
                           console.error("Labor autosave failed", err);
                         }
                       }}
                     />
                   </div>
-                  <div className="truncate">{row.unit}</div>
+                  <div className="text-center text-sm">{row.unit}</div>
                   <div>
                     <input
-                      className="border rounded w-full h-9 px-3 text-right"
+                      className="border rounded w-full h-9 px-3 text-center"
                       type="number"
                       step="0.01"
                       value={row.man_hours === 0 ? "" : row.man_hours}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const raw = e.target.value;
                         const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                         setLabor((prev) =>
                           prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
                         );
+                      }}
+                      onBlur={async (e) => {
+                        const raw = e.target.value;
+                        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                         await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
@@ -2000,10 +2014,10 @@ async function addLabor() {
                       }}
                     />
                   </div>
-                  <div className="text-right font-medium tabular-nums">
+                  <div className="text-center font-medium tabular-nums">
                     {rowTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
-                  <div className="text-right">
+                  <div className="text-center">
                     <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
                       Delete
                     </button>
