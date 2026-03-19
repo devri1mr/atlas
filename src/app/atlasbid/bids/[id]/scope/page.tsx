@@ -1646,6 +1646,18 @@ async function addLabor() {
   </div>
   <div className="p-5 space-y-4">
 
+  {/* Column headers above add row */}
+  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
+    <div></div>
+    <div className="text-center">Task</div>
+    <div className="text-center">Details</div>
+    <div className="text-center">Qty</div>
+    <div className="text-center">Unit</div>
+    <div className="text-right">Hrs</div>
+    <div className="text-right">Total</div>
+    <div className="text-center">Action</div>
+  </div>
+
   {/* Add row */}
   <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_88px_58px] gap-2 items-center px-2">
     <div />
@@ -1796,7 +1808,7 @@ async function addLabor() {
                 }}
               />
             </div>
-            <div className="font-medium leading-tight truncate">{row.task}</div>
+            <div className="font-medium leading-tight truncate text-center">{row.task}</div>
             <div>
               <input
                 className="border rounded w-full h-9 px-3 text-sm"
@@ -1929,7 +1941,7 @@ async function addLabor() {
                       }}
                     />
                   </div>
-                  <div className="font-medium leading-tight truncate">{row.task}</div>
+                  <div className="font-medium leading-tight truncate text-center">{row.task}</div>
                   <div>
                     <input
                       className="border rounded w-full h-9 px-3 text-sm"
