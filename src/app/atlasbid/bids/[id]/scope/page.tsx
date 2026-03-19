@@ -1555,20 +1555,13 @@ async function addLabor() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4 mb-2">
-          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-10 w-auto object-contain" />
-        </div>
-      </div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Scope of Work</div>
-          <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
-          {jobAddress && (
-            <div className="text-sm text-gray-500 mt-1">{jobAddress}</div>
-          )}
-        </div>
-        <div className="text-right shrink-0">
+      <div className="text-center space-y-1 pb-2">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Scope of Work</div>
+        <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
+        {jobAddress && (
+          <div className="text-sm text-gray-500">{jobAddress}</div>
+        )}
+        <div className="pt-1">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             {divisionName}
           </span>

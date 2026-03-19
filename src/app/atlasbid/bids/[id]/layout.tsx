@@ -21,11 +21,8 @@ export default async function BidLayout({
     <div className="min-h-screen bg-[#f6f8f6] px-6 py-6">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-[#123b1f]">AtlasBid</h1>
-          <div className="mt-1 text-sm text-[#3d5a45]">
-            Bid ID: <span className="font-mono">{id}</span>
-          </div>
+        <div className="mb-4 flex justify-center">
+          <img src="/atlasbid-logo.png" alt="AtlasBid" className="h-20 w-auto object-contain" />
         </div>
 
         {/* Tabs */}
