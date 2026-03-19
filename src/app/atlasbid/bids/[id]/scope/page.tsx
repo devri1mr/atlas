@@ -8,8 +8,12 @@ import DebugPanel from "./DebugPanel";
 type Bid = {
   id: string;
   company_id?: string | null;
+  customer_name?: string | null;
   client_name?: string | null;
   client_last_name?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
   division_id?: string | null;
   status_id?: string | null;
   trucking_hours?: number | null;
@@ -1078,8 +1082,8 @@ async function addLabor() {
       bid_id: bidId,
       task_catalog_id: selectedTaskCatalogId || null,
       task: task.trim(),
-      item: safeDetails || task.trim(),
-      proposal_text: safeDetails || task.trim(),
+      item: task.trim(),
+      proposal_text: safeDetails || null,
       quantity: Number(quantity) || 0,
       unit,
       man_hours: Number(hours) || 0,
@@ -1486,22 +1490,31 @@ async function addLabor() {
   if (loading) return <div className="p-6">Loading…</div>;
   if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
 
+  const clientDisplayName =
+    bid.customer_name?.trim() ||
+    [bid.client_name, bid.client_last_name].filter(Boolean).join(" ") ||
+    "—";
+
+  const jobAddress = [bid.address, bid.city, bid.state].filter(Boolean).join(", ");
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
-      <div>
-        <div className="text-sm text-gray-500">
-          Client:{" "}
-          <span className="font-semibold">
-            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "-"}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Scope of Work</div>
+          <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
+          {jobAddress && (
+            <div className="text-sm text-gray-500 mt-1">{jobAddress}</div>
+          )}
+        </div>
+        <div className="text-right shrink-0">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {divisionName}
           </span>
         </div>
-        <h1 className="text-2xl font-bold mt-1">Scope of Work</h1>
-        <div className="text-sm text-gray-500 mt-0.5">
-          Division: <span className="font-semibold text-gray-700">{divisionName}</span>
-        </div>
-        {isDebug ? <DebugPanel bidId={bid.id} /> : null}
       </div>
+      {isDebug ? <DebugPanel bidId={bid.id} /> : null}
 
       {/* Sticky pricing bar */}
       <div className="sticky top-0 z-20 bg-white border rounded-lg shadow-sm px-5 py-3 flex items-center gap-6 flex-wrap">
@@ -1859,7 +1872,7 @@ async function addLabor() {
               <input
                 className="border rounded w-full h-9 px-3 text-sm"
                 autoComplete="off"
-                value={row.proposal_text ?? row.task}
+                value={row.proposal_text ?? ""}
                 onChange={(e) => {
                   const value = e.target.value;
                   setLabor((prev) =>
@@ -1992,7 +2005,7 @@ async function addLabor() {
                     <input
                       className="border rounded w-full h-9 px-3 text-sm"
                       autoComplete="off"
-                      value={row.proposal_text ?? row.task}
+                      value={row.proposal_text ?? ""}
                       onChange={(e) => {
                         const value = e.target.value;
                         setLabor((prev) =>
