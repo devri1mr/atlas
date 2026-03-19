@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
         unit_cost,
         is_active,
         search_text,
-        created_at
+        created_at,
+        materials_catalog!catalog_material_id(default_unit_cost, vendor)
         `
       )
       .eq("is_active", true)

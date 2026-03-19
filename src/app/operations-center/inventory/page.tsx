@@ -12,10 +12,12 @@ type InventoryMaterial = {
   display_name?: string | null;
   unit?: string | null;
   inventory_unit?: string | null;
+  unit_cost?: number | null;
   vendor?: string | null;
   sku?: string | null;
   division_id?: string | null;
   is_active?: boolean | null;
+  materials_catalog?: { default_unit_cost?: number | null; vendor?: string | null } | null;
 };
 
 type SummaryRow = {
@@ -113,6 +115,7 @@ export default function InventoryPage() {
   const [notes, setNotes] = useState("");
   const [invoicedFinal, setInvoicedFinal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autoUnitCost, setAutoUnitCost] = useState<number | null>(null);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [summarySearch, setSummarySearch] = useState("");
@@ -193,7 +196,13 @@ export default function InventoryPage() {
     setShowDrop(false);
     const u = (m.inventory_unit || m.unit || "").trim();
     if (u) { setUnit(u); setUnitLocked(true); } else { setUnitLocked(false); }
-    if (!vendor && m.vendor) setVendor(m.vendor);
+    const catalogVendor = m.materials_catalog?.vendor;
+    if (!vendor && (catalogVendor || m.vendor)) setVendor((catalogVendor || m.vendor)!);
+    const catalogCost = m.materials_catalog?.default_unit_cost ?? m.unit_cost ?? null;
+    setAutoUnitCost(catalogCost && catalogCost > 0 ? catalogCost : null);
+    if (catalogCost && catalogCost > 0 && qty && Number(qty) > 0) {
+      setTotalCost((Number(qty) * catalogCost).toFixed(2));
+    }
   }
 
   function clearForm() {
@@ -209,6 +218,7 @@ export default function InventoryPage() {
     setVendor("");
     setNotes("");
     setInvoicedFinal(false);
+    setAutoUnitCost(null);
     // keep locationId set
   }
 
@@ -411,7 +421,13 @@ export default function InventoryPage() {
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Qty *</label>
                   <input type="number" min="0" step="any"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="0" value={qty} onChange={e => setQty(e.target.value)} />
+                    placeholder="0" value={qty} onChange={e => {
+                      const v = e.target.value;
+                      setQty(v);
+                      if (autoUnitCost && autoUnitCost > 0 && Number(v) > 0) {
+                        setTotalCost((Number(v) * autoUnitCost).toFixed(2));
+                      }
+                    }} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Unit</label>
