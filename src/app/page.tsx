@@ -137,7 +137,13 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group shadow-sm"
               >
-                <InterRivusLogo />
+                <Image
+                  src="/interrivus-logo.png"
+                  alt="InterRivus Systems"
+                  width={36}
+                  height={36}
+                  style={{ objectFit: "contain", mixBlendMode: "multiply" }}
+                />
                 <div className="text-left">
                   <div className="text-[10px] text-gray-400 uppercase tracking-widest leading-none mb-0.5 group-hover:text-green-600 transition-colors">Powered by</div>
                   <div className="text-[13px] font-semibold text-gray-600 tracking-wide group-hover:text-green-800 transition-colors">InterRivus Systems</div>
@@ -155,18 +161,6 @@ export default function Home() {
   return null;
 }
 
-function InterRivusLogo() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Circle background */}
-      <circle cx="16" cy="16" r="15" fill="#0d2616" className="group-hover:fill-[#123b1f] transition-colors" />
-      {/* IR lettermark */}
-      <text x="6" y="19" fontFamily="Georgia, serif" fontSize="13" fontWeight="700" fill="white" letterSpacing="0.5">IR</text>
-      {/* River wave line */}
-      <path d="M5 24 Q9 21.5 13 24 Q17 26.5 21 24 Q25 21.5 27 23" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.8"/>
-    </svg>
-  );
-}
 
 function GoogleIcon() {
   return (
