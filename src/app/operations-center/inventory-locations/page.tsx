@@ -4,8 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Location = { id: string; name: string; is_active: boolean };
-type RegisteredMaterial = { id: string; name: string; display_name: string | null; unit: string | null; catalog_material_id: string | null };
+type RegisteredMaterial = {
+  id: string; name: string; display_name: string | null;
+  unit: string | null; unit_cost?: number | null; vendor?: string | null;
+  catalog_material_id: string | null;
+};
 type CatalogResult = { id: string; name: string; default_unit?: string | null };
+type Category = { id: string; name: string; parent_id: string | null };
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 const btnPrimary = "bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";
@@ -27,6 +32,7 @@ export default function InventoryLocationsPage() {
   const [regMaterials, setRegMaterials] = useState<RegisteredMaterial[]>([]);
   const [regLoading, setRegLoading] = useState(true);
   const [deletingMatId, setDeletingMatId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Link-to-catalog state
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -35,6 +41,14 @@ export default function InventoryLocationsPage() {
   const [catSearching, setCatSearching] = useState(false);
   const [linkSaving, setLinkSaving] = useState(false);
   const catSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Create-new form state
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createUnit, setCreateUnit] = useState("");
+  const [createCost, setCreateCost] = useState("");
+  const [createVendor, setCreateVendor] = useState("");
+  const [createCategoryId, setCreateCategoryId] = useState("");
 
   async function load() {
     setLoading(true);
@@ -46,9 +60,14 @@ export default function InventoryLocationsPage() {
 
   async function loadMaterials() {
     setRegLoading(true);
-    const res = await fetch("/api/materials-search?limit=50&include_inactive=true", { cache: "no-store" });
-    const json = await res.json();
-    setRegMaterials(json?.data ?? []);
+    const [mRes, cRes] = await Promise.all([
+      fetch("/api/materials-search?limit=50&include_inactive=true", { cache: "no-store" }),
+      fetch("/api/material-categories", { cache: "no-store" }),
+    ]);
+    const mJson = await mRes.json();
+    const cJson = await cRes.json();
+    setRegMaterials(mJson?.data ?? []);
+    setCategories(cJson?.data ?? []);
     setRegLoading(false);
   }
 
@@ -114,16 +133,27 @@ export default function InventoryLocationsPage() {
     setDeletingMatId(null);
   }
 
-  function openLink(matId: string) {
-    setLinkingId(matId);
+  function openLink(mat: RegisteredMaterial) {
+    setLinkingId(mat.id);
     setCatSearch("");
     setCatResults([]);
+    setShowCreateForm(false);
   }
 
   function closeLink() {
     setLinkingId(null);
     setCatSearch("");
     setCatResults([]);
+    setShowCreateForm(false);
+  }
+
+  function openCreateForm(mat: RegisteredMaterial) {
+    setCreateName(catSearch.trim() || mat.display_name || mat.name);
+    setCreateUnit(mat.unit || "ea");
+    setCreateCost(mat.unit_cost && mat.unit_cost > 0 ? String(mat.unit_cost) : "");
+    setCreateVendor(mat.vendor || "");
+    setCreateCategoryId("");
+    setShowCreateForm(true);
   }
 
   useEffect(() => {
@@ -152,18 +182,30 @@ export default function InventoryLocationsPage() {
     closeLink();
   }
 
-  async function handleCreateAndLink(matId: string, mat: RegisteredMaterial) {
+  async function handleCreateAndLink(matId: string) {
+    if (!createName.trim() || !createUnit.trim()) return;
     setLinkSaving(true);
-    // Create catalog entry using the material's name and unit
     const cr = await fetch("/api/materials-catalog", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: catSearch.trim() || mat.display_name || mat.name, default_unit: mat.unit || "ea" }),
+      body: JSON.stringify({
+        name: createName.trim(),
+        default_unit: createUnit.trim(),
+        default_unit_cost: createCost ? Number(createCost) : 0,
+        vendor: createVendor.trim() || null,
+        category_id: createCategoryId || null,
+      }),
     });
     const cj = await cr.json();
     if (!cr.ok) { setError(cj?.error || "Failed to create catalog entry"); setLinkSaving(false); return; }
     await handleLink(matId, cj.data.id);
   }
+
+  // Flatten categories for select: parents first, then children indented
+  const catOptions = [
+    ...categories.filter(c => !c.parent_id),
+    ...categories.filter(c => c.parent_id),
+  ];
 
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
@@ -299,7 +341,7 @@ export default function InventoryLocationsPage() {
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-3">
                           {!m.catalog_material_id && (
-                            <button onClick={() => linkingId === m.id ? closeLink() : openLink(m.id)}
+                            <button onClick={() => linkingId === m.id ? closeLink() : openLink(m)}
                               className="text-xs font-semibold text-blue-600 hover:underline">
                               {linkingId === m.id ? "Cancel" : "Link to Catalog"}
                             </button>
@@ -313,33 +355,77 @@ export default function InventoryLocationsPage() {
                       </td>
                     </tr>
                     {linkingId === m.id && (
-                      <tr key={m.id + "-link"} className="border-b bg-blue-50">
-                        <td colSpan={4} className="px-5 py-4">
-                          <p className="text-xs text-gray-500 mb-2">Search for an existing catalog entry, or create a new one for <strong>{m.display_name || m.name}</strong>:</p>
-                          <input
-                            className={inputCls + " mb-2"}
-                            placeholder="Type to search catalog…"
-                            value={catSearch}
-                            onChange={e => setCatSearch(e.target.value)}
-                            autoFocus
-                          />
-                          {catSearching && <div className="text-xs text-gray-400 py-1">Searching…</div>}
-                          {catSearch.trim() && !catSearching && (
-                            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                              {catResults.map(c => (
-                                <button key={c.id} onClick={() => handleLink(m.id, c.id)}
-                                  disabled={linkSaving}
-                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 border-b last:border-0 flex items-center justify-between disabled:opacity-40">
-                                  <span>{c.name}</span>
-                                  <span className="text-xs text-gray-400">{c.default_unit || ""}</span>
+                      <tr key={m.id + "-link"} className="border-b bg-blue-50/50">
+                        <td colSpan={4} className="px-5 py-4 space-y-3">
+                          {!showCreateForm ? (
+                            <>
+                              <p className="text-xs text-gray-500">Search for an existing catalog entry, or create a new one:</p>
+                              <input
+                                className={inputCls}
+                                placeholder="Type to search catalog…"
+                                value={catSearch}
+                                onChange={e => { setCatSearch(e.target.value); setShowCreateForm(false); }}
+                                autoFocus
+                              />
+                              {catSearching && <div className="text-xs text-gray-400">Searching…</div>}
+                              {catSearch.trim() && !catSearching && (
+                                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                  {catResults.map(c => (
+                                    <button key={c.id} onClick={() => handleLink(m.id, c.id)}
+                                      disabled={linkSaving}
+                                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 border-b last:border-0 flex items-center justify-between disabled:opacity-40">
+                                      <span>{c.name}</span>
+                                      <span className="text-xs text-gray-400">{c.default_unit || ""}</span>
+                                    </button>
+                                  ))}
+                                  <button onClick={() => openCreateForm(m)}
+                                    className="w-full text-left px-4 py-2.5 text-sm text-green-700 font-semibold hover:bg-green-50 flex items-center gap-2">
+                                    <span>+ Create "{catSearch.trim()}" as new catalog entry</span>
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">New Catalog Entry</p>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-2">
+                                  <label className="block text-xs text-gray-500 mb-1">Name *</label>
+                                  <input className={inputCls} value={createName} onChange={e => setCreateName(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-1">Unit *</label>
+                                  <input className={inputCls} value={createUnit} onChange={e => setCreateUnit(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-1">Default Cost</label>
+                                  <input type="number" min="0" step="0.01" className={inputCls} value={createCost} onChange={e => setCreateCost(e.target.value)} placeholder="0.00" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-1">Vendor</label>
+                                  <input className={inputCls} value={createVendor} onChange={e => setCreateVendor(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-1">Category</label>
+                                  <select className={inputCls} value={createCategoryId} onChange={e => setCreateCategoryId(e.target.value)}>
+                                    <option value="">None</option>
+                                    {catOptions.map(c => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.parent_id ? "  ↳ " : ""}{c.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button onClick={() => handleCreateAndLink(m.id)}
+                                  disabled={linkSaving || !createName.trim() || !createUnit.trim()}
+                                  className={btnPrimary}>
+                                  {linkSaving ? "Creating…" : "Create & Link"}
                                 </button>
-                              ))}
-                              <button onClick={() => handleCreateAndLink(m.id, m)}
-                                disabled={linkSaving}
-                                className="w-full text-left px-4 py-2.5 text-sm text-green-700 font-semibold hover:bg-green-50 flex items-center gap-2 disabled:opacity-40">
-                                <span>+ Create "{catSearch.trim()}" as new catalog entry</span>
-                              </button>
-                            </div>
+                                <button onClick={() => setShowCreateForm(false)} className={btnGhost}>Back</button>
+                              </div>
+                            </>
                           )}
                         </td>
                       </tr>
