@@ -234,7 +234,7 @@ export default function TaskCatalogPage() {
     try {
       const payload = {
         task_catalog_id: editingTask.id,
-        material_id: selectedMat?.id || null,
+        material_id: null, // task_catalog_materials FK points to old materials table; catalog ID stored in material_name
         material_name: selectedMat?.name || matSearch.trim(),
         qty_per_unit: qty,
         unit: matUnit.trim() || selectedMat?.unit || fUnit.trim() || null,
