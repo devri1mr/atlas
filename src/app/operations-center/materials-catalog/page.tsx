@@ -65,7 +65,7 @@ function CategoryRow({
   node: CategoryNode;
   depth: number;
   onAdd: (parentId: string) => void;
-  onEdit: (id: string, patch: Partial<Category>) => void;
+  onEdit: (id: string, patch: Partial<AddForm> & { name?: string }) => void;
   onDelete: (id: string) => void;
   editingId: string | null;
   editForm: AddForm;
