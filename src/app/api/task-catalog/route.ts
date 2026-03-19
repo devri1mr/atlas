@@ -160,7 +160,30 @@ export async function POST(req: NextRequest) {
   const fall_multiplier = body?.fall_multiplier ?? null;
   const winter_multiplier = body?.winter_multiplier ?? null;
 
-  const { data, error } = await supabase
+  // If a soft-deleted row with the same name + division exists, reactivate it instead of inserting.
+  const { data: existing } = await supabase
+    .from("task_catalog")
+    .select("id")
+    .eq("division_id", division_id)
+    .ilike("name", name)
+    .eq("active", false)
+    .maybeSingle();
+
+  const payload = {
+    division_id, name, unit, minutes_per_unit, default_qty, notes,
+    min_qty, round_qty_to, difficulty_multiplier,
+    spring_multiplier, summer_multiplier, fall_multiplier, winter_multiplier,
+    active: true,
+  };
+
+  const { data, error } = existing?.id
+    ? await supabase.from("task_catalog").update(payload).eq("id", existing.id).select(
+      `id, division_id, name, unit, minutes_per_unit, default_qty, notes,
+       min_qty, round_qty_to, difficulty_multiplier,
+       spring_multiplier, summer_multiplier, fall_multiplier, winter_multiplier,
+       created_at, updated_at`
+    ).single()
+    : await supabase
     .from("task_catalog")
     .insert({
       division_id,

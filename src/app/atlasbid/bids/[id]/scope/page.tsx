@@ -156,6 +156,15 @@ const UNIT_OPTIONS = [
   { label: "hours", value: "hr" },
 ];
 
+function pluralUnit(unit: string, qty: number): string {
+  if (qty === 1) return unit;
+  const map: Record<string, string> = {
+    yd: "yds", hr: "hrs", bag: "bags", lb: "lbs",
+    gal: "gals", ton: "tons", load: "loads", visit: "visits",
+  };
+  return map[unit] ?? unit;
+}
+
 function renderDescriptionTemplate(template: string, qty: number, unit: string, matNames: string[]): string {
   return template
     .replace(/\{qty\}/gi, String(qty))
@@ -2149,7 +2158,7 @@ async function addLabor() {
                 }}
               />
             </div>
-            <div className="text-center text-sm">{row.unit}</div>
+            <div className="text-center text-sm">{pluralUnit(row.unit, row.quantity)}</div>
             <div>
               <input
                 className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
@@ -2366,7 +2375,7 @@ async function addLabor() {
                       }}
                     />
                   </div>
-                  <div className="text-center text-sm">{row.unit}</div>
+                  <div className="text-center text-sm">{pluralUnit(row.unit, row.quantity)}</div>
                   <div>
                     <input
                       className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
@@ -2758,7 +2767,7 @@ async function addLabor() {
                           ))}
                         </select>
                       ) : (
-                        row.unit
+                        pluralUnit(row.unit ?? "", row.qty ?? 0)
                       )}
                     </div>
 

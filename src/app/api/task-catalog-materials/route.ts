@@ -22,15 +22,24 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("task_catalog_materials")
-    .select(`
-      id, task_catalog_id, material_id, material_name, qty_per_unit, unit,
-      materials ( id, name, unit, unit_cost )
-    `)
+    .select("id, task_catalog_id, material_id, material_name, qty_per_unit, unit")
     .eq("task_catalog_id", taskCatalogId)
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rows: data || [] });
+
+  // Enrich with names from materials_catalog
+  const matIds = (data || []).map((r: any) => r.material_id).filter(Boolean);
+  let nameMap: Record<string, string> = {};
+  if (matIds.length > 0) {
+    const { data: cats } = await supabase.from("materials_catalog").select("id, name").in("id", matIds);
+    for (const c of cats ?? []) nameMap[c.id] = c.name;
+  }
+  const rows = (data || []).map((r: any) => ({
+    ...r,
+    materials: r.material_id ? { id: r.material_id, name: nameMap[r.material_id] || r.material_name || null, unit: null, unit_cost: null } : null,
+  }));
+  return NextResponse.json({ rows });
 }
 
 /** POST /api/task-catalog-materials */

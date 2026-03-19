@@ -121,7 +121,7 @@ export default function TaskCatalogPage() {
     if (matSearch.length < 2) { setMatResults([]); return; }
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/materials?search=${encodeURIComponent(matSearch)}&limit=8`, { cache: "no-store" });
+        const res = await fetch(`/api/materials-catalog?q=${encodeURIComponent(matSearch)}`, { cache: "no-store" });
         const j = await res.json();
         setMatResults(Array.isArray(j?.data) ? j.data : []);
         setMatSearchOpen(true);
