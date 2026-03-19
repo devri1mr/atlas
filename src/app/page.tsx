@@ -68,50 +68,41 @@ export default function Home() {
 
         {/* Left panel — brand */}
         <div className="hidden lg:flex flex-col w-[55%] relative overflow-hidden"
-          style={{ background: "linear-gradient(160deg, #071510 0%, #0d2618 40%, #123b1f 75%, #174d28 100%)" }}>
+          style={{ background: "linear-gradient(180deg, #ffffff 0%, #f4fbf5 38%, #1a5c2a 62%, #0a1f10 100%)" }}>
 
-          {/* Decorative elements */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 left-0 w-full h-full opacity-[0.03]"
-              style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #4ade80 0%, transparent 50%), radial-gradient(circle at 80% 20%, #22c55e 0%, transparent 50%)" }} />
-            <div className="absolute -bottom-24 -right-24 w-[500px] h-[500px] rounded-full border border-white/[0.04]" />
-            <div className="absolute -bottom-12 -right-12 w-[340px] h-[340px] rounded-full border border-white/[0.06]" />
-            <div className="absolute top-1/3 -left-20 w-[280px] h-[280px] rounded-full border border-white/[0.03]" />
+          {/* Blue streak decorations */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute" style={{ top: "8%", left: "-15%", width: "130%", height: "2px", background: "linear-gradient(90deg, transparent 0%, #93c5fd 35%, #60a5fa 55%, transparent 100%)", transform: "rotate(-14deg)", opacity: 0.25 }} />
+            <div className="absolute" style={{ top: "20%", left: "-5%", width: "75%", height: "1px", background: "linear-gradient(90deg, transparent 0%, #bfdbfe 45%, transparent 100%)", transform: "rotate(-10deg)", opacity: 0.3 }} />
+            <div className="absolute" style={{ top: "34%", right: "-8%", width: "65%", height: "1.5px", background: "linear-gradient(90deg, transparent 0%, #7dd3fc 50%, #3b82f6 70%, transparent 100%)", transform: "rotate(7deg)", opacity: 0.18 }} />
+            <div className="absolute" style={{ top: "50%", left: "5%", width: "90%", height: "1px", background: "linear-gradient(90deg, transparent 0%, #60a5fa 40%, #93c5fd 60%, transparent 100%)", transform: "rotate(-4deg)", opacity: 0.15 }} />
+            <div className="absolute" style={{ bottom: "28%", left: "-10%", width: "80%", height: "2px", background: "linear-gradient(90deg, transparent 0%, #3b82f6 40%, #60a5fa 65%, transparent 100%)", transform: "rotate(12deg)", opacity: 0.12 }} />
+            <div className="absolute" style={{ bottom: "12%", right: "-5%", width: "55%", height: "1px", background: "linear-gradient(90deg, transparent 0%, #93c5fd 50%, transparent 100%)", transform: "rotate(-18deg)", opacity: 0.2 }} />
           </div>
 
-          {/* Content — vertically centered */}
-          <div className="relative flex flex-col items-center justify-center flex-1 px-16 text-center">
+          {/* Top white section — logo */}
+          <div className="relative flex items-center justify-center" style={{ flex: "0 0 52%" }}>
+            <Image
+              src="/atlas-logo.png"
+              alt="Atlas"
+              width={500}
+              height={500}
+              style={{ objectFit: "contain", maxHeight: "72%", maxWidth: "80%" }}
+              priority
+            />
+          </div>
 
-            {/* Logo — large, prominent */}
-            <div className="mb-10">
-              <Image
-                src="/atlas-logo.png"
-                alt="Atlas"
-                width={320}
-                height={320}
-                style={{ objectFit: "contain", maxHeight: 220 }}
-                priority
-              />
-            </div>
-
-            {/* Divider */}
-            <div className="w-16 h-px bg-green-500/40 mb-10" />
-
-            {/* Main slogan */}
-            <h2 className="text-3xl font-bold text-white leading-snug tracking-tight mb-6">
+          {/* Bottom green section — slogan */}
+          <div className="relative flex flex-col items-center justify-center flex-1 px-16 text-center pb-10">
+            <div className="w-16 h-px bg-green-300/30 mb-8" />
+            <h2 className="text-3xl font-bold text-white leading-snug tracking-tight mb-5">
               Precision in the number.<br />
-              <span className="text-green-400">Profit in the job.</span>
+              <span className="text-green-300">Profit in the job.</span>
             </h2>
-
-            {/* Description */}
-            <p className="text-white/40 text-sm leading-relaxed max-w-sm">
+            <p className="text-white/45 text-sm leading-relaxed max-w-sm">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
-          </div>
-
-          {/* Footer */}
-          <div className="relative px-16 pb-8 text-center">
-            <p className="text-white/15 text-[10px] tracking-[0.25em] uppercase">
+            <p className="absolute bottom-5 text-white/20 text-[10px] tracking-[0.25em] uppercase">
               Powered by InterRivus Systems
             </p>
           </div>
