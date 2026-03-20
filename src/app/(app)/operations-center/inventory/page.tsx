@@ -82,6 +82,21 @@ function titleize(s: string) {
   return String(s || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
+const RECEIPT_SOURCE_OPTIONS = [
+  { value: "invoice", label: "Invoice" },
+  { value: "ticket", label: "Ticket" },
+  { value: "cc_receipt", label: "CC Receipt" },
+];
+
+const RECEIPT_SOURCE_LABEL: Record<string, string> = {
+  invoice: "Invoice",
+  ticket: "Ticket",
+  cc_receipt: "CC Receipt",
+  receipt: "Receipt",
+};
+
+const RECEIPT_TYPES = new Set(["receipt", "invoice", "ticket", "cc_receipt"]);
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 type InventoryLocation = { id: string; name: string; is_active?: boolean | null };
@@ -114,6 +129,7 @@ export default function InventoryPage() {
   const [locationId, setLocationId] = useState("");
   const [notes, setNotes] = useState("");
   const [invoicedFinal, setInvoicedFinal] = useState(false);
+  const [receiptSource, setReceiptSource] = useState("invoice");
   const [saving, setSaving] = useState(false);
   const [autoUnitCost, setAutoUnitCost] = useState<number | null>(null);
 
@@ -218,6 +234,7 @@ export default function InventoryPage() {
     setVendor("");
     setNotes("");
     setInvoicedFinal(false);
+    setReceiptSource("invoice");
     setAutoUnitCost(null);
     // keep locationId set
   }
@@ -236,6 +253,7 @@ export default function InventoryPage() {
     setVendor(row.vendor_name || "");
     setNotes(row.notes || "");
     setInvoicedFinal(Boolean(row.invoiced_final));
+    setReceiptSource(RECEIPT_TYPES.has(row.transaction_type) ? row.transaction_type : "invoice");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -261,6 +279,7 @@ export default function InventoryPage() {
             vendor_name: vendor.trim() || null,
             notes: notes.trim() || null,
             invoiced_final: invoicedFinal,
+            transaction_type: receiptSource,
           }),
         });
       } else {
@@ -278,6 +297,7 @@ export default function InventoryPage() {
             vendor_name: vendor.trim() || null,
             notes: notes.trim() || null,
             invoiced_final: invoicedFinal,
+            receipt_source: receiptSource,
             division_id: activeDivisionId || null,
             location_id: locationId || null,
           }),
@@ -324,7 +344,7 @@ export default function InventoryPage() {
 
   const totalValue = filteredSummary.reduce((s, r) => s + (r.inventory_value || 0), 0);
   const negCount = filteredSummary.filter(r => r.negative_flag).length;
-  const openReceipts = filteredLedger.filter(r => r.transaction_type === "receipt" && !r.invoiced_final).length;
+  const openReceipts = filteredLedger.filter(r => RECEIPT_TYPES.has(r.transaction_type) && !r.invoiced_final).length;
 
   const unitCostCalc = Number(qty) > 0 ? Number(totalCost) / Number(qty) : 0;
 
@@ -469,6 +489,18 @@ export default function InventoryPage() {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Invoice / PO" value={refNum} onChange={e => setRefNum(e.target.value)} />
                 </div>
+              </div>
+
+              {/* Source type */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Source Type</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={receiptSource} onChange={e => setReceiptSource(e.target.value)}>
+                  {RECEIPT_SOURCE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Location */}
@@ -628,8 +660,12 @@ export default function InventoryPage() {
                       <td className="px-4 py-3 font-medium text-gray-900">{matName}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          row.transaction_type === "receipt" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
-                        }`}>{titleize(row.transaction_type)}</span>
+                          row.transaction_type === "invoice" ? "bg-purple-100 text-purple-700" :
+                          row.transaction_type === "ticket" ? "bg-amber-100 text-amber-700" :
+                          row.transaction_type === "cc_receipt" ? "bg-blue-100 text-blue-700" :
+                          RECEIPT_TYPES.has(row.transaction_type) ? "bg-green-100 text-green-700" :
+                          "bg-gray-100 text-gray-600"
+                        }`}>{RECEIPT_SOURCE_LABEL[row.transaction_type] ?? titleize(row.transaction_type)}</span>
                       </td>
                       <td className="px-4 py-3 text-right">{fmtQty(row.quantity)} {rowUnit}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{row.unit_cost != null ? money(row.unit_cost) : "—"}</td>
