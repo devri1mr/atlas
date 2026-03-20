@@ -39,8 +39,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const title = getPageTitle(pathname);
-    document.title = title === "Atlas" ? "Atlas" : `${title} | Atlas`;
-  }, [pathname]);
+    const full = title === "Atlas" ? "Atlas" : `${title} | Atlas`;
+    // Delay slightly so Next.js metadata doesn't override after us
+    const t = setTimeout(() => { document.title = full; }, 50);
+    return () => clearTimeout(t);
+  }, [pathname, ready]);
 
   useEffect(() => {
     const sb = getSupabaseClient();
