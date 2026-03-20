@@ -1885,170 +1885,136 @@ async function addLabor() {
   </div>
   <div className="p-5 space-y-4">
 
-  {/* Column headers above add row */}
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2">
-    <div></div>
-    <div className="text-center">Task</div>
-    <div className="text-center">Details</div>
-    <div className="text-center">Qty</div>
-    <div className="text-center">Unit</div>
-    <div className="text-center">Hrs</div>
-    <div></div>
-    <div></div>
-    <div className="text-center">Action</div>
-  </div>
-
   {/* Add row */}
   <div className="space-y-2">
-  <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 items-center px-2">
-    <div />
-
-    <div ref={taskDropdownRef}>
-      <div className="relative">
-        <input
-          className="border rounded w-full h-9 px-3"
-          placeholder="Task name…"
-          value={taskSearch}
-          onChange={(e) => {
-            const v = e.target.value;
-            setTaskSearch(v);
-            setTask(v);
-            setShowTaskResults(true);
-            setSelectedTaskCatalogId("");
-            setSelectedTaskMinutesPerUnit(null);
-            setSelectedTaskTemplate("");
-            setDetailsFromTemplate(false);
-          }}
-          onFocus={() => setShowTaskResults(true)}
-        />
-
-        {showTaskResults && filteredTasks.length > 0 ? (
-          <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-            {filteredTasks.map((t) => (
-              <div
-                key={t.id}
-                className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                onClick={() => applyTaskSelection(t)}
-              >
-                {t.name}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-
-    <div className="relative">
-      <input
-        className="border rounded w-full h-9 px-3 pr-8"
-        placeholder="Details"
-        autoComplete="off"
-        value={details}
-        onFocus={() => setShowTaskResults(false)}
-        onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); setDetailsFromTemplate(false); }}
-      />
-      {task.trim() && (
-        <button
-          type="button"
-          title="AI suggest description"
-          disabled={suggestingFor === "add"}
-          onClick={async () => {
-            await suggestDescription("add", task.trim(), quantity, unit);
-          }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
-        >
-          {suggestingFor === "add" ? "…" : "✨"}
-        </button>
-      )}
-      {suggestion && suggestionFor === "add" && suggestingFor === null && (
-        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-          <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
-              onClick={() => { setDetails(suggestion); setSuggestion(""); setSuggestionFor(null); }}
-            >Use this</button>
-            <button
-              type="button"
-              className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600"
-              onClick={() => { setSuggestion(""); setSuggestionFor(null); }}
-            >Dismiss</button>
-          </div>
+  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+    {/* Row 1: task search + numeric controls + add button */}
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0" ref={taskDropdownRef}>
+        <div className="relative">
+          <input
+            className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            placeholder="Search or enter task name…"
+            value={taskSearch}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTaskSearch(v);
+              setTask(v);
+              setShowTaskResults(true);
+              setSelectedTaskCatalogId("");
+              setSelectedTaskMinutesPerUnit(null);
+              setSelectedTaskTemplate("");
+              setDetailsFromTemplate(false);
+            }}
+            onFocus={() => setShowTaskResults(true)}
+          />
+          {showTaskResults && filteredTasks.length > 0 ? (
+            <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
+              {filteredTasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                  onClick={() => applyTaskSelection(t)}
+                >
+                  {t.name}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
-      )}
-    </div>
-
-    <div>
-      <input
-        className="border rounded w-full h-9 px-3 text-center"
-        type="number"
-        placeholder=""
-        value={quantity === 0 ? "" : quantity}
-        onChange={(e) => {
-          const newQty = Number(e.target.value) || 0;
-          setQuantity(newQty);
-          if (selectedTaskMinutesPerUnit && newQty > 0) {
-            const computed = hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, newQty);
-            setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
-          }
-          if (detailsFromTemplate && selectedTaskTemplate && newQty > 0) {
-            const matNames = templateMaterials.map((r: any) => r.materials_catalog?.name || "").filter(Boolean);
-            setDetails(renderDescriptionTemplate(selectedTaskTemplate, newQty, unit, matNames));
-          }
-        }}
-      />
-    </div>
-
-    <div>
-      <select
-        className="border rounded w-full h-9 px-2"
-        value={unit}
-        onChange={(e) => {
-          setUnit(e.target.value);
-          if (e.target.value !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
-        }}
+      </div>
+      <div className="w-20 shrink-0">
+        <input
+          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          type="number"
+          placeholder="Qty"
+          value={quantity === 0 ? "" : quantity}
+          onChange={(e) => {
+            const newQty = Number(e.target.value) || 0;
+            setQuantity(newQty);
+            if (selectedTaskMinutesPerUnit && newQty > 0) {
+              const computed = hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, newQty);
+              setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
+            }
+            if (detailsFromTemplate && selectedTaskTemplate && newQty > 0) {
+              const matNames = templateMaterials.map((r: any) => r.materials_catalog?.name || "").filter(Boolean);
+              setDetails(renderDescriptionTemplate(selectedTaskTemplate, newQty, unit, matNames));
+            }
+          }}
+        />
+      </div>
+      <div className="w-24 shrink-0">
+        <select
+          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          value={unit}
+          onChange={(e) => {
+            setUnit(e.target.value);
+            if (e.target.value !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
+          }}
+        >
+          {UNIT_OPTIONS.map((u) => (
+            <option key={u.value} value={u.value}>{u.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="w-20 shrink-0">
+        <input
+          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          type="number"
+          placeholder="Hrs"
+          value={hours === 0 ? "" : hours}
+          onChange={(e) => setHours(Number(e.target.value))}
+        />
+      </div>
+      <button
+        onClick={addLabor}
+        className="shrink-0 bg-[#123b1f] text-white rounded-lg h-9 px-5 text-sm font-semibold hover:bg-[#1a5c2e]"
       >
-        {UNIT_OPTIONS.map((u) => (
-          <option key={u.value} value={u.value}>
-            {u.label}
-          </option>
-        ))}
-      </select>
+        Add
+      </button>
     </div>
-
-    <div>
-      <input
-        className="border rounded w-full h-9 px-3 text-right"
-        type="number"
-        placeholder=""
-        value={hours === 0 ? "" : hours}
-        onChange={(e) => setHours(Number(e.target.value))}
-      />
-    </div>
-
-    <div />
-
-    <div className="flex justify-center">
+    {/* Row 2: description + AI + save to catalog */}
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0 relative">
+        <input
+          className="border border-gray-200 rounded-lg w-full h-9 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="Description / proposal text…"
+          autoComplete="off"
+          value={details}
+          onFocus={() => setShowTaskResults(false)}
+          onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); setDetailsFromTemplate(false); }}
+        />
+        {task.trim() && (
+          <button
+            type="button"
+            title="AI suggest description"
+            disabled={suggestingFor === "add"}
+            onClick={async () => { await suggestDescription("add", task.trim(), quantity, unit); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
+          >
+            {suggestingFor === "add" ? "…" : "✨"}
+          </button>
+        )}
+        {suggestion && suggestionFor === "add" && suggestingFor === null && (
+          <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+            <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+            <div className="flex gap-2">
+              <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={() => { setDetails(suggestion); setSuggestion(""); setSuggestionFor(null); }}>Use this</button>
+              <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+            </div>
+          </div>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => setSaveToCatalog((v) => !v)}
-        className={`text-[10px] px-2 py-1 rounded-full border font-semibold transition-colors whitespace-nowrap leading-tight ${
+        className={`shrink-0 text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors whitespace-nowrap ${
           saveToCatalog
             ? "bg-emerald-50 border-emerald-500 text-emerald-700"
             : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500"
         }`}
       >
-        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Save to Catalog" : "Save to Catalog"}
-      </button>
-    </div>
-
-    <div className="text-right">
-      <button
-        onClick={addLabor}
-        className="bg-emerald-700 text-white rounded h-9 px-4"
-      >
-        Add
+        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Catalog" : "+ Catalog"}
       </button>
     </div>
   </div>
@@ -2101,40 +2067,25 @@ async function addLabor() {
   )}
   </div>
 
-  {labor.length > 0 && (
-    <div className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 pt-2 border-t">
-      <div className="text-center">Show</div>
-      <div className="text-center">Task</div>
-      <div className="text-center">Details</div>
-      <div className="text-center">Qty</div>
-      <div className="text-center">Unit</div>
-      <div className="text-center">Hrs</div>
-      <div className="text-center" title="Difficulty level (0–5)">Diff</div>
-      <div className="text-right">Total</div>
-      <div className="text-center">Action</div>
-    </div>
-  )}
-
   {labor.length === 0 ? (
-  <div className="text-gray-400 text-sm py-4 border rounded px-3">
+  <div className="text-gray-400 text-sm py-6 text-center">
     No labor added yet.
   </div>
 ) : (
-  <div className="space-y-3 pt-1">
+  <div className="space-y-2 pt-1 border-t">
     {laborGroups.map((g) => {
       if (g.type === "row") {
         const row = g.row;
         const rowEffectiveHrs = effectiveHours(row, season);
         const rowTotal = rowEffectiveHrs * (Number(row.hourly_rate) || 0);
         return (
-          <div
-            key={row.id}
-            className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 border rounded px-2 py-2 text-sm items-center hover:bg-gray-50"
-          >
-            <div className="flex justify-center">
+          <div key={row.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            {/* Row 1: show checkbox + task name + controls + total + delete */}
+            <div className="flex items-center gap-2 px-3 py-2.5">
               <input
-                className="w-4 h-4"
+                className="w-4 h-4 shrink-0 accent-green-700"
                 type="checkbox"
+                title="Show on proposal"
                 checked={row.show_as_line_item === true}
                 onChange={async (e) => {
                   const checked = e.target.checked;
@@ -2148,145 +2099,110 @@ async function addLabor() {
                   );
                 }}
               />
+              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.task}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input
+                  className="w-16 border border-gray-200 rounded-lg h-8 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  type="number"
+                  title="Quantity"
+                  value={row.quantity === 0 ? "" : row.quantity}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                    const mpu = row.task_catalog?.minutes_per_unit;
+                    const newHours = mpu && value > 0 ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2)) : row.man_hours;
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
+                  }}
+                  onBlur={async (e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                    const mpu = row.task_catalog?.minutes_per_unit;
+                    const patchBody: any = { quantity: value, unit: row.unit };
+                    if (mpu && value > 0) patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                    try {
+                      const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
+                      if (!res.ok) console.error("Failed to save labor row", await res.json());
+                    } catch (err) { console.error("Labor autosave failed", err); }
+                  }}
+                />
+                <span className="text-xs text-gray-500 w-14 shrink-0">{pluralUnit(row.unit, row.quantity)}</span>
+                <input
+                  className="w-16 border border-gray-200 rounded-lg h-8 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums"
+                  type="number"
+                  step="0.01"
+                  title="Man hours"
+                  value={row.man_hours === 0 ? "" : row.man_hours}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r));
+                  }}
+                  onBlur={async (e) => {
+                    const raw = e.target.value;
+                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ man_hours: value, is_overridden: true }) });
+                  }}
+                />
+                <span className="text-xs text-gray-400 shrink-0">hrs</span>
+                <select
+                  title="Difficulty level"
+                  value={row.difficulty_level ?? 0}
+                  className="w-20 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+                  onChange={async (e) => {
+                    const level = Number(e.target.value);
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ difficulty_level: level }) });
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r));
+                  }}
+                >
+                  {DIFFICULTY_LABELS.map((label, i) => (
+                    <option key={i} value={i}>{i === 0 ? "Diff —" : `${i} ${label}`}</option>
+                  ))}
+                </select>
+                <span className="text-sm font-semibold text-gray-800 tabular-nums w-20 text-right shrink-0">{money(rowTotal)}</span>
+                <button onClick={() => deleteLaborRow(row.id)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-1" title="Delete row">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              </div>
             </div>
-            <div className="font-medium leading-tight truncate text-center">{row.task}</div>
-            <div className="relative">
-              <input
-                className="border rounded w-full h-9 px-3 pr-8 text-sm"
-                autoComplete="off"
-                value={row.proposal_text ?? ""}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
-                  );
-                }}
-                onBlur={async (e) => {
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ proposal_text: e.target.value }),
-                  });
-                }}
-              />
-              <button
-                type="button"
-                title="AI suggest description"
-                disabled={suggestingFor === row.id}
-                onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
-              >
-                {suggestingFor === row.id ? "…" : "✨"}
-              </button>
-              {suggestion && suggestionFor === row.id && suggestingFor === null && (
-                <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-                  <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
-                      onClick={async () => {
+            {/* Row 2: description + AI */}
+            <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2 bg-gray-50/50">
+              <div className="flex-1 min-w-0 relative">
+                <input
+                  className="border border-gray-200 rounded-lg w-full h-8 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  autoComplete="off"
+                  placeholder="Proposal description…"
+                  value={row.proposal_text ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r));
+                  }}
+                  onBlur={async (e) => {
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: e.target.value }) });
+                  }}
+                />
+                <button
+                  type="button"
+                  title="AI suggest description"
+                  disabled={suggestingFor === row.id}
+                  onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
+                >
+                  {suggestingFor === row.id ? "…" : "✨"}
+                </button>
+                {suggestion && suggestionFor === row.id && suggestingFor === null && (
+                  <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+                    <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+                    <div className="flex gap-2">
+                      <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={async () => {
                         setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
                         await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
                         setSuggestion(""); setSuggestionFor(null);
-                      }}
-                    >Use this</button>
-                    <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                      }}>Use this</button>
+                      <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-            <div>
-              <input
-                className="border rounded w-full h-9 px-3 text-center"
-                type="number"
-                value={row.quantity === 0 ? "" : row.quantity}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                  const mpu = row.task_catalog?.minutes_per_unit;
-                  const newHours = mpu && value > 0
-                    ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2))
-                    : row.man_hours;
-                  setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r)
-                  );
-                }}
-                onBlur={async (e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                  const mpu = row.task_catalog?.minutes_per_unit;
-                  const patchBody: any = { quantity: value, unit: row.unit };
-                  if (mpu && value > 0) {
-                    patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                  }
-                  try {
-                    const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(patchBody),
-                    });
-                    if (!res.ok) console.error("Failed to save labor row", await res.json());
-                  } catch (err) {
-                    console.error("Labor autosave failed", err);
-                  }
-                }}
-              />
-            </div>
-            <div className="text-center text-sm">{pluralUnit(row.unit, row.quantity)}</div>
-            <div>
-              <input
-                className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
-                type="number"
-                step="0.01"
-                value={row.man_hours === 0 ? "" : row.man_hours}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                  setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
-                  );
-                }}
-                onBlur={async (e) => {
-                  const raw = e.target.value;
-                  const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ man_hours: value, is_overridden: true }),
-                  });
-                }}
-              />
-            </div>
-            <div className="flex justify-center">
-              <select
-                title="Difficulty level"
-                value={row.difficulty_level ?? 0}
-                className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
-                onChange={async (e) => {
-                  const level = Number(e.target.value);
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ difficulty_level: level }),
-                  });
-                  setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
-                  );
-                }}
-              >
-                {DIFFICULTY_LABELS.map((label, i) => (
-                  <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="text-right font-medium tabular-nums text-sm">
-              {money(rowTotal)}
-            </div>
-            <div className="text-center">
-              <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
-                Delete
-              </button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -2339,171 +2255,115 @@ async function addLabor() {
               </button>
             </div>
           </div>
-          <div className="space-y-0 divide-y">
+          <div className="space-y-1 p-2">
             {g.rows.map((row) => {
               const bundleRowEffHrs = effectiveHours(row, season);
               const rowTotal = bundleRowEffHrs * (Number(row.hourly_rate) || 0);
               return (
-                <div
-                  key={row.id}
-                  className="grid grid-cols-[28px_2fr_2fr_70px_80px_70px_40px_88px_58px] gap-2 px-2 py-2 text-sm items-center hover:bg-gray-50"
-                >
-                  <div className="flex justify-center">
+                <div key={row.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Row 1: show + task + controls */}
+                  <div className="flex items-center gap-2 px-3 py-2">
                     <input
-                      className="w-4 h-4"
+                      className="w-4 h-4 shrink-0 accent-green-700"
                       type="checkbox"
+                      title="Show on proposal"
                       checked={row.show_as_line_item === true}
                       onChange={async (e) => {
                         const checked = e.target.checked;
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ show_as_line_item: checked }),
-                        });
-                        setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
-                        );
+                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_as_line_item: checked }) });
+                        setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r));
                       }}
                     />
+                    <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{row.task}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                        type="number"
+                        title="Quantity"
+                        value={row.quantity === 0 ? "" : row.quantity}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                          const mpu = row.task_catalog?.minutes_per_unit;
+                          const newHours = mpu && value > 0 ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2)) : row.man_hours;
+                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
+                        }}
+                        onBlur={async (e) => {
+                          const raw = e.target.value;
+                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                          const mpu = row.task_catalog?.minutes_per_unit;
+                          const patchBody: any = { quantity: value, unit: row.unit };
+                          if (mpu && value > 0) patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                          try {
+                            const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
+                            if (!res.ok) console.error("Failed to save labor row", await res.json());
+                          } catch (err) { console.error("Labor autosave failed", err); }
+                        }}
+                      />
+                      <span className="text-xs text-gray-500 w-14 shrink-0">{pluralUnit(row.unit, row.quantity)}</span>
+                      <input
+                        className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500 tabular-nums"
+                        type="number"
+                        step="0.01"
+                        title="Man hours"
+                        value={row.man_hours === 0 ? "" : row.man_hours}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r));
+                        }}
+                        onBlur={async (e) => {
+                          const raw = e.target.value;
+                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
+                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ man_hours: value, is_overridden: true }) });
+                        }}
+                      />
+                      <span className="text-xs text-gray-400 shrink-0">hrs</span>
+                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-right shrink-0">{money(rowTotal)}</span>
+                      <button onClick={() => deleteLaborRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0 ml-1" title="Delete">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="font-medium leading-tight truncate text-center">{row.task}</div>
-                  <div className="relative">
-                    <input
-                      className="border rounded w-full h-9 px-3 pr-8 text-sm"
-                      autoComplete="off"
-                      value={row.proposal_text ?? ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r)
-                        );
-                      }}
-                      onBlur={async (e) => {
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ proposal_text: e.target.value }),
-                        });
-                      }}
-                    />
-                    <button
-                      type="button"
-                      title="AI suggest description"
-                      disabled={suggestingFor === row.id}
-                      onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
-                    >
-                      {suggestingFor === row.id ? "…" : "✨"}
-                    </button>
-                    {suggestion && suggestionFor === row.id && suggestingFor === null && (
-                      <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-                        <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700"
-                            onClick={async () => {
+                  {/* Row 2: description */}
+                  <div className="border-t border-gray-100 px-3 py-1.5 flex items-center gap-2 bg-gray-50/50">
+                    <div className="flex-1 min-w-0 relative">
+                      <input
+                        className="border border-gray-200 rounded w-full h-7 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                        autoComplete="off"
+                        placeholder="Proposal description…"
+                        value={row.proposal_text ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r));
+                        }}
+                        onBlur={async (e) => {
+                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: e.target.value }) });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        title="AI suggest description"
+                        disabled={suggestingFor === row.id}
+                        onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-sm leading-none disabled:opacity-40"
+                      >
+                        {suggestingFor === row.id ? "…" : "✨"}
+                      </button>
+                      {suggestion && suggestionFor === row.id && suggestingFor === null && (
+                        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
+                          <div className="text-gray-800 mb-2">✨ {suggestion}</div>
+                          <div className="flex gap-2">
+                            <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={async () => {
                               setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
                               await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
                               setSuggestion(""); setSuggestionFor(null);
-                            }}
-                          >Use this</button>
-                          <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                            }}>Use this</button>
+                            <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <input
-                      className="border rounded w-full h-9 px-3 text-center"
-                      type="number"
-                      value={row.quantity === 0 ? "" : row.quantity}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                        const mpu = row.task_catalog?.minutes_per_unit;
-                        const newHours = mpu && value > 0
-                          ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2))
-                          : row.man_hours;
-                        setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r)
-                        );
-                      }}
-                      onBlur={async (e) => {
-                        const raw = e.target.value;
-                        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                        const mpu = row.task_catalog?.minutes_per_unit;
-                        const patchBody: any = { quantity: value, unit: row.unit };
-                        if (mpu && value > 0) {
-                          patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                        }
-                        try {
-                          const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(patchBody),
-                          });
-                          if (!res.ok) console.error("Failed to save labor row", await res.json());
-                        } catch (err) {
-                          console.error("Labor autosave failed", err);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="text-center text-sm">{pluralUnit(row.unit, row.quantity)}</div>
-                  <div>
-                    <input
-                      className="w-full text-center text-sm bg-transparent border-0 focus:outline-none tabular-nums"
-                      type="number"
-                      step="0.01"
-                      value={row.man_hours === 0 ? "" : row.man_hours}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                        setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r)
-                        );
-                      }}
-                      onBlur={async (e) => {
-                        const raw = e.target.value;
-                        const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ man_hours: value, is_overridden: true }),
-                        });
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-center">
-                    <select
-                      title="Difficulty level"
-                      value={row.difficulty_level ?? 0}
-                      className="w-full text-xs border rounded px-1 py-1 h-9 text-center"
-                      onChange={async (e) => {
-                        const level = Number(e.target.value);
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ difficulty_level: level }),
-                        });
-                        setLabor((prev) =>
-                          prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r)
-                        );
-                      }}
-                    >
-                      {DIFFICULTY_LABELS.map((label, i) => (
-                        <option key={i} value={i}>{i === 0 ? "—" : `${i} ${label}`}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="text-right font-medium tabular-nums text-sm">
-                    {money(rowTotal)}
-                  </div>
-                  <div className="text-center">
-                    <button onClick={() => deleteLaborRow(row.id)} className="text-red-600 hover:underline text-sm">
-                      Delete
-                    </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
