@@ -270,34 +270,38 @@ export default function LaborRatesClient() {
   }, [divisions, rates]);
 
   return (
-    <div className="max-w-[1120px] mx-auto px-4 py-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm text-slate-500">Operations Center</div>
-          <h1 className="text-3xl font-semibold text-slate-900">
-            Division Rates
-          </h1>
-          <p className="text-slate-600 mt-1">
-            One hourly rate per division (used for labor + trucking).
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#f0f4f0]">
+      {/* Header */}
+      <div
+        className="px-4 md:px-8 py-6 md:py-8"
+        style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}
+      >
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
+              <span>Operations Center</span>
+              <span>/</span>
+              <span className="text-white/80">Labor Rates</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Labor Rates</h1>
+            <p className="text-white/50 text-sm mt-1">One hourly rate per division — used for both labor and trucking cost calculations.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={load}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 transition-colors"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-
-          <Dialog.Root open={addOpen} onOpenChange={setAddOpen}>
-            <Dialog.Trigger asChild>
-              <button className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800">
-                <Plus className="h-4 w-4" />
-                Add division rate
-              </button>
-            </Dialog.Trigger>
+            <Dialog.Root open={addOpen} onOpenChange={setAddOpen}>
+              <Dialog.Trigger asChild>
+                <button className="inline-flex items-center gap-2 rounded-xl bg-white/15 border border-white/20 px-3 py-2 text-sm font-medium text-white hover:bg-white/25 transition-colors">
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add Rate</span>
+                </button>
+              </Dialog.Trigger>
 
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-[99998] bg-black/40 backdrop-blur-sm" />
@@ -385,30 +389,32 @@ export default function LaborRatesClient() {
           </Dialog.Root>
         </div>
       </div>
-
-      <div className="mt-5 flex items-center gap-3">
-        <div className="relative w-full max-w-lg">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search division or rate…"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="text-sm text-slate-500">
-          {filtered.length} / {rates.length}
-        </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white">
-        <div className="hidden md:grid grid-cols-[1.6fr_1fr_220px] gap-0 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-600">
+      <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1 max-w-lg">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search division or rate…"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            />
+          </div>
+          <div className="text-sm text-gray-500 shrink-0">
+            {filtered.length} of {rates.length}
+          </div>
+        </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="hidden md:grid grid-cols-[1.6fr_1fr_220px] gap-0 border-b border-gray-100 bg-gray-50 rounded-t-2xl px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
           <div>Division</div>
           <div>Hourly Rate</div>
           <div className="text-right">Actions</div>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-slate-500">
+          <div className="px-4 py-10 text-center text-sm text-gray-400">
             No rows found.
           </div>
         ) : (
@@ -468,10 +474,10 @@ export default function LaborRatesClient() {
                     <button
                       onClick={() => saveRow(row)}
                       disabled={savingDivisionId === divisionId}
-                      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                         savingDivisionId === divisionId
-                          ? "bg-emerald-200 text-emerald-900"
-                          : "bg-emerald-700 text-white hover:bg-emerald-800"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-[#123b1f] text-white hover:bg-[#1a5c2e]"
                       }`}
                     >
                       {savingDivisionId === divisionId ? (
@@ -496,11 +502,9 @@ export default function LaborRatesClient() {
           </div>
         )}
 
-        <div className="flex items-center justify-between px-4 py-3 text-xs text-slate-500">
-          <div>
-            Tip: edit the rate → click <b>Save</b> on that row.
-          </div>
-          <div>One rate per division.</div>
+        <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-400 border-t border-gray-50">
+          <div>Edit the rate inline → click <span className="font-semibold text-gray-600">Save</span> to apply.</div>
+          <div>One rate per division</div>
         </div>
       </div>
 
@@ -583,6 +587,7 @@ export default function LaborRatesClient() {
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

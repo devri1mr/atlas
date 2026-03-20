@@ -106,8 +106,8 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
-          <div style={{ background: "white", borderRadius: 8, padding: "3px 8px" }}>
-            <Image src="/atlas-logo.png" alt="Atlas" width={72} height={22} style={{ objectFit: "contain", mixBlendMode: "multiply", display: "block" }} />
+          <div className="flex items-center justify-center flex-1">
+            <Image src="/atlas-logo-transparent.png" alt="Atlas" width={90} height={28} style={{ objectFit: "contain", filter: "brightness(0) invert(1)", display: "block" }} />
           </div>
         )}
         <button
