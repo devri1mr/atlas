@@ -75,18 +75,19 @@ export function computePosition(rows: any[]) {
 }
 
 export async function getInventorySummary(filters: any = {}) {
-  // Fetch without division_id filter so usage rows (which may have null division_id)
-  // are included, then apply division filtering in JS using material.division_id as fallback.
+  // Group by material+location only. Division is a property of the material, not
+  // the transaction — this prevents double-counting when receipts and usage rows
+  // have different (or null) division_id values for the same material.
   const { division_id: filterDivisionId, ...ledgerFilters } = filters;
   const rows = await getInventoryLedger(ledgerFilters);
 
   const groups = new Map<string, any[]>();
 
   for (const r of rows) {
-    const effectiveDivisionId = r.division_id || r.materials?.division_id || "none";
-    // Skip rows that don't belong to the requested division
-    if (filterDivisionId && effectiveDivisionId !== filterDivisionId) continue;
-    const key = `${effectiveDivisionId}_${r.material_id}_${r.location_id || "none"}`;
+    const materialDivisionId = r.materials?.division_id || null;
+    // Filter by division using the material's division, not the transaction's
+    if (filterDivisionId && materialDivisionId !== filterDivisionId) continue;
+    const key = `${r.material_id}_${r.location_id || "none"}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   }
@@ -98,7 +99,7 @@ export async function getInventorySummary(filters: any = {}) {
     const r = group[0];
 
     out.push({
-      division_id: r.division_id || r.materials?.division_id || null,
+      division_id: r.materials?.division_id || null,
       material_id: r.material_id,
       material_name: r.materials?.display_name || r.materials?.name || "",
       location_id: r.location_id,
