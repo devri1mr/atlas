@@ -270,7 +270,7 @@ export default function DashboardPage() {
                 <path d="M-20 108 Q90 95 200 106 Q310 117 420 102" stroke="rgba(100,155,210,0.12)" strokeWidth="1.5" fill="none"/>
                 <path d="M-20 124 Q100 114 220 122 Q330 130 420 118" stroke="rgba(100,155,210,0.08)" strokeWidth="1" fill="none"/>
               </svg>
-              <div className="relative p-5">
+              <div className="relative p-5 flex flex-col items-center text-center">
                 <div className="text-[#6a8aa8] text-[9px] uppercase tracking-[0.2em] font-semibold mb-2">Powered by</div>
                 <Image
                   src="/interrivus-logo.png"

@@ -100,14 +100,14 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
   return (
     <aside
-      className="flex flex-col h-screen sticky top-0 shrink-0 transition-all duration-300"
-      style={{ width: collapsed ? 64 : 220, background: "linear-gradient(180deg, #0d2616 0%, #123b1f 60%, #0f3019 100%)" }}
+      className="flex flex-col sticky top-0 shrink-0 transition-all duration-300"
+      style={{ width: collapsed ? 64 : 220, height: "100dvh", background: "linear-gradient(180deg, #0d2616 0%, #123b1f 60%, #0f3019 100%)" }}
     >
       {/* Logo */}
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
-          <div style={{ background: "white", borderRadius: 10, padding: "4px 10px" }}>
-            <Image src="/atlas-logo.png" alt="Atlas" width={90} height={28} style={{ objectFit: "contain", mixBlendMode: "multiply", display: "block" }} />
+          <div style={{ background: "white", borderRadius: 8, padding: "3px 8px" }}>
+            <Image src="/atlas-logo.png" alt="Atlas" width={72} height={22} style={{ objectFit: "contain", mixBlendMode: "multiply", display: "block" }} />
           </div>
         )}
         <button
