@@ -144,7 +144,7 @@ export async function createReceiptTransaction(input: any) {
     throw new Error("No inventory location found. Please add a location in Operations Center → Inventory Locations first.");
   }
 
-  const validSources = new Set(["receipt", "invoice", "ticket", "cc_receipt"]);
+  const validSources = new Set(["receipt", "invoice", "ticket", "cc_receipt", "carryover"]);
   const transactionType = validSources.has(input.receipt_source) ? input.receipt_source : "receipt";
 
   const { data, error } = await supabase

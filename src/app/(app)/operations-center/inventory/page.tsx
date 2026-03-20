@@ -86,16 +86,18 @@ const RECEIPT_SOURCE_OPTIONS = [
   { value: "invoice", label: "Invoice" },
   { value: "ticket", label: "Ticket" },
   { value: "cc_receipt", label: "CC Receipt" },
+  { value: "carryover", label: "Carryover" },
 ];
 
 const RECEIPT_SOURCE_LABEL: Record<string, string> = {
   invoice: "Invoice",
   ticket: "Ticket",
   cc_receipt: "CC Receipt",
+  carryover: "Carryover",
   receipt: "Receipt",
 };
 
-const RECEIPT_TYPES = new Set(["receipt", "invoice", "ticket", "cc_receipt"]);
+const RECEIPT_TYPES = new Set(["receipt", "invoice", "ticket", "cc_receipt", "carryover"]);
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -130,6 +132,7 @@ export default function InventoryPage() {
   const [notes, setNotes] = useState("");
   const [invoicedFinal, setInvoicedFinal] = useState(false);
   const [receiptSource, setReceiptSource] = useState("invoice");
+  const [partialEdit, setPartialEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [autoUnitCost, setAutoUnitCost] = useState<number | null>(null);
 
@@ -235,6 +238,7 @@ export default function InventoryPage() {
     setNotes("");
     setInvoicedFinal(false);
     setReceiptSource("invoice");
+    setPartialEdit(false);
     setAutoUnitCost(null);
     // keep locationId set
   }
@@ -254,33 +258,44 @@ export default function InventoryPage() {
     setNotes(row.notes || "");
     setInvoicedFinal(Boolean(row.invoiced_final));
     setReceiptSource(RECEIPT_TYPES.has(row.transaction_type) ? row.transaction_type : "invoice");
+    setPartialEdit(Boolean(row.invoiced_final));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   async function handleSubmit() {
-    if (!matSearch.trim()) { setError("Material is required."); return; }
-    if (Number(qty) <= 0) { setError("Quantity must be greater than 0."); return; }
+    if (!partialEdit && !matSearch.trim()) { setError("Material is required."); return; }
+    if (!partialEdit && Number(qty) <= 0) { setError("Quantity must be greater than 0."); return; }
     setSaving(true);
     setError("");
     try {
       let res: Response;
       if (editingId) {
-        const q = Number(qty);
-        const tc = Number(totalCost);
+        const patchBody = partialEdit
+          ? {
+              transaction_type: receiptSource,
+              vendor_name: vendor.trim() || null,
+              reference_number: refNum.trim() || null,
+              notes: notes.trim() || null,
+            }
+          : (() => {
+              const q = Number(qty);
+              const tc = Number(totalCost);
+              return {
+                quantity: q, total_cost: tc,
+                unit_cost: q > 0 ? Number((tc / q).toFixed(4)) : 0,
+                transaction_date: date,
+                reference_number: refNum.trim() || null,
+                vendor_name: vendor.trim() || null,
+                notes: notes.trim() || null,
+                invoiced_final: invoicedFinal,
+                transaction_type: receiptSource,
+              };
+            })();
         res = await fetch(`/api/inventory/receipt/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            quantity: q, total_cost: tc,
-            unit_cost: q > 0 ? Number((tc / q).toFixed(4)) : 0,
-            transaction_date: date,
-            reference_number: refNum.trim() || null,
-            vendor_name: vendor.trim() || null,
-            notes: notes.trim() || null,
-            invoiced_final: invoicedFinal,
-            transaction_type: receiptSource,
-          }),
+          body: JSON.stringify(patchBody),
         });
       } else {
         res = await fetch("/api/inventory/receipt", {
@@ -402,10 +417,10 @@ export default function InventoryPage() {
           <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
             <div className={`px-5 py-4 border-b ${editingId ? "bg-amber-50" : "bg-gray-50"}`}>
               <h2 className="font-bold text-gray-900 text-base">
-                {editingId ? "✎ Edit Receipt" : "Add Receipt"}
+                {partialEdit ? "✎ Edit Details" : editingId ? "✎ Edit Receipt" : "Add Receipt"}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {editingId ? "Update the selected receipt below." : `Add incoming stock to ${activeDivision?.name || "inventory"}.`}
+                {partialEdit ? "Vendor, type, reference and notes only — qty/cost locked on finalized receipts." : editingId ? "Update the selected receipt below." : `Add incoming stock to ${activeDivision?.name || "inventory"}.`}
               </p>
             </div>
 
@@ -414,11 +429,12 @@ export default function InventoryPage() {
               <div ref={dropRef} className="relative">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Material *</label>
                 <input
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  disabled={partialEdit}
+                  className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
                   placeholder="Search registered materials…"
                   value={matSearch}
                   onChange={e => { setMatSearch(e.target.value); setSelectedMatId(""); setShowDrop(true); }}
-                  onFocus={() => setShowDrop(true)}
+                  onFocus={() => { if (!partialEdit) setShowDrop(true); }}
                 />
                 {showDrop && matResults.length > 0 && (
                   <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
@@ -439,8 +455,8 @@ export default function InventoryPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Qty *</label>
-                  <input type="number" min="0" step="any"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  <input type="number" min="0" step="any" disabled={partialEdit}
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
                     placeholder="0" value={qty} onChange={e => {
                       const v = e.target.value;
                       setQty(v);
@@ -452,8 +468,8 @@ export default function InventoryPage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Unit</label>
                   <select
-                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${unitLocked ? "bg-gray-100 text-gray-500" : ""}`}
-                    value={unit} disabled={unitLocked} onChange={e => setUnit(e.target.value)}>
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${unitLocked || partialEdit ? "bg-gray-100 text-gray-500" : ""}`}
+                    value={unit} disabled={unitLocked || partialEdit} onChange={e => setUnit(e.target.value)}>
                     {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
@@ -461,8 +477,8 @@ export default function InventoryPage() {
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Total Cost</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                    <input type="number" min="0" step="0.01"
-                      className="w-full border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    <input type="number" min="0" step="0.01" disabled={partialEdit}
+                      className={`w-full border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
                       placeholder="0.00" value={totalCost} onChange={e => setTotalCost(e.target.value)} />
                   </div>
                 </div>
@@ -479,8 +495,8 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
-                  <input type="date"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  <input type="date" disabled={partialEdit}
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
                     value={date} onChange={e => setDate(e.target.value)} />
                 </div>
                 <div>
@@ -547,9 +563,9 @@ export default function InventoryPage() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-1">
-                <button onClick={handleSubmit} disabled={saving || !matSearch.trim() || Number(qty) <= 0}
+                <button onClick={handleSubmit} disabled={saving || (!partialEdit && (!matSearch.trim() || Number(qty) <= 0))}
                   className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold text-sm py-2.5 rounded-lg shadow-sm transition-colors disabled:opacity-40">
-                  {saving ? "Saving…" : editingId ? "Save Changes" : "Add Receipt"}
+                  {saving ? "Saving…" : partialEdit ? "Save Details" : editingId ? "Save Changes" : "Add Receipt"}
                 </button>
                 {editingId && (
                   <button onClick={clearForm} className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors">
@@ -663,6 +679,7 @@ export default function InventoryPage() {
                           row.transaction_type === "invoice" ? "bg-purple-100 text-purple-700" :
                           row.transaction_type === "ticket" ? "bg-amber-100 text-amber-700" :
                           row.transaction_type === "cc_receipt" ? "bg-blue-100 text-blue-700" :
+                          row.transaction_type === "carryover" ? "bg-teal-100 text-teal-700" :
                           RECEIPT_TYPES.has(row.transaction_type) ? "bg-green-100 text-green-700" :
                           "bg-gray-100 text-gray-600"
                         }`}>{RECEIPT_SOURCE_LABEL[row.transaction_type] ?? titleize(row.transaction_type)}</span>
@@ -684,9 +701,9 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-3">
-                          {!row.invoiced_final && (
-                            <button onClick={() => startEdit(row)} className="text-xs font-semibold text-blue-600 hover:underline">Edit</button>
-                          )}
+                          <button onClick={() => startEdit(row)} className="text-xs font-semibold text-blue-600 hover:underline">
+                            {row.invoiced_final ? "Edit Details" : "Edit"}
+                          </button>
                           <button onClick={() => setVoidConfirm(row.id)} className="text-xs font-semibold text-red-500 hover:underline">Void</button>
                         </div>
                       </td>
