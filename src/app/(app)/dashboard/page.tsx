@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type Weather = { temp: number; desc: string; icon: string; city: string };
@@ -257,20 +258,31 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Atlas brand card */}
-            <div className="rounded-2xl overflow-hidden relative"
-              style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a5c2a 100%)", minHeight: 140 }}>
-              <div className="absolute -bottom-8 -right-8 w-40 h-40 rounded-full opacity-10"
-                style={{ background: "radial-gradient(circle, #4ade80, transparent 70%)" }} />
+            {/* InterRivus brand card */}
+            <a href="https://interrivus.com" target="_blank" rel="noopener noreferrer"
+              className="rounded-2xl overflow-hidden relative block group transition-all hover:shadow-md"
+              style={{ background: "linear-gradient(180deg, #f9fbfd 0%, #dce9f4 100%)", minHeight: 120 }}>
+              {/* River wave streaks */}
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 140" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+                <path d="M-20 90 Q80 75 180 88 Q280 101 400 85" stroke="rgba(100,155,210,0.18)" strokeWidth="2" fill="none"/>
+                <path d="M-20 108 Q90 95 200 106 Q310 117 420 102" stroke="rgba(100,155,210,0.12)" strokeWidth="1.5" fill="none"/>
+                <path d="M-20 124 Q100 114 220 122 Q330 130 420 118" stroke="rgba(100,155,210,0.08)" strokeWidth="1" fill="none"/>
+              </svg>
               <div className="relative p-5">
-                <div className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold mb-1">Powered by</div>
-                <div className="text-white text-xl font-extrabold tracking-[0.15em] uppercase">Atlas</div>
-                <div className="text-white/30 text-[10px] tracking-widest uppercase mt-0.5">InterRivus Systems</div>
-                <div className="mt-4 text-white/50 text-xs leading-relaxed">
-                  Your complete landscaping operations platform.
+                <div className="text-[#6a8aa8] text-[9px] uppercase tracking-[0.2em] font-semibold mb-2">Powered by</div>
+                <Image
+                  src="/interrivus-logo.png"
+                  alt="InterRivus Systems"
+                  width={120}
+                  height={38}
+                  style={{ objectFit: "contain", mixBlendMode: "multiply" }}
+                />
+                <div className="mt-3 flex items-center gap-1 text-[#2a6496] text-xs font-semibold group-hover:underline">
+                  interrivus.com
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
                 </div>
               </div>
-            </div>
+            </a>
 
           </div>
         </div>
