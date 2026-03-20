@@ -107,7 +107,9 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
           <div className="flex items-center justify-center flex-1">
-            <Image src="/atlas-logo-transparent.png" alt="Atlas" width={120} height={80} style={{ objectFit: "contain", display: "block" }} />
+            <div style={{ background: "rgba(255,255,255,0.92)", borderRadius: 12, padding: "6px 14px" }}>
+              <Image src="/atlas-logo-transparent.png" alt="Atlas" width={100} height={66} style={{ objectFit: "contain", display: "block" }} />
+            </div>
           </div>
         )}
         <button
