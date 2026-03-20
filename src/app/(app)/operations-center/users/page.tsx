@@ -236,7 +236,7 @@ export default function UsersPage() {
   const inactive = users.filter(u => !u.is_active);
 
   return (
-    <div className="p-8 space-y-6 max-w-5xl">
+    <div className="p-4 md:p-8 space-y-6 max-w-5xl">
 
       {/* Header */}
       <div className="rounded-xl border bg-white p-6 shadow-sm">
@@ -454,49 +454,51 @@ export default function UsersPage() {
         ) : active.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-gray-400">No users yet. Invite your first teammate.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                <th className="text-left px-6 py-3">User</th>
-                <th className="text-left px-6 py-3">Role</th>
-                <th className="text-left px-6 py-3">Joined</th>
-                <th className="text-right px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map(user => (
-                <tr key={user.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                        {initials(user)}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{user.full_name || "—"}</div>
-                        <div className="text-gray-400 text-xs">{user.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${roleStyle(user.role)}`}>
-                        {roleLabel(user.role)}
-                      </span>
-                      {user.permissions && Object.keys(user.permissions).length > 0 && (
-                        <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wide">custom</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-3.5 text-gray-400 text-xs">{fmtDate(user.created_at)}</td>
-                  <td className="px-6 py-3.5 text-right">
-                    <button onClick={() => openEdit(user)} className="text-xs text-gray-400 hover:text-green-700 font-medium transition-colors">
-                      Edit
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
+              <thead>
+                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                  <th className="text-left px-4 md:px-6 py-3">User</th>
+                  <th className="text-left px-4 md:px-6 py-3">Role</th>
+                  <th className="text-left px-4 md:px-6 py-3 hidden sm:table-cell">Joined</th>
+                  <th className="text-right px-4 md:px-6 py-3"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {active.map(user => (
+                  <tr key={user.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 md:px-6 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {initials(user)}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{user.full_name || "—"}</div>
+                          <div className="text-gray-400 text-xs">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 md:px-6 py-3.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${roleStyle(user.role)}`}>
+                          {roleLabel(user.role)}
+                        </span>
+                        {user.permissions && Object.keys(user.permissions).length > 0 && (
+                          <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wide">custom</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 md:px-6 py-3.5 text-gray-400 text-xs hidden sm:table-cell">{fmtDate(user.created_at)}</td>
+                    <td className="px-4 md:px-6 py-3.5 text-right">
+                      <button onClick={() => openEdit(user)} className="text-xs text-gray-400 hover:text-green-700 font-medium transition-colors">
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

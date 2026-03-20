@@ -401,7 +401,7 @@ export default function LaborRatesClient() {
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1.6fr_1fr_220px] gap-0 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-600">
+        <div className="hidden md:grid grid-cols-[1.6fr_1fr_220px] gap-0 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-600">
           <div>Division</div>
           <div>Hourly Rate</div>
           <div className="text-right">Actions</div>
@@ -428,7 +428,7 @@ export default function LaborRatesClient() {
               return (
                 <div
                   key={divisionId}
-                  className="grid grid-cols-[1.6fr_1fr_220px] items-center gap-0 px-4 py-3"
+                  className="flex flex-col md:grid md:grid-cols-[1.6fr_1fr_220px] items-start md:items-center gap-2 md:gap-0 px-4 py-3"
                 >
                   <div className="pr-3">
                     <div className="text-sm font-medium text-slate-900">

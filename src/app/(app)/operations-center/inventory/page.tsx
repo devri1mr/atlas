@@ -332,7 +332,7 @@ export default function InventoryPage() {
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
       {/* Header */}
-      <div className="bg-[#123b1f] px-8 py-4 flex items-center justify-between">
+      <div className="bg-[#123b1f] px-4 md:px-8 py-4 flex items-center justify-between">
         <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Inventory</div>
         <Link href="/operations-center" className="text-white/60 hover:text-white text-sm">← Operations Center</Link>
       </div>
@@ -416,7 +416,7 @@ export default function InventoryPage() {
               </div>
 
               {/* Qty + Unit + Cost */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Qty *</label>
                   <input type="number" min="0" step="any"

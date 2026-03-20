@@ -125,37 +125,37 @@ export default function DashboardPage() {
 
       {/* Hero Header */}
       <div
-        className="relative overflow-hidden px-8 py-8"
+        className="relative overflow-hidden px-4 py-6 md:px-8 md:py-8"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}
       >
         {/* Decorative circles */}
         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full opacity-[0.06]" style={{ background: "radial-gradient(circle, #fff 0%, transparent 70%)" }} />
         <div className="absolute -bottom-20 right-40 w-96 h-96 rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #4ade80 0%, transparent 70%)" }} />
 
-        <div className="relative flex items-start justify-between flex-wrap gap-4">
+        <div className="relative flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
               {loading ? "Welcome back" : greeting(name)}
             </h1>
-            <p className="text-white/50 text-sm mt-1">{today}</p>
+            <p className="text-white/50 text-xs md:text-sm mt-1">{today}</p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Weather */}
             {weather && (
-              <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2.5">
-                <span className="text-2xl">{weather.icon}</span>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2">
+                <span className="text-xl">{weather.icon}</span>
                 <div>
-                  <div className="text-white font-semibold text-sm">{weather.temp}°F · {weather.desc}</div>
-                  {weather.city && <div className="text-white/50 text-xs">{weather.city}</div>}
+                  <div className="text-white font-semibold text-xs md:text-sm">{weather.temp}°F · {weather.desc}</div>
+                  {weather.city && <div className="text-white/50 text-[10px]">{weather.city}</div>}
                 </div>
               </div>
             )}
 
             {/* Quick new bid CTA */}
             <Link href="/atlasbid/new"
-              className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-green-900/30 transition-all hover:scale-[1.02]">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-green-900/30 transition-all">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               New Bid
@@ -164,7 +164,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="px-8 py-7 space-y-7 max-w-[1400px]">
+      <div className="px-4 md:px-8 py-5 md:py-7 space-y-5 md:space-y-7 max-w-[1400px]">
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -204,38 +204,40 @@ export default function DashboardPage() {
             ) : recentBids.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-gray-400">No bids yet. <Link href="/atlasbid/new" className="text-green-600 font-semibold hover:underline">Create your first →</Link></div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                    <th className="text-left px-6 py-3">Client</th>
-                    <th className="text-left px-6 py-3">Status</th>
-                    <th className="text-right px-6 py-3">Value</th>
-                    <th className="text-right px-6 py-3">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentBids.map(bid => (
-                    <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-3.5">
-                        <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
-                          {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-3.5">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusColor[(bid.status ?? "draft").toLowerCase()] ?? "bg-gray-100 text-gray-500"}`}>
-                          {bid.status ?? "Draft"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3.5 text-right font-medium text-gray-700 tabular-nums">
-                        {bid.total_price ? fmt$(Number(bid.total_price)) : "—"}
-                      </td>
-                      <td className="px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums">
-                        {fmtDate(bid.created_at)}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[480px]">
+                  <thead>
+                    <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
+                      <th className="text-left px-4 md:px-6 py-3">Client</th>
+                      <th className="text-left px-4 md:px-6 py-3">Status</th>
+                      <th className="text-right px-4 md:px-6 py-3">Value</th>
+                      <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recentBids.map(bid => (
+                      <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 md:px-6 py-3.5">
+                          <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
+                            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
+                          </Link>
+                        </td>
+                        <td className="px-4 md:px-6 py-3.5">
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusColor[(bid.status ?? "draft").toLowerCase()] ?? "bg-gray-100 text-gray-500"}`}>
+                            {bid.status ?? "Draft"}
+                          </span>
+                        </td>
+                        <td className="px-4 md:px-6 py-3.5 text-right font-medium text-gray-700 tabular-nums">
+                          {bid.total_price ? fmt$(Number(bid.total_price)) : "—"}
+                        </td>
+                        <td className="px-4 md:px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
+                          {fmtDate(bid.created_at)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

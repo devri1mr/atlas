@@ -219,7 +219,7 @@ export default function DivisionsClient() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 md:py-8">
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>

@@ -282,7 +282,7 @@ export default function TaskCatalogPage() {
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
       {/* Banner */}
-      <div className="bg-[#123b1f] px-8 py-4 text-center">
+      <div className="bg-[#123b1f] px-4 md:px-8 py-4 text-center">
         <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Task Catalog</div>
       </div>
 

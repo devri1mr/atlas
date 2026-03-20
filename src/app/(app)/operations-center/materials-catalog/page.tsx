@@ -564,13 +564,13 @@ export default function MaterialsCatalogPage() {
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
       {/* Header */}
-      <div className="bg-[#123b1f] px-8 py-4 flex items-center justify-between">
+      <div className="bg-[#123b1f] px-4 md:px-8 py-4 flex items-center justify-between">
         <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Materials Catalog</div>
         <Link href="/operations-center" className="text-white/60 hover:text-white text-sm transition-colors">← Operations Center</Link>
       </div>
 
       {/* Tabs */}
-      <div className="border-b bg-white px-8">
+      <div className="border-b bg-white px-4 md:px-8">
         <div className="flex gap-0">
           {(["materials", "categories"] as Tab[]).map(t => (
             <button
@@ -596,9 +596,9 @@ export default function MaterialsCatalogPage() {
 
       {/* ── MATERIALS TAB ─────────────────────────────────────────────────── */}
       {tab === "materials" && (
-        <div className="flex h-[calc(100vh-112px)]">
+        <div className="flex flex-col md:flex-row h-[calc(100vh-112px)]">
           {/* Sidebar */}
-          <div className="w-56 flex-shrink-0 bg-white border-r overflow-y-auto py-3 px-2">
+          <div className="md:w-56 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r overflow-y-auto py-3 px-2 max-h-36 md:max-h-none">
             <button
               onClick={() => setSelectedCatId(null)}
               className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-sm font-semibold mb-1 transition-colors ${

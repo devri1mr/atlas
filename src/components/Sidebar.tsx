@@ -73,7 +73,7 @@ const NAV = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
@@ -135,6 +135,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
                 active
                   ? "bg-white/15 text-white shadow-sm"
