@@ -1622,7 +1622,19 @@ async function addLabor() {
     return sp.get("debug") === "1";
   }, []);
 
-  if (loading) return <div className="p-6">Loading…</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#f0f4f0]">
+      <div className="px-4 md:px-8 py-6 md:py-8" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
+        <div className="max-w-5xl mx-auto space-y-2">
+          <div className="h-3 bg-white/10 rounded w-40 animate-pulse" />
+          <div className="h-7 bg-white/20 rounded w-48 animate-pulse" />
+        </div>
+      </div>
+      <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
+        <div className="h-12 bg-white rounded-xl animate-pulse" />
+      </div>
+    </div>
+  );
   if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
 
   const clientDisplayName =
@@ -1633,28 +1645,35 @@ async function addLabor() {
   const jobAddress = [bid.address, bid.city, bid.state].filter(Boolean).join(", ");
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Scope of Work banner */}
-      <div className="-mx-6 -mt-6 px-8 py-4 bg-[#123b1f] text-center">
-        <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Scope of Work</div>
-      </div>
-
-      {/* Client info */}
-      <div className="text-center space-y-1 pt-2">
-        <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">{clientDisplayName}</h1>
-        {jobAddress && (
-          <div className="text-sm text-gray-500">{jobAddress}</div>
-        )}
-        <div className="pt-1">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            {divisionName}
-          </span>
+    <div className="min-h-screen bg-[#f0f4f0]">
+      {/* Header */}
+      <div
+        className="px-4 md:px-8 py-6 md:py-8"
+        style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}
+      >
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
+            <a href={`/atlasbid/bids/${bidId}`} className="hover:text-white/80 transition-colors">Overview</a>
+            <span>/</span>
+            <span className="text-white/80">Scope</span>
+          </div>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{clientDisplayName}</h1>
+              {jobAddress && <p className="text-white/50 text-sm mt-1">{jobAddress}</p>}
+            </div>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-white border border-white/20">
+              {divisionName}
+            </span>
+          </div>
         </div>
       </div>
+
+      <div className="px-4 md:px-8 py-4 max-w-5xl mx-auto space-y-4">
       {isDebug ? <DebugPanel bidId={bid.id} /> : null}
 
       {/* Sticky pricing bar */}
-      <div className="sticky top-0 z-20 bg-white border rounded-lg shadow-sm px-5 py-3 flex items-center gap-6 flex-wrap">
+      <div className="sticky top-0 z-20 bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-3 flex items-center gap-6 flex-wrap">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Labor</span>
           <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
@@ -3108,6 +3127,7 @@ async function addLabor() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
