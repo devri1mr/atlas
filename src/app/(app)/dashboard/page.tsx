@@ -164,7 +164,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-8 py-5 md:py-7 space-y-5 md:space-y-7 max-w-[1400px]">
+      <div className="px-4 md:px-8 py-5 md:py-7 pb-12 space-y-5 md:space-y-7 max-w-[1400px]">
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
