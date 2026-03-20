@@ -21,11 +21,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const sb = supabaseAdmin();
 
-  const { error } = await sb
-    .from("user_profiles")
-    .update({ is_active: false })
-    .eq("id", id);
+  // Delete from user_profiles first, then auth.users
+  await sb.from("user_profiles").delete().eq("id", id);
 
+  const { error } = await sb.auth.admin.deleteUser(id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
   return NextResponse.json({ ok: true });
 }

@@ -139,6 +139,7 @@ export default function UsersPage() {
   const [editRole, setEditRole] = useState<Role>("sales");
   const [editActive, setEditActive] = useState(true);
   const [editPerms, setEditPerms] = useState<Permissions>({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -171,7 +172,20 @@ export default function UsersPage() {
     setEditRole(user.role);
     setEditActive(user.is_active);
     setEditPerms(user.permissions ?? {});
+    setConfirmDelete(false);
     setErr(null);
+  }
+
+  async function deleteUser() {
+    if (!editing) return;
+    setSaving(true); setErr(null);
+    const res = await fetch(`/api/users/${editing.id}`, { method: "DELETE" });
+    const json = await res.json();
+    if (!res.ok) { setErr(json.error ?? "Failed to delete."); setSaving(false); return; }
+    setEditing(null);
+    setConfirmDelete(false);
+    await load();
+    setSaving(false);
   }
 
   function togglePerm(key: string) {
@@ -393,8 +407,9 @@ export default function UsersPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100">
-              {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
+            <div className="px-6 py-4 border-t border-gray-100 space-y-3">
+              {err && <p className="text-red-500 text-sm">{err}</p>}
+
               <div className="flex gap-3">
                 <button onClick={() => setEditing(null)}
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
@@ -405,6 +420,22 @@ export default function UsersPage() {
                   {saving ? "Saving…" : "Save Changes"}
                 </button>
               </div>
+
+              {!confirmDelete ? (
+                <button onClick={() => setConfirmDelete(true)}
+                  className="w-full text-xs text-red-400 hover:text-red-600 font-medium transition-colors py-1">
+                  Delete user permanently
+                </button>
+              ) : (
+                <div className="flex gap-2 items-center bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <span className="text-xs text-red-600 flex-1">This permanently removes them from Atlas.</span>
+                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-400 hover:text-gray-600 font-medium">Cancel</button>
+                  <button onClick={deleteUser} disabled={saving}
+                    className="text-xs bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50">
+                    {saving ? "Deleting…" : "Confirm Delete"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
