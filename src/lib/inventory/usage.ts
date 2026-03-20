@@ -16,11 +16,14 @@ export async function createUsageTransaction(input: any) {
 
   const totalCost = Number((qty * avg).toFixed(2));
 
+  const divisionId = rows[0]?.materials?.division_id ?? input.division_id ?? null;
+
   const { data, error } = await supabase
     .from("inventory_transactions")
     .insert({
       material_id: input.material_id,
       location_id: input.location_id,
+      division_id: divisionId,
       transaction_type: "usage",
       quantity: qty,
       unit_cost: avg,
