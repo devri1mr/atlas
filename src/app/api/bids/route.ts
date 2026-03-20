@@ -23,14 +23,28 @@ export async function GET() {
       id,
       client_name,
       client_last_name,
+      customer_name,
       created_at,
       status_id,
       internal_notes,
       division_id,
+      city,
+      state,
+      sell_rounded,
+      total_cost,
+      labor_cost,
+      material_cost,
+      trucking_cost,
+      target_gp_pct,
+      prepay_enabled,
       statuses:status_id (
         id,
         name,
         color
+      ),
+      divisions:division_id (
+        id,
+        name
       )
       `
     )

@@ -259,6 +259,7 @@ export async function PATCH(
       );
     }
 
+
     const supabase = supabaseAdmin();
 
     const { data, error } = await supabase
@@ -278,5 +279,25 @@ export async function PATCH(
       { error: e?.message ?? "Unknown error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * DELETE /api/bids/[id]
+ */
+export async function DELETE(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const bidId = String(id || "").trim();
+    if (!bidId) return NextResponse.json({ error: "Missing bid id" }, { status: 400 });
+    const supabase = supabaseAdmin();
+    const { error } = await supabase.from(TABLE_BIDS).delete().eq("id", bidId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
