@@ -434,20 +434,17 @@ export default function LaborRatesClient() {
               return (
                 <div
                   key={divisionId}
-                  className="flex flex-col md:grid md:grid-cols-[1.6fr_1fr_220px] items-start md:items-center gap-2 md:gap-0 px-4 py-3"
+                  className="grid grid-cols-[1.6fr_1fr_220px] items-center gap-0 px-4 py-3"
                 >
-                  <div className="pr-3">
-                    <div className="text-sm font-medium text-slate-900">
-                      {divisionName.get(divisionId) ?? divisionId}
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono">
-                      {divisionId}
+                  <div className="pr-4">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {divisionName.get(divisionId) ?? "Unknown Division"}
                     </div>
                   </div>
 
-                  <div className="pr-3">
-                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                      <span className="text-slate-500">$</span>
+                  <div className="pr-4">
+                    <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 bg-white ${edited ? "border-green-300 ring-1 ring-green-200" : "border-gray-200"}`}>
+                      <span className="text-gray-400 text-sm font-medium">$</span>
                       <input
                         value={rateValue}
                         onChange={(e) =>
@@ -457,17 +454,11 @@ export default function LaborRatesClient() {
                           }))
                         }
                         inputMode="decimal"
-                        className="w-full text-sm outline-none"
+                        className="w-full text-sm outline-none font-semibold text-gray-800"
+                        placeholder="0.00"
                       />
+                      {edited && <span className="text-xs font-semibold text-green-600 shrink-0">edited</span>}
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {money(toNumber(rateValue))}
-                    </div>
-                    {edited ? (
-                      <div className="mt-1 inline-flex rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800">
-                        Edited
-                      </div>
-                    ) : null}
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
