@@ -12,18 +12,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const sb = getSupabaseClient();
-    sb.auth.getSession().then(async ({ data }) => {
-      const user = data.session?.user;
-      if (!user) { router.replace("/"); return; }
-
-      const { data: profile } = await sb
-        .from("user_profiles")
-        .select("id, is_active")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile || !profile.is_active) {
-        await sb.auth.signOut();
+    sb.auth.getSession().then(({ data }) => {
+      if (!data.session?.user) {
         router.replace("/");
       } else {
         setReady(true);
