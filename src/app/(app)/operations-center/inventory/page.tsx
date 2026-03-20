@@ -139,6 +139,7 @@ export default function InventoryPage() {
   // ── UI state ───────────────────────────────────────────────────────────────
   const [summarySearch, setSummarySearch] = useState("");
   const [ledgerSearch, setLedgerSearch] = useState("");
+  const [showZeroBalance, setShowZeroBalance] = useState(false);
   const [noteModal, setNoteModal] = useState<string | null>(null);
   const [voidConfirm, setVoidConfirm] = useState<string | null>(null);
 
@@ -345,9 +346,9 @@ export default function InventoryPage() {
   const filteredSummary = useMemo(() => {
     const q = summarySearch.toLowerCase();
     return summary
-      .filter(r => !q || `${r.material_name} ${r.location_name ?? ""}`.toLowerCase().includes(q))
-      .sort((a, b) => b.inventory_value - a.inventory_value);
-  }, [summary, summarySearch]);
+      .filter(r => (showZeroBalance || r.qty_on_hand > 0) && (!q || `${r.material_name} ${r.location_name ?? ""}`.toLowerCase().includes(q)))
+      .sort((a, b) => (a.material_name || "").localeCompare(b.material_name || "") || (a.location_name || "").localeCompare(b.location_name || ""));
+  }, [summary, summarySearch, showZeroBalance]);
 
   const filteredLedger = useMemo(() => {
     const q = ledgerSearch.toLowerCase();
@@ -578,14 +579,23 @@ export default function InventoryPage() {
 
           {/* ── Inventory Summary ─────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between gap-4">
+            <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h2 className="font-bold text-gray-900 text-base">Inventory Summary</h2>
                 <p className="text-xs text-gray-500 mt-0.5">On-hand position for {activeDivision?.name || "—"}</p>
               </div>
-              <input
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Search…" value={summarySearch} onChange={e => setSummarySearch(e.target.value)} />
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
+                  <button type="button" onClick={() => setShowZeroBalance(v => !v)}
+                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${showZeroBalance ? "bg-green-500" : "bg-gray-300"}`}>
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showZeroBalance ? "translate-x-4" : "translate-x-0.5"}`} />
+                  </button>
+                  Show zero balance
+                </label>
+                <input
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Search…" value={summarySearch} onChange={e => setSummarySearch(e.target.value)} />
+              </div>
             </div>
 
             {loading ? (

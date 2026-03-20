@@ -13,11 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Atlas",
+  title: { template: "%s | Atlas", default: "Atlas" },
   description: "Accountability Through Logic, Analysis & Strategy. Operational intelligence powered by InterRivus Systems.",
   icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/atlas-logo-transparent.png",
+    apple: "/atlas-logo-transparent.png",
   },
   openGraph: {
     title: "Atlas",

@@ -1,14 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import Sidebar from "@/components/Sidebar";
 
+const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/atlasbid/bids": "Bids",
+  "/atlasbid": "AtlasBid",
+  "/operations-center/inventory": "Inventory",
+  "/operations-center/materials-catalog": "Materials Catalog",
+  "/operations-center/users": "Users",
+  "/operations-center/bundles": "Bundles",
+  "/operations-center/tasks": "Tasks",
+  "/operations-center/labor-rates": "Labor Rates",
+  "/operations-center/divisions": "Divisions",
+  "/operations-center/inventory-locations": "Inventory Locations",
+  "/operations-center/pricing": "Pricing",
+  "/operations-center": "Operations Center",
+};
+
+function getPageTitle(pathname: string): string {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  if (/\/atlasbid\/bids\/[^/]+\/scope/.test(pathname)) return "Scope";
+  if (/\/atlasbid\/bids\/[^/]+\/pricing/.test(pathname)) return "Pricing";
+  if (/\/atlasbid\/bids\/[^/]+\/proposal/.test(pathname)) return "Proposal";
+  if (/\/atlasbid\/bids\/[^/]+\/photos/.test(pathname)) return "Photos";
+  if (/\/atlasbid\/bids\/[^/]+/.test(pathname)) return "Bid";
+  return "Atlas";
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const title = getPageTitle(pathname);
+    document.title = title === "Atlas" ? "Atlas" : `${title} | Atlas`;
+  }, [pathname]);
 
   useEffect(() => {
     const sb = getSupabaseClient();
