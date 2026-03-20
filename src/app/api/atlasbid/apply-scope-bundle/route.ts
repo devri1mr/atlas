@@ -490,6 +490,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (insertedRows.length === 0) {
+      // Roll back the empty bundle run so it doesn't litter the bid
+      await supabase.from("scope_bundle_runs").delete().eq("id", bundleRun.id);
+      return NextResponse.json(
+        {
+          error:
+            "No tasks were generated from this bundle. " +
+            "Make sure all required question values are filled in and greater than 0, " +
+            "or check that task rule configs have non-zero quantities/hours.",
+        },
+        { status: 422 }
+      );
+    }
+
     return NextResponse.json({
       bundle_run: bundleRun,
       rows: insertedRows,
