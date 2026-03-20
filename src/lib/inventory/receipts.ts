@@ -26,6 +26,9 @@ export async function findOrCreateMaterial(
 
   const normalizedName = normalizeMaterialName(name);
 
+  // Search by division first (most specific), then fall back to any division.
+  // This prevents creating duplicate material records when the same material
+  // was previously imported without a division_id.
   let existingQuery = supabase
     .from("materials")
     .select("*")
@@ -37,7 +40,6 @@ export async function findOrCreateMaterial(
   }
 
   const { data: existing, error: existingError } = await existingQuery;
-
   if (existingError) throw new Error(existingError.message);
   if (existing && existing.length) return existing[0];
 
@@ -52,9 +54,17 @@ export async function findOrCreateMaterial(
   }
 
   const { data: displayExisting, error: displayError } = await displayQuery;
-
   if (displayError) throw new Error(displayError.message);
   if (displayExisting && displayExisting.length) return displayExisting[0];
+
+  // Fall back: look across all divisions (catches materials created without division_id)
+  const { data: anyDivision } = await supabase
+    .from("materials")
+    .select("*")
+    .or(`name.ilike.${normalizedName},display_name.ilike.${normalizedName}`)
+    .limit(1);
+
+  if (anyDivision && anyDivision.length) return anyDivision[0];
 
   const { data: created, error } = await supabase
     .from("materials")
