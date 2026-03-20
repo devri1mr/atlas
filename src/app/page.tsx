@@ -9,19 +9,29 @@ export default function Home() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
     async function loadSession() {
       const { data } = await supabase.auth.getSession();
-      const sessionEmail = data.session?.user?.email ?? null;
+      const user = data.session?.user ?? null;
 
-      if (sessionEmail && !sessionEmail.endsWith("@garpielgroup.com")) {
-        await supabase.auth.signOut();
-        setEmail(null);
-      } else if (sessionEmail) {
-        // Already logged in — send to dashboard
-        window.location.replace("/dashboard");
-        return;
+      if (user) {
+        // Check if user has an active profile in user_profiles
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("id, is_active")
+          .eq("id", user.id)
+          .single();
+
+        if (!profile || !profile.is_active) {
+          await supabase.auth.signOut();
+          setDenied(true);
+          setEmail(null);
+        } else {
+          window.location.replace("/dashboard");
+          return;
+        }
       } else {
         setEmail(null);
       }
@@ -126,9 +136,16 @@ export default function Home() {
               Continue with Google
             </button>
 
-            <p className="mt-5 text-center text-xs text-gray-500 font-medium">
-              Access restricted to authorized accounts only.
-            </p>
+            {denied && (
+              <p className="mt-4 text-center text-xs text-red-500 font-medium">
+                Your account is not authorized. Contact your Atlas administrator to request access.
+              </p>
+            )}
+            {!denied && (
+              <p className="mt-5 text-center text-xs text-gray-500 font-medium">
+                Access restricted to invited users only.
+              </p>
+            )}
 
             <div className="mt-16 pt-8 border-t border-gray-200 text-center">
               <a
