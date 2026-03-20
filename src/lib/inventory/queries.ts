@@ -33,7 +33,9 @@ export async function getInventoryLedger(filters: any = {}) {
     )
     .order("transaction_date", { ascending: false });
 
-  if (filters.division_id) q = q.eq("division_id", filters.division_id);
+  // Filter by the material's division_id (not the transaction's) so the ledger
+  // stays consistent with the summary, which also uses material.division_id.
+  if (filters.division_id) q = q.eq("materials.division_id", filters.division_id);
   if (filters.material_id) q = q.eq("material_id", filters.material_id);
   if (filters.location_id) q = q.eq("location_id", filters.location_id);
 
