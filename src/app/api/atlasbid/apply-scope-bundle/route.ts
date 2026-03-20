@@ -339,11 +339,29 @@ export async function POST(req: NextRequest) {
 
     const insertedRows: any[] = [];
     const taskQuantityByBundleTaskId = new Map<string, number>();
+    const skipReasons: string[] = [];
 
     for (const task of (tasks || []) as BundleTask[]) {
       const computed = computeTask(task, answers, questionsByKey);
 
-      if (computed.skip) continue;
+      if (computed.skip) {
+        const config = task.rule_config ?? {};
+        const questionKey = config?.question || config?.question_key || config?.depends_on || "";
+        let reason = `"${task.task_name}" (rule: ${task.rule_type})`;
+        if (questionKey && !boolFromAnswer(getAnswer(answers, questionsByKey, questionKey))) {
+          reason += ` — checkbox "${questionKey}" is unchecked`;
+        } else if (task.rule_type === "fixed_quantity" && !Number(config?.quantity)) {
+          reason += ` — quantity not set in rule config`;
+        } else if (task.rule_type === "fixed_hours" && !Number(config?.hours)) {
+          reason += ` — hours not set in rule config`;
+        } else if (["mulch_yards_from_sqft_depth", "hours_per_sqft", "linear_feet_from_sqft"].includes(task.rule_type)) {
+          reason += ` — mulch_sqft answer is 0 or missing`;
+        } else {
+          reason += ` — quantity and hours both 0`;
+        }
+        skipReasons.push(reason);
+        continue;
+      }
 
       const { data: inserted, error: insertError } = await supabase
         .from("bid_labor")
@@ -493,13 +511,11 @@ export async function POST(req: NextRequest) {
     if (insertedRows.length === 0) {
       // Roll back the empty bundle run so it doesn't litter the bid
       await supabase.from("scope_bundle_runs").delete().eq("id", bundleRun.id);
+      const detail = skipReasons.length > 0
+        ? `Skipped tasks:\n• ${skipReasons.join("\n• ")}`
+        : "All tasks produced 0 quantity and 0 hours.";
       return NextResponse.json(
-        {
-          error:
-            "No tasks were generated from this bundle. " +
-            "Make sure all required question values are filled in and greater than 0, " +
-            "or check that task rule configs have non-zero quantities/hours.",
-        },
+        { error: `No tasks were generated.\n\n${detail}` },
         { status: 422 }
       );
     }
