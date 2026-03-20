@@ -29,6 +29,7 @@ export async function GET() {
       internal_notes,
       division_id,
       address,
+      address1,
       city,
       state,
       sell_rounded,

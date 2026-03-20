@@ -324,8 +324,8 @@ export default function BidsPage() {
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
                           {b.city || b.state
                             ? [b.city, b.state].filter(Boolean).join(", ")
-                            : (b as any).address
-                              ? String((b as any).address).split(",").slice(-2).join(",").trim() || (b as any).address
+                            : (b as any).address1 || (b as any).address
+                              ? ((b as any).address1 || (b as any).address)
                               : "—"}
                         </td>
                         <td className="px-4 py-3.5 text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">
