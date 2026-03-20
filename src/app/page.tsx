@@ -125,8 +125,8 @@ export default function Home() {
               <p className="mt-3 text-xs text-gray-500 italic">Precision in the number. Profit in the job.</p>
             </div>
 
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
-            <p className="text-gray-500 text-sm mb-8">Sign in to your Atlas account to continue.</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Sign in to Atlas</h1>
+            <p className="text-gray-500 text-sm mb-8">Use your Google account to access your workspace.</p>
 
             <button
               onClick={signInWithGoogle}
