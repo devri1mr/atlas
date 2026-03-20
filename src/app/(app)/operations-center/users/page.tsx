@@ -165,6 +165,9 @@ export default function UsersPage() {
     setShowInvite(false);
     await load();
     setSaving(false);
+    if (json.emailWarning) {
+      alert(`User created but invite email failed: ${json.emailWarning}`);
+    }
   }
 
   function openEdit(user: UserProfile) {

@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   const firstName = full_name ? full_name.split(" ")[0] : null;
 
-  await resend.emails.send({
+  const { error: emailErr } = await resend.emails.send({
     from: "Atlas <atlas@interrivus.com>",
     to: email,
     subject: "You've been invited to Atlas",
@@ -107,6 +107,11 @@ export async function POST(req: Request) {
 </body>
 </html>`,
   });
+
+  if (emailErr) {
+    console.error("Resend error:", emailErr);
+    return NextResponse.json({ data, emailWarning: emailErr.message }, { status: 200 });
+  }
 
   return NextResponse.json({ data });
 }
