@@ -168,5 +168,13 @@ export async function createReceiptTransaction(input: any) {
 
   if (error) throw new Error(error.message);
 
+  // Write the unit cost back to the material so future receipts pre-populate it
+  if (unitCost && unitCost > 0) {
+    await supabase.from("materials").update({ unit_cost: unitCost }).eq("id", material.id);
+    if (material.catalog_material_id) {
+      await supabase.from("materials_catalog").update({ default_unit_cost: unitCost }).eq("id", material.catalog_material_id);
+    }
+  }
+
   return data;
 }

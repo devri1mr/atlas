@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         scientific_name,
         cultivar,
         unit,
+        inventory_unit,
         unit_cost,
         is_active,
         search_text,
