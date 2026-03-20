@@ -66,6 +66,13 @@ const sections = [
     href: "/operations-center/inventory-locations",
     status: "Active",
   },
+  {
+    title: "User Management",
+    description:
+      "Invite teammates and assign roles. Control who has access to Atlas and what they can do.",
+    href: "/operations-center/users",
+    status: "Active",
+  },
 ];
 
 function statusClasses(status: string) {

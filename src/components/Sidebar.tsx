@@ -59,6 +59,18 @@ const NAV = [
       </svg>
     ),
   },
+  {
+    label: "Users",
+    href: "/operations-center/users",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Sidebar() {
@@ -94,7 +106,9 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
-          <Image src="/atlas-logo.png" alt="Atlas" width={100} height={32} style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }} />
+          <div style={{ background: "white", borderRadius: 8, padding: "3px 8px", display: "inline-flex" }}>
+            <Image src="/atlas-logo.png" alt="Atlas" width={88} height={26} style={{ objectFit: "contain" }} />
+          </div>
         )}
         <button
           onClick={() => setCollapsed(c => !c)}
