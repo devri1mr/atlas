@@ -153,7 +153,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
 
       {/* Bottom */}
-      <div className="px-2 pb-4 space-y-1 border-t border-white/10 pt-3 mt-2">
+      <div className="px-2 pb-8 space-y-1 border-t border-white/10 pt-3 mt-2" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
         {/* User */}
         <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg ${collapsed ? "justify-center" : ""}`}>
           <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold shrink-0">

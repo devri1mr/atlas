@@ -116,13 +116,13 @@ export default function Home() {
         </div>
 
         {/* Right panel — sign in */}
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12" style={{ background: "#f5f7f5" }}>
-          <div className="w-full max-w-sm">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 min-h-screen lg:min-h-0" style={{ background: "#f5f7f5" }}>
+          <div className="w-full max-w-sm mx-auto">
 
             {/* Mobile logo */}
-            <div className="lg:hidden mb-10 text-center">
-              <Image src="/atlas-logo.png" alt="Atlas" width={180} height={60} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
-              <p className="mt-3 text-xs text-gray-500 italic">Precision in the number. Profit in the job.</p>
+            <div className="lg:hidden mb-8 flex flex-col items-center text-center">
+              <Image src="/atlas-logo.png" alt="Atlas" width={160} height={54} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
+              <p className="mt-2 text-xs text-gray-500 italic">Precision in the number. Profit in the job.</p>
             </div>
 
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Sign in to Atlas</h1>
@@ -147,7 +147,7 @@ export default function Home() {
               </p>
             )}
 
-            <div className="mt-16 pt-8 border-t border-gray-200 text-center">
+            <div className="mt-10 pt-6 border-t border-gray-200 text-center">
               <a
                 href="https://interrivus.com"
                 target="_blank"
