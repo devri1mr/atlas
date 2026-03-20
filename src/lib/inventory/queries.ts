@@ -33,9 +33,8 @@ export async function getInventoryLedger(filters: any = {}) {
     )
     .order("transaction_date", { ascending: false });
 
-  // Filter by the material's division_id (not the transaction's) so the ledger
-  // stays consistent with the summary, which also uses material.division_id.
-  if (filters.division_id) q = q.eq("materials.division_id", filters.division_id);
+  // Division filtering is done in JS after fetch (see below) so that materials
+  // with a null division_id still appear under any division tab.
   if (filters.material_id) q = q.eq("material_id", filters.material_id);
   if (filters.location_id) q = q.eq("location_id", filters.location_id);
 
@@ -43,7 +42,18 @@ export async function getInventoryLedger(filters: any = {}) {
 
   if (error) throw new Error(error.message);
 
-  return Array.isArray(data) ? data : [];
+  const rows = Array.isArray(data) ? data : [];
+
+  // Filter by division in JS: include rows whose material has the matching
+  // division_id OR has no division_id (treat unassigned materials as universal).
+  if (filters.division_id) {
+    return rows.filter(r => {
+      const matDiv = r.materials?.division_id ?? null;
+      return matDiv === null || matDiv === filters.division_id;
+    });
+  }
+
+  return rows;
 }
 
 export function computePosition(rows: any[]) {
@@ -87,8 +97,9 @@ export async function getInventorySummary(filters: any = {}) {
 
   for (const r of rows) {
     const materialDivisionId = r.materials?.division_id || null;
-    // Filter by division using the material's division, not the transaction's
-    if (filterDivisionId && materialDivisionId !== filterDivisionId) continue;
+    // Filter by division: skip only if material has a non-matching division_id.
+    // Null division_id materials appear under any division tab.
+    if (filterDivisionId && materialDivisionId !== null && materialDivisionId !== filterDivisionId) continue;
     const key = `${r.material_id}_${r.location_id || "none"}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
