@@ -28,6 +28,7 @@ export async function GET() {
       status_id,
       internal_notes,
       division_id,
+      address,
       city,
       state,
       sell_rounded,

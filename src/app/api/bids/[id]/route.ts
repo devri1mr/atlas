@@ -283,6 +283,40 @@ export async function PATCH(
 }
 
 /**
+ * POST /api/bids/[id]  — duplicate the bid
+ */
+export async function POST(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctx.params;
+    const bidId = String(id || "").trim();
+    if (!bidId) return NextResponse.json({ error: "Missing bid id" }, { status: 400 });
+    const supabase = supabaseAdmin();
+
+    const { data: src, error: srcErr } = await supabase
+      .from(TABLE_BIDS)
+      .select("*")
+      .eq("id", bidId)
+      .single();
+    if (srcErr || !src) return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+
+    const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = src as any;
+    const { data: copy, error: copyErr } = await supabase
+      .from(TABLE_BIDS)
+      .insert({ ...rest, customer_name: src.customer_name ? `${src.customer_name} (Copy)` : null, client_name: !src.customer_name ? `${src.client_name ?? ""} (Copy)`.trim() : src.client_name })
+      .select(BID_SELECT)
+      .single();
+    if (copyErr) return NextResponse.json({ error: copyErr.message }, { status: 500 });
+
+    return NextResponse.json({ data: copy });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
+/**
  * DELETE /api/bids/[id]
  */
 export async function DELETE(

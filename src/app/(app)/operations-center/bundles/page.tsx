@@ -163,6 +163,53 @@ function RuleConfigFields({
   }
 }
 
+function previewTask(task: BundleTask, answers: Record<string, any>, questions: Question[]) {
+  const qMap = new Map(questions.map(q => [q.question_key, q]));
+  function getAns(key: string) {
+    if (answers[key] !== undefined && answers[key] !== null && answers[key] !== "") return answers[key];
+    return qMap.get(key)?.default_value ?? null;
+  }
+  function n(v: unknown, fb = 0) { const x = Number(v); return Number.isFinite(x) ? x : fb; }
+  function roundInc(val: number, inc: number) { const v = n(val); const i = n(inc); return i <= 0 ? v : Math.ceil(v / i) * i; }
+  function bool(v: unknown) { const s = String(v ?? "").toLowerCase(); return s === "true" || s === "1" || s === "yes" || s === "on"; }
+
+  const cfg = task.rule_config ?? {};
+  const rule = task.rule_type;
+  const unit = task.unit || "ea";
+  const checkKey = cfg.question || cfg.question_key || cfg.depends_on || "";
+  if (checkKey && !bool(getAns(checkKey))) return { skip: true, reason: `checkbox "${checkKey}" unchecked`, qty: 0, hrs: 0 };
+
+  const sqft = n(getAns("mulch_sqft"));
+  const depthAns = n(getAns("mulch_depth"));
+  let qty = 0, hrs = 0;
+
+  if (rule === "mulch_yards_from_sqft_depth") {
+    const depth = n(cfg.depth_inches, depthAns || 3);
+    qty = sqft > 0 ? roundInc((sqft * depth) / 324, n(cfg.round_to, 1)) : 0;
+    const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
+  } else if (rule === "hours_per_sqft") {
+    const rate = n(cfg.rate_sqft_per_hour); hrs = rate > 0 ? sqft / rate : 0;
+  } else if (rule === "hours_per_qty") {
+    qty = n(cfg.quantity); const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
+  } else if (rule === "linear_feet_from_sqft") {
+    qty = roundInc(sqft * n(cfg.factor), n(cfg.round_to, 1)); const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
+  } else if (rule === "fixed_quantity") {
+    qty = n(cfg.quantity); const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
+  } else if (rule === "fixed_hours") {
+    hrs = n(cfg.hours);
+  } else if (rule === "conditional_if_checked") {
+    const ck = String(cfg.question || "");
+    if (!bool(getAns(ck))) return { skip: true, reason: `checkbox "${ck}" unchecked`, qty: 0, hrs: 0 };
+    if (unit === "sqft") qty = sqft;
+    else if (unit === "yd") qty = sqft > 0 ? roundInc((sqft * n(cfg.depth_inches, depthAns || 3)) / 324, n(cfg.round_to, 1)) : 0;
+    else if (unit === "lf") qty = roundInc(sqft * n(cfg.factor), n(cfg.round_to, 1));
+    const rate = n(cfg.rate_sqft_per_hour); if (rate > 0 && sqft > 0) hrs = sqft / rate;
+  }
+  qty = Number(qty.toFixed(2)); hrs = Number(hrs.toFixed(2));
+  if (qty <= 0 && hrs <= 0) return { skip: true, reason: "qty and hrs both 0", qty, hrs };
+  return { skip: false, reason: "", qty, hrs };
+}
+
 export default function BundleBuilderPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [divisionId, setDivisionId] = useState("");
@@ -173,6 +220,7 @@ export default function BundleBuilderPage() {
   const [taskMaterials, setTaskMaterials] = useState<Record<string, TaskMaterial[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, any>>({});
 
   // New bundle form
   const [newBundleName, setNewBundleName] = useState("");
@@ -797,6 +845,63 @@ export default function BundleBuilderPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Live Preview */}
+              {tasks.length > 0 && questions.length > 0 && (
+                <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm p-4 space-y-3">
+                  <div className={sectionHeader}>Live Preview — test your bundle</div>
+                  <p className="text-xs text-gray-500 -mt-2">Enter values as if you were a salesperson to see exactly what gets generated.</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {questions.map(q => (
+                      <div key={q.id}>
+                        <label className={labelCls}>{q.label}{q.unit ? ` (${q.unit})` : ""} <code className="normal-case font-mono text-gray-400 bg-gray-100 px-1 rounded tracking-normal">{q.question_key}</code></label>
+                        {q.input_type === "checkbox" ? (
+                          <label className="flex items-center gap-2 text-sm text-gray-700 mt-1">
+                            <input type="checkbox"
+                              checked={previewAnswers[q.question_key] === true}
+                              onChange={e => setPreviewAnswers(p => ({ ...p, [q.question_key]: e.target.checked }))} />
+                            Check to include
+                          </label>
+                        ) : (
+                          <input className={inputCls} type="number" step="any"
+                            placeholder={q.default_value ? `default: ${q.default_value}` : "0"}
+                            value={previewAnswers[q.question_key] ?? ""}
+                            onChange={e => setPreviewAnswers(p => ({ ...p, [q.question_key]: e.target.value === "" ? undefined : Number(e.target.value) }))} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2 pt-1">
+                    {tasks.map((task, i) => {
+                      const result = previewTask(task, previewAnswers, questions);
+                      const mats = taskMaterials[task.id] || [];
+                      return (
+                        <div key={task.id} className={`rounded-lg px-3 py-2.5 text-sm flex items-start gap-3 ${result.skip ? "bg-red-50 border border-red-100" : "bg-green-50 border border-green-200"}`}>
+                          <div className={`shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${result.skip ? "bg-red-200 text-red-700" : "bg-green-600 text-white"}`}>
+                            {result.skip ? "✕" : "✓"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-800">{task.task_name}</div>
+                            {result.skip
+                              ? <div className="text-xs text-red-600 mt-0.5">Skipped — {result.reason}</div>
+                              : <div className="text-xs text-green-700 mt-0.5">
+                                  {result.qty > 0 ? `${result.qty} ${task.unit}` : ""}
+                                  {result.qty > 0 && result.hrs > 0 ? " · " : ""}
+                                  {result.hrs > 0 ? `${result.hrs} hrs` : ""}
+                                  {mats.length > 0 && !result.skip && (
+                                    <span className="ml-2 text-gray-500">
+                                      · Materials: {mats.map(m => `${Number((m.qty_per_task_unit * result.qty).toFixed(2))} ${m.unit} ${m.material_name || ""}`).join(", ")}
+                                    </span>
+                                  )}
+                                </div>
+                            }
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

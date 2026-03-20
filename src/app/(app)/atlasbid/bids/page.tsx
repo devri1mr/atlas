@@ -56,6 +56,7 @@ export default function BidsPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -146,6 +147,20 @@ export default function BidsPage() {
       setError(e?.message ?? "Delete failed");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function duplicateBid(id: string) {
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/bids/${id}`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Duplicate failed");
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Duplicate failed");
+    } finally {
+      setDuplicatingId(null);
     }
   }
 
@@ -307,7 +322,11 @@ export default function BidsPage() {
                         <td className="px-4 py-3.5 font-medium text-gray-900 whitespace-nowrap">{name}</td>
                         <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">{b.divisions?.name ?? "—"}</td>
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
-                          {b.city && b.state ? `${b.city}, ${b.state}` : b.city || b.state || "—"}
+                          {b.city || b.state
+                            ? [b.city, b.state].filter(Boolean).join(", ")
+                            : (b as any).address
+                              ? String((b as any).address).split(",").slice(-2).join(",").trim() || (b as any).address
+                              : "—"}
                         </td>
                         <td className="px-4 py-3.5 text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">
                           {fmtMoney(b.sell_rounded)}
@@ -325,11 +344,25 @@ export default function BidsPage() {
                         </td>
                         <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">{fmtDate(b.created_at)}</td>
                         <td className="px-4 py-3.5 text-right">
-                          <Link href={`/atlasbid/bids/${b.id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
-                            Open
-                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
-                          </Link>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => duplicateBid(b.id)}
+                              disabled={duplicatingId === b.id}
+                              title="Duplicate bid"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
+                            >
+                              {duplicatingId === b.id ? (
+                                <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                              ) : (
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                              )}
+                            </button>
+                            <Link href={`/atlasbid/bids/${b.id}`}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
+                              Open
+                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

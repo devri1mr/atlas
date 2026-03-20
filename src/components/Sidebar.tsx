@@ -107,7 +107,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
           <div className="flex items-center justify-center flex-1">
-            <Image src="/atlas-logo-transparent.png" alt="Atlas" width={90} height={28} style={{ objectFit: "contain", filter: "brightness(0) invert(1)", display: "block" }} />
+            <Image src="/interrivus-logo.png" alt="Atlas" width={110} height={32} style={{ objectFit: "contain", display: "block" }} />
           </div>
         )}
         <button
@@ -129,7 +129,16 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Nav */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
         {NAV.map(item => {
-          const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const active =
+            pathname === item.href ||
+            (item.href !== "/dashboard" &&
+              pathname.startsWith(item.href) &&
+              !NAV.some(
+                (other) =>
+                  other.href !== item.href &&
+                  other.href.startsWith(item.href) &&
+                  pathname.startsWith(other.href)
+              ));
           return (
             <Link
               key={item.href}
