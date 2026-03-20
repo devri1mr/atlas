@@ -92,17 +92,36 @@ function RuleConfigFields({
     );
   };
 
+  const requiresKey = (keys: string[], note?: string) => {
+    const missing = keys.filter(k => !questions.some(q => q.question_key === k));
+    if (missing.length === 0) return null;
+    return (
+      <div className="col-span-full rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+        <span className="font-semibold">Requires question key{missing.length > 1 ? "s" : ""}:</span>{" "}
+        {missing.map(k => <code key={k} className="bg-amber-100 px-1 rounded font-mono mx-0.5">{k}</code>)}
+        {note && <span className="text-amber-600 ml-1">— {note}</span>}
+        <div className="mt-1 text-amber-600">Add a question whose label produces this key (shown as "Key: …" when typing).</div>
+      </div>
+    );
+  };
+
   switch (ruleType) {
     case "mulch_yards_from_sqft_depth":
       return (
         <div className="grid grid-cols-3 gap-3">
+          {requiresKey(["mulch_sqft"], 'label your question "Mulch sqft"')}
           {field("depth_inches", "Default Depth (in)", "3")}
           {field("round_to", "Round Qty To", "1")}
           {field("minutes_per_unit", "Min per yd (hrs calc)", "e.g. 12")}
         </div>
       );
     case "hours_per_sqft":
-      return <div>{field("rate_sqft_per_hour", "sq ft per Hour", "e.g. 500")}</div>;
+      return (
+        <div className="grid grid-cols-1 gap-3">
+          {requiresKey(["mulch_sqft"], 'label your question "Mulch sqft"')}
+          {field("rate_sqft_per_hour", "sq ft per Hour", "e.g. 500")}
+        </div>
+      );
     case "hours_per_qty":
       return (
         <div className="grid grid-cols-2 gap-3">
@@ -113,6 +132,7 @@ function RuleConfigFields({
     case "linear_feet_from_sqft":
       return (
         <div className="grid grid-cols-3 gap-3">
+          {requiresKey(["mulch_sqft"], 'label your question "Mulch sqft"')}
           {field("factor", "Factor (lft per sqft)", "e.g. 0.25")}
           {field("round_to", "Round Qty To", "1")}
           {field("minutes_per_unit", "Min per lft (hrs calc)")}
@@ -470,8 +490,11 @@ export default function BundleBuilderPage() {
                 {questions.map(q => (
                   <div key={q.id} className="flex items-start gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
                     <div className="flex-1">
-                      <span className="font-medium text-gray-800">{q.label}</span>
-                      <span className="ml-2 text-xs text-gray-400">type: {q.input_type}{q.unit ? ` · ${q.unit}` : ""}{q.required ? " · required" : ""}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-800">{q.label}</span>
+                        <code className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{q.question_key}</code>
+                        <span className="text-xs text-gray-400">{q.input_type}{q.unit ? ` · ${q.unit}` : ""}{q.required ? " · required" : ""}</span>
+                      </div>
                       {q.help_text && <div className="text-xs text-gray-400 mt-0.5 italic">{q.help_text}</div>}
                     </div>
                     <button onClick={() => deleteQuestion(q.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">✕</button>
