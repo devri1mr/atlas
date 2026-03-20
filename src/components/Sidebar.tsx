@@ -106,7 +106,9 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 pt-5 pb-4">
         {!collapsed && (
-          <Image src="/atlas-logo-transparent.png" alt="Atlas" width={100} height={32} style={{ objectFit: "contain", mixBlendMode: "screen" }} />
+          <div style={{ background: "white", borderRadius: 10, padding: "4px 10px" }}>
+            <Image src="/atlas-logo.png" alt="Atlas" width={90} height={28} style={{ objectFit: "contain", mixBlendMode: "multiply", display: "block" }} />
+          </div>
         )}
         <button
           onClick={() => setCollapsed(c => !c)}
