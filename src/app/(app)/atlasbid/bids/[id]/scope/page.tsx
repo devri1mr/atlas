@@ -2076,7 +2076,7 @@ async function addLabor() {
                 <select
                   title="Difficulty level"
                   value={row.difficulty_level ?? 0}
-                  className="w-28 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-32 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
                   onChange={async (e) => {
                     const level = Number(e.target.value);
                     await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ difficulty_level: level }) });
@@ -2084,7 +2084,7 @@ async function addLabor() {
                   }}
                 >
                   {DIFFICULTY_LABELS.map((label, i) => (
-                    <option key={i} value={i}>{i === 0 ? "Diff —" : `${i} ${label}`}</option>
+                    <option key={i} value={i}>{i === 0 ? "Difficulty —" : `${i} ${label}`}</option>
                   ))}
                 </select>
                 {row.unit === "yd" && (
