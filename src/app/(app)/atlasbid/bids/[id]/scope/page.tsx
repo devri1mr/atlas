@@ -2533,10 +2533,10 @@ async function addLabor() {
 
                       {isEditing ? (
                         <>
-                          <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={(e) => setMEditQty(Number(e.target.value))} />
+                          <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={(e) => setMEditQty(Number(e.target.value))} min="0" />
                           <UnitInput className="w-20 border border-gray-200 rounded h-7 px-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" value={mEditUnit} onChange={setMEditUnit} />
                           <span className="text-xs text-gray-400">@</span>
-                          <input className="w-20 border border-gray-200 rounded h-7 px-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={(e) => setMEditUnitCost(Number(e.target.value))} />
+                          <input className="w-20 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={(e) => setMEditUnitCost(Number(e.target.value))} />
                         </>
                       ) : (
                         <>
@@ -2545,7 +2545,7 @@ async function addLabor() {
                           <span className="text-xs text-gray-500 tabular-nums shrink-0">{money(row.unit_cost)}</span>
                         </>
                       )}
-                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-right shrink-0 ml-auto">{money(total)}</span>
+                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-center shrink-0 ml-auto">{money(total)}</span>
                       {isEditing ? (
                         <>
                           <button onClick={() => saveEditMaterial(row.id)} className="text-emerald-600 hover:text-emerald-700 shrink-0" title="Save">
