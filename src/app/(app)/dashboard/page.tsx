@@ -6,7 +6,20 @@ import Image from "next/image";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type Weather = { temp: number; desc: string; icon: string; city: string };
-type Bid = { id: string; client_name: string; client_last_name?: string; status?: string; total_price?: number; created_at: string };
+type Bid = {
+  id: string;
+  client_name: string;
+  client_last_name?: string;
+  city?: string | null;
+  state?: string | null;
+  address1?: string | null;
+  sell_rounded?: number | null;
+  total_cost?: number | null;
+  target_gp_pct?: number | null;
+  created_at: string;
+  statuses?: { id: number; name: string; color?: string | null } | null;
+  divisions?: { id: string; name: string } | null;
+};
 type StatCard = { label: string; value: string; sub?: string; trend?: "up" | "down" | "neutral"; color?: string };
 
 const WEATHER_CODES: Record<number, { desc: string; icon: string }> = {
@@ -82,10 +95,10 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  const openBids = bids.filter(b => !["won", "lost", "archived"].includes((b.status ?? "").toLowerCase()));
-  const wonBids = bids.filter(b => (b.status ?? "").toLowerCase() === "won");
-  const pipelineValue = openBids.reduce((s, b) => s + (Number(b.total_price) || 0), 0);
-  const wonValue = wonBids.reduce((s, b) => s + (Number(b.total_price) || 0), 0);
+  const openBids = bids.filter(b => !["won", "lost", "archived"].includes((b.statuses?.name ?? "").toLowerCase()));
+  const wonBids = bids.filter(b => (b.statuses?.name ?? "").toLowerCase() === "won");
+  const pipelineValue = openBids.reduce((s, b) => s + (Number(b.sell_rounded) || 0), 0);
+  const wonValue = wonBids.reduce((s, b) => s + (Number(b.sell_rounded) || 0), 0);
 
   const stats: StatCard[] = [
     { label: "Open Bids", value: String(openBids.length), sub: "In pipeline", trend: "neutral", color: "blue" },
@@ -205,36 +218,55 @@ export default function DashboardPage() {
               <div className="px-6 py-12 text-center text-sm text-gray-400">No bids yet. <Link href="/atlasbid/new" className="text-green-600 font-semibold hover:underline">Create your first →</Link></div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[480px]">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
                       <th className="text-left px-4 md:px-6 py-3">Client</th>
+                      <th className="text-left px-4 md:px-6 py-3 hidden md:table-cell">Location</th>
+                      <th className="text-left px-4 md:px-6 py-3 hidden lg:table-cell">Division</th>
                       <th className="text-left px-4 md:px-6 py-3">Status</th>
                       <th className="text-right px-4 md:px-6 py-3">Value</th>
+                      <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">GP%</th>
                       <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">Date</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {recentBids.map(bid => (
-                      <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <td className="px-4 md:px-6 py-3.5">
-                          <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
-                            {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
-                          </Link>
-                        </td>
-                        <td className="px-4 md:px-6 py-3.5">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusColor[(bid.status ?? "draft").toLowerCase()] ?? "bg-gray-100 text-gray-500"}`}>
-                            {bid.status ?? "Draft"}
-                          </span>
-                        </td>
-                        <td className="px-4 md:px-6 py-3.5 text-right font-medium text-gray-700 tabular-nums">
-                          {bid.total_price ? fmt$(Number(bid.total_price)) : "—"}
-                        </td>
-                        <td className="px-4 md:px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
-                          {fmtDate(bid.created_at)}
-                        </td>
-                      </tr>
-                    ))}
+                    {recentBids.map(bid => {
+                      const statusName = bid.statuses?.name ?? "Draft";
+                      const statusKey = statusName.toLowerCase();
+                      const statusCls = statusColor[statusKey] ?? "bg-gray-100 text-gray-500";
+                      const location = [bid.city, bid.state].filter(Boolean).join(", ") || null;
+                      const gp = bid.target_gp_pct != null ? `${Math.round(bid.target_gp_pct)}%` : null;
+                      return (
+                        <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 md:px-6 py-3.5">
+                            <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
+                              {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
+                            </Link>
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden md:table-cell">
+                            {location ?? <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
+                            {bid.divisions?.name ?? <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5">
+                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusCls}`}>
+                              {statusName}
+                            </span>
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-right font-medium text-gray-700 tabular-nums">
+                            {bid.sell_rounded ? fmt$(Number(bid.sell_rounded)) : "—"}
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-right text-gray-500 text-xs tabular-nums hidden sm:table-cell">
+                            {gp ?? <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
+                            {fmtDate(bid.created_at)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
