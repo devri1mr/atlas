@@ -109,7 +109,7 @@ export default function Home() {
               Precision in the number.<br />
               <span className="text-green-300">Profit in the job.</span>
             </h2>
-            <p className="text-white/45 text-sm leading-relaxed max-w-sm">
+            <p className="text-white/80 text-sm leading-relaxed max-w-sm">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
           </div>
@@ -137,7 +137,7 @@ export default function Home() {
               Precision in the number.<br />
               <span className="text-green-300">Profit in the job.</span>
             </h2>
-            <p className="mt-3 text-white/70 text-xs leading-relaxed max-w-xs">
+            <p className="mt-3 text-white/85 text-xs leading-relaxed max-w-xs">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
           </div>
