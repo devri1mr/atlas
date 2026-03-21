@@ -111,12 +111,12 @@ type TemplateMaterialRow = {
 type MaterialsCatalogRow = {
   id: string;
   name: string;
-  display_name?: string | null;
-  unit?: string | null;
-  unit_cost?: number | null;
+  default_unit?: string | null;
+  default_unit_cost?: number | null;
   vendor?: string | null;
   sku?: string | null;
   is_active?: boolean | null;
+  inventory_material_id?: string | null;
 };
 
 function normalizePercent(n: number) {
@@ -443,7 +443,7 @@ async function mergeMaterialRow(
       const [dJson, mcJson, sbJson, rateJson, sJson, lJson, brJson, mJson, tJson] =
         await Promise.all([
           fetch(`/api/divisions`, { cache: "no-store" }).then(r => r.json()),
-          fetch(`/api/materials-search`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/materials-catalog`, { cache: "no-store" }).then(r => r.json()),
           fetch(`/api/atlasbid/scope-bundles?division_id=${divisionId}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})),
           fetch(`/api/labor-rates`, { cache: "no-store" }).then(r => r.json()),
           fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, { cache: "no-store" }).then(r => r.json()),
@@ -567,12 +567,8 @@ async function mergeMaterialRow(
 
   if (t.unit) setUnit(t.unit);
 
-  const nextQty =
-    typeof t.default_qty === "number"
-      ? Number(t.default_qty) || 0
-      : Number(quantity) || 0;
-
-  if (typeof t.default_qty === "number") setQuantity(nextQty);
+  // Never apply default_qty — always require user to enter quantity
+  const nextQty = Number(quantity) || 0;
 
   if (t.minutes_per_unit && nextQty > 0) {
     const computed = hoursFromMinutesPerUnit(t.minutes_per_unit, nextQty);
@@ -776,16 +772,21 @@ async function loadMaterialSources(materialId: string) {
   function applyMaterialSelection(m: MaterialsCatalogRow) {
   const nm = (m.name || "").trim();
 
-  setSelectedMaterialId(m.id || "");
+  // For bid_materials, store the inventory materials.id if available, else the catalog id
+  const matId = m.inventory_material_id || m.id || "";
+  setSelectedMaterialId(matId);
   setMaterialName(nm);
   setMaterialSearch(nm);
   setShowMaterialResults(false);
-  
-  if (m.id) loadMaterialSources(m.id);
 
-  if (m.unit) setMaterialUnit(m.unit);
-  if (typeof m.unit_cost === "number") {
-    setMaterialCost(Number(Number(m.unit_cost).toFixed(2)) || 0);
+  // Load pricing sources using inventory material id (needed for inventory/vendor prices)
+  if (matId) loadMaterialSources(matId);
+
+  const unit = m.default_unit || "";
+  if (unit) setMaterialUnit(unit);
+  const cost = m.default_unit_cost;
+  if (typeof cost === "number" && cost > 0) {
+    setMaterialCost(Number(cost.toFixed(2)));
   }
 
   if (!materialDetails.trim()) {
@@ -793,7 +794,6 @@ async function loadMaterialSources(materialId: string) {
       m.vendor ? `Vendor: ${m.vendor}` : null,
       m.sku ? `SKU: ${m.sku}` : null,
     ].filter(Boolean);
-
     if (bits.length) setMaterialDetails(bits.join(" • "));
   }
 }
@@ -2039,7 +2039,14 @@ async function addLabor() {
                     const raw = e.target.value;
                     const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                     const mpu = row.task_catalog?.minutes_per_unit;
-                    const newHours = mpu && value > 0 ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2)) : row.man_hours;
+                    let newHours: number;
+                    if (mpu && value > 0) {
+                      newHours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                    } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
+                      newHours = Number((row.man_hours / row.quantity * value).toFixed(2));
+                    } else {
+                      newHours = row.man_hours;
+                    }
                     setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
                   }}
                   onBlur={async (e) => {
@@ -2047,7 +2054,11 @@ async function addLabor() {
                     const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                     const mpu = row.task_catalog?.minutes_per_unit;
                     const patchBody: any = { quantity: value, unit: row.unit };
-                    if (mpu && value > 0) patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                    if (mpu && value > 0) {
+                      patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                    } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
+                      patchBody.man_hours = Number((row.man_hours / row.quantity * value).toFixed(2));
+                    }
                     try {
                       const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
                       if (!res.ok) console.error("Failed to save labor row", await res.json());
@@ -2271,7 +2282,14 @@ async function addLabor() {
                           const raw = e.target.value;
                           const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                           const mpu = row.task_catalog?.minutes_per_unit;
-                          const newHours = mpu && value > 0 ? Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2)) : row.man_hours;
+                          let newHours: number;
+                          if (mpu && value > 0) {
+                            newHours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                          } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
+                            newHours = Number((row.man_hours / row.quantity * value).toFixed(2));
+                          } else {
+                            newHours = row.man_hours;
+                          }
                           setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
                         }}
                         onBlur={async (e) => {
@@ -2279,7 +2297,11 @@ async function addLabor() {
                           const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
                           const mpu = row.task_catalog?.minutes_per_unit;
                           const patchBody: any = { quantity: value, unit: row.unit };
-                          if (mpu && value > 0) patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                          if (mpu && value > 0) {
+                            patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
+                          } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
+                            patchBody.man_hours = Number((row.man_hours / row.quantity * value).toFixed(2));
+                          }
                           try {
                             const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
                             if (!res.ok) console.error("Failed to save labor row", await res.json());
@@ -2400,7 +2422,7 @@ async function addLabor() {
                         {filteredMaterialsCatalog.map((m) => (
                           <div key={m.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between" onClick={() => applyMaterialSelection(m)}>
                             <span className="font-medium">{m.name}</span>
-                            {m.unit && <span className="text-xs text-gray-400 ml-2">{m.unit}</span>}
+                            {m.default_unit && <span className="text-xs text-gray-400 ml-2">{m.default_unit}</span>}
                           </div>
                         ))}
                       </div>
@@ -2436,6 +2458,11 @@ async function addLabor() {
                     onChange={(e) => setMaterialCost(Number(e.target.value))}
                   />
                 </div>
+                {materialQty > 0 && materialCost > 0 && (
+                  <span className="shrink-0 text-sm text-gray-600 font-medium whitespace-nowrap">
+                    = {money(materialQty * materialCost)}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={addMaterial}
