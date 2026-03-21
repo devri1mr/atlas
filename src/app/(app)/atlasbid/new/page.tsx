@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type Division = { id: string; name: string; default_gp_percent: number };
 
@@ -14,12 +15,32 @@ export default function NewBidPage() {
   const [internalNotes, setInternalNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creatorName, setCreatorName] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/divisions")
       .then(r => r.json())
       .then(j => { setDivisions(j.data ?? []); })
       .catch(() => {});
+
+    // Capture current user's name for attribution
+    getSupabaseClient().auth.getSession().then(async ({ data }) => {
+      const userId = data.session?.user?.id;
+      if (!userId) return;
+      const sb = getSupabaseClient();
+      const { data: profile } = await sb
+        .from("user_profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .single();
+      if (profile?.full_name) {
+        setCreatorName(profile.full_name);
+      } else {
+        const email = data.session?.user?.email ?? "";
+        const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        setCreatorName(derived || null);
+      }
+    }).catch(() => {});
   }, []);
 
   const selectedDivision = useMemo(() => divisions.find(d => d.id === divisionId), [divisions, divisionId]);
@@ -33,7 +54,7 @@ export default function NewBidPage() {
       const res = await fetch("/api/bids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ division_id: divisionId, client_name: clientFirstName, client_last_name: clientLastName, internal_notes: internalNotes || null }),
+        body: JSON.stringify({ division_id: divisionId, client_name: clientFirstName, client_last_name: clientLastName, internal_notes: internalNotes || null, created_by_name: creatorName }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create bid");

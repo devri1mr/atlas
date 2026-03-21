@@ -25,6 +25,7 @@ export async function GET() {
       client_last_name,
       customer_name,
       created_at,
+      created_by_name,
       status_id,
       internal_notes,
       division_id,
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
 
   const status_id = body?.status_id ?? null;
   const internal_notes = body?.internal_notes ?? null;
+  const created_by_name = body?.created_by_name ? String(body.created_by_name).trim() : null;
 
   // ✅ UUID string now
   const division_id = body?.division_id ?? null;
@@ -134,6 +136,7 @@ if (companyError || !companyRow?.id) {
       status_id,
       internal_notes,
       division_id,
+      created_by_name,
     })
     .select(
       `

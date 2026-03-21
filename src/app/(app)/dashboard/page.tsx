@@ -10,6 +10,8 @@ type Bid = {
   id: string;
   client_name: string;
   client_last_name?: string;
+  customer_name?: string | null;
+  created_by_name?: string | null;
   city?: string | null;
   state?: string | null;
   address1?: string | null;
@@ -20,6 +22,11 @@ type Bid = {
   statuses?: { id: number; name: string; color?: string | null } | null;
   divisions?: { id: string; name: string } | null;
 };
+
+function cleanStr(v?: string | null) {
+  const s = String(v ?? "").trim();
+  return s && s.toLowerCase() !== "null" ? s : "";
+}
 type StatCard = { label: string; value: string; sub?: string; trend?: "up" | "down" | "neutral"; color?: string };
 
 const WEATHER_CODES: Record<number, { desc: string; icon: string }> = {
@@ -227,6 +234,7 @@ export default function DashboardPage() {
                       <th className="text-left px-4 md:px-6 py-3">Status</th>
                       <th className="text-right px-4 md:px-6 py-3">Value</th>
                       <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">GP%</th>
+                      <th className="text-left px-4 md:px-6 py-3 hidden lg:table-cell">Created By</th>
                       <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">Date</th>
                     </tr>
                   </thead>
@@ -241,7 +249,9 @@ export default function DashboardPage() {
                         <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                           <td className="px-4 md:px-6 py-3.5">
                             <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
-                              {[bid.client_name, bid.client_last_name].filter(Boolean).join(" ") || "—"}
+                              {cleanStr(bid.customer_name) ||
+                                [cleanStr(bid.client_name), cleanStr(bid.client_last_name)].filter(Boolean).join(" ") ||
+                                "—"}
                             </Link>
                           </td>
                           <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden md:table-cell">
@@ -260,6 +270,9 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-4 md:px-6 py-3.5 text-right text-gray-500 text-xs tabular-nums hidden sm:table-cell">
                             {gp ?? <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
+                            {bid.created_by_name || <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 md:px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
                             {fmtDate(bid.created_at)}

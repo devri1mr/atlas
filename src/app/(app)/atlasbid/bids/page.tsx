@@ -9,6 +9,7 @@ type BidRow = {
   client_last_name: string | null;
   customer_name: string | null;
   created_at: string | null;
+  created_by_name: string | null;
   city: string | null;
   state: string | null;
   sell_rounded: number | null;
@@ -20,7 +21,7 @@ type BidRow = {
   divisions: { id: string; name: string } | null;
 };
 
-type SortKey = "client" | "division" | "location" | "value" | "cost" | "gp" | "status" | "date";
+type SortKey = "client" | "division" | "location" | "value" | "cost" | "gp" | "status" | "date" | "createdBy";
 type SortDir = "asc" | "desc";
 
 function fmtDate(iso: string | null) {
@@ -35,9 +36,15 @@ function fmtMoney(n: number | null) {
     : `$${n.toLocaleString()}`;
 }
 
+function cleanStr(v?: string | null) {
+  const s = String(v ?? "").trim();
+  return s && s.toLowerCase() !== "null" ? s : "";
+}
+
 function clientName(b: BidRow) {
-  if (b.customer_name?.trim()) return b.customer_name.trim();
-  return `${b.client_name ?? ""} ${b.client_last_name ?? ""}`.trim() || "—";
+  return cleanStr(b.customer_name) ||
+    [cleanStr(b.client_name), cleanStr(b.client_last_name)].filter(Boolean).join(" ") ||
+    "—";
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -108,9 +115,10 @@ export default function BidsPage() {
         case "location": cmp = (a.city ?? "").localeCompare(b.city ?? ""); break;
         case "value":    cmp = (a.sell_rounded ?? 0) - (b.sell_rounded ?? 0); break;
         case "cost":     cmp = (a.total_cost ?? 0) - (b.total_cost ?? 0); break;
-        case "gp":       cmp = (a.target_gp_pct ?? 0) - (b.target_gp_pct ?? 0); break;
-        case "status":   cmp = (a.statuses?.name ?? "").localeCompare(b.statuses?.name ?? ""); break;
-        case "date":     cmp = (a.created_at ?? "").localeCompare(b.created_at ?? ""); break;
+        case "gp":        cmp = (a.target_gp_pct ?? 0) - (b.target_gp_pct ?? 0); break;
+        case "status":    cmp = (a.statuses?.name ?? "").localeCompare(b.statuses?.name ?? ""); break;
+        case "date":      cmp = (a.created_at ?? "").localeCompare(b.created_at ?? ""); break;
+        case "createdBy": cmp = (a.created_by_name ?? "").localeCompare(b.created_by_name ?? ""); break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -293,7 +301,8 @@ export default function BidsPage() {
                     <Th label="Cost" k="cost" right />
                     <Th label="GP%" k="gp" right />
                     <Th label="Status" k="status" />
-                    <Th label="Created" k="date" />
+                    <Th label="Created By" k="createdBy" />
+                    <Th label="Date" k="date" />
                     <th className="px-4 py-3 w-16"></th>
                   </tr>
                 </thead>
@@ -342,6 +351,7 @@ export default function BidsPage() {
                             {b.statuses?.name ?? "Draft"}
                           </span>
                         </td>
+                        <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap">{b.created_by_name || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">{fmtDate(b.created_at)}</td>
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
