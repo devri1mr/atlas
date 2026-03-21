@@ -178,7 +178,7 @@ export default function AtlasPerformancePage() {
       fontStyle: italic ? "italic" : "normal",
       textAlign: "center",
     }}>
-      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmtK(v)}
+      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
     </td>
   );
 
