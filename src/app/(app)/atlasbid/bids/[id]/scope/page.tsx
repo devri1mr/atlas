@@ -308,6 +308,10 @@ const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
 const [showBundlePanel, setShowBundlePanel] = useState(false);
 const [calcOpenForRow, setCalcOpenForRow] = useState<string | null>(null);
 const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string; depth: string }>>({});
+
+// Measurements (from the Measurements tab)
+type MeasurementRow = { id: string; label: string; shape_type: "polygon" | "polyline"; computed_value: number; unit: string; };
+const [bidMeasurements, setBidMeasurements] = useState<MeasurementRow[]>([]);
   // Close dropdowns on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -325,6 +329,15 @@ const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
+
+  // Lazy-load measurements when the bundle panel opens
+  useEffect(() => {
+    if (!showBundlePanel || !bidId || bidMeasurements.length > 0) return;
+    fetch(`/api/atlasbid/bid-measurements?bid_id=${bidId}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setBidMeasurements(Array.isArray(j?.rows) ? j.rows : []))
+      .catch(() => {});
+  }, [showBundlePanel, bidId]);
 function normalizeMaterialText(v: unknown) {
   return String(v ?? "").trim().toLowerCase();
 }
@@ -1742,7 +1755,24 @@ async function addLabor() {
             {q.label}{q.unit ? ` (${q.unit})` : ""}
           </label>
           {q.input_type === "number" ? (
-            <input type="number" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: Number(e.target.value) }))} />
+            <div className="space-y-1">
+              <input type="number" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: Number(e.target.value) }))} />
+              {bidMeasurements.filter((m) => m.unit === q.unit).length > 0 && (
+                <select
+                  className="border border-green-200 bg-green-50 rounded px-2 py-1.5 text-xs w-full text-green-800 focus:outline-none focus:ring-1 focus:ring-green-400"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const m = bidMeasurements.find((x) => x.id === e.target.value);
+                    if (m) setBundleAnswers((prev) => ({ ...prev, [q.question_key]: m.computed_value }));
+                  }}
+                >
+                  <option value="">📐 Use a measurement…</option>
+                  {bidMeasurements.filter((m) => m.unit === q.unit).map((m) => (
+                    <option key={m.id} value={m.id}>{m.label} — {m.computed_value.toLocaleString()} {m.unit}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           ) : q.input_type === "checkbox" ? (
             <label className="inline-flex items-center gap-2">
               <input type="checkbox" checked={bundleAnswers[q.question_key] === true} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))} />

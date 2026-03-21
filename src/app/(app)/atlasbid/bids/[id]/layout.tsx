@@ -13,6 +13,7 @@ export default async function BidLayout({
   const tabs = [
     { name: "Overview", href: `/atlasbid/bids/${id}` },
     { name: "Scope", href: `/atlasbid/bids/${id}/scope` },
+    { name: "Measurements", href: `/atlasbid/bids/${id}/measurements` },
     { name: "Pricing", href: `/atlasbid/bids/${id}/pricing` },
     { name: "Photos", href: `/atlasbid/bids/${id}/photos` },
     { name: "Proposal", href: `/atlasbid/bids/${id}/proposal` },
