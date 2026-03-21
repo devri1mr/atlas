@@ -17,6 +17,7 @@ const UNIT_OPTIONS = [
   { label: "yd(s)", value: "yd" },
   { label: "sq ft", value: "sqft" },
   { label: "lin ft", value: "lf" },
+  { label: "ft", value: "ft" },
   { label: "ea", value: "ea" },
   { label: "tons", value: "ton" },
   { label: "loads", value: "load" },

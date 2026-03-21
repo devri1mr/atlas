@@ -36,7 +36,7 @@ type MaterialSearchResult = {
   unit_cost: number | null;
 };
 
-const UNITS = ["yd", "sqft", "lft", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
+const UNITS = ["yd", "sqft", "lft", "ft", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
 
 const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";

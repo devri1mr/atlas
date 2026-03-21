@@ -56,7 +56,7 @@ const COLORS = [
   "#ef4444","#a855f7","#ec4899","#6b7280","#92400e",
 ];
 
-const UNITS = ["ea", "yd", "bag", "flat", "roll", "lb", "ton", "hr", "sf", "lf", "gal"];
+const UNITS = ["ea", "yd", "bag", "flat", "roll", "lb", "ton", "hr", "sf", "lf", "ft", "gal"];
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 const btnPrimary = "bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";

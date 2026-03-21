@@ -56,6 +56,7 @@ const UNITS = [
   { label: "yd(s)", value: "yd" },
   { label: "ea", value: "ea" },
   { label: "lin ft", value: "lf" },
+  { label: "ft", value: "ft" },
   { label: "sq ft", value: "sqft" },
   { label: "tons", value: "ton" },
   { label: "bags", value: "bag" },
