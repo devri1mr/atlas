@@ -2448,12 +2448,19 @@ async function addLabor() {
                 <div className="w-28 shrink-0 relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
                   <input
-                    className="border border-gray-200 rounded-lg w-full h-9 pl-6 pr-2 text-right text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    type="number"
-                    step="0.01"
+                    className="border border-gray-200 rounded-lg w-full h-9 pl-6 pr-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
-                    value={materialCost === 0 ? "" : materialCost}
-                    onChange={(e) => setMaterialCost(Number(e.target.value))}
+                    value={materialCost === 0 ? "" : materialCost.toFixed(2)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      setMaterialCost(raw === "" ? 0 : Number(raw));
+                    }}
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v)) setMaterialCost(Number(v.toFixed(2)));
+                    }}
                   />
                 </div>
                 {materialQty > 0 && materialCost > 0 && (
