@@ -303,9 +303,16 @@ export async function POST(
     if (srcErr || !src) return NextResponse.json({ error: "Bid not found" }, { status: 404 });
 
     const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = src as any;
+    const cleanN = (s: any) => (s && String(s).trim().toLowerCase() !== "null" ? String(s).trim() : "");
+    const custName = cleanN(src.customer_name);
+    const cliName  = cleanN(src.client_name);
     const { data: copy, error: copyErr } = await supabase
       .from(TABLE_BIDS)
-      .insert({ ...rest, customer_name: src.customer_name ? `${src.customer_name} (Copy)` : null, client_name: !src.customer_name ? `${src.client_name ?? ""} (Copy)`.trim() : src.client_name })
+      .insert({
+        ...rest,
+        customer_name: custName ? `${custName} (Copy)` : null,
+        client_name:   !custName && cliName ? `${cliName} (Copy)` : src.client_name,
+      })
       .select(BID_SELECT)
       .single();
     if (copyErr) return NextResponse.json({ error: copyErr.message }, { status: 500 });

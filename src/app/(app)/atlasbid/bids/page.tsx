@@ -177,11 +177,12 @@ export default function BidsPage() {
     return <span className="text-green-600 ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>;
   }
 
-  function Th({ label, k, right }: { label: string; k: SortKey; right?: boolean }) {
+  function Th({ label, k, align = "left" }: { label: string; k: SortKey; align?: "left" | "center" | "right" }) {
+    const cls = align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
     return (
       <th
         onClick={() => toggleSort(k)}
-        className={`px-4 py-3 font-semibold cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap ${right ? "text-right" : "text-left"}`}
+        className={`px-4 py-3 font-semibold cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap ${cls}`}
       >
         {label}<SortIcon k={k} />
       </th>
@@ -295,14 +296,14 @@ export default function BidsPage() {
                       />
                     </th>
                     <Th label="Client" k="client" />
-                    <Th label="Division" k="division" />
+                    <Th label="Division" k="division" align="center" />
                     <Th label="Location" k="location" />
-                    <Th label="Value" k="value" right />
-                    <Th label="Cost" k="cost" right />
-                    <Th label="GP%" k="gp" right />
-                    <Th label="Status" k="status" />
-                    <Th label="Created By" k="createdBy" />
-                    <Th label="Date" k="date" />
+                    <Th label="Value" k="value" align="center" />
+                    <Th label="Cost" k="cost" align="center" />
+                    <Th label="GP%" k="gp" align="center" />
+                    <Th label="Status" k="status" align="center" />
+                    <Th label="Created By" k="createdBy" align="center" />
+                    <Th label="Date" k="date" align="center" />
                     <th className="px-4 py-3 w-16"></th>
                   </tr>
                 </thead>
@@ -329,7 +330,7 @@ export default function BidsPage() {
                           />
                         </td>
                         <td className="px-4 py-3.5 font-medium text-gray-900 whitespace-nowrap">{name}</td>
-                        <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">{b.divisions?.name ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap text-center">{b.divisions?.name ?? "—"}</td>
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
                           {b.city || b.state
                             ? [b.city, b.state].filter(Boolean).join(", ")
@@ -337,22 +338,22 @@ export default function BidsPage() {
                               ? ((b as any).address1 || (b as any).address)
                               : "—"}
                         </td>
-                        <td className="px-4 py-3.5 text-right font-semibold text-gray-900 tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-3.5 text-center font-semibold text-gray-900 tabular-nums whitespace-nowrap">
                           {fmtMoney(b.sell_rounded)}
                         </td>
-                        <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-3.5 text-center text-gray-500 tabular-nums whitespace-nowrap">
                           {fmtMoney(b.total_cost)}
                         </td>
-                        <td className={`px-4 py-3.5 text-right tabular-nums whitespace-nowrap ${gpColor}`}>
+                        <td className={`px-4 py-3.5 text-center tabular-nums whitespace-nowrap ${gpColor}`}>
                           {gp != null ? `${gp.toFixed(1)}%` : "—"}
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5 text-center">
                           <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${badgeCls}`}>
                             {b.statuses?.name ?? "Draft"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap">{b.created_by_name || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">{fmtDate(b.created_at)}</td>
+                        <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap text-center">{b.created_by_name || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap text-center">{fmtDate(b.created_at)}</td>
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
