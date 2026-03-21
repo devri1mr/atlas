@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 
       <!-- Footer -->
       <div style="padding:20px 40px;text-align:center;">
-        <span style="font-size:11px;color:#9ca3af;">© Garpiel Group</span>
+        <span style="font-size:11px;color:#9ca3af;">© InterRivus Systems</span>
       </div>
 
     </div>
