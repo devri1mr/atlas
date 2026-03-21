@@ -116,57 +116,88 @@ export default function Home() {
         </div>
 
         {/* Right panel — sign in */}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 min-h-screen lg:min-h-0" style={{ background: "#f5f7f5" }}>
-          <div className="w-full max-w-sm mx-auto">
+        <div
+          className="flex-1 flex flex-col min-h-screen lg:min-h-0"
+          style={{ background: "linear-gradient(180deg, #ffffff 0%, #f4fbf5 38%, #1a5c2a 62%, #0a1f10 100%)" }}
+        >
+          {/* Desktop background override — plain gray on lg+ */}
+          <div className="hidden lg:block absolute inset-y-0 right-0" style={{ width: "45%", background: "#f5f7f5", zIndex: 0 }} />
 
-            {/* Mobile logo */}
-            <div className="lg:hidden mb-8 flex flex-col items-center text-center">
-              <Image src="/atlas-logo.png" alt="Atlas" width={160} height={54} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
-              <p className="mt-2 text-xs text-gray-500 italic">Precision in the number. Profit in the job.</p>
+          {/* Mobile hero — logo in the light top section */}
+          <div className="lg:hidden relative flex flex-col items-center justify-center pt-16 pb-10 px-6 text-center" style={{ flex: "0 0 44%" }}>
+            {/* blue streak decorations (same as desktop) */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute" style={{ top: "18%", left: "-10%", width: "120%", height: "1.5px", background: "linear-gradient(90deg, transparent 0%, #93c5fd 35%, #60a5fa 55%, transparent 100%)", transform: "rotate(-12deg)", opacity: 0.22 }} />
+              <div className="absolute" style={{ top: "42%", right: "-5%", width: "70%", height: "1px", background: "linear-gradient(90deg, transparent 0%, #7dd3fc 50%, transparent 100%)", transform: "rotate(8deg)", opacity: 0.18 }} />
+              <div className="absolute" style={{ top: "62%", left: "0%", width: "80%", height: "1.5px", background: "linear-gradient(90deg, transparent 0%, #60a5fa 40%, transparent 100%)", transform: "rotate(-5deg)", opacity: 0.14 }} />
             </div>
+            <Image src="/atlas-logo.png" alt="Atlas" width={200} height={68} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
+            <div className="w-10 h-px bg-green-300/30 mt-8 mb-5" />
+            <h2 className="text-xl font-bold text-white leading-snug tracking-tight">
+              Precision in the number.<br />
+              <span className="text-green-300">Profit in the job.</span>
+            </h2>
+            <p className="mt-3 text-white/45 text-xs leading-relaxed max-w-xs">
+              Bringing pricing, execution, and performance into one system—engineered for exponential results.
+            </p>
+          </div>
 
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Sign in to Atlas</h1>
-            <p className="text-gray-500 text-sm mb-8">Use your Google account to access your workspace.</p>
+          {/* Sign-in card area */}
+          <div className="relative flex-1 lg:flex-none flex flex-col items-center justify-center px-6 py-10 lg:min-h-screen" style={{ zIndex: 1 }}>
+            {/* Desktop: plain background */}
+            <div className="hidden lg:block absolute inset-0" style={{ background: "#f5f7f5" }} />
 
-            <button
-              onClick={signInWithGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-xl px-5 py-3.5 text-sm font-medium text-gray-800 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-md"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
+            <div className="relative w-full max-w-sm mx-auto">
 
-            {denied && (
-              <p className="mt-4 text-center text-xs text-red-500 font-medium">
-                Your account is not authorized. Contact your Atlas administrator to request access.
-              </p>
-            )}
-            {!denied && (
-              <p className="mt-5 text-center text-xs text-gray-500 font-medium">
-                Access restricted to invited users only.
-              </p>
-            )}
+              {/* Desktop logo (hidden on mobile — handled above) */}
+              <div className="hidden lg:flex mb-8 flex-col items-center text-center">
+                {/* intentionally empty — desktop logo is on the left panel */}
+              </div>
 
-            <div className="mt-10 pt-6 border-t border-gray-200 text-center">
-              <a
-                href="https://interrivus.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group shadow-sm"
+              <h1 className="text-2xl font-bold mb-1 text-white lg:text-gray-900">Sign in to Atlas</h1>
+              <p className="text-sm mb-8 text-white/65 lg:text-gray-500">Use your Google account to access your workspace.</p>
+
+              <button
+                onClick={signInWithGoogle}
+                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-xl px-5 py-3.5 text-sm font-medium text-gray-800 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-md"
               >
-                <Image
-                  src="/interrivus-logo.png"
-                  alt="InterRivus Systems"
-                  width={36}
-                  height={36}
-                  style={{ objectFit: "contain", mixBlendMode: "multiply" }}
-                />
-                <div className="text-left">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-widest leading-none mb-0.5 group-hover:text-green-600 transition-colors">Powered by</div>
-                  <div className="text-[13px] font-semibold text-gray-600 tracking-wide group-hover:text-green-800 transition-colors">InterRivus Systems</div>
-                </div>
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-green-500 transition-colors ml-1"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
-              </a>
+                <GoogleIcon />
+                Continue with Google
+              </button>
+
+              {denied && (
+                <p className="mt-4 text-center text-xs font-medium text-red-300 lg:text-red-500">
+                  Your account is not authorized. Contact your Atlas administrator to request access.
+                </p>
+              )}
+              {!denied && (
+                <p className="mt-5 text-center text-xs font-medium text-white/45 lg:text-gray-500">
+                  Access restricted to invited users only.
+                </p>
+              )}
+
+              <div className="mt-10 pt-6 border-t border-white/10 lg:border-gray-200 text-center">
+                <a
+                  href="https://interrivus.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-white/15 hover:border-green-400/40 hover:bg-white/5 lg:border-gray-200 lg:hover:border-green-300 lg:hover:bg-green-50 transition-all group shadow-sm"
+                >
+                  <Image
+                    src="/interrivus-logo.png"
+                    alt="InterRivus Systems"
+                    width={36}
+                    height={36}
+                    style={{ objectFit: "contain" }}
+                    className="lg:[mix-blend-mode:multiply]"
+                  />
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase tracking-widest leading-none mb-0.5 text-white/40 group-hover:text-green-300 lg:text-gray-400 lg:group-hover:text-green-600 transition-colors">Powered by</div>
+                    <div className="text-[13px] font-semibold tracking-wide text-white/70 group-hover:text-white lg:text-gray-600 lg:group-hover:text-green-800 transition-colors">InterRivus Systems</div>
+                  </div>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="ml-1 text-white/25 group-hover:text-green-300 lg:text-gray-300 lg:group-hover:text-green-500 transition-colors"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+                </a>
+              </div>
             </div>
           </div>
         </div>

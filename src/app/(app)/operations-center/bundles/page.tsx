@@ -234,7 +234,7 @@ export default function BundleBuilderPage() {
 
   // Task add form
   const [tName, setTName] = useState(""); const [tUnit, setTUnit] = useState("yd");
-  const [tRule, setTRule] = useState("mulch_yards_from_sqft_depth");
+  const [tRule, setTRule] = useState("fixed_quantity");
   const [tConfig, setTConfig] = useState<Record<string, any>>({});
   const [tLineItem, setTLineItem] = useState(true); const [addingT, setAddingT] = useState(false);
 
@@ -380,7 +380,7 @@ export default function BundleBuilderPage() {
     if (!r.ok) { err(j?.error || "Failed to add task"); setAddingT(false); return; }
     setTasks(prev => [...prev, j.row]);
     setTaskMaterials(prev => ({ ...prev, [j.row.id]: [] }));
-    setTName(""); setTUnit("yd"); setTRule("mulch_yards_from_sqft_depth"); setTConfig({});
+    setTName(""); setTUnit("yd"); setTRule("fixed_quantity"); setTConfig({});
     setTCatalogSelected(null); setTCatalogSearch(""); setTCatalogOpen(false);
     setAddingT(false); flash("Task added.");
   }
@@ -804,13 +804,14 @@ export default function BundleBuilderPage() {
                                   setTCatalogSelected(ct);
                                   setTCatalogOpen(false);
                                   setTCatalogSearch("");
-                                  // Auto-fill form fields
+                                  // Auto-fill form fields from catalog
                                   setTName(ct.name);
                                   if (ct.unit) setTUnit(ct.unit);
-                                  setTConfig(prev => ({
-                                    ...prev,
+                                  setTRule("fixed_quantity");
+                                  setTConfig({
+                                    ...(ct.default_qty != null ? { quantity: ct.default_qty } : {}),
                                     ...(ct.minutes_per_unit != null ? { minutes_per_unit: ct.minutes_per_unit } : {}),
-                                  }));
+                                  });
                                 }}>
                                 <span className="font-medium text-gray-800">{ct.name}</span>
                                 <span className="text-gray-400 text-xs">{ct.unit || "—"}{ct.minutes_per_unit != null ? ` · ${ct.minutes_per_unit} min/unit` : ""}</span>
