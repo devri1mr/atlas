@@ -12,6 +12,7 @@ type Bid = {
   client_name?: string | null;
   client_last_name?: string | null;
   address?: string | null;
+  address1?: string | null;
   city?: string | null;
   state?: string | null;
   division_id?: string | null;
@@ -1577,12 +1578,17 @@ async function addLabor() {
   );
   if (!bid) return <div className="p-6 text-red-600">Bid not found.</div>;
 
+  function cleanBidStr(v?: string | null) {
+    const s = String(v ?? "").trim();
+    return s && s.toLowerCase() !== "null" ? s : "";
+  }
+
   const clientDisplayName =
-    bid.customer_name?.trim() ||
-    [bid.client_name, bid.client_last_name].filter(Boolean).join(" ") ||
+    cleanBidStr(bid.customer_name) ||
+    [cleanBidStr(bid.client_name), cleanBidStr(bid.client_last_name)].filter(Boolean).join(" ") ||
     "—";
 
-  const jobAddress = [bid.address, bid.city, bid.state].filter(Boolean).join(", ");
+  const jobAddress = [bid.address1 || bid.address, bid.city, bid.state].filter(Boolean).join(", ");
 
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
@@ -2070,7 +2076,7 @@ async function addLabor() {
                 <select
                   title="Difficulty level"
                   value={row.difficulty_level ?? 0}
-                  className="w-20 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-28 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
                   onChange={async (e) => {
                     const level = Number(e.target.value);
                     await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ difficulty_level: level }) });
