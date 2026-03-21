@@ -682,7 +682,26 @@ export default function InventoryPage() {
                   const rowUnit = row.materials?.inventory_unit || "";
                   return (
                     <tr key={row.id} className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${editingId === row.id ? "bg-amber-50" : ""}`}>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <input
+                          type="date"
+                          className="border-0 bg-transparent text-gray-500 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:bg-white focus:border focus:border-gray-200 rounded px-1 -mx-1 cursor-pointer"
+                          value={String(row.transaction_date || "").slice(0, 10)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setLedger(prev => prev.map(r => r.id === row.id ? { ...r, transaction_date: val } : r));
+                          }}
+                          onBlur={async (e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            await fetch(`/api/inventory/receipt/${row.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ transaction_date: val }),
+                            });
+                          }}
+                        />
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{matName}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${

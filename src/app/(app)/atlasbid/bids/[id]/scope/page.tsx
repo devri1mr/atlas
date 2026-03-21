@@ -305,7 +305,6 @@ const [bundleAnswers, setBundleAnswers] = useState<Record<string, any>>({});
 const [loadingBundles, setLoadingBundles] = useState(false);
 const [loadingBundleQuestions, setLoadingBundleQuestions] = useState(false);
 const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
-const [activeSection, setActiveSection] = useState<"labor" | "materials">("labor");
 const [showBundlePanel, setShowBundlePanel] = useState(false);
 const [calcOpenForRow, setCalcOpenForRow] = useState<string | null>(null);
 const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string; depth: string }>>({});
@@ -1663,24 +1662,7 @@ async function addLabor() {
         </div>
       ) : (
         <>
-          {/* Tab bar */}
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-            <button
-              onClick={() => setActiveSection("labor")}
-              className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-colors ${activeSection === "labor" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              Labor
-            </button>
-            <button
-              onClick={() => setActiveSection("materials")}
-              className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-colors ${activeSection === "materials" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              Materials{materials.length > 0 ? ` (${materials.length})` : ""}
-            </button>
-          </div>
-
-          {activeSection === "labor" && (
-<div className="border rounded-lg">
+          <div className="border rounded-lg">
   <div className="bg-gray-50 border-b px-5 py-3 rounded-t-lg">
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
@@ -2331,179 +2313,127 @@ async function addLabor() {
 )}
 </div>
 </div>
-          )}
-          {activeSection === "materials" && (
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-800">Materials Builder</h2>
-                <div className="text-xs text-gray-500 mt-0.5">Search your catalog, auto-fill unit + cost, then edit inline.</div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-semibold text-gray-800">Materials</h2>
+                {materials.length > 0 && (
+                  <span className="text-xs bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 font-semibold tabular-nums">{materials.length}</span>
+                )}
+                {materials.some(m => !m.source_type || m.source_type === "template") && (
+                  <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-semibold">⚠ confirm sources</span>
+                )}
               </div>
               <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
             </div>
             <div className="p-5 space-y-3">
 
-            <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <div className="col-span-3 text-center">Material</div>
-              <div className="col-span-2 text-center">Source</div>
-              <div className="col-span-2 text-center">Details</div>
-              <div className="col-span-1 text-center">Qty</div>
-              <div className="col-span-1 text-center">Unit</div>
-              <div className="col-span-1 text-center">Unit Cost</div>
-              <div className="col-span-2 text-center">Action</div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-3 items-center">
-              {/* Catalog search */}
-              <div className="col-span-3" ref={materialDropdownRef}>
-                <div className="relative">
-                  <input
-                    className="border p-2 rounded w-full h-10"
-                    placeholder="Search materials catalog…"
-                    value={materialSearch}
-                    onChange={(e) => {
-  const v = e.target.value;
-  setSelectedMaterialId("");
-  setMaterialSearch(v);
-  setMaterialName(v);
-  setShowMaterialResults(true);
-}}
-                    onFocus={() => setShowMaterialResults(true)}
-                  />
-
-                  {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
-                    <div className="absolute z-20 bg-white border rounded shadow w-full max-h-60 overflow-auto mt-1">
-                      {filteredMaterialsCatalog.map((m) => (
-                        <div
-                          key={m.id}
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between"
-                          onClick={() => applyMaterialSelection(m)}
-                        >
-                          <span className="font-medium">{m.name}</span>
-                          {m.unit && <span className="text-xs text-gray-400 ml-2">{m.unit}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+              {/* Row 1: search + qty + unit + unit cost + add */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0" ref={materialDropdownRef}>
+                  <div className="relative">
+                    <input
+                      className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="Search materials catalog…"
+                      value={materialSearch}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSelectedMaterialId("");
+                        setMaterialSearch(v);
+                        setMaterialName(v);
+                        setShowMaterialResults(true);
+                      }}
+                      onFocus={() => setShowMaterialResults(true)}
+                    />
+                    {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
+                      <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
+                        {filteredMaterialsCatalog.map((m) => (
+                          <div key={m.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between" onClick={() => applyMaterialSelection(m)}>
+                            <span className="font-medium">{m.name}</span>
+                            {m.unit && <span className="text-xs text-gray-400 ml-2">{m.unit}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-  <div className="col-span-2">
-  <select
-    className="border p-1 rounded w-full h-10 text-xs"
-    value={selectedSourceIndex ?? ""}
-    onChange={(e) => {
-      const idx = Number(e.target.value);
-      setSelectedSourceIndex(idx);
-
-      const src = materialSources[idx];
-      if (!src) return;
-
-      if (src.unit) setMaterialUnit(src.unit);
-      if (src.cost !== undefined) setMaterialCost(Number(Number(src.cost).toFixed(2)) || 0);
-    }}
-  >
-    <option value="">Select source</option>
-
-    {materialSources.map((s, i) => {
-  const qty =
-    s.available_qty === null || s.available_qty === undefined
-      ? null
-      : Number(s.available_qty);
-
-  const qtyText =
-    qty === null
-      ? ""
-      : qty < 0
-      ? ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")} LOW)`
-      : ` (Qty: ${qty.toFixed(2).replace(/\.00$/, "")})`;
-
-  return (
-    <option key={i} value={i}>
-      {s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}
-      {qtyText}
-    </option>
-  );
-})}
-  </select>
-</div>
-              {/* Details */}
-              <div className="col-span-2">
-                <input
-                  className="border p-2 rounded w-full h-10"
-                  placeholder="Details"
-                  value={materialDetails}
-                  onChange={(e) => setMaterialDetails(e.target.value)}
-                />
-              </div>
-
-              {/* Qty */}
-              <div className="col-span-1">
-                <input
-                  className="border rounded w-full h-10 px-2 text-center"
-                  type="number"
-                  placeholder=""
-                  value={materialQty === 0 ? "" : materialQty}
-                  onChange={(e) => setMaterialQty(Number(e.target.value))}
-                />
-              </div>
-
-              {/* Unit */}
-              <div className="col-span-1">
-                <select
-                  className="border p-2 rounded w-full h-10"
-                  value={materialUnit}
-                  onChange={(e) => setMaterialUnit(e.target.value)}
-                >
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Unit Cost */}
-              <div className="col-span-1">
-                <div className="relative">
+                <div className="w-20 shrink-0">
+                  <input
+                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    type="number"
+                    placeholder="Qty"
+                    value={materialQty === 0 ? "" : materialQty}
+                    onChange={(e) => setMaterialQty(Number(e.target.value))}
+                  />
+                </div>
+                <div className="w-24 shrink-0">
+                  <select
+                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={materialUnit}
+                    onChange={(e) => setMaterialUnit(e.target.value)}
+                  >
+                    {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </div>
+                <div className="w-28 shrink-0 relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
                   <input
-                    className="border rounded w-full h-10 pl-6 pr-2 text-right"
+                    className="border border-gray-200 rounded-lg w-full h-9 pl-6 pr-2 text-right text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                     type="number"
                     step="0.01"
-                    placeholder=""
+                    placeholder="0.00"
                     value={materialCost === 0 ? "" : materialCost}
                     onChange={(e) => setMaterialCost(Number(e.target.value))}
                   />
                 </div>
-              </div>
-
-              <div className="col-span-2">
                 <button
                   type="button"
                   onClick={addMaterial}
-                  className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full"
+                  className="shrink-0 bg-[#123b1f] text-white rounded-lg h-9 px-5 text-sm font-semibold hover:bg-[#1a5c2e]"
                 >
                   Add
                 </button>
               </div>
-            </div>
-
-            {/* List headers */}
-            <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t pt-3 mt-1">
-              <div className="col-span-3 text-center">Material</div>
-              <div className="col-span-2 text-center">Source</div>
-              <div className="col-span-2 text-center">Details</div>
-              <div className="col-span-1 text-center">Qty</div>
-              <div className="col-span-1 text-center">Unit</div>
-              <div className="col-span-1 text-center">Unit Cost</div>
-              <div className="col-span-1 text-center">Total</div>
-              <div className="col-span-1 text-center">Actions</div>
+              {/* Row 2: source + details */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <select
+                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={selectedSourceIndex ?? ""}
+                    onChange={(e) => {
+                      const idx = Number(e.target.value);
+                      setSelectedSourceIndex(idx);
+                      const src = materialSources[idx];
+                      if (!src) return;
+                      if (src.unit) setMaterialUnit(src.unit);
+                      if (src.cost !== undefined) setMaterialCost(Number(Number(src.cost).toFixed(2)) || 0);
+                    }}
+                  >
+                    <option value="">Source (optional)</option>
+                    {materialSources.map((s, i) => {
+                      const qty = s.available_qty == null ? null : Number(s.available_qty);
+                      const qtyText = qty === null ? "" : qty < 0 ? ` (LOW: ${qty.toFixed(2).replace(/\.00$/, "")})` : ` (${qty.toFixed(2).replace(/\.00$/, "")} avail)`;
+                      return <option key={i} value={i}>{s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}{qtyText}</option>;
+                    })}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <input
+                    className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Details (optional)"
+                    value={materialDetails}
+                    onChange={(e) => setMaterialDetails(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             {materials.length === 0 ? (
-              <div className="text-gray-400 text-sm py-3">No materials added yet.</div>
+              <div className="text-gray-400 text-sm py-6 text-center border-t mt-1">No materials added yet.</div>
             ) : (
-              materials.map((row) => {
+              <div className="space-y-2 pt-1 border-t mt-1">
+              {materials.map((row) => {
                 const isEditing = editingMaterialId === row.id;
 
                 const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
@@ -2513,25 +2443,62 @@ async function addLabor() {
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-12 gap-3 border rounded px-2 py-2 text-sm items-center"
+                    className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
                   >
-                    <div className="col-span-3 font-medium truncate text-center">
+                    {/* Row 1: name + qty + unit cost + total + actions */}
+                    <div className="flex items-center gap-2 px-3 py-2.5">
                       {isEditing ? (
                         <input
-                          className="border p-2 rounded w-full"
+                          className="flex-1 min-w-0 border border-gray-200 rounded-lg h-8 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
                           value={mEditName}
                           onChange={(e) => setMEditName(e.target.value)}
                         />
                       ) : (
-                        row.name
+                        <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.name}</span>
+                      )}
+
+                      {isEditing ? (
+                        <>
+                          <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={(e) => setMEditQty(Number(e.target.value))} />
+                          <select className="w-20 border border-gray-200 rounded h-7 px-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" value={mEditUnit} onChange={(e) => setMEditUnit(e.target.value)}>
+                            {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                          </select>
+                          <span className="text-xs text-gray-400">@</span>
+                          <input className="w-20 border border-gray-200 rounded h-7 px-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={(e) => setMEditUnitCost(Number(e.target.value))} />
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs text-gray-500 tabular-nums shrink-0">{qty} {pluralUnit(row.unit ?? "", qty)}</span>
+                          <span className="text-xs text-gray-400 shrink-0">@</span>
+                          <span className="text-xs text-gray-500 tabular-nums shrink-0">{money(row.unit_cost)}</span>
+                        </>
+                      )}
+                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-right shrink-0 ml-auto">{money(total)}</span>
+                      {isEditing ? (
+                        <>
+                          <button onClick={() => saveEditMaterial(row.id)} className="text-emerald-600 hover:text-emerald-700 shrink-0" title="Save">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </button>
+                          <button onClick={cancelEditMaterial} className="text-gray-400 hover:text-gray-600 shrink-0" title="Cancel">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEditMaterial(row)} className="text-gray-300 hover:text-blue-500 transition-colors shrink-0" title="Edit">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button onClick={() => deleteMaterialRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0" title="Delete">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                          </button>
+                        </>
                       )}
                     </div>
-
-                    {/* Source — always-inline dropdown (lazy-loads per material_id) */}
-                    <div className="col-span-2 text-center text-xs">
+                    {/* Row 2: source + details */}
+                    <div className="border-t border-gray-100 px-3 py-1.5 bg-gray-50/50 flex items-center gap-2">
                       {row.material_id ? (
                         <select
-                          className={`border rounded w-full text-xs px-1 h-8 ${!row.source_type || row.source_type === "template" ? "border-amber-400 bg-amber-50 text-amber-700 font-semibold" : ""}`}
+                          className={`flex-1 border rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500 ${!row.source_type || row.source_type === "template" ? "border-amber-400 bg-amber-50 text-amber-700 font-semibold" : "border-gray-200"}`}
                           value=""
                           onFocus={() => ensureMatSources(row.material_id!)}
                           onChange={async (e) => {
@@ -2541,10 +2508,8 @@ async function addLabor() {
                             const newCost = Number(Number(src.cost).toFixed(2));
                             const newUnit = src.unit || row.unit;
                             const newSource = src.source_name;
-                            // Auto-merge if another row for same material+source already exists
                             const duplicate = materials.find(r =>
-                              r.id !== row.id &&
-                              r.material_id && row.material_id &&
+                              r.id !== row.id && r.material_id && row.material_id &&
                               r.material_id === row.material_id &&
                               normalizeMaterialText(r.source_type) === normalizeMaterialText(newSource) &&
                               r.unit === newUnit
@@ -2555,163 +2520,42 @@ async function addLabor() {
                                 fetch(`/api/atlasbid/bid-materials/${duplicate.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ qty: mergedQty }) }),
                                 fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "DELETE" }),
                               ]);
-                              setMaterials((prev) => prev
-                                .map(r => r.id === duplicate.id ? { ...r, qty: mergedQty } : r)
-                                .filter(r => r.id !== row.id)
-                              );
+                              setMaterials((prev) => prev.map(r => r.id === duplicate.id ? { ...r, qty: mergedQty } : r).filter(r => r.id !== row.id));
                             } else {
-                              setMaterials((prev) =>
-                                prev.map((r) => r.id === row.id
-                                  ? { ...r, source_type: newSource, unit: newUnit, unit_cost: newCost }
-                                  : r)
-                              );
-                              await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ source_type: newSource, unit: newUnit, unit_cost: newCost }),
-                              });
+                              setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, source_type: newSource, unit: newUnit, unit_cost: newCost } : r));
+                              await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_type: newSource, unit: newUnit, unit_cost: newCost }) });
                             }
                           }}
                         >
-                          <option value="" disabled>
-                            {!row.source_type || row.source_type === "template" ? "⚠ Select source" : row.source_type}
-                          </option>
+                          <option value="" disabled>{!row.source_type || row.source_type === "template" ? "⚠ Select source" : row.source_type}</option>
                           {(matSourcesCache[row.material_id] || []).map((s, i) => (
-                            <option key={i} value={i}>
-                              {s.source_name} @ ${Number(s.cost).toFixed(2)}
-                            </option>
+                            <option key={i} value={i}>{s.source_name} @ ${Number(s.cost).toFixed(2)}</option>
                           ))}
                         </select>
                       ) : (
                         <input
-                          className="border rounded w-full text-center text-xs px-1 h-8"
+                          className="flex-1 border border-gray-200 rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500"
                           placeholder="Source"
                           value={row.source_type || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setMaterials((prev) =>
-                              prev.map((r) => r.id === row.id ? { ...r, source_type: value } : r)
-                            );
-                          }}
-                          onBlur={async (e) => {
-                            await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ source_type: e.target.value.trim() || null }),
-                            });
-                          }}
+                          onChange={(e) => { const value = e.target.value; setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, source_type: value } : r)); }}
+                          onBlur={async (e) => { await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_type: e.target.value.trim() || null }) }); }}
                         />
                       )}
-                    </div>
-
-                    {/* Details — always-inline input with visible border */}
-                    <div className="col-span-2 text-center">
                       <input
-                        className="border rounded w-full text-center text-sm px-1 h-8"
+                        className="flex-1 border border-gray-200 rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500"
                         placeholder="Details"
                         value={row.details || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setMaterials((prev) =>
-                            prev.map((r) => r.id === row.id ? { ...r, details: value } : r)
-                          );
-                        }}
-                        onBlur={async (e) => {
-                          await fetch(`/api/atlasbid/bid-materials/${row.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ details: e.target.value.trim() || null }),
-                          });
-                        }}
+                        onChange={(e) => { const value = e.target.value; setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, details: value } : r)); }}
+                        onBlur={async (e) => { await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ details: e.target.value.trim() || null }) }); }}
                       />
-                    </div>
-
-                    <div className="col-span-1 text-center tabular-nums">
-                      {isEditing ? (
-                        <input
-                          className="border p-1 rounded w-full text-center"
-                          type="number"
-                          value={mEditQty === 0 ? "" : mEditQty}
-                          onChange={(e) => setMEditQty(Number(e.target.value))}
-                        />
-                      ) : (
-                        row.qty
-                      )}
-                    </div>
-
-                    <div className="col-span-1 text-center">
-                      {isEditing ? (
-                        <select
-                          className="border p-1 rounded w-full"
-                          value={mEditUnit}
-                          onChange={(e) => setMEditUnit(e.target.value)}
-                        >
-                          {UNIT_OPTIONS.map((u) => (
-                            <option key={u.value} value={u.value}>
-                              {u.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        pluralUnit(row.unit ?? "", row.qty ?? 0)
-                      )}
-                    </div>
-
-                    <div className="col-span-1 text-center tabular-nums">
-                      {isEditing ? (
-                        <input
-                          className="border p-1 rounded w-full text-right"
-                          type="number"
-                          value={mEditUnitCost === 0 ? "" : mEditUnitCost}
-                          onChange={(e) => setMEditUnitCost(Number(e.target.value))}
-                        />
-                      ) : (
-                        money(row.unit_cost)
-                      )}
-                    </div>
-
-                    <div className="col-span-1 text-center tabular-nums">{money(total)}</div>
-
-                    <div className="col-span-1 text-center flex justify-center gap-2">
-                      {isEditing ? (
-                        <>
-                          <button
-                            onClick={() => saveEditMaterial(row.id)}
-                            className="text-emerald-700 hover:underline"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEditMaterial}
-                            className="text-gray-600 hover:underline"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => startEditMaterial(row)}
-                            className="text-blue-700 hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteMaterialRow(row.id)}
-                            className="text-red-600 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 );
-              })
+              })}
+              </div>
             )}
             </div>
           </div>
-          )}
 
           {/* TRUCKING */}
           <div className="border rounded-lg overflow-hidden">
