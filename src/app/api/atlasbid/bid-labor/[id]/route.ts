@@ -112,6 +112,7 @@ export async function PATCH(
       man_hours,
       hourly_rate,
       show_as_line_item,
+      hidden_from_proposal,
       bundle_run_id,
       difficulty_level,
       created_at
@@ -140,6 +141,9 @@ export async function PATCH(
   if ("hourly_rate" in body) updates.hourly_rate = toNumber(body.hourly_rate, 0);
   if ("show_as_line_item" in body) {
     updates.show_as_line_item = body.show_as_line_item;
+  }
+  if ("hidden_from_proposal" in body) {
+    updates.hidden_from_proposal = Boolean(body.hidden_from_proposal);
   }
   if ("task_catalog_id" in body) {
     updates.task_catalog_id =
@@ -170,6 +174,7 @@ export async function PATCH(
       man_hours,
       hourly_rate,
       show_as_line_item,
+      hidden_from_proposal,
       bundle_run_id,
       difficulty_level,
       created_at

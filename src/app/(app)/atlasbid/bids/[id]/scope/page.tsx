@@ -38,6 +38,7 @@ type LaborRow = {
   man_hours: number;
   hourly_rate: number;
   show_as_line_item?: boolean | null;
+  hidden_from_proposal?: boolean | null;
   bundle_run_id?: string | null;
   difficulty_level?: number | null;
   task_catalog?: {
@@ -1050,6 +1051,8 @@ else if (Array.isArray(matJson?.data)) setMaterials(matJson.data);
   const groupedBundleRunIds = new Set<string>();
 
   for (const row of labor) {
+    if (row.hidden_from_proposal) continue;
+
     const bundleRunId = row.bundle_run_id || null;
     const showIndividually = row.show_as_line_item === true;
 
@@ -1061,8 +1064,11 @@ else if (Array.isArray(matJson?.data)) setMaterials(matJson.data);
       const bundleRows = labor.filter(
         (r) =>
           r.bundle_run_id === bundleRunId &&
-          r.show_as_line_item !== true
+          r.show_as_line_item !== true &&
+          !r.hidden_from_proposal
       );
+
+      if (bundleRows.length === 0) continue;
 
       groups.push({
         type: "bundle",
@@ -1987,23 +1993,30 @@ async function addLabor() {
           <div key={row.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
             {/* Row 1: show checkbox + task name + controls + total + delete */}
             <div className="flex items-center gap-2 px-3 py-2.5">
-              <input
-                className="w-4 h-4 shrink-0 accent-green-700"
-                type="checkbox"
-                title="Show on proposal"
-                checked={row.show_as_line_item === true}
-                onChange={async (e) => {
-                  const checked = e.target.checked;
+              {(() => {
+                const mode = row.hidden_from_proposal ? "hidden" : row.show_as_line_item === true ? "line" : "bundle";
+                const setMode = async (m: "line" | "bundle" | "hidden") => {
+                  const patch = { show_as_line_item: m === "line", hidden_from_proposal: m === "hidden" };
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ show_as_line_item: checked }),
+                    body: JSON.stringify(patch),
                   });
-                  setLabor((prev) =>
-                    prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r)
-                  );
-                }}
-              />
+                  setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, ...patch } : r));
+                };
+                return (
+                  <div className="flex shrink-0 border border-gray-200 rounded overflow-hidden text-[9px] font-bold leading-none" title="Proposal visibility">
+                    {(["line", "bundle", "hidden"] as const).map((m) => (
+                      <button key={m} type="button" onClick={() => setMode(m)}
+                        className={`px-1.5 py-1 transition-colors ${mode === m ? m === "hidden" ? "bg-gray-400 text-white" : "bg-green-700 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
+                        title={m === "line" ? "Show as own line item" : m === "bundle" ? "Group under bundle name" : "Hide from proposal"}
+                      >
+                        {m === "line" ? "Line" : m === "bundle" ? "Bndl" : "Hide"}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
               <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.task}</span>
               {season && row.task_catalog && getSeasonMultiplier(row, season) > 1 && (
                 <span className="shrink-0 text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 font-medium whitespace-nowrap">

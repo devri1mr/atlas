@@ -36,6 +36,7 @@ type LaborRow = {
   man_hours?: number | null;
   hourly_rate?: number | null;
   show_as_line_item?: boolean | null;
+  hidden_from_proposal?: boolean | null;
   bundle_run_id?: string | null;
 };
 
@@ -287,6 +288,8 @@ export default function ProposalPage() {
     const groupedBundleRunIds = new Set<string>();
 
     for (const row of labor) {
+      if (row.hidden_from_proposal) continue;
+
       const bundleRunId = row.bundle_run_id || null;
       const cost =
         (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
@@ -297,7 +300,7 @@ export default function ProposalPage() {
   groupedBundleRunIds.add(bundleRunId);
 
   const bundleRows = labor.filter(
-    (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true
+    (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true && !r.hidden_from_proposal
   );
 
   if (bundleRows.length === 0) continue;

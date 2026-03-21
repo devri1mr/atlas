@@ -51,6 +51,13 @@ type BidRow = {
   company_id: string | null;
 };
 
+function fillTemplate(template: string | null | undefined, qty: number, unit: string): string {
+  if (!template) return "";
+  return template
+    .replace(/\{qty\}/gi, String(qty))
+    .replace(/\{unit\}/gi, unit);
+}
+
 function num(v: unknown, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -337,6 +344,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Pre-fetch client_facing_template from task_catalog by name
+    const allTaskNames = (tasks || []).map((t: any) => t.task_name).filter(Boolean);
+    const templateMap = new Map<string, string>();
+    if (allTaskNames.length > 0) {
+      const { data: catalogRows } = await supabase
+        .from("task_catalog")
+        .select("name, client_facing_template")
+        .eq("company_id", bidRow.company_id)
+        .in("name", allTaskNames);
+      for (const c of catalogRows || []) {
+        if (c.client_facing_template) templateMap.set(c.name, c.client_facing_template);
+      }
+    }
+
     const insertedRows: any[] = [];
     const taskQuantityByBundleTaskId = new Map<string, number>();
     const skipReasons: string[] = [];
@@ -370,6 +391,7 @@ export async function POST(req: NextRequest) {
           bid_id: bidId,
           task: computed.taskName,
           item: computed.itemName || computed.taskName,
+          proposal_text: fillTemplate(templateMap.get(computed.taskName) || null, computed.quantity, computed.unit) || null,
           quantity: computed.quantity,
           suggested_quantity: computed.quantity,
           unit: computed.unit,
