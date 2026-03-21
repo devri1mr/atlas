@@ -141,6 +141,8 @@ function money(n: number) {
   return v.toLocaleString(undefined, {
     style: "currency",
     currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
@@ -785,8 +787,7 @@ async function loadMaterialSources(materialId: string) {
   // Load pricing sources using inventory material id (needed for inventory/vendor prices)
   if (matId) loadMaterialSources(matId);
 
-  const unit = m.default_unit || "";
-  if (unit) setMaterialUnit(unit);
+  setMaterialUnit(m.default_unit || "ea");
   const cost = m.default_unit_cost;
   if (typeof cost === "number" && cost > 0) {
     setMaterialCost(Number(cost.toFixed(2)));
