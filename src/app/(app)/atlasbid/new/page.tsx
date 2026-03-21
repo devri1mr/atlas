@@ -24,17 +24,19 @@ export default function NewBidPage() {
       .catch(() => {});
 
     // Capture current user's name for attribution
-    getSupabaseClient().auth.getSession().then(({ data }) => {
-      const user = data.session?.user;
-      if (!user) return;
-      const fullName = user.user_metadata?.full_name as string | undefined;
-      if (fullName?.trim()) {
-        setCreatorName(fullName.trim());
-      } else {
-        const email = user.email ?? "";
-        const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-        setCreatorName(derived || null);
+    getSupabaseClient().auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      const email = data.session?.user?.email ?? "";
+      if (token) {
+        const res = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null);
+        const json = await res?.json().catch(() => null);
+        const fullName: string | null = json?.data?.full_name ?? null;
+        if (fullName?.trim()) { setCreatorName(fullName.trim()); return; }
       }
+      const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      setCreatorName(derived || null);
     }).catch(() => {});
   }, []);
 

@@ -77,12 +77,22 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const sb = getSupabaseClient();
-    sb.auth.getSession().then(({ data }) => {
-      setEmail(data.session?.user?.email ?? null);
+    sb.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      setEmail(user?.email ?? null);
+      const token = data.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null);
+        const json = await res?.json().catch(() => null);
+        setFullName(json?.data?.full_name ?? null);
+      }
     });
     const { data: listener } = sb.auth.onAuthStateChange((_e, session) => {
       setEmail(session?.user?.email ?? null);
@@ -95,8 +105,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     router.push("/");
   }
 
-  const initials = email ? email.substring(0, 2).toUpperCase() : "?";
-  const username = email ? email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "";
+  const displayName = fullName?.trim() ||
+    (email ? email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "");
+  const initials = fullName
+    ? fullName.trim().split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
+    : email ? email.substring(0, 2).toUpperCase() : "…";
+  const username = displayName;
 
   return (
     <aside

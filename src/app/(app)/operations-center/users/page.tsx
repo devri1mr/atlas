@@ -139,6 +139,7 @@ export default function UsersPage() {
   const [editRole, setEditRole] = useState<Role>("sales");
   const [editActive, setEditActive] = useState(true);
   const [editPerms, setEditPerms] = useState<Permissions>({});
+  const [editName, setEditName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function load() {
@@ -175,6 +176,7 @@ export default function UsersPage() {
     setEditRole(user.role);
     setEditActive(user.is_active);
     setEditPerms(user.permissions ?? {});
+    setEditName(user.full_name ?? "");
     setConfirmDelete(false);
     setErr(null);
   }
@@ -226,7 +228,7 @@ export default function UsersPage() {
     const res = await fetch(`/api/users/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: editRole, is_active: editActive, permissions: cleanOverrides }),
+      body: JSON.stringify({ role: editRole, is_active: editActive, permissions: cleanOverrides, full_name: editName.trim() || null }),
     });
     const json = await res.json();
     if (!res.ok) { setErr(json.error ?? "Failed to save."); setSaving(false); return; }
@@ -335,6 +337,18 @@ export default function UsersPage() {
                   <div className="font-semibold text-gray-900 text-sm">{editing.full_name || editing.email}</div>
                   <div className="text-gray-400 text-xs">{editing.email}</div>
                 </div>
+              </div>
+
+              {/* Full name */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="Jane Smith"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                />
               </div>
 
               {/* Role */}

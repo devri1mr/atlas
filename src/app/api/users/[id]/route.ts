@@ -14,6 +14,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Keep auth user_metadata in sync when full_name changes
+  if (body.full_name !== undefined) {
+    await sb.auth.admin.updateUserById(id, {
+      user_metadata: { full_name: body.full_name },
+    });
+  }
+
   return NextResponse.json({ data });
 }
 

@@ -70,12 +70,24 @@ export default function DashboardPage() {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   useEffect(() => {
-    // Get user name
-    getSupabaseClient().auth.getSession().then(({ data }) => {
+    // Get user name from profile
+    getSupabaseClient().auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null);
+        const json = await res?.json().catch(() => null);
+        const fullName: string | null = json?.data?.full_name ?? null;
+        if (fullName?.trim()) {
+          setName(fullName.trim().split(" ")[0]);
+          return;
+        }
+      }
+      // Fallback to email-derived name
       const email = data.session?.user?.email ?? "";
       const raw = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-      const first = raw.split(" ")[0];
-      setName(first);
+      setName(raw.split(" ")[0]);
     });
 
     // Load bids + inventory in parallel
