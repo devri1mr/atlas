@@ -24,19 +24,14 @@ export default function NewBidPage() {
       .catch(() => {});
 
     // Capture current user's name for attribution
-    getSupabaseClient().auth.getSession().then(async ({ data }) => {
-      const userId = data.session?.user?.id;
-      if (!userId) return;
-      const sb = getSupabaseClient();
-      const { data: profile } = await sb
-        .from("user_profiles")
-        .select("full_name")
-        .eq("id", userId)
-        .single();
-      if (profile?.full_name) {
-        setCreatorName(profile.full_name);
+    getSupabaseClient().auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user) return;
+      const fullName = user.user_metadata?.full_name as string | undefined;
+      if (fullName?.trim()) {
+        setCreatorName(fullName.trim());
       } else {
-        const email = data.session?.user?.email ?? "";
+        const email = user.email ?? "";
         const derived = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
         setCreatorName(derived || null);
       }
