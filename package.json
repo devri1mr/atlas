@@ -22,6 +22,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.9.4",
+    "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

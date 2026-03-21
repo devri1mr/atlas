@@ -137,7 +137,7 @@ export default function Home() {
               Precision in the number.<br />
               <span className="text-green-300">Profit in the job.</span>
             </h2>
-            <p className="mt-3 text-white/45 text-xs leading-relaxed max-w-xs">
+            <p className="mt-3 text-white/70 text-xs leading-relaxed max-w-xs">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
           </div>
@@ -154,8 +154,8 @@ export default function Home() {
                 {/* intentionally empty — desktop logo is on the left panel */}
               </div>
 
-              <h1 className="text-2xl font-bold mb-1 text-white lg:text-gray-900">Sign in to Atlas</h1>
-              <p className="text-sm mb-8 text-white/65 lg:text-gray-500">Use your Google account to access your workspace.</p>
+              <h1 className="text-2xl font-bold mb-1 text-white lg:text-gray-900 text-center lg:text-left">Sign in to Atlas</h1>
+              <p className="text-sm mb-8 text-white/70 lg:text-gray-500 text-center lg:text-left">Use your Google account to access your workspace.</p>
 
               <button
                 onClick={signInWithGoogle}
@@ -171,7 +171,7 @@ export default function Home() {
                 </p>
               )}
               {!denied && (
-                <p className="mt-5 text-center text-xs font-medium text-white/45 lg:text-gray-500">
+                <p className="mt-5 text-center text-xs font-medium text-white/60 lg:text-gray-500">
                   Access restricted to invited users only.
                 </p>
               )}

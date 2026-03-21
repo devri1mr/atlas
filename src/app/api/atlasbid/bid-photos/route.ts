@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 export const runtime = "nodejs";
+
+const MAX_DIMENSION = 1920; // px — longest side
+const JPEG_QUALITY  = 82;   // 0-100
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -58,14 +62,20 @@ export async function POST(req: NextRequest) {
     const inserted: any[] = [];
 
     for (const file of files) {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const storagePath = `${bid.company_id}/${bidId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const storagePath = `${bid.company_id}/${bidId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
-      const arrayBuffer = await file.arrayBuffer();
+      // Compress: resize to max 1920px on longest side, convert to JPEG
+      const raw = Buffer.from(await file.arrayBuffer());
+      const compressed = await sharp(raw)
+        .rotate()                                      // auto-orient from EXIF
+        .resize(MAX_DIMENSION, MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+        .toBuffer();
+
       const { error: uploadError } = await supabase.storage
         .from("bid-photos")
-        .upload(storagePath, arrayBuffer, {
-          contentType: file.type || "image/jpeg",
+        .upload(storagePath, compressed, {
+          contentType: "image/jpeg",
           upsert: false,
         });
 
@@ -79,9 +89,9 @@ export async function POST(req: NextRequest) {
           bid_id: bidId,
           company_id: bid.company_id,
           storage_path: storagePath,
-          file_name: file.name,
-          file_size: file.size,
-          content_type: file.type || "image/jpeg",
+          file_name: file.name.replace(/\.[^.]+$/, ".jpg"),
+          file_size: compressed.length,
+          content_type: "image/jpeg",
         })
         .select("*")
         .single();
