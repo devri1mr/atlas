@@ -21,6 +21,14 @@ type Data = {
 const fmt$ = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
+const fmtK = (n: number) => {
+  if (n === 0) return null;
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${n < 0 ? "-" : ""}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${n < 0 ? "-" : ""}$${Math.round(abs / 1_000)}K`;
+  return fmt$(n);
+};
+
 const fmtPct = (n: number | null | undefined) =>
   n == null ? "" : `${Math.round(n)}%`;
 
@@ -31,8 +39,9 @@ const ATLAS_DARK    = "#0d2616";
 const ATLAS_GREEN   = "#123b1f";
 const ATLAS_MID     = "#166534";
 const GRID          = "#e5e7eb";
-const CUR_COL_BG    = "#f0fdf4";
+const CUR_COL_BG    = "#dcfce7";
 const CUR_COL_HDR   = "#15803d";
+const CUR_COL_BORDER = "#86efac";
 const ACTUAL_BG     = "#ffffff";
 const BUDGET_BG     = "#f9fafb";
 const PCT_BG        = "#f3f4f6";
@@ -80,16 +89,19 @@ export default function AtlasPerformancePage() {
 
   const cell: React.CSSProperties = {
     fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-    fontSize: 12,
-    padding: "6px 8px",
+    fontSize: 11,
+    padding: "3px 5px",
     border: `1px solid ${GRID}`,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textAlign: "center",
   };
 
-  const colBg   = (i: number, base: string) => i === currentMonth ? CUR_COL_BG : base;
-  const totalBg = () => currentMonth >= 0 ? CUR_COL_BG : TOTAL_BG;
+  const colBg      = (i: number, base: string) => i === currentMonth ? CUR_COL_BG : base;
+  const totalBg    = () => currentMonth >= 0 ? CUR_COL_BG : TOTAL_BG;
+  const curBorder  = (i: number) => i === currentMonth
+    ? { borderLeft: `1px solid ${CUR_COL_BORDER}`, borderRight: `1px solid ${CUR_COL_BORDER}` }
+    : {};
 
   const revColor  = (v: number) => v > 0 ? "#15803d" : "#9ca3af";
   const costColor = (v: number, b: number) => {
@@ -112,11 +124,11 @@ export default function AtlasPerformancePage() {
         background: `linear-gradient(90deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 60%, ${ATLAS_MID} 100%)`,
         color: "#ffffff",
         fontWeight: 700,
-        fontSize: 11,
+        fontSize: 10,
         letterSpacing: "0.1em",
         textTransform: "uppercase",
         textAlign: "left",
-        padding: "7px 14px",
+        padding: "5px 14px",
         borderLeft: "none",
         borderRight: "none",
       }}>
@@ -153,26 +165,28 @@ export default function AtlasPerformancePage() {
     </td>
   );
 
-  /* ── Money cell ── */
-  const MC = ({ v, bg, color, bold, italic }: {
-    v: number; bg: string; color: string; bold?: boolean; italic?: boolean;
+  /* ── Money cell (month columns — abbreviated) ── */
+  const MC = ({ v, bg, color, bold, italic, idx }: {
+    v: number; bg: string; color: string; bold?: boolean; italic?: boolean; idx: number;
   }) => (
     <td style={{
       ...cell,
+      ...curBorder(idx),
       background: bg,
       color,
       fontWeight: bold ? 700 : italic ? 500 : 400,
       fontStyle: italic ? "italic" : "normal",
       textAlign: "center",
     }}>
-      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
+      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmtK(v)}
     </td>
   );
 
   /* ── Pct cell ── */
-  const PC = ({ v, bg, italic }: { v: number | null; bg: string; italic?: boolean }) => (
+  const PC = ({ v, bg, italic, idx }: { v: number | null; bg: string; italic?: boolean; idx: number }) => (
     <td style={{
       ...cell,
+      ...curBorder(idx),
       background: bg,
       color: pctColor(v),
       fontStyle: italic ? "italic" : "normal",
@@ -193,6 +207,7 @@ export default function AtlasPerformancePage() {
       fontStyle: italic ? "italic" : "normal",
       textAlign: "center",
       borderLeft: `2px solid #d1d5db`,
+      fontSize: 11,
     }}>
       {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
     </td>
@@ -218,7 +233,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Actual" bg={ACTUAL_BG} />
         {data.revenue.actual.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={revColor(v)} bold />
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={revColor(v)} bold idx={i} />
         ))}
         <TC v={data.revenue.totalActual} color={revColor(data.revenue.totalActual)} bold />
         <TPC />
@@ -226,7 +241,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
         {data.revenue.budget.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic idx={i} />
         ))}
         <TC v={data.revenue.totalBudget} color="#374151" italic />
         <TPC />
@@ -241,7 +256,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Actual" bg={ACTUAL_BG} />
         {cat.actual.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={costColor(v, cat.budget[i])} bold />
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={costColor(v, cat.budget[i])} bold idx={i} />
         ))}
         <TC v={cat.totalActual} color={costColor(cat.totalActual, cat.totalBudget)} bold />
         <TPC v={cat.totalPctActual} />
@@ -249,7 +264,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
         {cat.budget.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic idx={i} />
         ))}
         <TC v={cat.totalBudget} color="#374151" italic />
         <TPC v={cat.totalPctBudget} />
@@ -257,7 +272,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="% of Rev" italic bg={PCT_BG} />
         {(cat.pct ?? Array(12).fill(null)).map((v, i) => (
-          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
+          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic idx={i} />
         ))}
         <td style={{ ...cell, background: totalBg(), color: pctColor(cat.totalPctActual ?? null), fontSize: 11, fontStyle: "italic", borderLeft: "2px solid #d1d5db", textAlign: "center" }}>
           {fmtPct(cat.totalPctActual)}
@@ -274,7 +289,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Actual" bg={ACTUAL_BG} />
         {data.profit.actual.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={profColor(v)} bold />
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={profColor(v)} bold idx={i} />
         ))}
         <TC v={data.profit.totalActual} color={profColor(data.profit.totalActual)} bold />
         <TPC v={data.profit.totalPctActual} />
@@ -282,7 +297,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
         {data.profit.budget.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic idx={i} />
         ))}
         <TC v={data.profit.totalBudget} color="#374151" italic />
         <TPC v={data.profit.totalPctBudget} />
@@ -290,7 +305,7 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="% of Rev" italic bg={PCT_BG} />
         {(data.profit.pct ?? Array(12).fill(null)).map((v, i) => (
-          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
+          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic idx={i} />
         ))}
         <td style={{ ...cell, background: totalBg(), color: pctColor(data.profit.totalPctActual ?? null), fontSize: 11, fontStyle: "italic", borderLeft: "2px solid #d1d5db", textAlign: "center" }}>
           {fmtPct(data.profit.totalPctActual)}
@@ -301,7 +316,7 @@ export default function AtlasPerformancePage() {
         <tr>
           <TypeCell label="Goal %" italic bg={PCT_BG} />
           {data.profit.goal.map((v, i) => (
-            <td key={i} style={{ ...cell, background: colBg(i, PCT_BG), color: "#4338ca", fontSize: 11, fontStyle: "italic", textAlign: "center" }}>
+            <td key={i} style={{ ...cell, ...curBorder(i), background: colBg(i, PCT_BG), color: "#4338ca", fontSize: 11, fontStyle: "italic", textAlign: "center" }}>
               {fmtPct(v)}
             </td>
           ))}
@@ -321,6 +336,7 @@ export default function AtlasPerformancePage() {
         {data.profitBehind.map((v, i) => (
           <td key={i} style={{
             ...cell,
+            ...curBorder(i),
             background: colBg(i, ACTUAL_BG),
             color: i === currentMonth ? (v < 0 ? "#15803d" : "#dc2626") : "transparent",
             fontWeight: 700,
@@ -372,9 +388,9 @@ export default function AtlasPerformancePage() {
         <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 900 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "6.5%" }} />  {/* Row label */}
-              {SHORT.map((_, i) => <col key={i} style={{ width: `${(82.5 / 12).toFixed(2)}%` }} />)}
-              <col style={{ width: "5.5%" }} />  {/* Total */}
+              <col style={{ width: "7%" }} />    {/* Row label */}
+              {SHORT.map((_, i) => <col key={i} style={{ width: `${(76 / 12).toFixed(2)}%` }} />)}
+              <col style={{ width: "9%" }} />    {/* Total — wide enough for full $ */}
               <col style={{ width: "3%" }} />    {/* % */}
             </colgroup>
 
