@@ -26,15 +26,18 @@ const fmtPct = (n: number | null | undefined) =>
 
 const SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-// Google Sheets color palette
-const GRID        = "#e2e3e4";
-const YELLOW_COL  = "#fff9c4";
-const YELLOW_HDR  = "#fff176";
-const HDR_BG      = "#f3f3f3";
-const CAT_BG      = "#ffffff";
-const BUDGET_BG   = "#f8f9fa";
-const PCT_BG      = "#f1f3f4";
-const TOTAL_BG    = "#f8f9fa";
+// Atlas brand palette
+const ATLAS_DARK    = "#0d2616";
+const ATLAS_GREEN   = "#123b1f";
+const ATLAS_MID     = "#166534";
+const GRID          = "#e5e7eb";
+const CUR_COL_BG    = "#f0fdf4";
+const CUR_COL_HDR   = "#15803d";
+const ACTUAL_BG     = "#ffffff";
+const BUDGET_BG     = "#f9fafb";
+const PCT_BG        = "#f3f4f6";
+const TOTAL_BG      = "#f9fafb";
+const HDR_BG        = "#1f2937";
 
 export default function AtlasPerformancePage() {
   const [data, setData]       = useState<Data | null>(null);
@@ -75,73 +78,82 @@ export default function AtlasPerformancePage() {
   const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
   const minsAgo = Math.floor((Date.now() - lastRefresh.getTime()) / 60000);
 
-  // Base cell — all cells share these; override per-row
   const cell: React.CSSProperties = {
-    fontFamily: "Arial, sans-serif",
-    fontSize: 11,
-    padding: "3px 6px",
+    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+    fontSize: 12,
+    padding: "6px 8px",
     border: `1px solid ${GRID}`,
     whiteSpace: "nowrap",
     overflow: "hidden",
+    textAlign: "center",
   };
 
-  const colBg = (i: number, base: string) =>
-    i === currentMonth ? YELLOW_COL : base;
+  const colBg   = (i: number, base: string) => i === currentMonth ? CUR_COL_BG : base;
+  const totalBg = () => currentMonth >= 0 ? CUR_COL_BG : TOTAL_BG;
 
-  const totalColBg = (base: string) =>
-    currentMonth >= 0 ? YELLOW_COL : base;
-
-  // Text colors
-  const revColor  = (v: number) => v > 0 ? "#0d7645" : "#bbb";
+  const revColor  = (v: number) => v > 0 ? "#15803d" : "#9ca3af";
   const costColor = (v: number, b: number) => {
-    if (v === 0) return "#bbb";
-    if (b > 0 && v > b * 1.02) return "#c0392b";
-    return "#222";
+    if (v === 0) return "#9ca3af";
+    if (b > 0 && v > b * 1.02) return "#dc2626";
+    return "#111827";
   };
-  const profColor = (v: number) => v > 0 ? "#0d7645" : v < 0 ? "#c0392b" : "#bbb";
+  const profColor = (v: number) => v > 0 ? "#15803d" : v < 0 ? "#dc2626" : "#9ca3af";
   const pctColor  = (v: number | null) => {
-    if (v == null) return "#bbb";
-    if (v < 0 || v > 100) return "#c0392b";
-    return "#555";
+    if (v == null) return "#9ca3af";
+    if (v < 0 || v > 100) return "#dc2626";
+    return "#6b7280";
   };
 
-  /* ────── Row components ────── */
-
-  // Category label cell (col A) — shows on actual row, blank on sub-rows
-  const CatCell = ({ label, rowspan, bg }: { label: string; rowspan?: number; bg?: string }) => (
-    <td rowSpan={rowspan ?? 1} style={{
-      ...cell,
-      background: bg ?? CAT_BG,
-      fontWeight: 700,
-      fontSize: 10,
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      color: "#1a1a1a",
-      textAlign: "left",
-      verticalAlign: "middle",
-      borderRight: `2px solid ${GRID}`,
-    }}>
-      {label}
-    </td>
+  /* ── Section header row — Atlas dark green ── */
+  const SHdr = ({ label }: { label: string }) => (
+    <tr>
+      <td colSpan={16} style={{
+        ...cell,
+        background: `linear-gradient(90deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 60%, ${ATLAS_MID} 100%)`,
+        color: "#ffffff",
+        fontWeight: 700,
+        fontSize: 11,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        textAlign: "left",
+        padding: "7px 14px",
+        borderLeft: "none",
+        borderRight: "none",
+      }}>
+        {label}
+      </td>
+    </tr>
   );
 
-  // Row-type label cell (col B)
-  const TypeCell = ({ label, italic, bg }: { label: string; italic?: boolean; bg?: string }) => (
+  /* ── Category label (col A) — spans rows ── */
+  const CatCell = ({ rowspan }: { rowspan: number }) => (
+    <td rowSpan={rowspan} style={{
+      ...cell,
+      background: ACTUAL_BG,
+      borderRight: `1px solid ${GRID}`,
+      width: 0,
+      padding: 0,
+    }} />
+  );
+
+  /* ── Row-type label (col B) ── */
+  const TypeCell = ({ label, italic, bg }: { label: string; italic?: boolean; bg: string }) => (
     <td style={{
       ...cell,
-      background: bg ?? CAT_BG,
-      fontSize: 10,
-      color: "#555",
+      background: bg,
+      fontSize: 11,
+      fontWeight: italic ? 500 : 600,
       fontStyle: italic ? "italic" : "normal",
-      fontWeight: italic ? 600 : 400,
+      color: italic ? "#6b7280" : "#374151",
       textAlign: "left",
+      paddingLeft: 14,
       borderRight: `2px solid ${GRID}`,
     }}>
       {label}
     </td>
   );
 
-  // Money data cell
+  /* ── Money cell ── */
   const MC = ({ v, bg, color, bold, italic }: {
     v: number; bg: string; color: string; bold?: boolean; italic?: boolean;
   }) => (
@@ -149,71 +161,64 @@ export default function AtlasPerformancePage() {
       ...cell,
       background: bg,
       color,
-      fontWeight: bold ? 700 : 400,
+      fontWeight: bold ? 700 : italic ? 500 : 400,
       fontStyle: italic ? "italic" : "normal",
-      textAlign: "right",
+      textAlign: "center",
     }}>
-      {v === 0 ? <span style={{ color: "#ccc" }}>–</span> : fmt$(v)}
+      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
     </td>
   );
 
-  // Pct data cell
+  /* ── Pct cell ── */
   const PC = ({ v, bg, italic }: { v: number | null; bg: string; italic?: boolean }) => (
     <td style={{
       ...cell,
       background: bg,
       color: pctColor(v),
       fontStyle: italic ? "italic" : "normal",
+      fontSize: 11,
       textAlign: "center",
-      fontSize: 10,
     }}>
       {fmtPct(v)}
     </td>
   );
 
-  // Total cell
+  /* ── Total cell ── */
   const TC = ({ v, color, bold, italic }: { v: number; color: string; bold?: boolean; italic?: boolean }) => (
     <td style={{
       ...cell,
-      background: totalColBg(TOTAL_BG),
+      background: totalBg(),
       color,
-      fontWeight: bold ? 700 : 400,
+      fontWeight: bold ? 700 : italic ? 500 : 400,
       fontStyle: italic ? "italic" : "normal",
-      textAlign: "right",
-      borderLeft: `2px solid ${GRID}`,
+      textAlign: "center",
+      borderLeft: `2px solid #d1d5db`,
     }}>
-      {v === 0 ? <span style={{ color: "#ccc" }}>–</span> : fmt$(v)}
+      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
     </td>
   );
 
-  // Total pct cell
+  /* ── Total pct cell ── */
   const TPC = ({ v }: { v?: number | null }) => (
     <td style={{
       ...cell,
       background: TOTAL_BG,
       color: pctColor(v ?? null),
+      fontSize: 11,
       textAlign: "center",
-      fontSize: 10,
     }}>
       {fmtPct(v)}
     </td>
   );
 
-  // Spacer row between sections
-  const Gap = () => (
-    <tr>
-      <td colSpan={16} style={{ background: HDR_BG, height: 6, border: `1px solid ${GRID}` }} />
-    </tr>
-  );
-
-  /* ── Section: Revenue (no % row) ── */
+  /* ── Revenue section (no % row) ── */
   const RevSection = () => (
     <>
+      <SHdr label="Revenue" />
       <tr>
-        <CatCell label="Revenue" rowspan={2} />
-        <TypeCell label="Actual" bg={CAT_BG} />
+        <TypeCell label="Actual" bg={ACTUAL_BG} />
         {data.revenue.actual.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={revColor(v)} bold />
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={revColor(v)} bold />
         ))}
         <TC v={data.revenue.totalActual} color={revColor(data.revenue.totalActual)} bold />
         <TPC />
@@ -221,22 +226,22 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
         {data.revenue.budget.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
         ))}
-        <TC v={data.revenue.totalBudget} color="#333" italic />
+        <TC v={data.revenue.totalBudget} color="#374151" italic />
         <TPC />
       </tr>
     </>
   );
 
-  /* ── Cost section with % row ── */
+  /* ── Cost section ── */
   const CostSection = ({ label, cat }: { label: string; cat: Cat }) => (
     <>
+      <SHdr label={label} />
       <tr>
-        <CatCell label={label} rowspan={3} />
-        <TypeCell label="Actual" bg={CAT_BG} />
+        <TypeCell label="Actual" bg={ACTUAL_BG} />
         {cat.actual.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={costColor(v, cat.budget[i])} bold />
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={costColor(v, cat.budget[i])} bold />
         ))}
         <TC v={cat.totalActual} color={costColor(cat.totalActual, cat.totalBudget)} bold />
         <TPC v={cat.totalPctActual} />
@@ -244,9 +249,9 @@ export default function AtlasPerformancePage() {
       <tr>
         <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
         {cat.budget.map((v, i) => (
-          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
         ))}
-        <TC v={cat.totalBudget} color="#333" italic />
+        <TC v={cat.totalBudget} color="#374151" italic />
         <TPC v={cat.totalPctBudget} />
       </tr>
       <tr>
@@ -254,7 +259,7 @@ export default function AtlasPerformancePage() {
         {(cat.pct ?? Array(12).fill(null)).map((v, i) => (
           <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
         ))}
-        <td style={{ ...cell, background: totalColBg(TOTAL_BG), textAlign: "center", fontSize: 10, color: pctColor(cat.totalPctActual ?? null), fontStyle: "italic", borderLeft: `2px solid ${GRID}` }}>
+        <td style={{ ...cell, background: totalBg(), color: pctColor(cat.totalPctActual ?? null), fontSize: 11, fontStyle: "italic", borderLeft: "2px solid #d1d5db", textAlign: "center" }}>
           {fmtPct(cat.totalPctActual)}
         </td>
         <td style={{ ...cell, background: TOTAL_BG }} />
@@ -263,79 +268,78 @@ export default function AtlasPerformancePage() {
   );
 
   /* ── Profit section ── */
-  const ProfitSection = () => {
-    const rowspan = data.profit.goal ? 4 : 3;
-    return (
-      <>
+  const ProfitSection = () => (
+    <>
+      <SHdr label="Profit" />
+      <tr>
+        <TypeCell label="Actual" bg={ACTUAL_BG} />
+        {data.profit.actual.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, ACTUAL_BG)} color={profColor(v)} bold />
+        ))}
+        <TC v={data.profit.totalActual} color={profColor(data.profit.totalActual)} bold />
+        <TPC v={data.profit.totalPctActual} />
+      </tr>
+      <tr>
+        <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
+        {data.profit.budget.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#374151" italic />
+        ))}
+        <TC v={data.profit.totalBudget} color="#374151" italic />
+        <TPC v={data.profit.totalPctBudget} />
+      </tr>
+      <tr>
+        <TypeCell label="% of Rev" italic bg={PCT_BG} />
+        {(data.profit.pct ?? Array(12).fill(null)).map((v, i) => (
+          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
+        ))}
+        <td style={{ ...cell, background: totalBg(), color: pctColor(data.profit.totalPctActual ?? null), fontSize: 11, fontStyle: "italic", borderLeft: "2px solid #d1d5db", textAlign: "center" }}>
+          {fmtPct(data.profit.totalPctActual)}
+        </td>
+        <td style={{ ...cell, background: TOTAL_BG }} />
+      </tr>
+      {data.profit.goal && (
         <tr>
-          <CatCell label="Profit" rowspan={rowspan} />
-          <TypeCell label="Actual" bg={CAT_BG} />
-          {data.profit.actual.map((v, i) => (
-            <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={profColor(v)} bold />
+          <TypeCell label="Goal %" italic bg={PCT_BG} />
+          {data.profit.goal.map((v, i) => (
+            <td key={i} style={{ ...cell, background: colBg(i, PCT_BG), color: "#4338ca", fontSize: 11, fontStyle: "italic", textAlign: "center" }}>
+              {fmtPct(v)}
+            </td>
           ))}
-          <TC v={data.profit.totalActual} color={profColor(data.profit.totalActual)} bold />
-          <TPC v={data.profit.totalPctActual} />
-        </tr>
-        <tr>
-          <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
-          {data.profit.budget.map((v, i) => (
-            <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
-          ))}
-          <TC v={data.profit.totalBudget} color="#333" italic />
-          <TPC v={data.profit.totalPctBudget} />
-        </tr>
-        <tr>
-          <TypeCell label="% of Rev" italic bg={PCT_BG} />
-          {(data.profit.pct ?? Array(12).fill(null)).map((v, i) => (
-            <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
-          ))}
-          <td style={{ ...cell, background: totalColBg(TOTAL_BG), textAlign: "center", fontSize: 10, color: pctColor(data.profit.totalPctActual ?? null), fontStyle: "italic", borderLeft: `2px solid ${GRID}` }}>
-            {fmtPct(data.profit.totalPctActual)}
-          </td>
+          <td style={{ ...cell, background: totalBg(), borderLeft: "2px solid #d1d5db" }} />
           <td style={{ ...cell, background: TOTAL_BG }} />
         </tr>
-        {data.profit.goal && (
-          <tr>
-            <TypeCell label="Goal %" italic bg={PCT_BG} />
-            {data.profit.goal.map((v, i) => (
-              <td key={i} style={{ ...cell, background: colBg(i, PCT_BG), color: "#4338ca", textAlign: "center", fontSize: 10, fontStyle: "italic" }}>
-                {fmtPct(v)}
-              </td>
-            ))}
-            <td style={{ ...cell, background: totalColBg(TOTAL_BG), borderLeft: `2px solid ${GRID}` }} />
-            <td style={{ ...cell, background: TOTAL_BG }} />
-          </tr>
-        )}
-      </>
-    );
-  };
+      )}
+    </>
+  );
 
   /* ── Profit Behind section ── */
   const BehindSection = () => (
-    <tr>
-      <CatCell label="Profit Behind" />
-      <TypeCell label="Cumulative" bg={CAT_BG} />
-      {data.profitBehind.map((v, i) => (
-        <td key={i} style={{
-          ...cell,
-          background: colBg(i, CAT_BG),
-          color: i === currentMonth ? (v < 0 ? "#0d7645" : "#c0392b") : "transparent",
-          fontWeight: 700,
-          textAlign: "right",
-        }}>
-          {i === currentMonth && v !== 0 ? fmt$(v) : ""}
-        </td>
-      ))}
-      <td style={{ ...cell, background: totalColBg(TOTAL_BG), borderLeft: `2px solid ${GRID}` }} />
-      <td style={{ ...cell, background: TOTAL_BG }} />
-    </tr>
+    <>
+      <SHdr label="Profit Behind" />
+      <tr>
+        <TypeCell label="Cumulative" bg={ACTUAL_BG} />
+        {data.profitBehind.map((v, i) => (
+          <td key={i} style={{
+            ...cell,
+            background: colBg(i, ACTUAL_BG),
+            color: i === currentMonth ? (v < 0 ? "#15803d" : "#dc2626") : "transparent",
+            fontWeight: 700,
+            textAlign: "center",
+          }}>
+            {i === currentMonth && v !== 0 ? fmt$(v) : ""}
+          </td>
+        ))}
+        <td style={{ ...cell, background: totalBg(), borderLeft: "2px solid #d1d5db" }} />
+        <td style={{ ...cell, background: TOTAL_BG }} />
+      </tr>
+    </>
   );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#f3f4f6", overflow: "hidden" }}>
 
-      {/* App header bar */}
-      <div style={{ background: "linear-gradient(135deg,#0d2616 0%,#123b1f 55%,#1a5c2a 100%)", padding: "10px 18px", flexShrink: 0 }}>
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 55%, #1a5c2a 100%)`, padding: "10px 18px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "#fff", borderRadius: 8, padding: 3 }}>
@@ -363,48 +367,71 @@ export default function AtlasPerformancePage() {
         </div>
       </div>
 
-      {/* Spreadsheet */}
-      <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
-        <div style={{ background: "#fff", borderRadius: 6, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", minWidth: 900 }}>
+      {/* Table */}
+      <div style={{ flex: 1, overflow: "auto", padding: "12px" }}>
+        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 900 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "6%" }} />   {/* Category */}
-              <col style={{ width: "5%" }} />   {/* Type */}
-              {SHORT.map((_, i) => <col key={i} style={{ width: `${(81 / 12).toFixed(2)}%` }} />)}
-              <col style={{ width: "5%" }} />   {/* Total */}
-              <col style={{ width: "3%" }} />   {/* % */}
+              <col style={{ width: "6.5%" }} />  {/* Row label */}
+              {SHORT.map((_, i) => <col key={i} style={{ width: `${(82.5 / 12).toFixed(2)}%` }} />)}
+              <col style={{ width: "5.5%" }} />  {/* Total */}
+              <col style={{ width: "3%" }} />    {/* % */}
             </colgroup>
 
-            {/* Column header — mimics Google Sheets frozen header row */}
+            {/* Column headers */}
             <thead>
               <tr style={{ background: HDR_BG }}>
-                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, color: "#555", textAlign: "left", borderRight: `2px solid ${GRID}` }}>
-                  Category
-                </th>
-                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, color: "#555", textAlign: "left", borderRight: `2px solid ${GRID}` }}>
+                <th style={{
+                  ...cell,
+                  background: HDR_BG,
+                  color: "rgba(255,255,255,0.4)",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textAlign: "left",
+                  paddingLeft: 14,
+                  borderRight: `2px solid #374151`,
+                  letterSpacing: "0.05em",
+                }}>
                   Row
                 </th>
                 {SHORT.map((m, i) => {
-                  const isCur = i === currentMonth;
+                  const isCur  = i === currentMonth;
                   const hasDat = i <= currentMonth;
                   return (
                     <th key={i} style={{
                       ...cell,
-                      background: isCur ? YELLOW_HDR : HDR_BG,
-                      fontWeight: 700,
+                      background: isCur ? CUR_COL_HDR : HDR_BG,
+                      color: isCur ? "#fff" : hasDat ? "#e5e7eb" : "rgba(255,255,255,0.25)",
+                      fontWeight: isCur ? 800 : 600,
                       fontSize: 11,
                       textAlign: "center",
-                      color: isCur ? "#1a1a1a" : hasDat ? "#222" : "#aaa",
-                      borderBottom: isCur ? "2px solid #f9a825" : `1px solid ${GRID}`,
+                      borderBottom: isCur ? `2px solid #4ade80` : `1px solid #374151`,
+                      borderRight: `1px solid #374151`,
                     }}>
                       {m}
                     </th>
                   );
                 })}
-                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, textAlign: "center", color: "#555", borderLeft: `2px solid ${GRID}` }}>
+                <th style={{
+                  ...cell,
+                  background: HDR_BG,
+                  color: "rgba(255,255,255,0.5)",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  textAlign: "center",
+                  borderLeft: `2px solid #374151`,
+                  borderRight: `1px solid #374151`,
+                }}>
                   Total
                 </th>
-                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 9, textAlign: "center", color: "#888" }}>
+                <th style={{
+                  ...cell,
+                  background: HDR_BG,
+                  color: "rgba(255,255,255,0.3)",
+                  fontWeight: 600,
+                  fontSize: 10,
+                  textAlign: "center",
+                }}>
                   %
                 </th>
               </tr>
@@ -412,17 +439,11 @@ export default function AtlasPerformancePage() {
 
             <tbody>
               <RevSection />
-              <Gap />
               <CostSection label="Job Materials" cat={data.materials} />
-              <Gap />
               <CostSection label="Labor" cat={data.labor} />
-              <Gap />
               <CostSection label="Fuel" cat={data.fuel} />
-              <Gap />
               <CostSection label="Equipment" cat={data.equipment} />
-              <Gap />
               <ProfitSection />
-              <Gap />
               <BehindSection />
             </tbody>
           </table>
