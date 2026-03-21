@@ -407,163 +407,81 @@ async function mergeMaterialRow(
     setError("");
 
     try {
-      // 1) Bid
-let b: any = null;
+      // 1) Fetch bid first — everything else depends on division_id
+      const bidRes = await fetch(`/api/bids/${bidId}`, { cache: "no-store" });
+      if (!bidRes.ok) { setBid(null); setLoading(false); return; }
+      const bidJson = await bidRes.json();
+      const b = bidJson?.row ?? bidJson?.data ?? bidJson?.bid ?? bidJson ?? null;
+      if (!b?.id) { setBid(null); setLoading(false); return; }
 
-const bidCandidates = [
-  `/api/atlasbid/bids/${bidId}`,
-  `/api/bids/${bidId}`,
-];
+      setBid(b);
+      setBidPricingDate(
+        b?.pricing_date ? String(b.pricing_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
+      );
+      if (b?.season) setSeason(b.season);
+      if (b.division_id) setDivisionPick(b.division_id);
 
-for (const url of bidCandidates) {
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) continue;
+      if (!b.division_id) { setLoading(false); return; }
 
-    const json = await res.json();
-    const row = json?.row ?? json?.data ?? json?.bid ?? json ?? null;
+      const divisionId = b.division_id;
 
-    if (row && row.id) {
-      b = row;
-      break;
-    }
-  } catch {
-    // try next route
-  }
-}
+      // 2) Fire all remaining requests in parallel
+      const [dJson, mcJson, sbJson, rateJson, sJson, lJson, brJson, mJson, tJson] =
+        await Promise.all([
+          fetch(`/api/divisions`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/materials-search`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/atlasbid/scope-bundles?division_id=${divisionId}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})),
+          fetch(`/api/labor-rates`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})),
+          fetch(`/api/atlasbid/bid-materials?bidId=${bidId}`, { cache: "no-store" }).then(r => r.json()),
+          fetch(`/api/task-catalog?division_id=${divisionId}`, { cache: "no-store" }).then(r => r.json()),
+        ]);
 
-if (!b) {
-  setBid(null);
-  setLoading(false);
-  return;
-}
-
-setBid(b);
-
-setBidPricingDate(
-  b?.pricing_date
-    ? String(b.pricing_date).slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
-);
-
-      // 2) Divisions
-      const dRes = await fetch(`/api/divisions`, { cache: "no-store" });
-      const dJson = await dRes.json();
-
+      // Divisions
       const divs: Division[] = dJson?.divisions ?? dJson?.data ?? dJson ?? [];
       setDivisions(Array.isArray(divs) ? divs : []);
 
-      if (b.division_id) setDivisionPick(b.division_id);
+      // Materials catalog
+      const mcRows: MaterialsCatalogRow[] = mcJson?.rows ?? mcJson?.data ?? mcJson ?? [];
+      setMaterialsCatalog(Array.isArray(mcRows) ? mcRows.filter((x) => x?.is_active !== false) : []);
 
-     // ✅ Materials Search (product-level search)
-const mcRes = await fetch('/api/materials-search', { cache: "no-store" });
-const mcJson = await mcRes.json();
+      // Scope bundles
+      const sbRows = sbJson?.rows || sbJson?.data || [];
+      setScopeBundles(Array.isArray(sbRows) ? sbRows : []);
 
-const mcRows: MaterialsCatalogRow[] =
-  mcJson?.rows ?? mcJson?.data ?? mcJson ?? [];
-
-setMaterialsCatalog(
-  Array.isArray(mcRows)
-    ? mcRows.filter((x) => x?.is_active !== false)
-    : []
-);
-
-      if (!b.division_id) {
-        setLoading(false);
-        return;
-      }
-
-      const divisionId = b.division_id;
-// Load scope bundles for this division
-setLoadingBundles(true);
-
-try {
-  const sbRes = await fetch(
-    `/api/atlasbid/scope-bundles?division_id=${divisionId}`,
-    { cache: "no-store" }
-  );
-
-  const sbJson = await sbRes.json();
-  const sbRows = sbJson?.rows || sbJson?.data || [];
-
-  setScopeBundles(Array.isArray(sbRows) ? sbRows : []);
-} catch {
-  setScopeBundles([]);
-} finally {
-  setLoadingBundles(false);
-}
-      // 3) Rate
-      const rateRes = await fetch(`/api/labor-rates`, { cache: "no-store" });
-      const rateJson = await rateRes.json();
-
-      const rateRow =
-        Array.isArray(rateJson?.rates) && rateJson.rates.length > 0
-          ? (rateJson.rates as any[]).find((r) => r.division_id === divisionId)
-          : null;
-
+      // Labor rate
+      const rateRow = Array.isArray(rateJson?.rates)
+        ? (rateJson.rates as any[]).find((r) => r.division_id === divisionId)
+        : null;
       setDivisionRate(Number(rateRow?.hourly_rate ?? 0));
 
-      // 4) Settings
-      const sRes = await fetch(`/api/atlasbid/bid-settings?division_id=${divisionId}`, {
-        cache: "no-store",
-      });
-
-      const sJson = await sRes.json();
+      // Bid settings
       const settings: BidSettings | null = sJson?.settings ?? sJson?.data ?? null;
-
       if (settings) {
         setTargetGpPct(normalizePercent(settings.margin_default) || 50);
         setContingencyPct(normalizePercent(settings.contingency_pct) || 0);
         setPrepayDiscountPct(normalizePercent(settings.prepay_discount_pct) || 0);
         setRoundUpIncrement(Number(settings.round_up_increment || 0) || 0);
       } else {
-        setTargetGpPct(50);
-        setContingencyPct(3);
-        setPrepayDiscountPct(3);
-        setRoundUpIncrement(100);
+        setTargetGpPct(50); setContingencyPct(3); setPrepayDiscountPct(3); setRoundUpIncrement(100);
       }
 
-      // 5) Labor rows
-      const lRes = await fetch(`/api/atlasbid/bid-labor?bid_id=${bidId}`, {
-        cache: "no-store",
-      });
-
-      const lJson = await lRes.json();
+      // Labor rows
       const lRows: LaborRow[] = lJson?.rows || lJson?.data || [];
       setLabor(lRows);
-      // Restore season from bid
-      if (b?.season) setSeason(b.season);
-      const brRes = await fetch(`/api/atlasbid/bundle-runs?bid_id=${bidId}`, {
-  cache: "no-store",
-});
-const brJson = await brRes.json();
-setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
 
-      // ✅ 6) Materials rows (supports both ?bidId and ?bid_id)
-      let mJson: any = null;
+      // Bundle runs
+      setBundleRunsMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
 
-      const mRes1 = await fetch(`/api/atlasbid/bid-materials?bidId=${bidId}`, {
-        cache: "no-store",
-      });
-      mJson = await mRes1.json();
-
-      if (!mRes1.ok) {
-        const mRes2 = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, {
-          cache: "no-store",
-        });
-        mJson = await mRes2.json();
-      }
-
+      // Materials rows
       const mRows = mJson?.rows || mJson?.data || mJson || [];
       setMaterials(Array.isArray(mRows) ? mRows : []);
 
-      // 7) Task catalog
-      const tRes = await fetch(`/api/task-catalog?division_id=${divisionId}`, {
-        cache: "no-store",
-      });
-
-      const tJson = await tRes.json();
+      // Task catalog
       setTaskCatalog(Array.isArray(tJson?.data) ? tJson.data : []);
+
     } catch (e: any) {
       setError(e?.message || "Failed to load scope.");
     } finally {
