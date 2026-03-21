@@ -400,16 +400,8 @@ export default function AtlasPerformancePage() {
                 <th style={{
                   ...cell,
                   background: HDR_BG,
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  textAlign: "left",
-                  paddingLeft: 14,
                   borderRight: `2px solid #374151`,
-                  letterSpacing: "0.05em",
-                }}>
-                  Row
-                </th>
+                }} />
                 {SHORT.map((m, i) => {
                   const isCur  = i === currentMonth;
                   const hasDat = i <= currentMonth;
