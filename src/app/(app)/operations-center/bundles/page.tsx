@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import UnitInput from "@/components/UnitInput";
 
 type Division = { id: string; name: string };
 type Bundle = { id: string; name: string; description?: string | null; division_id?: string | null };
@@ -627,10 +628,7 @@ export default function BundleBuilderPage() {
                           </div>
                           <div>
                             <label className={labelCls}>Unit</label>
-                            <select className={inputCls} value={task.unit}
-                              onChange={e => setTasks(prev => prev.map(t => t.id === task.id ? { ...t, unit: e.target.value } : t))}>
-                              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
+                            <UnitInput className={inputCls} value={task.unit} onChange={v => setTasks(prev => prev.map(t => t.id === task.id ? { ...t, unit: v } : t))} />
                           </div>
                           <div>
                             <label className={labelCls}>Rule Type</label>
@@ -729,9 +727,7 @@ export default function BundleBuilderPage() {
                                   </div>
                                   <div>
                                     <label className={labelCls}>Unit</label>
-                                    <select className={inputCls} value={matUnit} onChange={e => setMatUnit(e.target.value)}>
-                                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                                    </select>
+                                    <UnitInput className={inputCls} value={matUnit} onChange={setMatUnit} />
                                   </div>
                                   <div>
                                     <label className={labelCls}>Unit Cost</label>
@@ -832,9 +828,7 @@ export default function BundleBuilderPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Unit</label>
-                      <select className={inputCls} value={tUnit} onChange={e => setTUnit(e.target.value)}>
-                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                      </select>
+                      <UnitInput className={inputCls} value={tUnit} onChange={setTUnit} />
                     </div>
                     <div>
                       <label className={labelCls}>Rule Type</label>

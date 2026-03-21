@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import UnitInput from "@/components/UnitInput";
 
 type Division = { id: string; name: string };
 
@@ -36,7 +37,7 @@ type MaterialSearchResult = {
   unit_cost: number | null;
 };
 
-const UNITS = ["yd", "sqft", "lft", "ft", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
+const UNITS = ["yd", "sqft", "lft", "ft", "stick", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
 
 const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
@@ -364,10 +365,7 @@ export default function TaskCatalogPage() {
                 {/* Unit type */}
                 <div>
                   <label className={labelCls}>Unit Type</label>
-                  <select className={inputCls} value={fUnit} onChange={(e) => setFUnit(e.target.value)}>
-                    <option value="">—</option>
-                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  <UnitInput className={inputCls} value={fUnit} onChange={setFUnit} allowBlank />
                 </div>
 
                 {/* Task rate: "X units in Y hrs" + Default Qty */}
@@ -577,10 +575,7 @@ export default function TaskCatalogPage() {
                       </div>
                       <div>
                         <label className={labelCls}>Material Unit</label>
-                        <select className={inputCls} value={matUnit} onChange={(e) => setMatUnit(e.target.value)}>
-                          <option value="">—</option>
-                          {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                        <UnitInput className={inputCls} value={matUnit} onChange={setMatUnit} allowBlank />
                       </div>
                     </div>
                     <button

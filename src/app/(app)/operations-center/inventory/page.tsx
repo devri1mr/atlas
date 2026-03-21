@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import UnitInput from "@/components/UnitInput";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Division = { id: string; name: string; is_active?: boolean | null };
@@ -57,6 +58,7 @@ const UNITS = [
   { label: "ea", value: "ea" },
   { label: "lin ft", value: "lf" },
   { label: "ft", value: "ft" },
+  { label: "sticks", value: "stick" },
   { label: "sq ft", value: "sqft" },
   { label: "tons", value: "ton" },
   { label: "bags", value: "bag" },
@@ -469,11 +471,9 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Unit</label>
-                  <select
+                  <UnitInput
                     className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${unitLocked || partialEdit ? "bg-gray-100 text-gray-500" : ""}`}
-                    value={unit} disabled={unitLocked || partialEdit} onChange={e => setUnit(e.target.value)}>
-                    {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                  </select>
+                    value={unit} disabled={unitLocked || partialEdit} onChange={setUnit} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Total Cost</label>

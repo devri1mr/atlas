@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import UnitInput from "@/components/UnitInput";
 
 type Material = {
   id: string;
@@ -18,6 +19,7 @@ const UNIT_OPTIONS = [
   { label: "sq ft", value: "sqft" },
   { label: "lin ft", value: "lf" },
   { label: "ft", value: "ft" },
+  { label: "sticks", value: "stick" },
   { label: "ea", value: "ea" },
   { label: "tons", value: "ton" },
   { label: "loads", value: "load" },
@@ -135,9 +137,7 @@ export default function MaterialsCatalogPage() {
         <div className="grid grid-cols-6 gap-3">
           <input className="border border-gray-200 p-2 rounded-lg col-span-2 text-sm" placeholder="Material name" value={name} onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && addMaterial()} />
-          <select className="border border-gray-200 p-2 rounded-lg text-sm" value={unit} onChange={e => setUnit(e.target.value)}>
-            {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-          </select>
+          <UnitInput className="border border-gray-200 p-2 rounded-lg text-sm" value={unit} onChange={setUnit} />
           <input className="border border-gray-200 p-2 rounded-lg text-sm" type="number" placeholder="Unit cost" value={cost || ""} onChange={e => setCost(Number(e.target.value))} />
           <input className="border border-gray-200 p-2 rounded-lg text-sm" placeholder="Vendor" value={vendor} onChange={e => setVendor(e.target.value)} />
           <input className="border border-gray-200 p-2 rounded-lg text-sm" placeholder="SKU" value={sku} onChange={e => setSku(e.target.value)} />
@@ -182,9 +182,7 @@ export default function MaterialsCatalogPage() {
             {editingId === m.id ? (
               <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 px-4 py-3 items-center">
                 <input className="border border-gray-200 p-1.5 rounded text-sm" value={editFields.name ?? ""} onChange={e => setEditFields(f => ({ ...f, name: e.target.value }))} />
-                <select className="border border-gray-200 p-1.5 rounded text-sm" value={editFields.default_unit ?? "ea"} onChange={e => setEditFields(f => ({ ...f, default_unit: e.target.value }))}>
-                  {UNIT_OPTIONS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                </select>
+                <UnitInput className="border border-gray-200 p-1.5 rounded text-sm" value={editFields.default_unit ?? "ea"} onChange={v => setEditFields(f => ({ ...f, default_unit: v }))} />
                 <input className="border border-gray-200 p-1.5 rounded text-sm" type="number" value={editFields.default_unit_cost ?? 0} onChange={e => setEditFields(f => ({ ...f, default_unit_cost: Number(e.target.value) }))} />
                 <input className="border border-gray-200 p-1.5 rounded text-sm" value={editFields.vendor ?? ""} onChange={e => setEditFields(f => ({ ...f, vendor: e.target.value }))} placeholder="Vendor" />
                 <div />

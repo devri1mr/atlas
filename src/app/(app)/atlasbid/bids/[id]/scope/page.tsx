@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import DebugPanel from "./DebugPanel";
+import UnitInput from "@/components/UnitInput";
 
 type Bid = {
   id: string;
@@ -153,6 +154,7 @@ const UNIT_OPTIONS = [
   { label: "sq ft", value: "sqft" },
   { label: "lin ft", value: "lf" },
   { label: "ft", value: "ft" },
+  { label: "sticks", value: "stick" },
   { label: "ea", value: "ea" },
   { label: "tons", value: "ton" },
   { label: "loads", value: "load" },
@@ -1862,18 +1864,14 @@ async function addLabor() {
         />
       </div>
       <div className="w-24 shrink-0">
-        <select
+        <UnitInput
           className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
           value={unit}
-          onChange={(e) => {
-            setUnit(e.target.value);
-            if (e.target.value !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
+          onChange={(v) => {
+            setUnit(v);
+            if (v !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
           }}
-        >
-          {UNIT_OPTIONS.map((u) => (
-            <option key={u.value} value={u.value}>{u.label}</option>
-          ))}
-        </select>
+        />
       </div>
       <div className="w-20 shrink-0">
         <input
@@ -2440,13 +2438,11 @@ async function addLabor() {
                   />
                 </div>
                 <div className="w-24 shrink-0">
-                  <select
+                  <UnitInput
                     className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                     value={materialUnit}
-                    onChange={(e) => setMaterialUnit(e.target.value)}
-                  >
-                    {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
-                  </select>
+                    onChange={setMaterialUnit}
+                  />
                 </div>
                 <div className="w-28 shrink-0 relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
@@ -2537,9 +2533,7 @@ async function addLabor() {
                       {isEditing ? (
                         <>
                           <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={(e) => setMEditQty(Number(e.target.value))} />
-                          <select className="w-20 border border-gray-200 rounded h-7 px-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" value={mEditUnit} onChange={(e) => setMEditUnit(e.target.value)}>
-                            {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
-                          </select>
+                          <UnitInput className="w-20 border border-gray-200 rounded h-7 px-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" value={mEditUnit} onChange={setMEditUnit} />
                           <span className="text-xs text-gray-400">@</span>
                           <input className="w-20 border border-gray-200 rounded h-7 px-2 text-right text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={(e) => setMEditUnitCost(Number(e.target.value))} />
                         </>
