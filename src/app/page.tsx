@@ -132,12 +132,12 @@ export default function Home() {
               <div className="absolute" style={{ top: "62%", left: "0%", width: "80%", height: "1.5px", background: "linear-gradient(90deg, transparent 0%, #60a5fa 40%, transparent 100%)", transform: "rotate(-5deg)", opacity: 0.14 }} />
             </div>
             <Image src="/atlas-logo.png" alt="Atlas" width={200} height={68} style={{ objectFit: "contain", mixBlendMode: "multiply" }} priority />
-            <div className="w-10 h-px bg-green-300/30 mt-8 mb-5" />
-            <h2 className="text-xl font-bold text-white leading-snug tracking-tight">
+            <div className="w-10 h-px bg-green-700/30 mt-8 mb-5" />
+            <h2 className="text-xl font-bold text-[#0d2616] leading-snug tracking-tight">
               Precision in the number.<br />
-              <span className="text-green-300">Profit in the job.</span>
+              <span className="text-green-700">Profit in the job.</span>
             </h2>
-            <p className="mt-3 text-white/85 text-xs leading-relaxed max-w-xs">
+            <p className="mt-3 text-gray-500 text-xs leading-relaxed max-w-xs">
               Bringing pricing, execution, and performance into one system—engineered for exponential results.
             </p>
           </div>
