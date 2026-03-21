@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 
-/* ─── Types ─── */
 type Cat = {
   actual: number[]; budget: number[];
   pct?: (number | null)[];
@@ -19,44 +18,23 @@ type Data = {
   profitBehind: number[];
 };
 
-/* ─── Formatters ─── */
-const fmt$ = (n: number): string =>
+const fmt$ = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-const fmtCell = (n: number): string => {
-  if (n === 0) return "$0";
-  return fmt$(n);
-};
-
-const fmtPct = (n: number | null | undefined): string =>
+const fmtPct = (n: number | null | undefined) =>
   n == null ? "" : `${Math.round(n)}%`;
 
 const SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-/* ─── Styles ─── */
-const YELLOW = "#fff59d";
-const YELLOW_HDR = "#fdd835";
-
-const base: React.CSSProperties = {
-  fontSize: 10, padding: "2px 4px", textAlign: "right",
-  whiteSpace: "nowrap", overflow: "hidden", borderRight: "1px solid #d1d5db",
-};
-const labelStyle: React.CSSProperties = {
-  fontSize: 10, padding: "2px 6px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.05em", whiteSpace: "nowrap", textAlign: "left",
-  borderRight: "1px solid #d1d5db", color: "#374151",
-};
-
-/* ─── Section palettes ─── */
-const SEC: Record<string, { hdr: string; txt: string; stripe: string }> = {
-  revenue:   { hdr: "#14532d", txt: "#fff", stripe: "#f0fdf4" },
-  materials: { hdr: "#1e3a8a", txt: "#fff", stripe: "#eff6ff" },
-  labor:     { hdr: "#7c2d12", txt: "#fff", stripe: "#fff7ed" },
-  fuel:      { hdr: "#78350f", txt: "#fff", stripe: "#fefce8" },
-  equipment: { hdr: "#4a1d96", txt: "#fff", stripe: "#faf5ff" },
-  profit:    { hdr: "#134e4a", txt: "#fff", stripe: "#f0fdfa" },
-  behind:    { hdr: "#1e1b4b", txt: "#fff", stripe: "#eef2ff" },
-};
+// Google Sheets color palette
+const GRID        = "#e2e3e4";
+const YELLOW_COL  = "#fff9c4";
+const YELLOW_HDR  = "#fff176";
+const HDR_BG      = "#f3f3f3";
+const CAT_BG      = "#ffffff";
+const BUDGET_BG   = "#f8f9fa";
+const PCT_BG      = "#f1f3f4";
+const TOTAL_BG    = "#f8f9fa";
 
 export default function AtlasPerformancePage() {
   const [data, setData]       = useState<Data | null>(null);
@@ -66,7 +44,7 @@ export default function AtlasPerformancePage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/performance", { cache: "no-store" });
+      const res  = await fetch("/api/performance", { cache: "no-store" });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setData(json);
@@ -83,315 +61,369 @@ export default function AtlasPerformancePage() {
   }, [load]);
 
   if (loading) return (
-    <div className="min-h-screen bg-[#f0f4f0] flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-green-200 border-t-green-700 rounded-full animate-spin" />
     </div>
   );
   if (error || !data) return (
-    <div className="min-h-screen bg-[#f0f4f0] flex items-center justify-center flex-col gap-3">
+    <div className="min-h-screen bg-white flex items-center justify-center flex-col gap-3">
       <p className="text-red-500 font-semibold">{error || "Failed to load"}</p>
-      <button onClick={load} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm">Retry</button>
+      <button onClick={load} className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm">Retry</button>
     </div>
   );
 
-  // Detect current month = last month with actual revenue data
   const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
   const minsAgo = Math.floor((Date.now() - lastRefresh.getTime()) / 60000);
 
-  /* ── Cell background helpers ── */
-  const colBg = (i: number, isCurrent: boolean): string => {
-    if (isCurrent) return YELLOW;
-    return i % 2 === 0 ? "#fff" : "#f9fafb";
+  // Base cell — all cells share these; override per-row
+  const cell: React.CSSProperties = {
+    fontFamily: "Arial, sans-serif",
+    fontSize: 11,
+    padding: "3px 6px",
+    border: `1px solid ${GRID}`,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
   };
 
-  const revActualBg = (v: number, i: number): string => {
-    const cur = i === currentMonth;
-    if (v > 0) return cur ? "#fef08a" : "#dcfce7";
-    return colBg(i, cur);
+  const colBg = (i: number, base: string) =>
+    i === currentMonth ? YELLOW_COL : base;
+
+  const totalColBg = (base: string) =>
+    currentMonth >= 0 ? YELLOW_COL : base;
+
+  // Text colors
+  const revColor  = (v: number) => v > 0 ? "#0d7645" : "#bbb";
+  const costColor = (v: number, b: number) => {
+    if (v === 0) return "#bbb";
+    if (b > 0 && v > b * 1.02) return "#c0392b";
+    return "#222";
+  };
+  const profColor = (v: number) => v > 0 ? "#0d7645" : v < 0 ? "#c0392b" : "#bbb";
+  const pctColor  = (v: number | null) => {
+    if (v == null) return "#bbb";
+    if (v < 0 || v > 100) return "#c0392b";
+    return "#555";
   };
 
-  const costBg = (actual: number, budget: number, i: number): string => {
-    const cur = i === currentMonth;
-    if (actual === 0) return colBg(i, cur);
-    if (budget > 0 && actual > budget * 1.02) return cur ? "#fca5a5" : "#fee2e2"; // over = red
-    if (budget > 0 && actual < budget * 0.98) return cur ? "#bfdbfe" : "#dbeafe"; // under = blue
-    return colBg(i, cur);
-  };
+  /* ────── Row components ────── */
 
-  const profitBg = (v: number, i: number): string => {
-    const cur = i === currentMonth;
-    if (v > 0) return cur ? "#fef08a" : "#dcfce7";
-    if (v < 0) return cur ? "#fca5a5" : "#fee2e2";
-    return colBg(i, cur);
-  };
+  // Category label cell (col A) — shows on actual row, blank on sub-rows
+  const CatCell = ({ label, rowspan, bg }: { label: string; rowspan?: number; bg?: string }) => (
+    <td rowSpan={rowspan ?? 1} style={{
+      ...cell,
+      background: bg ?? CAT_BG,
+      fontWeight: 700,
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+      color: "#1a1a1a",
+      textAlign: "left",
+      verticalAlign: "middle",
+      borderRight: `2px solid ${GRID}`,
+    }}>
+      {label}
+    </td>
+  );
 
-  const pctColor = (v: number | null): string => {
-    if (v == null || v === 0) return "#9ca3af";
-    if (v < 0) return "#dc2626";
-    if (v > 100) return "#dc2626";
-    return "#374151";
-  };
+  // Row-type label cell (col B)
+  const TypeCell = ({ label, italic, bg }: { label: string; italic?: boolean; bg?: string }) => (
+    <td style={{
+      ...cell,
+      background: bg ?? CAT_BG,
+      fontSize: 10,
+      color: "#555",
+      fontStyle: italic ? "italic" : "normal",
+      fontWeight: italic ? 600 : 400,
+      textAlign: "left",
+      borderRight: `2px solid ${GRID}`,
+    }}>
+      {label}
+    </td>
+  );
 
-  /* ── Row renderers ── */
-  const SectionHdr = ({ label, sec }: { label: string; sec: keyof typeof SEC }) => (
+  // Money data cell
+  const MC = ({ v, bg, color, bold, italic }: {
+    v: number; bg: string; color: string; bold?: boolean; italic?: boolean;
+  }) => (
+    <td style={{
+      ...cell,
+      background: bg,
+      color,
+      fontWeight: bold ? 700 : 400,
+      fontStyle: italic ? "italic" : "normal",
+      textAlign: "right",
+    }}>
+      {v === 0 ? <span style={{ color: "#ccc" }}>–</span> : fmt$(v)}
+    </td>
+  );
+
+  // Pct data cell
+  const PC = ({ v, bg, italic }: { v: number | null; bg: string; italic?: boolean }) => (
+    <td style={{
+      ...cell,
+      background: bg,
+      color: pctColor(v),
+      fontStyle: italic ? "italic" : "normal",
+      textAlign: "center",
+      fontSize: 10,
+    }}>
+      {fmtPct(v)}
+    </td>
+  );
+
+  // Total cell
+  const TC = ({ v, color, bold, italic }: { v: number; color: string; bold?: boolean; italic?: boolean }) => (
+    <td style={{
+      ...cell,
+      background: totalColBg(TOTAL_BG),
+      color,
+      fontWeight: bold ? 700 : 400,
+      fontStyle: italic ? "italic" : "normal",
+      textAlign: "right",
+      borderLeft: `2px solid ${GRID}`,
+    }}>
+      {v === 0 ? <span style={{ color: "#ccc" }}>–</span> : fmt$(v)}
+    </td>
+  );
+
+  // Total pct cell
+  const TPC = ({ v }: { v?: number | null }) => (
+    <td style={{
+      ...cell,
+      background: TOTAL_BG,
+      color: pctColor(v ?? null),
+      textAlign: "center",
+      fontSize: 10,
+    }}>
+      {fmtPct(v)}
+    </td>
+  );
+
+  // Spacer row between sections
+  const Gap = () => (
     <tr>
-      <td colSpan={15} style={{
-        background: SEC[sec].hdr, color: SEC[sec].txt,
-        fontSize: 10, fontWeight: 900, letterSpacing: "0.15em",
-        textTransform: "uppercase", padding: "4px 8px",
-        borderBottom: "2px solid rgba(255,255,255,0.2)",
-      }}>
-        {label}
-      </td>
+      <td colSpan={16} style={{ background: HDR_BG, height: 6, border: `1px solid ${GRID}` }} />
     </tr>
   );
 
-  type RowMode = "actual" | "budget" | "pct" | "goal" | "behind";
+  /* ── Section: Revenue (no % row) ── */
+  const RevSection = () => (
+    <>
+      <tr>
+        <CatCell label="Revenue" rowspan={2} />
+        <TypeCell label="Actual" bg={CAT_BG} />
+        {data.revenue.actual.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={revColor(v)} bold />
+        ))}
+        <TC v={data.revenue.totalActual} color={revColor(data.revenue.totalActual)} bold />
+        <TPC />
+      </tr>
+      <tr>
+        <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
+        {data.revenue.budget.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
+        ))}
+        <TC v={data.revenue.totalBudget} color="#333" italic />
+        <TPC />
+      </tr>
+    </>
+  );
 
-  const DataRow = ({
-    mode, label, values, totalValue, totalPct, sec,
-    bgFn, colorFn, pctValues,
-  }: {
-    mode: RowMode; label: string; values: number[]; totalValue: number;
-    totalPct?: number | null; sec: keyof typeof SEC;
-    bgFn?: (v: number, i: number) => string;
-    colorFn?: (v: number, i: number) => string;
-    pctValues?: (number | null)[];
-  }) => {
-    const isBudget = mode === "budget";
-    const isPct    = mode === "pct" || mode === "goal";
-    const isBehind = mode === "behind";
-
-    return (
-      <tr style={{ background: isBudget ? SEC[sec].stripe : isPct ? SEC[sec].stripe : "#fff" }}>
-        {/* Row label */}
-        <td style={{
-          ...labelStyle,
-          fontStyle: isBudget ? "italic" : "normal",
-          fontWeight: isBudget ? 800 : isPct ? 400 : 700,
-          color: isPct ? "#6b7280" : "#1f2937",
-          fontSize: isPct ? 9 : 10,
-          background: isBudget ? SEC[sec].stripe : isPct ? SEC[sec].stripe : "#fff",
-        }}>
-          {label}
+  /* ── Cost section with % row ── */
+  const CostSection = ({ label, cat }: { label: string; cat: Cat }) => (
+    <>
+      <tr>
+        <CatCell label={label} rowspan={3} />
+        <TypeCell label="Actual" bg={CAT_BG} />
+        {cat.actual.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={costColor(v, cat.budget[i])} bold />
+        ))}
+        <TC v={cat.totalActual} color={costColor(cat.totalActual, cat.totalBudget)} bold />
+        <TPC v={cat.totalPctActual} />
+      </tr>
+      <tr>
+        <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
+        {cat.budget.map((v, i) => (
+          <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
+        ))}
+        <TC v={cat.totalBudget} color="#333" italic />
+        <TPC v={cat.totalPctBudget} />
+      </tr>
+      <tr>
+        <TypeCell label="% of Rev" italic bg={PCT_BG} />
+        {(cat.pct ?? Array(12).fill(null)).map((v, i) => (
+          <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
+        ))}
+        <td style={{ ...cell, background: totalColBg(TOTAL_BG), textAlign: "center", fontSize: 10, color: pctColor(cat.totalPctActual ?? null), fontStyle: "italic", borderLeft: `2px solid ${GRID}` }}>
+          {fmtPct(cat.totalPctActual)}
         </td>
+        <td style={{ ...cell, background: TOTAL_BG }} />
+      </tr>
+    </>
+  );
 
-        {/* Month cells */}
-        {Array.from({ length: 12 }, (_, i) => {
-          const isCur = i === currentMonth;
-
-          if (isPct) {
-            const v = pctValues?.[i] ?? null;
-            return (
-              <td key={i} style={{ ...base, fontSize: 9,
-                background: isCur ? YELLOW : i % 2 === 0 ? SEC[sec].stripe : "#f9fafb",
-                color: pctColor(v), fontWeight: v !== null && Math.abs(v) > 100 ? 700 : 400,
-              }}>
+  /* ── Profit section ── */
+  const ProfitSection = () => {
+    const rowspan = data.profit.goal ? 4 : 3;
+    return (
+      <>
+        <tr>
+          <CatCell label="Profit" rowspan={rowspan} />
+          <TypeCell label="Actual" bg={CAT_BG} />
+          {data.profit.actual.map((v, i) => (
+            <MC key={i} v={v} bg={colBg(i, CAT_BG)} color={profColor(v)} bold />
+          ))}
+          <TC v={data.profit.totalActual} color={profColor(data.profit.totalActual)} bold />
+          <TPC v={data.profit.totalPctActual} />
+        </tr>
+        <tr>
+          <TypeCell label="Budgeted" italic bg={BUDGET_BG} />
+          {data.profit.budget.map((v, i) => (
+            <MC key={i} v={v} bg={colBg(i, BUDGET_BG)} color="#333" italic />
+          ))}
+          <TC v={data.profit.totalBudget} color="#333" italic />
+          <TPC v={data.profit.totalPctBudget} />
+        </tr>
+        <tr>
+          <TypeCell label="% of Rev" italic bg={PCT_BG} />
+          {(data.profit.pct ?? Array(12).fill(null)).map((v, i) => (
+            <PC key={i} v={v} bg={colBg(i, PCT_BG)} italic />
+          ))}
+          <td style={{ ...cell, background: totalColBg(TOTAL_BG), textAlign: "center", fontSize: 10, color: pctColor(data.profit.totalPctActual ?? null), fontStyle: "italic", borderLeft: `2px solid ${GRID}` }}>
+            {fmtPct(data.profit.totalPctActual)}
+          </td>
+          <td style={{ ...cell, background: TOTAL_BG }} />
+        </tr>
+        {data.profit.goal && (
+          <tr>
+            <TypeCell label="Goal %" italic bg={PCT_BG} />
+            {data.profit.goal.map((v, i) => (
+              <td key={i} style={{ ...cell, background: colBg(i, PCT_BG), color: "#4338ca", textAlign: "center", fontSize: 10, fontStyle: "italic" }}>
                 {fmtPct(v)}
               </td>
-            );
-          }
-
-          if (isBehind) {
-            // Only show in current month
-            const v = i === currentMonth ? values[i] : 0;
-            return (
-              <td key={i} style={{ ...base,
-                background: isCur ? YELLOW : colBg(i, false),
-                color: v > 0 ? "#4338ca" : v < 0 ? "#15803d" : "#d1d5db",
-                fontWeight: isCur ? 700 : 400,
-              }}>
-                {isCur && v !== 0 ? fmt$(v) : ""}
-              </td>
-            );
-          }
-
-          const v = values[i];
-          const bg = bgFn ? bgFn(v, i) : colBg(i, isCur);
-          const color = colorFn ? colorFn(v, i)
-            : v === 0 ? "#d1d5db"
-            : isBudget ? "#374151"
-            : "#1f2937";
-
-          return (
-            <td key={i} style={{ ...base, background: bg, color,
-              fontWeight: isBudget ? 700 : v !== 0 ? 600 : 400,
-              fontStyle: isBudget ? "italic" : "normal",
-            }}>
-              {fmtCell(v)}
-            </td>
-          );
-        })}
-
-        {/* Total */}
-        <td style={{ ...base, fontWeight: 800, borderLeft: "2px solid #9ca3af",
-          background: isPct ? "#f1f5f9" : isBudget ? "#f1f5f9" : "#f8fafc",
-          color: totalValue === 0 && !isPct ? "#d1d5db" : "#1f2937",
-          fontStyle: isBudget ? "italic" : "normal",
-        }}>
-          {isPct ? fmtPct(totalPct) : isBehind ? "" : fmtCell(totalValue)}
-        </td>
-
-        {/* % column */}
-        <td style={{ ...base, fontSize: 9, background: "#f1f5f9",
-          color: pctColor(totalPct ?? null),
-          fontWeight: totalPct != null && Math.abs(totalPct) > 50 ? 700 : 400,
-        }}>
-          {!isPct && !isBehind ? fmtPct(totalPct) : ""}
-        </td>
-      </tr>
+            ))}
+            <td style={{ ...cell, background: totalColBg(TOTAL_BG), borderLeft: `2px solid ${GRID}` }} />
+            <td style={{ ...cell, background: TOTAL_BG }} />
+          </tr>
+        )}
+      </>
     );
   };
 
-  const Gap = () => (
-    <tr style={{ height: 3, background: "#e5e7eb" }}><td colSpan={15} /></tr>
+  /* ── Profit Behind section ── */
+  const BehindSection = () => (
+    <tr>
+      <CatCell label="Profit Behind" />
+      <TypeCell label="Cumulative" bg={CAT_BG} />
+      {data.profitBehind.map((v, i) => (
+        <td key={i} style={{
+          ...cell,
+          background: colBg(i, CAT_BG),
+          color: i === currentMonth ? (v < 0 ? "#0d7645" : "#c0392b") : "transparent",
+          fontWeight: 700,
+          textAlign: "right",
+        }}>
+          {i === currentMonth && v !== 0 ? fmt$(v) : ""}
+        </td>
+      ))}
+      <td style={{ ...cell, background: totalColBg(TOTAL_BG), borderLeft: `2px solid ${GRID}` }} />
+      <td style={{ ...cell, background: TOTAL_BG }} />
+    </tr>
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#e5e7eb", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#f3f4f6", overflow: "hidden" }}>
 
-      {/* Header */}
-      <div style={{ background: "linear-gradient(135deg,#0d2616 0%,#123b1f 55%,#1a5c2a 100%)", padding: "8px 16px", flexShrink: 0 }}>
+      {/* App header bar */}
+      <div style={{ background: "linear-gradient(135deg,#0d2616 0%,#123b1f 55%,#1a5c2a 100%)", padding: "10px 18px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "#fff", borderRadius: 8, padding: 3 }}>
-              <Image src="/atlas-performance-logo.png" alt="Atlas Performance" width={32} height={32} style={{ objectFit: "contain", display: "block" }} />
+              <Image src="/atlas-performance-logo.png" alt="Atlas Performance" width={34} height={34} style={{ objectFit: "contain", display: "block" }} />
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-0.02em" }}>AtlasPerformance</span>
-                <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 20 }}>
+                <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>AtlasPerformance</span>
+                <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 20 }}>
                   {data.division}
                 </span>
               </div>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>2026 · Budget vs. Actual · Live from Google Sheets</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>2026 · Budget vs. Actual · Live from Google Sheets</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Legend */}
-            <div style={{ display: "flex", gap: 10, marginRight: 8 }}>
-              {[
-                { bg: "#dcfce7", label: "Under / Positive" },
-                { bg: "#fee2e2", label: "Over / Negative" },
-                { bg: "#dbeafe", label: "Under budget" },
-                { bg: YELLOW,    label: "Current month" },
-              ].map(l => (
-                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 2, background: l.bg, border: "1px solid rgba(255,255,255,0.3)", display: "inline-block" }} />
-                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{l.label}</span>
-                </div>
-              ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>{minsAgo === 0 ? "Live" : `${minsAgo}m ago`}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "3px 8px" }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 9 }}>{minsAgo === 0 ? "Live" : `${minsAgo}m ago`}</span>
-            </div>
-            <button onClick={load} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "3px 10px", fontSize: 9, fontWeight: 600, cursor: "pointer" }}>
+            <button onClick={load} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
               ↻ Refresh
             </button>
           </div>
         </div>
       </div>
 
-      {/* Table container */}
-      <div style={{ flex: 1, overflow: "hidden", padding: "6px" }}>
-        <div style={{ height: "100%", background: "#fff", borderRadius: 10, border: "1px solid #d1d5db", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
-          <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      {/* Spreadsheet */}
+      <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
+        <div style={{ background: "#fff", borderRadius: 6, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", minWidth: 900 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: "7.5%" }} />
-              {SHORT.map((_, i) => <col key={i} style={{ width: `${(85 / 12).toFixed(2)}%` }} />)}
-              <col style={{ width: "5.5%" }} />
-              <col style={{ width: "3%" }} />
+              <col style={{ width: "6%" }} />   {/* Category */}
+              <col style={{ width: "5%" }} />   {/* Type */}
+              {SHORT.map((_, i) => <col key={i} style={{ width: `${(81 / 12).toFixed(2)}%` }} />)}
+              <col style={{ width: "5%" }} />   {/* Total */}
+              <col style={{ width: "3%" }} />   {/* % */}
             </colgroup>
 
+            {/* Column header — mimics Google Sheets frozen header row */}
             <thead>
-              <tr style={{ background: "#111827" }}>
-                <th style={{ ...base, textAlign: "left", color: "rgba(255,255,255,0.4)", fontSize: 9, padding: "5px 6px", fontWeight: 700, letterSpacing: "0.08em", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
-                  CATEGORY
+              <tr style={{ background: HDR_BG }}>
+                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, color: "#555", textAlign: "left", borderRight: `2px solid ${GRID}` }}>
+                  Category
+                </th>
+                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, color: "#555", textAlign: "left", borderRight: `2px solid ${GRID}` }}>
+                  Row
                 </th>
                 {SHORT.map((m, i) => {
                   const isCur = i === currentMonth;
+                  const hasDat = i <= currentMonth;
                   return (
-                    <th key={i} style={{ ...base, fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-                      color: isCur ? "#1a1a1a" : i <= currentMonth ? "#e5e7eb" : "rgba(255,255,255,0.25)",
-                      background: isCur ? YELLOW_HDR : "transparent",
-                      padding: "5px 4px", borderRight: "1px solid rgba(255,255,255,0.08)",
+                    <th key={i} style={{
+                      ...cell,
+                      background: isCur ? YELLOW_HDR : HDR_BG,
+                      fontWeight: 700,
+                      fontSize: 11,
+                      textAlign: "center",
+                      color: isCur ? "#1a1a1a" : hasDat ? "#222" : "#aaa",
+                      borderBottom: isCur ? "2px solid #f9a825" : `1px solid ${GRID}`,
                     }}>
                       {m}
                     </th>
                   );
                 })}
-                <th style={{ ...base, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.6)", borderLeft: "2px solid rgba(255,255,255,0.15)", padding: "5px 4px" }}>Total</th>
-                <th style={{ ...base, fontSize: 9, color: "rgba(255,255,255,0.3)", padding: "5px 4px" }}>%</th>
+                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 10, textAlign: "center", color: "#555", borderLeft: `2px solid ${GRID}` }}>
+                  Total
+                </th>
+                <th style={{ ...cell, background: HDR_BG, fontWeight: 700, fontSize: 9, textAlign: "center", color: "#888" }}>
+                  %
+                </th>
               </tr>
             </thead>
 
             <tbody>
-              {/* REVENUE */}
-              <SectionHdr label="Revenue" sec="revenue" />
-              <DataRow mode="actual" label="Actual"   sec="revenue" values={data.revenue.actual} totalValue={data.revenue.totalActual}
-                bgFn={revActualBg}
-                colorFn={(v) => v > 0 ? "#15803d" : "#d1d5db"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="revenue" values={data.revenue.budget} totalValue={data.revenue.totalBudget} />
+              <RevSection />
               <Gap />
-
-              {/* JOB MATERIALS */}
-              <SectionHdr label="Job Materials" sec="materials" />
-              <DataRow mode="actual" label="Actual"   sec="materials" values={data.materials.actual} totalValue={data.materials.totalActual} totalPct={data.materials.totalPctActual}
-                bgFn={(v, i) => costBg(v, data.materials.budget[i], i)}
-                colorFn={(v, i) => v === 0 ? "#d1d5db" : v > (data.materials.budget[i] ?? 0) * 1.02 ? "#b91c1c" : v < (data.materials.budget[i] ?? 0) * 0.98 ? "#1d4ed8" : "#1f2937"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="materials" values={data.materials.budget} totalValue={data.materials.totalBudget} totalPct={data.materials.totalPctBudget} />
-              <DataRow mode="pct"    label="% of Rev" sec="materials" values={[]} totalValue={0} totalPct={data.materials.totalPctActual} pctValues={data.materials.pct} />
+              <CostSection label="Job Materials" cat={data.materials} />
               <Gap />
-
-              {/* LABOR */}
-              <SectionHdr label="Labor" sec="labor" />
-              <DataRow mode="actual" label="Actual"   sec="labor" values={data.labor.actual} totalValue={data.labor.totalActual} totalPct={data.labor.totalPctActual}
-                bgFn={(v, i) => costBg(v, data.labor.budget[i], i)}
-                colorFn={(v, i) => v === 0 ? "#d1d5db" : v > (data.labor.budget[i] ?? 0) * 1.02 ? "#b91c1c" : v < (data.labor.budget[i] ?? 0) * 0.98 ? "#1d4ed8" : "#1f2937"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="labor" values={data.labor.budget} totalValue={data.labor.totalBudget} totalPct={data.labor.totalPctBudget} />
-              <DataRow mode="pct"    label="% of Rev" sec="labor" values={[]} totalValue={0} totalPct={data.labor.totalPctActual} pctValues={data.labor.pct} />
+              <CostSection label="Labor" cat={data.labor} />
               <Gap />
-
-              {/* FUEL */}
-              <SectionHdr label="Fuel" sec="fuel" />
-              <DataRow mode="actual" label="Actual"   sec="fuel" values={data.fuel.actual} totalValue={data.fuel.totalActual} totalPct={data.fuel.totalPctActual}
-                bgFn={(v, i) => costBg(v, data.fuel.budget[i], i)}
-                colorFn={(v, i) => v === 0 ? "#d1d5db" : v > (data.fuel.budget[i] ?? 0) * 1.02 ? "#b91c1c" : v < (data.fuel.budget[i] ?? 0) * 0.98 ? "#1d4ed8" : "#1f2937"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="fuel" values={data.fuel.budget} totalValue={data.fuel.totalBudget} totalPct={data.fuel.totalPctBudget} />
-              <DataRow mode="pct"    label="% of Rev" sec="fuel" values={[]} totalValue={0} totalPct={data.fuel.totalPctActual} pctValues={data.fuel.pct} />
+              <CostSection label="Fuel" cat={data.fuel} />
               <Gap />
-
-              {/* EQUIPMENT */}
-              <SectionHdr label="Equipment" sec="equipment" />
-              <DataRow mode="actual" label="Actual"   sec="equipment" values={data.equipment.actual} totalValue={data.equipment.totalActual} totalPct={data.equipment.totalPctActual}
-                bgFn={(v, i) => costBg(v, data.equipment.budget[i], i)}
-                colorFn={(v, i) => v === 0 ? "#d1d5db" : v > (data.equipment.budget[i] ?? 0) * 1.02 ? "#b91c1c" : v < (data.equipment.budget[i] ?? 0) * 0.98 ? "#1d4ed8" : "#1f2937"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="equipment" values={data.equipment.budget} totalValue={data.equipment.totalBudget} totalPct={data.equipment.totalPctBudget} />
-              <DataRow mode="pct"    label="% of Rev" sec="equipment" values={[]} totalValue={0} totalPct={data.equipment.totalPctActual} pctValues={data.equipment.pct} />
+              <CostSection label="Equipment" cat={data.equipment} />
               <Gap />
-
-              {/* PROFIT */}
-              <SectionHdr label="Profit" sec="profit" />
-              <DataRow mode="actual" label="Actual"   sec="profit" values={data.profit.actual} totalValue={data.profit.totalActual} totalPct={data.profit.totalPctActual}
-                bgFn={(v, i) => profitBg(v, i)}
-                colorFn={(v) => v > 0 ? "#15803d" : v < 0 ? "#b91c1c" : "#d1d5db"}
-              />
-              <DataRow mode="budget" label="Budgeted" sec="profit" values={data.profit.budget} totalValue={data.profit.totalBudget} totalPct={data.profit.totalPctBudget} />
-              <DataRow mode="pct"    label="% of Rev" sec="profit" values={[]} totalValue={0} totalPct={data.profit.totalPctActual} pctValues={data.profit.pct} />
-              {data.profit.goal && (
-                <DataRow mode="goal" label="Goal %" sec="profit" values={[]} totalValue={0} pctValues={data.profit.goal} />
-              )}
+              <ProfitSection />
               <Gap />
-
-              {/* PROFIT BEHIND */}
-              <SectionHdr label="Profit Behind" sec="behind" />
-              <DataRow mode="behind" label="Cumulative" sec="behind" values={data.profitBehind} totalValue={data.profit.needed} />
+              <BehindSection />
             </tbody>
           </table>
         </div>
