@@ -18,8 +18,10 @@ type MeasurementRow = {
 type Bid = {
   id: string;
   address?: string | null;
+  address1?: string | null;
   city?: string | null;
   state?: string | null;
+  zip?: string | null;
 };
 
 type PendingShape = {
@@ -67,7 +69,7 @@ export default function MeasurementsPage() {
     if (!bidId) return;
     fetch(`/api/bids/${bidId}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((j) => setBid(j?.bid ?? j?.data ?? j ?? null))
+      .then((j) => setBid(j?.data ?? j?.bid ?? null))
       .catch(() => {});
   }, [bidId]);
 
@@ -100,18 +102,6 @@ export default function MeasurementsPage() {
 
     mapRef.current = map;
     infoWindowRef.current = new g.maps.InfoWindow();
-
-    // Geocode the bid address
-    const addressStr = [bid?.address, bid?.city, bid?.state].filter(Boolean).join(", ");
-    if (addressStr) {
-      const geocoder = new g.maps.Geocoder();
-      geocoder.geocode({ address: addressStr }, (results, status) => {
-        if (status === "OK" && results?.[0]) {
-          map.setCenter(results[0].geometry.location);
-          map.setZoom(19);
-        }
-      });
-    }
 
     // Drawing manager
     const dm = new g.maps.drawing.DrawingManager({
@@ -164,6 +154,23 @@ export default function MeasurementsPage() {
 
     setMapReady(true);
   }, [mapsLoaded, bid, mapReady]);
+
+  // Geocode address once both map and bid are ready
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !bid) return;
+    const g = window.google;
+    if (!g?.maps) return;
+    const addressStr = [bid.address1 ?? bid.address, bid.city, bid.state, bid.zip]
+      .filter(Boolean).join(", ");
+    if (!addressStr) return;
+    const geocoder = new g.maps.Geocoder();
+    geocoder.geocode({ address: addressStr }, (results, status) => {
+      if (status === "OK" && results?.[0]) {
+        mapRef.current!.setCenter(results[0].geometry.location);
+        mapRef.current!.setZoom(20);
+      }
+    });
+  }, [mapReady, bid]);
 
   // Restore saved shapes onto map after map is ready
   useEffect(() => {
