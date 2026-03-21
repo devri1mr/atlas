@@ -219,10 +219,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Main two-column */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-6">
 
-          {/* Bids table — takes 2/3 */}
-          <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Bids table */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
               <h2 className="font-bold text-gray-900">Recent Bids</h2>
               <Link href="/atlasbid/bids" className="text-xs text-green-600 font-semibold hover:underline">View all →</Link>
@@ -240,14 +240,14 @@ export default function DashboardPage() {
                 <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                      <th className="text-left px-4 md:px-6 py-3">Client</th>
-                      <th className="text-left px-4 md:px-6 py-3 hidden md:table-cell">Location</th>
-                      <th className="text-left px-4 md:px-6 py-3 hidden lg:table-cell">Division</th>
-                      <th className="text-left px-4 md:px-6 py-3">Status</th>
-                      <th className="text-right px-4 md:px-6 py-3">Value</th>
-                      <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">GP%</th>
-                      <th className="text-left px-4 md:px-6 py-3 hidden lg:table-cell">Created By</th>
-                      <th className="text-right px-4 md:px-6 py-3 hidden sm:table-cell">Date</th>
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Client</th>
+                      <th className="text-left px-4 py-3 whitespace-nowrap hidden md:table-cell">Location</th>
+                      <th className="text-left px-4 py-3 whitespace-nowrap hidden lg:table-cell">Division</th>
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Status</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Value</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap hidden sm:table-cell">GP%</th>
+                      <th className="text-left px-4 py-3 whitespace-nowrap hidden lg:table-cell">Created By</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap hidden sm:table-cell">Date</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -277,27 +277,27 @@ export default function DashboardPage() {
                               </svg>
                             </Link>
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden md:table-cell">
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs hidden md:table-cell">
                             {location ?? <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs hidden lg:table-cell">
                             {bid.divisions?.name ?? <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="px-4 md:px-6 py-3.5">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusCls}`}>
                               {statusName}
                             </span>
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-right font-medium text-gray-700 tabular-nums">
+                          <td className="px-4 py-3 whitespace-nowrap text-right font-medium text-gray-700 tabular-nums">
                             {bid.sell_rounded ? fmt$(Number(bid.sell_rounded)) : "—"}
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-right text-gray-500 text-xs tabular-nums hidden sm:table-cell">
+                          <td className="px-4 py-3 whitespace-nowrap text-right text-gray-500 text-xs tabular-nums hidden sm:table-cell">
                             {gp ?? <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs hidden lg:table-cell">
                             {bid.created_by_name || <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="px-4 md:px-6 py-3.5 text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
+                          <td className="px-4 py-3 whitespace-nowrap text-right text-gray-400 text-xs tabular-nums hidden sm:table-cell">
                             {fmtDate(bid.created_at)}
                           </td>
                         </tr>
