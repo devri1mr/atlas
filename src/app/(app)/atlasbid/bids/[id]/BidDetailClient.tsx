@@ -171,6 +171,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     { label: "Overview", href: base },
     { label: "Scope", href: `${base}/scope` },
     { label: "Pricing", href: `${base}/pricing` },
+    { label: "Photos", href: `${base}/photos` },
     { label: "Proposal", href: `${base}/proposal` },
   ];
 
@@ -196,30 +197,6 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
             </span>
           </div>
 
-          {/* Workflow tabs */}
-          <div className="flex gap-0 -mb-px overflow-x-auto">
-            {workflowSteps.map((step, i) => {
-              const isActive = pathname === step.href;
-              return (
-                <Link
-                  key={step.href}
-                  href={step.href}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                    isActive
-                      ? "border-[#123b1f] text-[#123b1f]"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200"
-                  }`}
-                >
-                  <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                    isActive ? "bg-[#123b1f] text-white" : "bg-gray-100 text-gray-500"
-                  }`}>
-                    {i + 1}
-                  </span>
-                  {step.label}
-                </Link>
-              );
-            })}
-          </div>
         </div>
       </div>
 

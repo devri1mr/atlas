@@ -694,7 +694,13 @@ export default function BundleBuilderPage() {
                                           e.preventDefault();
                                           setMatSelected(m);
                                           setMatSearch("");
-                                          setMatUnit(m.default_unit || "ea");
+                                          // For yd-based tasks, default 1:1 (1 yd material per 1 yd task)
+                                          if (task.unit === "yd" || task.rule_type === "mulch_yards_from_sqft_depth") {
+                                            setMatQty("1");
+                                            setMatUnit("yd");
+                                          } else {
+                                            setMatUnit(m.default_unit || "ea");
+                                          }
                                           setMatCost(m.default_unit_cost != null ? String(m.default_unit_cost) : "");
                                         }}>
                                         <span className="font-medium">{m.name}</span>
@@ -710,9 +716,15 @@ export default function BundleBuilderPage() {
                                 )}
                               </div>
                               {matSelected && (
+                                <>
+                                {(task.unit === "yd" || task.rule_type === "mulch_yards_from_sqft_depth") && (
+                                  <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+                                    Qty is computed from sq ft entered on the bid (sq ft × depth ÷ 324 = yds). Set ratio to 1 for 1 yd material per 1 yd of task.
+                                  </p>
+                                )}
                                 <div className="grid grid-cols-3 gap-2">
                                   <div>
-                                    <label className={labelCls}>Qty per {task.unit}</label>
+                                    <label className={labelCls}>Ratio per {task.unit}</label>
                                     <input className={inputCls} type="number" step="0.01" min="0" value={matQty} onChange={e => setMatQty(e.target.value)} placeholder="1.0" />
                                   </div>
                                   <div>
@@ -726,6 +738,7 @@ export default function BundleBuilderPage() {
                                     <input className={inputCls} type="number" step="0.01" min="0" value={matCost} onChange={e => setMatCost(e.target.value)} placeholder="$0.00" />
                                   </div>
                                 </div>
+                                </>
                               )}
                               <div className="flex gap-2">
                                 <button

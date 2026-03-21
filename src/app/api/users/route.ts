@@ -65,13 +65,10 @@ export async function POST(req: Request) {
       <div style="background:linear-gradient(135deg,#0d2616 0%,#123b1f 50%,#1a5c2a 100%);padding:40px;text-align:center;position:relative;">
         <img src="https://atlas.interrivus.com/atlas-logo.png" alt="Atlas"
           style="width:150px;background:white;padding:10px 16px;border-radius:12px;display:block;margin:0 auto;" />
-        <div style="color:rgba(255,255,255,0.45);font-size:10px;letter-spacing:0.2em;text-transform:uppercase;margin-top:14px;font-weight:600;">
-          by InterRivus Systems
-        </div>
       </div>
 
       <!-- Body -->
-      <div style="padding:40px;">
+      <div style="padding:40px;text-align:center;">
         <h1 style="margin:0 0 10px;font-size:24px;font-weight:700;color:#0d1e10;letter-spacing:-0.3px;">
           ${firstName ? `Hey ${firstName}, you're in.` : "You've been invited."}
         </h1>
@@ -95,11 +92,8 @@ export async function POST(req: Request) {
       <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(90,140,190,0.2),transparent);margin:0 40px;"></div>
 
       <!-- Footer -->
-      <div style="padding:20px 40px;display:flex;align-items:center;gap:12px;">
-        <img src="https://interrivus.com/interrivus-logo.png" alt="InterRivus Systems" style="width:28px;height:28px;object-fit:contain;" />
-        <span style="font-size:11px;color:#9ca3af;">
-          Powered by <a href="https://interrivus.com" style="color:#6b7280;text-decoration:none;font-weight:500;">InterRivus Systems</a>
-        </span>
+      <div style="padding:20px 40px;text-align:center;">
+        <span style="font-size:11px;color:#9ca3af;">© Garpiel Group</span>
       </div>
 
     </div>

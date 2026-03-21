@@ -305,6 +305,10 @@ const [bundleAnswers, setBundleAnswers] = useState<Record<string, any>>({});
 const [loadingBundles, setLoadingBundles] = useState(false);
 const [loadingBundleQuestions, setLoadingBundleQuestions] = useState(false);
 const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
+const [activeSection, setActiveSection] = useState<"labor" | "materials">("labor");
+const [showBundlePanel, setShowBundlePanel] = useState(false);
+const [calcOpenForRow, setCalcOpenForRow] = useState<string | null>(null);
+const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string; depth: string }>>({});
   // Close dropdowns on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -1741,148 +1745,119 @@ async function addLabor() {
         </div>
       ) : (
         <>
-          {/* SCOPE BUNDLES */}
+          {/* Tab bar */}
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => setActiveSection("labor")}
+              className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-colors ${activeSection === "labor" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Labor
+            </button>
+            <button
+              onClick={() => setActiveSection("materials")}
+              className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-colors ${activeSection === "materials" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Materials{materials.length > 0 ? ` (${materials.length})` : ""}
+            </button>
+          </div>
+
+          {activeSection === "labor" && (
 <div className="border rounded-lg">
   <div className="bg-gray-50 border-b px-5 py-3 rounded-t-lg">
-    <h2 className="text-base font-semibold text-gray-800">Scope Bundles</h2>
-    <div className="text-xs text-gray-500 mt-0.5">Load a prebuilt bundle of tasks into this bid.</div>
-  </div>
-  <div className="p-5 space-y-4">
-
-  <div className="grid grid-cols-12 gap-4 items-end">
-    <div className="col-span-8">
-      <label className="block text-xs font-semibold text-gray-600 mb-1">
-        Bundle
-      </label>
-
-      <select
-        className="border p-2 rounded w-full h-10"
-        value={selectedBundleId}
-        onChange={async (e) => {
-          const nextId = e.target.value;
-          setSelectedBundleId(nextId);
-          await loadBundleQuestions(nextId);
-        }}
-      >
-        <option value="">— Select Bundle —</option>
-
-        {scopeBundles.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div className="col-span-4">
-      <button
-        onClick={loadSelectedBundleIntoBid}
-        disabled={
-          !selectedBundleId ||
-          loadingBundleIntoBid ||
-          loadingBundleQuestions
-        }
-        className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
-      >
-        {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
-      </button>
-    </div>
-  </div>
-
-  {loadingBundles ? (
-    <div className="text-sm text-gray-500">Loading bundles…</div>
-  ) : null}
-
-  {selectedBundleId && bundleQuestions.length > 0 ? (
-  <div className="border rounded p-3 bg-gray-50 text-sm space-y-3">
-    <div className="font-semibold mb-1">Bundle Questions</div>
-
-    {bundleQuestions.map((q) => (
-      <div key={q.id} className="space-y-1">
-        <label className="block text-xs font-semibold text-gray-600">
-          {q.label}
-          {q.unit ? ` (${q.unit})` : ""}
-        </label>
-
-        {q.input_type === "number" ? (
-          <input
-            type="number"
-            className="border p-2 rounded w-full"
-            value={bundleAnswers[q.question_key] ?? ""}
-            onChange={(e) =>
-              setBundleAnswers((prev) => ({
-                ...prev,
-                [q.question_key]: Number(e.target.value),
-              }))
-            }
-          />
-        ) : q.input_type === "checkbox" ? (
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={bundleAnswers[q.question_key] === true}
-              onChange={(e) =>
-                setBundleAnswers((prev) => ({
-                  ...prev,
-                  [q.question_key]: e.target.checked,
-                }))
-              }
-            />
-            <span>{q.label}</span>
-          </label>
-        ) : (
-          <input
-            type="text"
-            className="border p-2 rounded w-full"
-            value={bundleAnswers[q.question_key] ?? ""}
-            onChange={(e) =>
-              setBundleAnswers((prev) => ({
-                ...prev,
-                [q.question_key]: e.target.value,
-              }))
-            }
-          />
-        )}
-
-        {q.help_text ? (
-          <div className="text-xs text-gray-500">{q.help_text}</div>
-        ) : null}
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
+        <button
+          type="button"
+          onClick={() => setShowBundlePanel((v) => !v)}
+          className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${showBundlePanel ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600"}`}
+        >
+          {showBundlePanel ? "Hide Bundles" : "+ Bundle"}
+        </button>
       </div>
-    ))}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Season</span>
+          <select
+            className="border border-gray-200 rounded-lg px-2 py-1 text-sm h-8 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            value={season}
+            onChange={async (e) => {
+              const s = e.target.value;
+              setSeason(s);
+              await fetch(`/api/bids/${bidId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ season: s || null }),
+              });
+            }}
+          >
+            <option value="">— None —</option>
+            <option value="spring">🌱 Spring</option>
+            <option value="summer">☀️ Summer</option>
+            <option value="fall">🍂 Fall</option>
+            <option value="winter">❄️ Winter</option>
+          </select>
+        </div>
+        <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
+      </div>
+    </div>
   </div>
-) : null}
-  </div>
-</div>
-{/* LABOR BUILDER */}
-<div className="border rounded-lg">
-  <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between gap-3 rounded-t-lg">
-    <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
-    <div className="flex items-center gap-3 ml-auto">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Season</span>
+  {showBundlePanel && (
+  <div className="border-b bg-amber-50/30 p-4 space-y-3">
+    <div className="grid grid-cols-12 gap-4 items-end">
+      <div className="col-span-8">
+        <label className="block text-xs font-semibold text-gray-600 mb-1">Bundle</label>
         <select
-          className="border border-gray-200 rounded-lg px-2 py-1 text-sm h-8 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          value={season}
+          className="border p-2 rounded w-full h-10"
+          value={selectedBundleId}
           onChange={async (e) => {
-            const s = e.target.value;
-            setSeason(s);
-            await fetch(`/api/bids/${bidId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ season: s || null }),
-            });
+            const nextId = e.target.value;
+            setSelectedBundleId(nextId);
+            await loadBundleQuestions(nextId);
           }}
         >
-          <option value="">— None —</option>
-          <option value="spring">🌱 Spring</option>
-          <option value="summer">☀️ Summer</option>
-          <option value="fall">🍂 Fall</option>
-          <option value="winter">❄️ Winter</option>
+          <option value="">— Select Bundle —</option>
+          {scopeBundles.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
         </select>
       </div>
-      <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
+      <div className="col-span-4">
+        <button
+          onClick={loadSelectedBundleIntoBid}
+          disabled={!selectedBundleId || loadingBundleIntoBid || loadingBundleQuestions}
+          className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
+        >
+          {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
+        </button>
+      </div>
     </div>
+    {loadingBundles ? <div className="text-sm text-gray-500">Loading bundles…</div> : null}
+    {selectedBundleId && bundleQuestions.length > 0 ? (
+    <div className="border rounded p-3 bg-white text-sm space-y-3">
+      <div className="font-semibold mb-1">Bundle Questions</div>
+      {bundleQuestions.map((q) => (
+        <div key={q.id} className="space-y-1">
+          <label className="block text-xs font-semibold text-gray-600">
+            {q.label}{q.unit ? ` (${q.unit})` : ""}
+          </label>
+          {q.input_type === "number" ? (
+            <input type="number" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: Number(e.target.value) }))} />
+          ) : q.input_type === "checkbox" ? (
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={bundleAnswers[q.question_key] === true} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))} />
+              <span>{q.label}</span>
+            </label>
+          ) : (
+            <input type="text" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.value }))} />
+          )}
+          {q.help_text ? <div className="text-xs text-gray-500">{q.help_text}</div> : null}
+        </div>
+      ))}
+    </div>
+    ) : null}
   </div>
+  )}
   <div className="p-5 space-y-4">
 
   {/* Add row */}
@@ -2100,6 +2075,11 @@ async function addLabor() {
                 }}
               />
               <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.task}</span>
+              {season && row.task_catalog && getSeasonMultiplier(row, season) > 1 && (
+                <span className="shrink-0 text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 font-medium whitespace-nowrap">
+                  {season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{getSeasonMultiplier(row, season).toFixed(1)}
+                </span>
+              )}
               <div className="flex items-center gap-1.5 shrink-0">
                 <input
                   className="w-16 border border-gray-200 rounded-lg h-8 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -2158,13 +2138,70 @@ async function addLabor() {
                     <option key={i} value={i}>{i === 0 ? "Diff —" : `${i} ${label}`}</option>
                   ))}
                 </select>
+                {row.unit === "yd" && (
+                  <button
+                    type="button"
+                    title="Yd calculator"
+                    onClick={() => setCalcOpenForRow(calcOpenForRow === row.id ? null : row.id)}
+                    className={`text-sm px-1.5 h-8 rounded border transition-colors ${calcOpenForRow === row.id ? "bg-amber-100 border-amber-400 text-amber-700" : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600"}`}
+                  >
+                    📐
+                  </button>
+                )}
                 <span className="text-sm font-semibold text-gray-800 tabular-nums w-20 text-right shrink-0">{money(rowTotal)}</span>
                 <button onClick={() => deleteLaborRow(row.id)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-1" title="Delete row">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                 </button>
               </div>
             </div>
-            {/* Row 2: description + AI */}
+            {/* Row 2: yd calc (if open) */}
+            {calcOpenForRow === row.id && row.unit === "yd" && (
+              <div className="border-t border-amber-200 px-3 py-2 flex items-center gap-2 bg-amber-50/60">
+                <span className="text-xs font-semibold text-amber-700 shrink-0">Yd calc:</span>
+                <input
+                  className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-center"
+                  type="number"
+                  placeholder="sq ft"
+                  value={rowCalcValues[row.id]?.sqft ?? ""}
+                  onChange={(e) => {
+                    const sqft = e.target.value;
+                    const depth = Number(rowCalcValues[row.id]?.depth ?? "3") || 3;
+                    setRowCalcValues((prev) => ({ ...prev, [row.id]: { sqft, depth: prev[row.id]?.depth ?? "3" } }));
+                    if (Number(sqft) > 0) {
+                      const yds = Math.ceil((Number(sqft) * depth) / 324);
+                      const mpu = row.task_catalog?.minutes_per_unit;
+                      const newHours = mpu && yds > 0 ? Number(hoursFromMinutesPerUnit(mpu, yds).toFixed(2)) : row.man_hours;
+                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: yds, man_hours: newHours } : r));
+                    }
+                  }}
+                />
+                <span className="text-xs text-gray-500">sq ft @</span>
+                <input
+                  className="w-14 border border-gray-200 rounded px-2 py-1 text-xs text-center"
+                  type="number"
+                  placeholder="in"
+                  value={rowCalcValues[row.id]?.depth ?? "3"}
+                  onChange={(e) => {
+                    const depth = e.target.value;
+                    const sqft = Number(rowCalcValues[row.id]?.sqft ?? "0");
+                    setRowCalcValues((prev) => ({ ...prev, [row.id]: { sqft: prev[row.id]?.sqft ?? "", depth } }));
+                    if (sqft > 0 && Number(depth) > 0) {
+                      const yds = Math.ceil((sqft * Number(depth)) / 324);
+                      const mpu = row.task_catalog?.minutes_per_unit;
+                      const newHours = mpu && yds > 0 ? Number(hoursFromMinutesPerUnit(mpu, yds).toFixed(2)) : row.man_hours;
+                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: yds, man_hours: newHours } : r));
+                    }
+                  }}
+                />
+                <span className="text-xs text-gray-500">in deep</span>
+                {Number(rowCalcValues[row.id]?.sqft) > 0 && (
+                  <span className="text-xs font-semibold text-amber-800 ml-1">
+                    = {Math.ceil((Number(rowCalcValues[row.id]?.sqft) * (Number(rowCalcValues[row.id]?.depth ?? "3") || 3)) / 324)} yds
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Row 3: description + AI */}
             <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2 bg-gray-50/50">
               <div className="flex-1 min-w-0 relative">
                 <input
@@ -2376,7 +2413,8 @@ async function addLabor() {
 )}
 </div>
 </div>
-          {/* ✅ MATERIALS BUILDER (predictive search + inline edit) */}
+          )}
+          {activeSection === "materials" && (
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
               <div>
@@ -2755,6 +2793,7 @@ async function addLabor() {
             )}
             </div>
           </div>
+          )}
 
           {/* TRUCKING */}
           <div className="border rounded-lg overflow-hidden">
