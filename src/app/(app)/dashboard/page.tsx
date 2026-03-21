@@ -257,13 +257,27 @@ export default function DashboardPage() {
                       const statusCls = statusColor[statusKey] ?? "bg-gray-100 text-gray-500";
                       const location = [bid.city, bid.state].filter(Boolean).join(", ") || null;
                       const gp = bid.target_gp_pct != null ? `${Math.round(bid.target_gp_pct)}%` : null;
+                      const clientDisplay = cleanStr(bid.customer_name) ||
+                        [cleanStr(bid.client_name), cleanStr(bid.client_last_name)].filter(Boolean).join(" ") || "—";
+                      const initials = clientDisplay !== "—"
+                        ? clientDisplay.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+                        : "?";
                       return (
                         <tr key={bid.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                          <td className="px-4 md:px-6 py-3.5">
-                            <Link href={`/atlasbid/bids/${bid.id}`} className="font-medium text-gray-900 hover:text-green-700 transition-colors">
-                              {cleanStr(bid.customer_name) ||
-                                [cleanStr(bid.client_name), cleanStr(bid.client_last_name)].filter(Boolean).join(" ") ||
-                                "—"}
+                          <td className="px-4 md:px-6 py-3">
+                            <Link href={`/atlasbid/bids/${bid.id}`} className="flex items-center gap-2.5 group w-fit">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1a5c2a] to-[#123b1f] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
+                                {initials}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors text-sm leading-tight truncate">
+                                  {clientDisplay}
+                                </div>
+                                {location && <div className="text-[11px] text-gray-400 leading-tight truncate md:hidden">{location}</div>}
+                              </div>
+                              <svg className="w-3 h-3 text-gray-300 group-hover:text-green-500 transition-colors shrink-0 ml-0.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 9L9 3M9 3H5M9 3v4"/>
+                              </svg>
                             </Link>
                           </td>
                           <td className="px-4 md:px-6 py-3.5 text-gray-500 text-xs hidden md:table-cell">
