@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine, Legend, Cell,
@@ -217,19 +218,20 @@ export default function AtlasPerformancePage() {
         className="px-6 md:px-10 py-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="bg-green-400/20 border border-green-400/30 rounded-xl p-2">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-                  <polyline points="16 7 22 7 22 13" />
-                </svg>
+            <div className="flex items-center gap-4 mb-1">
+              <div className="bg-white rounded-xl p-1.5 shadow-sm">
+                <Image src="/atlas-performance-logo.png" alt="Atlas Performance" width={48} height={48} className="object-contain" />
               </div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">AtlasPerformance</h1>
-              <span className="bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-semibold px-3 py-1 rounded-full">
-                {data.division}
-              </span>
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">AtlasPerformance</h1>
+                  <span className="bg-green-500/20 border border-green-500/30 text-green-300 text-xs font-semibold px-3 py-1 rounded-full">
+                    {data.division}
+                  </span>
+                </div>
+                <p className="text-white/40 text-sm">Budget vs. Actual · 2026 Fiscal Year</p>
+              </div>
             </div>
-            <p className="text-white/40 text-sm">Budget vs. Actual · 2026 Fiscal Year</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
