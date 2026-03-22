@@ -122,14 +122,44 @@ export default function PricingBooksPage() {
     setUploading(true);
     setUploadError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", uploadFile);
-      fd.append("name", uploadName.trim() || uploadFile.name.replace(/\.[^.]+$/, ""));
-      fd.append("vendor", uploadVendor.trim());
-      const res = await fetch("/api/materials-catalog/pricing-books", { method: "POST", body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Upload failed");
-      setBooks(prev => [json.data, ...prev]);
+      // Step 1: get a signed upload URL (file never touches Vercel)
+      const presignRes = await fetch("/api/materials-catalog/pricing-books/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: uploadFile.name }),
+      });
+      const presignJson = await presignRes.json();
+      if (!presignRes.ok) throw new Error(presignJson.error || "Could not get upload URL");
+
+      const { signedUrl, path: filePath, file_type } = presignJson;
+
+      // Step 2: upload directly to Supabase storage (no Vercel size limit)
+      const uploadRes = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": uploadFile.type || "application/octet-stream" },
+        body: uploadFile,
+      });
+      if (!uploadRes.ok) {
+        const text = await uploadRes.text().catch(() => "");
+        throw new Error(text || `Upload failed (${uploadRes.status})`);
+      }
+
+      // Step 3: save metadata to DB
+      const confirmRes = await fetch("/api/materials-catalog/pricing-books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: filePath,
+          name: uploadName.trim() || uploadFile.name.replace(/\.[^.]+$/, ""),
+          vendor: uploadVendor.trim() || null,
+          file_type,
+          file_size: uploadFile.size,
+        }),
+      });
+      const confirmJson = await confirmRes.json();
+      if (!confirmRes.ok) throw new Error(confirmJson.error || "Failed to save record");
+
+      setBooks(prev => [confirmJson.data, ...prev]);
       closeUploadModal();
     } catch (e: any) {
       setUploadError(e.message);
