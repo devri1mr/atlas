@@ -369,7 +369,7 @@ export default function AtlasPerformancePage() {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#f3f4f6", overflow: "hidden" }}>
 
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 55%, #1a5c2a 100%)`, padding: "10px 18px", flexShrink: 0 }}>
+      <div style={{ background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 55%, #1a5c2a 100%)`, padding: "8px 12px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "#fff", borderRadius: 8, padding: 3 }}>
@@ -398,8 +398,10 @@ export default function AtlasPerformancePage() {
       </div>
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: "auto", padding: "12px" }}>
-        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 900 }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "8px" }}>
+        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${GRID}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}>
+        <div style={{ minWidth: 700 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
               <col style={{ width: "7%" }} />    {/* Row label */}
@@ -469,8 +471,10 @@ export default function AtlasPerformancePage() {
               <BehindSection />
             </tbody>
           </table>
-        </div>
-      </div>
+        </div>{/* minWidth */}
+        </div>{/* overflowX */}
+        </div>{/* white card */}
+      </div>{/* scroll container */}
     </div>
   );
 }

@@ -26,7 +26,7 @@ export default function BidTabs({
         key={t.href}
         href={t.href}
         className={[
-          "cursor-pointer rounded-md border px-3 py-2 text-sm font-medium whitespace-nowrap",
+          "cursor-pointer rounded-md border px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap",
           isActive
             ? "border-[#16a34a] bg-[#eef6f0] text-[#123b1f]"
             : "border-[#9cc4a6] bg-white text-[#123b1f] hover:bg-[#eef6f0]",
@@ -50,5 +50,9 @@ export default function BidTabs({
     );
   }
 
-  return <div className="flex flex-wrap gap-2">{tabs.map(renderTab)}</div>;
+  return (
+    <div className="w-full overflow-x-auto">
+      <div className="flex gap-1.5 pb-0.5 min-w-max mx-auto">{tabs.map(renderTab)}</div>
+    </div>
+  );
 }

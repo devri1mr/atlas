@@ -593,8 +593,8 @@ export default function MaterialsCatalogPage() {
       {/* ── MATERIALS TAB ─────────────────────────────────────────────────── */}
       {tab === "materials" && (
         <div className="flex flex-col md:flex-row h-[calc(100vh-112px)]">
-          {/* Sidebar */}
-          <div className="md:w-56 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r overflow-y-auto py-3 px-2 max-h-36 md:max-h-none">
+          {/* Sidebar — hidden on mobile, shown on md+ */}
+          <div className="hidden md:block md:w-56 flex-shrink-0 bg-white border-r overflow-y-auto py-3 px-2">
             <button
               onClick={() => setSelectedCatId(null)}
               className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-sm font-semibold mb-1 transition-colors ${
@@ -617,25 +617,23 @@ export default function MaterialsCatalogPage() {
           {/* Main content */}
           <div className="flex-1 overflow-y-auto">
             {/* Toolbar */}
-            <div className="sticky top-0 z-10 bg-white border-b px-6 py-3 flex items-center gap-3">
+            <div className="sticky top-0 z-10 bg-white border-b px-3 sm:px-6 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
               <input
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Search materials…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-              <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer select-none">
+              <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer select-none shrink-0">
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="rounded" />
                 Inactive only
               </label>
-              <div className="ml-auto">
-                <button
-                  onClick={() => setDrawer({ mode: "add", material: { category_id: selectedCatId, is_active: true, default_unit: "ea", default_unit_cost: 0 } })}
-                  className={btnPrimary}
-                >
-                  + Add Material
-                </button>
-              </div>
+              <button
+                onClick={() => setDrawer({ mode: "add", material: { category_id: selectedCatId, is_active: true, default_unit: "ea", default_unit_cost: 0 } })}
+                className={btnPrimary + " shrink-0"}
+              >
+                + Add
+              </button>
             </div>
 
             {/* Category breadcrumb */}
@@ -648,7 +646,7 @@ export default function MaterialsCatalogPage() {
             )}
 
             {/* Table */}
-            <div className="px-6 py-4">
+            <div className="px-3 sm:px-6 py-4">
               {matsLoading ? (
                 <div className="text-sm text-gray-400 text-center py-16">Loading…</div>
               ) : materials.length === 0 ? (
@@ -656,8 +654,8 @@ export default function MaterialsCatalogPage() {
                   {search ? `No results for "${search}"` : "No materials in this category yet."}
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden overflow-x-auto">
+                  <table className="w-full text-sm min-w-[560px]">
                     <thead>
                       <tr className="border-b bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th className="text-left px-4 py-3">Name</th>

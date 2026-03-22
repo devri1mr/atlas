@@ -283,7 +283,41 @@ export default function BidsPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* ── Mobile card view ── */}
+            <div className="md:hidden divide-y divide-gray-50">
+              {sorted.map(b => {
+                const name = clientName(b);
+                const statusName = (b.statuses?.name ?? "draft").toLowerCase();
+                const badgeCls = STATUS_COLORS[statusName] ?? "bg-gray-100 text-gray-600";
+                const gp = b.target_gp_pct;
+                const gpColor = gp == null ? "text-gray-400" : gp >= 50 ? "text-emerald-700 font-semibold" : gp >= 40 ? "text-amber-600" : "text-red-600";
+                return (
+                  <div key={b.id} onClick={() => router.push(`/atlasbid/bids/${b.id}`)}
+                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#f0f7f2] active:bg-[#eef6f0] transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900 truncate">{name}</span>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 ${badgeCls}`}>{b.statuses?.name ?? "Draft"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                        {(b.city || b.state) && <span className="truncate">{[b.city, b.state].filter(Boolean).join(", ")}</span>}
+                        {b.divisions?.name && <span className="text-gray-300">·</span>}
+                        {b.divisions?.name && <span>{b.divisions.name}</span>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-semibold text-gray-900 text-sm tabular-nums">{fmtMoney(b.sell_rounded)}</div>
+                      <div className={`text-xs tabular-nums ${gpColor}`}>{gp != null ? `${gp.toFixed(1)}% GP` : ""}</div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-gray-300 shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop table view ── */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-50">
@@ -387,6 +421,7 @@ export default function BidsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
