@@ -694,10 +694,12 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
         }))
       : [];
 
-    // If no vendor records exist in material-sources but catalog has a vendor name,
-    // synthesize a vendor source from the catalog data
+    // If no vendor records exist in material-sources but catalog has a real vendor name
+    // (not "Inventory"), synthesize a vendor source from the catalog data
+    const vendorName = catalogItem?.vendor?.trim() || "";
+    const isInventoryVendor = /^inventory$/i.test(vendorName);
     const syntheticVendorSources =
-      vendorSources.length === 0 && catalogItem?.vendor && catalogCost
+      vendorSources.length === 0 && vendorName && !isInventoryVendor && catalogCost
         ? [{
             source_type: "vendor",
             source_name: catalogItem.vendor,
@@ -823,7 +825,7 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
 
   if (!materialDetails.trim()) {
     const bits = [
-      m.vendor ? `Vendor: ${m.vendor}` : null,
+      m.vendor && !/^inventory$/i.test(m.vendor.trim()) ? `Vendor: ${m.vendor}` : null,
       m.sku ? `SKU: ${m.sku}` : null,
     ].filter(Boolean);
     if (bits.length) setMaterialDetails(bits.join(" • "));
@@ -2537,20 +2539,18 @@ async function addLabor() {
               </div>
               {/* Labor qty match suggestion */}
               {laborQtyMatch && laborQtyMatch.quantity > 0 && (
-                <div className="flex items-center gap-1.5 text-xs px-0.5">
-                  <span className="text-gray-400">↩ from labor:</span>
-                  <span className="font-medium text-gray-600 truncate max-w-[180px]">{laborQtyMatch.task}</span>
-                  <button
-                    type="button"
-                    className="ml-auto shrink-0 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-0.5 text-emerald-700 font-semibold hover:bg-emerald-100 transition-colors whitespace-nowrap"
-                    onClick={() => {
-                      setMaterialQty(laborQtyMatch.quantity);
-                      if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit);
-                    }}
-                  >
-                    Use {laborQtyMatch.quantity} {laborQtyMatch.unit}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 w-full bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-100 transition-colors text-left"
+                  onClick={() => {
+                    setMaterialQty(laborQtyMatch.quantity);
+                    if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit);
+                  }}
+                >
+                  <span className="text-base leading-none">↩</span>
+                  <span className="font-semibold whitespace-nowrap">{laborQtyMatch.quantity} {laborQtyMatch.unit}</span>
+                  <span className="text-emerald-600 text-xs truncate">from "{laborQtyMatch.task}"</span>
+                </button>
               )}
               {/* Row 2: source + details */}
               <div className="flex items-center gap-2">
