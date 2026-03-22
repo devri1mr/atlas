@@ -29,6 +29,7 @@ type Division = {
 };
 
 type LaborRow = {
+  proposal_section?: string | null;
   id: string;
   bid_id: string;
   task_catalog_id?: string | null;
@@ -846,6 +847,15 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
       return keywords.some((kw) => taskLower.includes(kw));
     }) ?? null;
   }, [materialName, materialQty, labor]);
+
+  // Collect unique proposal sections across all labor rows (for datalist suggestions)
+  const laborSections = useMemo(() => {
+    const seen = new Set<string>();
+    for (const r of labor) {
+      if (r.proposal_section?.trim()) seen.add(r.proposal_section.trim());
+    }
+    return Array.from(seen).sort();
+  }, [labor]);
 
   // Labor math
   const laborSubtotal = useMemo(() => {
@@ -2053,9 +2063,9 @@ async function addLabor() {
             {/* Row 1: show checkbox + task name + controls + total + delete */}
             <div className="flex items-center gap-2 px-3 py-2.5">
               {(() => {
-                const mode = row.hidden_from_proposal ? "hidden" : row.show_as_line_item === true ? "line" : "bundle";
-                const setMode = async (m: "line" | "bundle" | "hidden") => {
-                  const patch = { show_as_line_item: m === "line", hidden_from_proposal: m === "hidden" };
+                const isHidden = !!row.hidden_from_proposal;
+                const toggleHidden = async () => {
+                  const patch = { hidden_from_proposal: !isHidden };
                   await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
@@ -2065,14 +2075,14 @@ async function addLabor() {
                 };
                 return (
                   <div className="flex shrink-0 border border-gray-200 rounded overflow-hidden text-[9px] font-bold leading-none" title="Proposal visibility">
-                    {(["line", "bundle", "hidden"] as const).map((m) => (
-                      <button key={m} type="button" onClick={() => setMode(m)}
-                        className={`px-1.5 py-1 transition-colors ${mode === m ? m === "hidden" ? "bg-gray-400 text-white" : "bg-green-700 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
-                        title={m === "line" ? "Show as own line item" : m === "bundle" ? "Group under bundle name" : "Hide from proposal"}
-                      >
-                        {m === "line" ? "Line" : m === "bundle" ? "Bndl" : "Hide"}
-                      </button>
-                    ))}
+                    <button type="button" onClick={() => isHidden && toggleHidden()}
+                      className={`px-1.5 py-1 transition-colors ${!isHidden ? "bg-green-700 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
+                      title="Show on proposal"
+                    >Show</button>
+                    <button type="button" onClick={() => !isHidden && toggleHidden()}
+                      className={`px-1.5 py-1 transition-colors ${isHidden ? "bg-gray-400 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
+                      title="Hide from proposal"
+                    >Hide</button>
                   </div>
                 );
               })()}
@@ -2254,6 +2264,51 @@ async function addLabor() {
                 )}
               </div>
             </div>
+            {/* Row 4: Section assignment */}
+            {!row.hidden_from_proposal && (
+              <div className="border-t border-gray-100 px-3 py-1.5 flex items-center gap-2 bg-gray-50/30">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide shrink-0">Section</span>
+                <input
+                  list={`sections-${row.id}`}
+                  className="flex-1 border border-gray-200 rounded h-7 px-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500 placeholder:text-gray-300"
+                  placeholder="Group on proposal (optional)…"
+                  value={row.proposal_section ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: value } : r));
+                  }}
+                  onBlur={async (e) => {
+                    const value = e.target.value.trim() || null;
+                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ proposal_section: value }),
+                    });
+                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: value } : r));
+                  }}
+                />
+                <datalist id={`sections-${row.id}`}>
+                  {laborSections.filter(s => s !== row.proposal_section).map(s => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+                {row.proposal_section && (
+                  <button
+                    type="button"
+                    className="text-gray-300 hover:text-gray-500 text-base shrink-0 leading-none"
+                    title="Clear section"
+                    onClick={async () => {
+                      await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ proposal_section: null }),
+                      });
+                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: null } : r));
+                    }}
+                  >×</button>
+                )}
+              </div>
+            )}
           </div>
         );
       }

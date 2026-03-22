@@ -107,6 +107,7 @@ export async function PATCH(
       task,
       item,
       proposal_text,
+      proposal_section,
       quantity,
       unit,
       man_hours,
@@ -155,6 +156,9 @@ export async function PATCH(
     const level = Number(body.difficulty_level);
     updates.difficulty_level = Number.isFinite(level) && level >= 0 && level <= 5 ? Math.round(level) : 0;
   }
+  if ("proposal_section" in body) {
+    updates.proposal_section = body.proposal_section ? String(body.proposal_section).trim() : null;
+  }
 
   const { data: updatedRow, error: updateError } = await supabase
     .from("bid_labor")
@@ -169,6 +173,7 @@ export async function PATCH(
       task,
       item,
       proposal_text,
+      proposal_section,
       quantity,
       unit,
       man_hours,

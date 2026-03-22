@@ -38,6 +38,7 @@ type LaborRow = {
   show_as_line_item?: boolean | null;
   hidden_from_proposal?: boolean | null;
   bundle_run_id?: string | null;
+  proposal_section?: string | null;
 };
 
 type BundleRunMeta = {
@@ -49,12 +50,14 @@ type BundleRunMeta = {
 type ProposalRowBase = {
   label: string;
   cost: number;
+  children?: string[];
 };
 
 type ProposalRow = {
   label: string;
   cost: number;
   amount: number;
+  children?: string[];
 };
 
 function cleanText(value?: string | null) {
@@ -129,20 +132,12 @@ function allocateSellAmounts(
 
   return rows.map((row, idx) => {
     if (idx === rows.length - 1) {
-      return {
-        ...row,
-        amount: roundedTotalSell - allocatedRunning,
-      };
+      return { ...row, amount: roundedTotalSell - allocatedRunning };
     }
-
     const rawAmount = (row.cost / totalCost) * roundedTotalSell;
     const amount = Math.round(rawAmount);
     allocatedRunning += amount;
-
-    return {
-      ...row,
-      amount,
-    };
+    return { ...row, amount };
   });
 }
 
@@ -286,58 +281,66 @@ export default function ProposalPage() {
   const proposalRows = useMemo(() => {
     const baseRows: ProposalRowBase[] = [];
     const groupedBundleRunIds = new Set<string>();
+    const groupedSections = new Set<string>();
 
     for (const row of labor) {
       if (row.hidden_from_proposal) continue;
 
       const bundleRunId = row.bundle_run_id || null;
-      const cost =
-        (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
+      const section = row.proposal_section?.trim() || null;
+      const cost = (Number(row.man_hours) || 0) * (Number(row.hourly_rate) || 0);
 
-     if (bundleRunId && row.show_as_line_item !== true) {
-  if (groupedBundleRunIds.has(bundleRunId)) continue;
+      // Bundle rows (not forced to line item) → group under bundle name
+      if (bundleRunId && row.show_as_line_item !== true) {
+        if (groupedBundleRunIds.has(bundleRunId)) continue;
+        groupedBundleRunIds.add(bundleRunId);
 
-  groupedBundleRunIds.add(bundleRunId);
-
-  const bundleRows = labor.filter(
-    (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true && !r.hidden_from_proposal
-  );
-
-  if (bundleRows.length === 0) continue;
+        const bundleRows = labor.filter(
+          (r) => r.bundle_run_id === bundleRunId && r.show_as_line_item !== true && !r.hidden_from_proposal
+        );
+        if (bundleRows.length === 0) continue;
 
         const bundleCost = bundleRows.reduce(
-          (sum, r) =>
-            sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+          (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
           0
         );
+        const bundleName = bundleRunNameMap.get(bundleRunId) || "Bundled Scope";
+        const childLines = bundleRows
+          .map((r) => cleanText(r.proposal_text) || cleanText(r.task))
+          .filter(Boolean);
 
-       const bundleName = bundleRunNameMap.get(bundleRunId) || "Bundled Scope";
-
-const childLines = bundleRows
-  .map((r) => r.proposal_text || r.task || "")
-  .filter(Boolean)
-  .join("~~");
-
-baseRows.push({
-  label: `${bundleName}||${childLines}`,
-  cost: bundleCost,
-});
-
+        baseRows.push({ label: `BUNDLE:${bundleName}`, cost: bundleCost, children: childLines } as any);
         continue;
       }
 
+      // Non-bundle rows with a section → group all same-section rows together
+      if (section && !bundleRunId) {
+        if (groupedSections.has(section)) continue;
+        groupedSections.add(section);
+
+        const sectionRows = labor.filter(
+          (r) => !r.hidden_from_proposal && !r.bundle_run_id && r.proposal_section?.trim() === section
+        );
+        const sectionCost = sectionRows.reduce(
+          (sum, r) => sum + (Number(r.man_hours) || 0) * (Number(r.hourly_rate) || 0),
+          0
+        );
+        const childLines = sectionRows
+          .map((r) => cleanText(r.proposal_text) || cleanText(r.task))
+          .filter(Boolean);
+
+        baseRows.push({ label: `SECTION:${section}`, cost: sectionCost, children: childLines } as any);
+        continue;
+      }
+
+      // Individual line item
       const parts: string[] = [];
       const taskText = cleanText(row.proposal_text) || cleanText(row.task);
       if (taskText) parts.push(taskText);
-
       if ((Number(row.quantity) || 0) > 0 && row.unit) {
         parts.push(`${row.quantity} ${row.unit}`);
       }
-
-    baseRows.push({
-  label: parts.join(" — "),
-  cost,
-});
+      baseRows.push({ label: parts.join(" — "), cost } as any);
     }
 
     return allocateSellAmounts(baseRows, totalDisplayValue);
@@ -456,7 +459,12 @@ baseRows.push({
               </div>
             ) : (
               proposalRows.map((row, idx) => {
-                const [bundle, text] = String(row.label || "").split("||");
+                const label = String(row.label || "");
+                const isBundle = label.startsWith("BUNDLE:");
+                const isSection = label.startsWith("SECTION:");
+                const isGrouped = isBundle || isSection;
+                const groupName = isBundle ? label.slice(7) : isSection ? label.slice(8) : label;
+                const children: string[] = row.children ?? [];
 
                 return (
                   <div
@@ -464,21 +472,19 @@ baseRows.push({
                     className="grid grid-cols-[1fr_150px] border-b border-[#8f8f8f]"
                   >
                     <div className="border-r border-[#8f8f8f] px-4 py-3 text-[14px] leading-[1.55]">
-                      {bundle ? (
+                      {isGrouped ? (
                         <>
-                          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-  {bundle}
-</div>
-
-{text && text !== bundle && (
-  <div style={{ paddingLeft: "18px" }}>- {text}</div>
-)}
+                          <div style={{ fontWeight: 600, marginBottom: children.length ? "4px" : 0 }}>
+                            {groupName}
+                          </div>
+                          {children.map((c, i) => (
+                            <div key={i} style={{ paddingLeft: "16px", color: "#444" }}>— {c}</div>
+                          ))}
                         </>
                       ) : (
-                        <div>{row.label}</div>
+                        <div>{label}</div>
                       )}
                     </div>
-
                     <div className="px-4 py-3 text-right text-[14px]">
                       {moneyDisplay(row.amount)}
                     </div>
