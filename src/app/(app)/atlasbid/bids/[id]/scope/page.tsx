@@ -702,8 +702,8 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
       vendorSources.length === 0 && vendorName && !isInventoryVendor && catalogCost
         ? [{
             source_type: "vendor",
-            source_name: catalogItem.vendor,
-            source_label: catalogItem.vendor,
+            source_name: vendorName,
+            source_label: vendorName,
             source_reference_id: null,
             unit: catalogUnit || materialUnit || "ea",
             cost: catalogCost,
