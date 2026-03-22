@@ -1837,6 +1837,14 @@ async function addLabor() {
   {/* Add row */}
   <div className="space-y-2">
   <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+    {/* Column headers */}
+    <div className="flex items-center gap-2 px-0.5">
+      <div className="flex-1 min-w-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Task</div>
+      <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Qty</div>
+      <div className="w-24 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit</div>
+      <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Hrs</div>
+      <div className="w-[68px] shrink-0" />
+    </div>
     {/* Row 1: task search + numeric controls + add button */}
     <div className="flex items-center gap-2">
       <div className="flex-1 min-w-0" ref={taskDropdownRef}>
@@ -2428,6 +2436,14 @@ async function addLabor() {
             <div className="p-5 space-y-3">
 
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+              {/* Column headers */}
+              <div className="flex items-center gap-2 px-0.5">
+                <div className="flex-1 min-w-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Material</div>
+                <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Qty</div>
+                <div className="w-24 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit</div>
+                <div className="w-28 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit Cost</div>
+                <div className="w-[68px] shrink-0" />
+              </div>
               {/* Row 1: search + qty + unit + unit cost + add */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0" ref={materialDropdownRef}>
