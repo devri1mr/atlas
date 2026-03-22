@@ -17,14 +17,17 @@ export async function GET(req: NextRequest) {
     const q = (searchParams.get("q") || "").trim();
     const category_id = (searchParams.get("category_id") || "").trim();
     const division_id = (searchParams.get("division_id") || "").trim();
-    const include_inactive = searchParams.get("include_inactive") === "true";
+    const include_inactive = searchParams.get("include_inactive");
+    // "true"  → show only inactive
+    // "false" or absent → show only active
 
     let query = supabase
       .from("materials_catalog")
       .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at")
       .order("name", { ascending: true });
 
-    if (!include_inactive) query = query.eq("is_active", true);
+    if (include_inactive === "true") query = query.eq("is_active", false);
+    else query = query.eq("is_active", true);
     if (division_id && isUuid(division_id)) query = query.eq("division_id", division_id);
     if (category_id && isUuid(category_id)) query = query.eq("category_id", category_id);
     if (q) query = query.ilike("name", `%${q}%`);

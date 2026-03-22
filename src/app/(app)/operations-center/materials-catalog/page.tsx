@@ -626,7 +626,7 @@ export default function MaterialsCatalogPage() {
               />
               <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer select-none">
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="rounded" />
-                Show inactive
+                Inactive only
               </label>
               <div className="ml-auto">
                 <button
