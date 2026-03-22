@@ -496,9 +496,9 @@ export default function BidPhotosPage() {
   return (
     <div className="space-y-5">
 
-      {/* ── Tab bar ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+      {/* ── Tab bar + Actions ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 self-start">
           <button onClick={() => setTab("photos")}
             className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${tab === "photos" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
             Photos {photosLoading ? "" : `(${photos.length})`}
@@ -510,7 +510,7 @@ export default function BidPhotosPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           {tab === "photos" && (
             <>
               <button onClick={() => setPdfModal(true)}
@@ -526,7 +526,7 @@ export default function BidPhotosPage() {
               <button onClick={() => { setCompareMode(m => !m); setCompareFirst(null); setCompareSecond(null); }}
                 className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl border transition-colors ${compareMode ? "bg-blue-50 border-blue-300 text-blue-700" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
-                {compareMode ? "Cancel Compare" : "Compare"}
+                {compareMode ? "Cancel" : "Compare"}
               </button>
               <label className="flex items-center gap-2 cursor-pointer bg-[#123b1f] text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-[#1a5c2e] transition-colors">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>

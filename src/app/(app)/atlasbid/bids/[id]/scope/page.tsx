@@ -1864,49 +1864,50 @@ async function addLabor() {
   {/* Add row */}
   <div className="space-y-2">
   <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-    {/* Column headers */}
-    <div className="flex items-center gap-2 px-0.5">
+    {/* Column headers — hidden on mobile, shown on sm+ */}
+    <div className="hidden sm:flex items-center gap-2 px-0.5">
       <div className="flex-1 min-w-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Task</div>
       <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Qty</div>
       <div className="w-24 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit</div>
       <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Hrs</div>
       <div className="w-[68px] shrink-0" />
     </div>
-    {/* Row 1: task search + numeric controls + add button */}
-    <div className="flex items-center gap-2">
-      <div className="flex-1 min-w-0" ref={taskDropdownRef}>
-        <div className="relative">
-          <input
-            className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            placeholder="Search or enter task name…"
-            value={taskSearch}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTaskSearch(v);
-              setTask(v);
-              setShowTaskResults(true);
-              setSelectedTaskCatalogId("");
-              setSelectedTaskMinutesPerUnit(null);
-              setSelectedTaskTemplate("");
-              setDetailsFromTemplate(false);
-            }}
-            onFocus={() => setShowTaskResults(true)}
-          />
-          {showTaskResults && filteredTasks.length > 0 ? (
-            <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
-              {filteredTasks.map((t) => (
-                <div
-                  key={t.id}
-                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
-                  onClick={() => applyTaskSelection(t)}
-                >
-                  {t.name}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+    {/* Task search — full width */}
+    <div className="flex-1 min-w-0" ref={taskDropdownRef}>
+      <div className="relative">
+        <input
+          className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          placeholder="Search or enter task name…"
+          value={taskSearch}
+          onChange={(e) => {
+            const v = e.target.value;
+            setTaskSearch(v);
+            setTask(v);
+            setShowTaskResults(true);
+            setSelectedTaskCatalogId("");
+            setSelectedTaskMinutesPerUnit(null);
+            setSelectedTaskTemplate("");
+            setDetailsFromTemplate(false);
+          }}
+          onFocus={() => setShowTaskResults(true)}
+        />
+        {showTaskResults && filteredTasks.length > 0 ? (
+          <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
+            {filteredTasks.map((t) => (
+              <div
+                key={t.id}
+                className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                onClick={() => applyTaskSelection(t)}
+              >
+                {t.name}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
+    </div>
+    {/* Qty / Unit / Hrs / Add — single row on all sizes */}
+    <div className="flex items-center gap-2">
       <div className="w-20 shrink-0">
         <input
           className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -2061,7 +2062,7 @@ async function addLabor() {
         return (
           <div key={row.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
             {/* Row 1: show checkbox + task name + controls + total + delete */}
-            <div className="flex items-center gap-2 px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
               {(() => {
                 const isHidden = !!row.hidden_from_proposal;
                 const toggleHidden = async () => {
@@ -2367,7 +2368,7 @@ async function addLabor() {
               return (
                 <div key={row.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                   {/* Row 1: show + task + controls */}
-                  <div className="flex items-center gap-2 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                     <input
                       className="w-4 h-4 shrink-0 accent-green-700"
                       type="checkbox"

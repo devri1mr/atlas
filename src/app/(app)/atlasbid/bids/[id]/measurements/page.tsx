@@ -510,7 +510,7 @@ export default function MeasurementsPage() {
 
       <div className="space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-[#0d2616]">Property Measurements</h2>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -518,7 +518,7 @@ export default function MeasurementsPage() {
               {buildingLoaded && <span className="ml-1 text-yellow-600 font-medium">· Building outline loaded</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             {measurements.length > 0 && (
               <>
                 {totalSqft > 0 && (
@@ -546,10 +546,10 @@ export default function MeasurementsPage() {
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">{error}</div>
         )}
 
-        <div className="flex gap-4">
+        <div className="flex flex-col lg:flex-row gap-4">
           {/* Map */}
           <div className="flex-1 min-w-0 space-y-2">
-            <div className="rounded-xl overflow-hidden border border-[#d7e6db] shadow-sm" style={{ height: 520 }}>
+            <div className="rounded-xl overflow-hidden border border-[#d7e6db] shadow-sm" style={{ height: "min(520px, 55vw)" }}>
               {!mapsLoaded && (
                 <div className="w-full h-full flex items-center justify-center bg-[#f6f8f6]">
                   <div className="text-center space-y-2">
@@ -562,7 +562,7 @@ export default function MeasurementsPage() {
             </div>
 
             {/* Draw buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => drawMode === "polygon" ? cancelDraw() : activateDrawMode("polygon")}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all ${
@@ -606,7 +606,7 @@ export default function MeasurementsPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="w-72 shrink-0 flex flex-col gap-3">
+          <div className="w-full lg:w-72 shrink-0 flex flex-col gap-3">
 
             {/* Pending shape — label form */}
             {pendingShape && (

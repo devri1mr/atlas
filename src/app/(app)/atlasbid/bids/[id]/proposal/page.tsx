@@ -376,11 +376,12 @@ export default function ProposalPage() {
     prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
 
   return (
-    <div className="bg-white px-6 py-8">
+    <div className="bg-white py-4 sm:py-8 overflow-x-auto">
       <div
         className="mx-auto bg-white text-black"
         style={{
           width: "8.5in",
+          minWidth: "8.5in",
           minHeight: "11in",
           padding: "0.55in 0.7in 0.55in 0.7in",
           boxSizing: "border-box",
