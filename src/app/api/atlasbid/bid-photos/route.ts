@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("bid_photos")
-    .select("id, bid_id, storage_path, file_name, file_size, content_type, created_at")
+    .select("id, bid_id, storage_path, file_name, file_size, content_type, caption, tags, lat, lng, created_at")
     .eq("bid_id", bidId)
     .order("created_at", { ascending: false });
 
@@ -83,6 +83,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
       }
 
+      const latRaw = formData.get("lat");
+      const lngRaw = formData.get("lng");
+      const lat = latRaw ? parseFloat(String(latRaw)) : null;
+      const lng = lngRaw ? parseFloat(String(lngRaw)) : null;
+
       const { data: row, error: insertError } = await supabase
         .from("bid_photos")
         .insert({
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
           file_name: file.name.replace(/\.[^.]+$/, ".jpg"),
           file_size: compressed.length,
           content_type: "image/jpeg",
+          ...(lat != null && lng != null ? { lat, lng } : {}),
         })
         .select("*")
         .single();
