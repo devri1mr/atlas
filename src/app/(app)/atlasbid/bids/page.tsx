@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type BidRow = {
   id: string;
@@ -57,6 +58,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function BidsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<BidRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -319,9 +321,12 @@ export default function BidsPage() {
                     return (
                       <tr
                         key={b.id}
-                        className={`border-b border-gray-50 last:border-0 transition-colors ${isSelected ? "bg-green-50/50" : "hover:bg-gray-50/50"}`}
+                        onClick={() => router.push(`/atlasbid/bids/${b.id}`)}
+                        className={`border-b border-gray-50 last:border-0 transition-all cursor-pointer group ${
+                          isSelected ? "bg-green-50" : "hover:bg-[#f0f7f2]"
+                        }`}
                       >
-                        <td className="pl-5 pr-3 py-3.5">
+                        <td className="pl-5 pr-3 py-3.5" onClick={e => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -329,7 +334,7 @@ export default function BidsPage() {
                             className="rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
                           />
                         </td>
-                        <td className="px-4 py-3.5 font-medium text-gray-900 whitespace-nowrap">{name}</td>
+                        <td className="px-4 py-3.5 font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#123b1f]">{name}</td>
                         <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap text-center">{b.divisions?.name ?? "—"}</td>
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
                           {b.city || b.state
@@ -354,13 +359,13 @@ export default function BidsPage() {
                         </td>
                         <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap text-center">{b.created_by_name || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap text-center">{fmtDate(b.created_at)}</td>
-                        <td className="px-4 py-3.5 text-right">
+                        <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => duplicateBid(b.id)}
                               disabled={duplicatingId === b.id}
                               title="Duplicate bid"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-white hover:border-gray-300 transition-all disabled:opacity-50"
                             >
                               {duplicatingId === b.id ? (
                                 <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
@@ -368,10 +373,11 @@ export default function BidsPage() {
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                               )}
                             </button>
-                            <Link href={`/atlasbid/bids/${b.id}`}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
-                              Open
-                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9L9 3M9 3H5M9 3v4"/></svg>
+                            <Link
+                              href={`/atlasbid/bids/${b.id}`}
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#123b1f] text-white text-xs font-semibold hover:bg-[#1a5c2e] transition-all whitespace-nowrap opacity-0 group-hover:opacity-100">
+                              Open →
                             </Link>
                           </div>
                         </td>
