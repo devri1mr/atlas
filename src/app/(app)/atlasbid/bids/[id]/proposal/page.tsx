@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 type BidRow = {
@@ -375,16 +375,41 @@ export default function ProposalPage() {
   const showPrepaySection =
     prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [docHeight, setDocHeight] = useState(0);
+  const DOC_WIDTH = 816; // 8.5in at 96dpi
+
+  useEffect(() => {
+    function measure() {
+      if (!wrapperRef.current || !docRef.current) return;
+      const w = wrapperRef.current.clientWidth;
+      const s = w < DOC_WIDTH ? w / DOC_WIDTH : 1;
+      setScale(s);
+      setDocHeight(docRef.current.scrollHeight);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [proposalRows]); // re-measure when content changes
+
   return (
-    <div className="bg-white py-4 sm:py-8 overflow-x-auto">
+    <div
+      ref={wrapperRef}
+      className="bg-white py-4 sm:py-8 overflow-hidden"
+      style={{ height: scale < 1 && docHeight ? docHeight * scale + 32 : undefined }}
+    >
       <div
+        ref={docRef}
         className="mx-auto bg-white text-black"
         style={{
-          width: "8.5in",
-          minWidth: "8.5in",
+          width: DOC_WIDTH,
           minHeight: "11in",
           padding: "0.55in 0.7in 0.55in 0.7in",
           boxSizing: "border-box",
+          transformOrigin: "top left",
+          transform: scale < 1 ? `scale(${scale})` : undefined,
         }}
       >
         <div className="flex items-start justify-between">
