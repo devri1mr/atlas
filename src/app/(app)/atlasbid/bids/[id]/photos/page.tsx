@@ -868,15 +868,15 @@ export default function BidPhotosPage() {
             </button>
           </div>
 
-          <div className="flex-1 flex items-center justify-center bg-black">
+          <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center bg-black">
             {!recordedBlob ? (
-              <video ref={liveVideoRef} autoPlay muted playsInline className="max-w-full max-h-full" />
+              <video ref={liveVideoRef} autoPlay muted playsInline className="max-w-full max-h-full object-contain" />
             ) : (
-              <video ref={previewVideoRef} controls playsInline className="max-w-full max-h-full rounded-lg" />
+              <video ref={previewVideoRef} controls playsInline className="max-w-full max-h-full object-contain rounded-lg" />
             )}
           </div>
 
-          <div className="bg-gray-900 px-6 py-5 flex flex-col items-center gap-3">
+          <div className="shrink-0 bg-gray-900 px-6 py-5 flex flex-col items-center gap-3">
             {!recordedBlob ? (
               <>
                 {recording && (
