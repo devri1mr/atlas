@@ -1,5 +1,23 @@
 // src/app/atlasbid/bids/[id]/layout.tsx
 import BidTabs from "./BidTabs";
+import ProjectNameBadge from "@/components/ProjectNameBadge";
+import { createClient } from "@supabase/supabase-js";
+
+async function getBidProjectName(id: string): Promise<string | null> {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+    const { data } = await supabase
+      .from("bids")
+      .select("project_name")
+      .eq("id", id)
+      .single();
+    return data?.project_name ?? null;
+  } catch { return null; }
+}
 
 export default async function BidLayout({
   children,
@@ -9,6 +27,7 @@ export default async function BidLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const projectName = await getBidProjectName(id);
 
   const tabs = [
     { name: "Overview", href: `/atlasbid/bids/${id}` },
@@ -29,6 +48,7 @@ export default async function BidLayout({
             alt="AtlasBid"
             className="h-20 sm:h-40 md:h-56 w-auto object-contain"
           />
+          <ProjectNameBadge bidId={id} initialName={projectName} />
           <BidTabs tabs={tabs} />
         </div>
 

@@ -9,6 +9,7 @@ type BidRow = {
   client_name: string | null;
   client_last_name: string | null;
   customer_name: string | null;
+  project_name: string | null;
   created_at: string | null;
   created_by_name: string | null;
   city: string | null;
@@ -102,6 +103,7 @@ export default function BidsPage() {
     return rows.filter(b =>
       !q ||
       clientName(b).toLowerCase().includes(q) ||
+      (b.project_name ?? "").toLowerCase().includes(q) ||
       (b.city ?? "").toLowerCase().includes(q) ||
       (b.divisions?.name ?? "").toLowerCase().includes(q) ||
       (b.statuses?.name ?? "").toLowerCase().includes(q)
@@ -300,6 +302,9 @@ export default function BidsPage() {
                         <span className="font-semibold text-gray-900 truncate">{name}</span>
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 ${badgeCls}`}>{b.statuses?.name ?? "Draft"}</span>
                       </div>
+                      {b.project_name && (
+                        <div className="text-xs text-[#16a34a] font-medium truncate mt-0.5">{b.project_name}</div>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
                         {(b.city || b.state) && <span className="truncate">{[b.city, b.state].filter(Boolean).join(", ")}</span>}
                         {b.divisions?.name && <span className="text-gray-300">·</span>}
@@ -332,6 +337,7 @@ export default function BidsPage() {
                       />
                     </th>
                     <Th label="Client" k="client" />
+                    <th className="px-4 py-3 font-semibold text-left whitespace-nowrap text-xs text-gray-400 uppercase tracking-wider">Project</th>
                     <Th label="Division" k="division" align="center" />
                     <Th label="Location" k="location" />
                     <Th label="Value" k="value" align="center" />
@@ -369,6 +375,7 @@ export default function BidsPage() {
                           />
                         </td>
                         <td className="px-4 py-3.5 font-semibold text-gray-900 whitespace-nowrap group-hover:text-[#123b1f]">{name}</td>
+                        <td className="px-4 py-3.5 text-[#16a34a] text-sm whitespace-nowrap">{b.project_name ?? <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap text-center">{b.divisions?.name ?? "—"}</td>
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">
                           {b.city || b.state

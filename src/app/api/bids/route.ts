@@ -24,6 +24,7 @@ export async function GET() {
       client_name,
       client_last_name,
       customer_name,
+      project_name,
       created_at,
       created_by_name,
       status_id,
