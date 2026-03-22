@@ -830,6 +830,21 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
   }
 }
 
+  // Suggest a labor row qty match when a material is selected
+  const laborQtyMatch = useMemo(() => {
+    if (!materialName.trim() || materialQty > 0) return null;
+    const keywords = materialName
+      .toLowerCase()
+      .replace(/[-–—]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !["with", "hand", "skid", "mini", "install", "from", "into", "ball", "cart", "walk", "behind"].includes(w));
+    if (!keywords.length) return null;
+    return labor.find((row) => {
+      const taskLower = (row.task || "").toLowerCase();
+      return keywords.some((kw) => taskLower.includes(kw));
+    }) ?? null;
+  }, [materialName, materialQty, labor]);
+
   // Labor math
   const laborSubtotal = useMemo(() => {
     return labor.reduce(
@@ -2520,6 +2535,23 @@ async function addLabor() {
                   Add
                 </button>
               </div>
+              {/* Labor qty match suggestion */}
+              {laborQtyMatch && laborQtyMatch.quantity > 0 && (
+                <div className="flex items-center gap-1.5 text-xs px-0.5">
+                  <span className="text-gray-400">↩ from labor:</span>
+                  <span className="font-medium text-gray-600 truncate max-w-[180px]">{laborQtyMatch.task}</span>
+                  <button
+                    type="button"
+                    className="ml-auto shrink-0 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-0.5 text-emerald-700 font-semibold hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                    onClick={() => {
+                      setMaterialQty(laborQtyMatch.quantity);
+                      if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit);
+                    }}
+                  >
+                    Use {laborQtyMatch.quantity} {laborQtyMatch.unit}
+                  </button>
+                </div>
+              )}
               {/* Row 2: source + details */}
               <div className="flex items-center gap-2">
                 <div className="flex-1">
