@@ -187,22 +187,16 @@ export default function PricingBooksPage() {
   }
 
   // ── PDF View ─────────────────────────────────────────────────────────────────
-  async function handleView(book: PricingBook) {
+  function handleView(book: PricingBook) {
+    // Proxy URL keeps Atlas domain in the address bar (no Supabase URLs exposed)
+    const proxyUrl = `/api/materials-catalog/pricing-books/${book.id}/view`;
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
-    // Open the window synchronously before any await so the browser doesn't
-    // treat it as a popup (async calls break the user-gesture chain)
-    const win = isMobile ? window.open("", "_blank") : null;
-
-    const res = await fetch(`/api/materials-catalog/pricing-books/${book.id}`);
-    const json = await res.json();
-    if (!json.url) { win?.close(); return; }
-
-    if (isMobile && win) {
-      // iOS Safari iframes only show page 1 — use native PDF viewer
-      win.location.href = json.url;
+    if (isMobile) {
+      // iOS Safari iframes only show page 1 — open in native PDF viewer
+      window.open(proxyUrl, "_blank", "noopener,noreferrer");
     } else {
-      setViewingUrl(json.url);
+      setViewingUrl(proxyUrl);
       setViewingName(book.name);
     }
   }
