@@ -89,8 +89,8 @@ export default function AtlasPerformancePage() {
 
   const cell: React.CSSProperties = {
     fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-    fontSize: 11,
-    padding: "3px 5px",
+    fontSize: 12,
+    padding: "4px 5px",
     border: `1px solid ${GRID}`,
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -153,10 +153,10 @@ export default function AtlasPerformancePage() {
     <td style={{
       ...cell,
       background: bg,
-      fontSize: 11,
-      fontWeight: italic ? 500 : 600,
+      fontSize: 12,
+      fontWeight: italic ? 500 : 700,
       fontStyle: italic ? "italic" : "normal",
-      color: italic ? "#6b7280" : "#374151",
+      color: italic ? "#6b7280" : "#1f2937",
       textAlign: "left",
       paddingLeft: 14,
       borderRight: `2px solid ${GRID}`,
@@ -168,34 +168,48 @@ export default function AtlasPerformancePage() {
   /* ── Money cell (month columns — abbreviated) ── */
   const MC = ({ v, bg, color, bold, italic, idx }: {
     v: number; bg: string; color: string; bold?: boolean; italic?: boolean; idx: number;
-  }) => (
-    <td style={{
-      ...cell,
-      ...curBorder(idx),
-      background: bg,
-      color,
-      fontWeight: bold ? 700 : italic ? 500 : 400,
-      fontStyle: italic ? "italic" : "normal",
-      textAlign: "center",
-    }}>
-      {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
-    </td>
-  );
+  }) => {
+    const isCur = idx === currentMonth;
+    const isPast = idx < currentMonth;
+    let fontWeight: number;
+    if (bold) fontWeight = isCur ? 800 : isPast ? 700 : 400;
+    else if (italic) fontWeight = isCur ? 600 : isPast ? 500 : 400;
+    else fontWeight = isCur ? 600 : isPast ? 500 : 400;
+    return (
+      <td style={{
+        ...cell,
+        ...curBorder(idx),
+        background: bg,
+        color: idx > currentMonth && v === 0 ? "#e5e7eb" : color,
+        fontWeight,
+        fontStyle: italic ? "italic" : "normal",
+        fontSize: isCur ? 13 : 12,
+        textAlign: "center",
+      }}>
+        {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
+      </td>
+    );
+  };
 
   /* ── Pct cell ── */
-  const PC = ({ v, bg, italic, idx }: { v: number | null; bg: string; italic?: boolean; idx: number }) => (
-    <td style={{
-      ...cell,
-      ...curBorder(idx),
-      background: bg,
-      color: pctColor(v),
-      fontStyle: italic ? "italic" : "normal",
-      fontSize: 11,
-      textAlign: "center",
-    }}>
-      {fmtPct(v)}
-    </td>
-  );
+  const PC = ({ v, bg, italic, idx }: { v: number | null; bg: string; italic?: boolean; idx: number }) => {
+    const isCur = idx === currentMonth;
+    const isPast = idx < currentMonth;
+    return (
+      <td style={{
+        ...cell,
+        ...curBorder(idx),
+        background: bg,
+        color: pctColor(v),
+        fontStyle: italic ? "italic" : "normal",
+        fontWeight: isCur ? 700 : isPast ? 500 : 400,
+        fontSize: isCur ? 12 : 11,
+        textAlign: "center",
+      }}>
+        {fmtPct(v)}
+      </td>
+    );
+  };
 
   /* ── Total cell ── */
   const TC = ({ v, color, bold, italic }: { v: number; color: string; bold?: boolean; italic?: boolean }) => (
@@ -203,11 +217,11 @@ export default function AtlasPerformancePage() {
       ...cell,
       background: totalBg(),
       color,
-      fontWeight: bold ? 700 : italic ? 500 : 400,
+      fontWeight: bold ? 800 : italic ? 500 : 600,
       fontStyle: italic ? "italic" : "normal",
       textAlign: "center",
       borderLeft: `2px solid #d1d5db`,
-      fontSize: 11,
+      fontSize: 13,
     }}>
       {v === 0 ? <span style={{ color: "#d1d5db" }}>—</span> : fmt$(v)}
     </td>
