@@ -626,7 +626,7 @@ async function mergeMaterialRow(
       })
       .slice(0, 20);
   }, [materialSearch, materialsCatalog]);
-async function loadMaterialSources(materialId: string) {
+async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCatalogRow) {
   try {
     if (!materialId) {
       setMaterialSources([]);
@@ -650,21 +650,31 @@ async function loadMaterialSources(materialId: string) {
     const inventoryJson = await inventoryRes.json();
     const vendorJson = await vendorRes.json();
 
+    const catalogCost = typeof catalogItem?.default_unit_cost === "number" && catalogItem.default_unit_cost > 0
+      ? catalogItem.default_unit_cost
+      : null;
+    const catalogUnit = catalogItem?.default_unit || null;
+
     const inventorySources = Array.isArray(inventoryJson?.data)
-      ? inventoryJson.data.map((s: any) => ({
-          source_type: "inventory",
-          source_name: s.source_label || "Inventory",
-          source_label: s.source_label || "Inventory",
-          source_reference_id: s.source_reference_id || null,
-          unit: s.unit || materialUnit || "ea",
-          cost: Number(s.avg_unit_cost ?? s.unit_cost) || 0,
-          available_qty:
-            s.qty_on_hand === null || s.qty_on_hand === undefined
-              ? null
-              : Number(s.qty_on_hand),
-          preferred: true,
-          negative_flag: Boolean(s.negative_flag),
-        }))
+      ? inventoryJson.data.map((s: any) => {
+          const rawCost = Number(s.avg_unit_cost ?? s.unit_cost);
+          // Fall back to catalog cost when inventory has $0
+          const cost = rawCost > 0 ? rawCost : (catalogCost ?? 0);
+          return {
+            source_type: "inventory",
+            source_name: s.source_label || "Inventory",
+            source_label: s.source_label || "Inventory",
+            source_reference_id: s.source_reference_id || null,
+            unit: s.unit || catalogUnit || materialUnit || "ea",
+            cost,
+            available_qty:
+              s.qty_on_hand === null || s.qty_on_hand === undefined
+                ? null
+                : Number(s.qty_on_hand),
+            preferred: true,
+            negative_flag: Boolean(s.negative_flag),
+          };
+        })
       : [];
 
     const vendorSources = Array.isArray(vendorJson?.data)
@@ -673,7 +683,7 @@ async function loadMaterialSources(materialId: string) {
           source_name: s.source_name || s.source_label || "Vendor",
           source_label: s.source_label || s.source_name || "Vendor",
           source_reference_id: s.source_reference_id || null,
-          unit: s.unit || materialUnit || "ea",
+          unit: s.unit || catalogUnit || materialUnit || "ea",
           cost: Number(s.cost) || 0,
           available_qty:
             s.available_qty === null || s.available_qty === undefined
@@ -684,7 +694,24 @@ async function loadMaterialSources(materialId: string) {
         }))
       : [];
 
-    const sources = [...inventorySources, ...vendorSources];
+    // If no vendor records exist in material-sources but catalog has a vendor name,
+    // synthesize a vendor source from the catalog data
+    const syntheticVendorSources =
+      vendorSources.length === 0 && catalogItem?.vendor && catalogCost
+        ? [{
+            source_type: "vendor",
+            source_name: catalogItem.vendor,
+            source_label: catalogItem.vendor,
+            source_reference_id: null,
+            unit: catalogUnit || materialUnit || "ea",
+            cost: catalogCost,
+            available_qty: null,
+            preferred: true,
+            negative_flag: false,
+          }]
+        : [];
+
+    const sources = [...inventorySources, ...vendorSources, ...syntheticVendorSources];
 
     setMaterialSources(sources);
 
@@ -693,6 +720,7 @@ async function loadMaterialSources(materialId: string) {
       return;
     }
 
+    // Prefer inventory if available, then preferred vendor, then cheapest
     let chosenIndex = sources.findIndex((s: any) => s.source_type === "inventory");
 
     if (chosenIndex === -1) {
@@ -710,7 +738,7 @@ async function loadMaterialSources(materialId: string) {
     setSelectedSourceIndex(chosenIndex);
 
     if (src.unit) setMaterialUnit(src.unit);
-    if (src.cost !== undefined) setMaterialCost(Number(src.cost) || 0);
+    if (src.cost > 0) setMaterialCost(Number(src.cost.toFixed(2)));
   } catch {
     setMaterialSources([]);
     setSelectedSourceIndex(null);
@@ -785,7 +813,7 @@ async function loadMaterialSources(materialId: string) {
   setShowMaterialResults(false);
 
   // Load pricing sources using inventory material id (needed for inventory/vendor prices)
-  if (matId) loadMaterialSources(matId);
+  if (matId) loadMaterialSources(matId, m);
 
   setMaterialUnit(m.default_unit || "ea");
   const cost = m.default_unit_cost;
