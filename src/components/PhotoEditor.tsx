@@ -136,8 +136,8 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     ctx.filter = "none";
 
-    for (const ann of anns) drawAnnotation(ctx, ann);
-    if (inProg) drawAnnotation(ctx, inProg);
+    for (const ann of anns) { try { drawAnnotation(ctx, ann); } catch {} }
+    if (inProg) { try { drawAnnotation(ctx, inProg); } catch {} }
 
     // Crop overlay
     if (tool === "crop" && cropRect.current) {
@@ -292,15 +292,17 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
       return;
     }
 
-    if (inProgress.current) {
+    // Capture and clear before any async work
+    const completed = inProgress.current;
+    inProgress.current = null;
+
+    if (completed) {
       pushHistory();
       setAnnotations(prev => {
-        const next = [...prev, inProgress.current!];
-        inProgress.current = null;
+        const next = [...prev, completed];
         redraw(next, null);
         return next;
       });
-      inProgress.current = null;
     }
   }
 
@@ -332,7 +334,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
       ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
       ctx.drawImage(img, 0, 0);
       ctx.filter = "none";
-      for (const ann of annotations) drawAnnotation(ctx, ann);
+      for (const ann of annotations) { try { drawAnnotation(ctx, ann); } catch {} }
 
       const blob = await new Promise<Blob>((res, rej) =>
         off.toBlob(b => b ? res(b) : rej(new Error("Canvas export failed")), "image/jpeg", 0.92)
