@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 
@@ -12,6 +12,8 @@ type PricingBook = {
   file_path: string;
   file_type: "pdf" | "xlsx" | "xls" | "csv";
   file_size: number | null;
+  logo_path: string | null;
+  logo_url?: string | null;
   created_at: string;
   url: string | null;
 };
@@ -306,9 +308,64 @@ export default function PricingBooksPage() {
     setImportError(null);
   }
 
+  // ── Logo upload ───────────────────────────────────────────────────────────────
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoTargetId, setLogoTargetId] = useState<string | null>(null);
+
+  function triggerLogoUpload(bookId: string) {
+    setLogoTargetId(bookId);
+    logoInputRef.current?.click();
+  }
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !logoTargetId) return;
+    e.target.value = "";
+
+    try {
+      const presignRes = await fetch("/api/materials-catalog/pricing-books/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name }),
+      });
+      const presignJson = await presignRes.json();
+      if (!presignRes.ok) throw new Error(presignJson.error || "Could not get upload URL");
+
+      const uploadRes = await fetch(presignJson.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(`Logo upload failed (${uploadRes.status})`);
+
+      const patchRes = await fetch(`/api/materials-catalog/pricing-books/${logoTargetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo_path: presignJson.path }),
+      });
+      if (!patchRes.ok) throw new Error("Failed to save logo");
+
+      // Generate a local object URL for immediate display, then reload
+      const logoUrl = URL.createObjectURL(file);
+      setBooks(prev => prev.map(b => b.id === logoTargetId ? { ...b, logo_url: logoUrl, logo_path: presignJson.path } : b));
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setLogoTargetId(null);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Hidden logo file input */}
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleLogoFile}
+      />
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
@@ -341,6 +398,26 @@ export default function PricingBooksPage() {
               const canImport = ["xlsx", "xls", "csv"].includes(book.file_type);
               return (
                 <div key={book.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+                  {/* Logo area */}
+                  <div
+                    className="relative h-20 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center cursor-pointer group overflow-hidden"
+                    onClick={() => triggerLogoUpload(book.id)}
+                    title="Click to upload logo"
+                  >
+                    {book.logo_url ? (
+                      <>
+                        <img src={book.logo_url} alt="logo" className="max-h-16 max-w-full object-contain px-2" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-xs text-white bg-black/50 px-2 py-0.5 rounded transition-opacity">Change</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center">
+                        <div className="text-2xl text-gray-300">🖼</div>
+                        <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">Add logo</span>
+                      </div>
+                    )}
+                  </div>
                   {/* Top row */}
                   <div className="flex items-start justify-between gap-2">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${badge.bg} ${badge.text}`}>{badge.label}</span>

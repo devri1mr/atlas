@@ -22,7 +22,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("pricing_books")
-      .select("id, name, vendor, file_path, file_type, file_size, created_at")
+      .select("id, name, vendor, file_path, file_type, file_size, logo_path, created_at")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
 
@@ -33,7 +33,14 @@ export async function GET() {
         const { data: urlData } = await supabase.storage
           .from(BUCKET)
           .createSignedUrl(book.file_path, 3600);
-        return { ...book, url: urlData?.signedUrl ?? null };
+        let logo_url: string | null = null;
+        if (book.logo_path) {
+          const { data: logoUrlData } = await supabase.storage
+            .from(BUCKET)
+            .createSignedUrl(book.logo_path, 3600);
+          logo_url = logoUrlData?.signedUrl ?? null;
+        }
+        return { ...book, url: urlData?.signedUrl ?? null, logo_url };
       })
     );
 

@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 const BUCKET = "pricing-books";
 const ALLOWED_EXTENSIONS: Record<string, string> = {
   pdf: "pdf", xlsx: "xlsx", xls: "xls", csv: "csv",
+  png: "png", jpg: "jpg", jpeg: "jpg", gif: "gif", webp: "webp",
 };
 
 async function getCompanyId(supabase: ReturnType<typeof supabaseAdmin>) {
