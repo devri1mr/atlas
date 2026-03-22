@@ -187,7 +187,7 @@ export default function PricingBooksPage() {
       let headers: string[] = [];
       let rows: string[][] = [];
 
-      if (book.file_type === "csv" || book.file_type === "txt") {
+      if (book.file_type === "csv" || (book.file_type as string) === "txt") {
         const text = new TextDecoder().decode(buffer);
         const result = Papa.parse<string[]>(text, { skipEmptyLines: true });
         const all = result.data as string[][];
