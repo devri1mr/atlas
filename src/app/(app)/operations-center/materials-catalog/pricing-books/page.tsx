@@ -188,10 +188,15 @@ export default function PricingBooksPage() {
 
   // ── PDF View ─────────────────────────────────────────────────────────────────
   async function handleView(book: PricingBook) {
-    // Refresh signed URL
     const res = await fetch(`/api/materials-catalog/pricing-books/${book.id}`);
     const json = await res.json();
-    if (json.url) {
+    if (!json.url) return;
+
+    // iOS Safari iframes only show page 1 — open in native PDF viewer on mobile
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (isMobile) {
+      window.open(json.url, "_blank", "noopener,noreferrer");
+    } else {
       setViewingUrl(json.url);
       setViewingName(book.name);
     }
