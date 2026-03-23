@@ -23,6 +23,7 @@ type Mark = {
   points: { x: number; y: number }[] | null; value: number | null; label: string | null;
 };
 type Tool = "select" | "count" | "area" | "length";
+type ProcessStep = { step: string; status: "running" | "done" | "error"; detail?: string };
 
 const BUCKET = "takeoff-plans";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -55,6 +56,8 @@ export default function TakeoffEditorPage() {
   const [aiParsing,    setAiParsing]    = useState(false);
   const [aiScopeScanning, setAiScopeScanning] = useState(false);
   const [aiStatus,     setAiStatus]     = useState("");
+  const [autoProcessing, setAutoProcessing] = useState(false);
+  const [autoProcessSteps, setAutoProcessSteps] = useState<ProcessStep[]>([]);
   const [showAddItem,  setShowAddItem]  = useState(false);
   const [newItemForm,  setNewItemForm]  = useState({ common_name: "", category: "tree", color: "#15803d" });
   const [inProgressPts, setInProgressPts] = useState<{ x: number; y: number }[]>([]);
@@ -438,6 +441,49 @@ export default function TakeoffEditorPage() {
     }
   }
 
+  /* ── One-click Auto Process ── */
+  async function runAutoProcess() {
+    if (!takeoff?.plan_image_path && !takeoff?.plan_storage_path) {
+      alert("Upload a plan first.");
+      return;
+    }
+    setAutoProcessing(true);
+    setAutoProcessSteps([
+      { step: "Parsing plant schedule…", status: "running" },
+    ]);
+
+    try {
+      const res = await fetch(`/api/takeoff/${id}/auto-process`, { method: "POST" });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setAutoProcessSteps([{ step: "Error", status: "error", detail: json.error ?? "Unknown error" }]);
+        return;
+      }
+
+      const steps: ProcessStep[] = (json.steps ?? []).map((s: any) => ({
+        step: s.step,
+        status: s.status === "ok" || s.status === "skipped" ? "done" : "error",
+        detail: s.detail,
+      }));
+      setAutoProcessSteps(steps);
+
+      // Reload items
+      const ir = await fetch(`/api/takeoff/${id}/items`).then(r => r.json());
+      setItems(ir.data ?? []);
+
+      // Auto-navigate after short delay so user can see the results
+      setTimeout(() => {
+        setAutoProcessSteps([]);
+        router.push(`/atlastakeoff/${id}/autotakeoff`);
+      }, 3000);
+    } catch (e: any) {
+      setAutoProcessSteps([{ step: "Error", status: "error", detail: e.message }]);
+    } finally {
+      setAutoProcessing(false);
+    }
+  }
+
   /* ── Add item manually ── */
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
@@ -585,44 +631,49 @@ export default function TakeoffEditorPage() {
            : takeoff?.plan_file_name ? `📄 ${takeoff.plan_file_name.slice(0, 20)}…` : "⬆ Upload Plan"}
         </button>
 
-        {/* AI Parse */}
+        {/* ⚡ One-click AutoTakeoff */}
+        {(takeoff?.plan_image_path || takeoff?.plan_storage_path) && (
+          <button
+            onClick={runAutoProcess}
+            disabled={autoProcessing}
+            style={{
+              background: autoProcessing
+                ? "rgba(234,179,8,0.3)"
+                : "linear-gradient(135deg,#ca8a04,#d97706)",
+              border: "none", borderRadius: 8, padding: "7px 16px",
+              color: "#fff", cursor: autoProcessing ? "not-allowed" : "pointer",
+              fontSize: 12, fontWeight: 700,
+              display: "flex", alignItems: "center", gap: 6,
+              boxShadow: autoProcessing ? "none" : "0 2px 10px rgba(202,138,4,0.4)",
+            }}
+          >
+            {autoProcessing ? (
+              <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Processing…</>
+            ) : "⚡ AutoTakeoff"}
+          </button>
+        )}
+
+        {/* Manual Parse — secondary */}
         {takeoff?.plan_image_path && (
           <button
             onClick={runAiParse}
             disabled={aiParsing}
+            title="Parse plant schedule only"
             style={{
-              background: aiParsing ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg,#7c3aed,#6d28d9)",
-              border: "none", borderRadius: 8, padding: "7px 14px",
-              color: "#fff", cursor: aiParsing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600,
-              display: "flex", alignItems: "center", gap: 6,
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 12px",
+              color: "rgba(255,255,255,0.55)", cursor: aiParsing ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 5,
             }}
           >
             {aiParsing ? (
-              <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Parsing…</>
-            ) : "✦ AI Parse Schedule"}
-          </button>
-        )}
-
-        {/* Scope Scan */}
-        {takeoff?.plan_image_path && (
-          <button
-            onClick={runScopeScan}
-            disabled={aiScopeScanning}
-            style={{
-              background: aiScopeScanning ? "rgba(20,184,166,0.3)" : "linear-gradient(135deg,#0d9488,#0f766e)",
-              border: "none", borderRadius: 8, padding: "7px 14px",
-              color: "#fff", cursor: aiScopeScanning ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600,
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            {aiScopeScanning ? (
-              <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Scanning…</>
-            ) : "◆ Scan Scope"}
+              <><span style={{ width: 10, height: 10, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Parsing…</>
+            ) : "✦ Parse"}
           </button>
         )}
         {aiStatus && <span style={{ fontSize: 11, color: "#4ade80", fontWeight: 600 }}>{aiStatus}</span>}
 
-        {/* Handoff */}
+        {/* Go to AutoTakeoff review */}
         {items.length > 0 && (
           <button
             onClick={() => router.push(`/atlastakeoff/${id}/autotakeoff`)}
@@ -632,7 +683,7 @@ export default function TakeoffEditorPage() {
               color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
             }}
           >
-            AutoTakeoff →
+            Review →
           </button>
         )}
       </div>
@@ -972,6 +1023,84 @@ export default function TakeoffEditorPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── AutoProcess progress overlay ── */}
+      {(autoProcessing || autoProcessSteps.length > 0) && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 300,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}>
+          <div style={{
+            background: "#0f1923", borderRadius: 18, padding: 32, width: "100%", maxWidth: 480,
+            boxShadow: "0 24px 80px rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+              <div style={{
+                width: 46, height: 46, borderRadius: 12,
+                background: "linear-gradient(135deg,#ca8a04,#d97706)",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+                flexShrink: 0,
+              }}>⚡</div>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>AutoTakeoff</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                  {autoProcessing ? "AI is processing your blueprint…" : "Complete — navigating to review…"}
+                </div>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {autoProcessing && autoProcessSteps.length === 0 ? (
+                /* Initial pulse while waiting for first response */
+                ["Parsing plant schedule", "Scanning scope notes", "Measuring areas", "Matching catalog"].map((label, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)" }}>
+                    <span style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0, display: "inline-block" }} />
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)" }}>{label}</span>
+                  </div>
+                ))
+              ) : (
+                autoProcessSteps.map((s, i) => (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 14px", borderRadius: 10,
+                    background: s.status === "done" ? "rgba(74,222,128,0.07)" : s.status === "error" ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${s.status === "done" ? "rgba(74,222,128,0.2)" : s.status === "error" ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.06)"}`,
+                  }}>
+                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
+                      {s.status === "done" ? "✓" : s.status === "error" ? "✕" : "…"}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: s.status === "done" ? "#4ade80" : s.status === "error" ? "#f87171" : "#fff" }}>
+                        {s.step}
+                      </div>
+                      {s.detail && (
+                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>{s.detail}</div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Spinner or done message */}
+            <div style={{ marginTop: 20, textAlign: "center" }}>
+              {autoProcessing ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                  <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "#ca8a04", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+                  This may take up to 2–3 minutes for large plans
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setAutoProcessSteps([]); router.push(`/atlastakeoff/${id}/autotakeoff`); }}
+                  style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Go to Review →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

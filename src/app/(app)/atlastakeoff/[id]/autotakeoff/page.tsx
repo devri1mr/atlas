@@ -61,7 +61,7 @@ function suggestedPrice(totalCost: number, markupPct: number) {
 }
 
 /* ─── Main Page ──────────────────────────────────────────────────────── */
-export default function HandoffReviewPage() {
+export default function AutoTakeoffReviewPage() {
   const { id: takeoffId } = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -336,7 +336,7 @@ export default function HandoffReviewPage() {
   /* ─── Loading state ──────────────────────────────────────── */
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", background: "#0f1923", color: "rgba(255,255,255,0.4)", fontSize: 14 }}>
-      Loading handoff…
+      Loading AutoTakeoff…
     </div>
   );
 
@@ -642,7 +642,7 @@ export default function HandoffReviewPage() {
       {showBidForm && (
         <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.7)" }}>
           <div style={{ background: "#0d1f3c", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, padding: 28, width: 420, maxWidth: "90vw" }}>
-            <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Create Bid from Handoff</div>
+            <div style={{ color: "#fff", fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Create Bid from AutoTakeoff</div>
 
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "flex", gap: 12, background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 14 }}>
