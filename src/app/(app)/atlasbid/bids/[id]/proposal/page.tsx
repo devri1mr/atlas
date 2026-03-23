@@ -151,6 +151,12 @@ export default function ProposalPage() {
   const [labor, setLabor] = useState<LaborRow[]>([]);
   const [bundleRunsMeta, setBundleRunsMeta] = useState<BundleRunMeta[]>([]);
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [docHeight, setDocHeight] = useState(0);
+  const DOC_WIDTH = 816;
+
   useEffect(() => {
     if (!bidId) return;
 
@@ -374,12 +380,6 @@ export default function ProposalPage() {
 
   const showPrepaySection =
     prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
-
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const docRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [docHeight, setDocHeight] = useState(0);
-  const DOC_WIDTH = 816; // 8.5in at 96dpi
 
   useEffect(() => {
     function measure() {
