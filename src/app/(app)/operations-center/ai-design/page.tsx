@@ -47,7 +47,7 @@ export default function AiDesignSettingsPage() {
           <Link href="/operations-center" className="text-white/50 text-sm hover:text-white/80 transition-colors">
             ← Operations Center
           </Link>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight mt-2">AI Design</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight mt-2">Atlas Design</h1>
           <p className="text-white/50 text-sm mt-1">Usage limits and generation history.</p>
         </div>
       </div>

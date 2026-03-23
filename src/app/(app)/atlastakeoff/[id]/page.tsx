@@ -417,11 +417,11 @@ export default function TakeoffEditorPage() {
   /* ── AI Parse ── */
   async function runAiParse() {
     setAiParsing(true);
-    setAiStatus("Reading plan with AI…");
+    setAiStatus("Atlas is reading your plan…");
     try {
       const res  = await fetch(`/api/takeoff/${id}/parse`, { method: "POST" });
       const json = await res.json();
-      if (json.error) { setAiStatus(""); alert("AI Parse: " + json.error); return; }
+      if (json.error) { setAiStatus(""); alert("Parse error: " + json.error); return; }
       setAiStatus(`✓ Found ${json.count} items`);
       // Reload items
       const ir = await fetch(`/api/takeoff/${id}/items`).then(r => r.json());
@@ -430,7 +430,7 @@ export default function TakeoffEditorPage() {
       setTimeout(() => setAiStatus(""), 4000);
     } catch (e: any) {
       setAiStatus("");
-      alert("AI Parse failed: " + e.message);
+      alert("Parse failed: " + e.message);
     } finally {
       setAiParsing(false);
     }
@@ -463,9 +463,7 @@ export default function TakeoffEditorPage() {
       return;
     }
     setAutoProcessing(true);
-    setAutoProcessSteps([
-      { step: "Parsing plant schedule…", status: "running" },
-    ]);
+    setAutoProcessSteps([]);
 
     try {
       const res = await fetch(`/api/takeoff/${id}/auto-process`, { method: "POST" });
@@ -799,7 +797,7 @@ export default function TakeoffEditorPage() {
                 {items.length === 0 && (
                   <div style={{ textAlign: "center", paddingTop: 30, color: "rgba(255,255,255,0.25)", fontSize: 12 }}>
                     {takeoff?.plan_image_path
-                      ? <>Upload plan and click<br /><strong style={{ color: "#a78bfa" }}>✦ AI Parse Schedule</strong><br />to auto-extract plants</>
+                      ? <>Upload plan and click<br /><strong style={{ color: "#a78bfa" }}>✦ Parse</strong><br />to auto-extract plants</>
                       : <>Upload a plan to get started</>}
                   </div>
                 )}

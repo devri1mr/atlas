@@ -181,7 +181,7 @@ export default function AutoTakeoffReviewPage() {
   /* ── Run AI matching ── */
   async function runMatching() {
     setMatching(true);
-    setMatchStatus("Running AI matching…");
+    setMatchStatus("Atlas is matching items…");
     try {
       const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match`, { method: "POST" });
       if (!res.ok) {
@@ -410,7 +410,7 @@ export default function AutoTakeoffReviewPage() {
         >
           {matching
             ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Matching…</>
-            : data?.session ? "↺ Re-run Matching" : "✦ Run AI Matching"}
+            : data?.session ? "↺ Re-run Matching" : "✦ Run Matching"}
         </button>
 
         {data?.session && summary.matched > 0 && (
@@ -462,7 +462,7 @@ export default function AutoTakeoffReviewPage() {
 
         {!data?.session && (
           <div style={{ marginLeft: "auto", color: "rgba(255,255,255,0.4)", fontSize: 12, display: "flex", alignItems: "center" }}>
-            Click "Run AI Matching" to begin
+            Click "Run Matching" to begin
           </div>
         )}
       </div>
@@ -471,7 +471,7 @@ export default function AutoTakeoffReviewPage() {
       <div style={{ flex: 1, overflowY: "auto", padding: "0 0 140px" }}>
         {filteredItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
-            {data?.session ? "No items in this category" : "Run AI Matching to see results"}
+            {data?.session ? "No items in this category" : "Run Matching to see results"}
           </div>
         ) : filteredItems.map(item => (
           <MatchRow

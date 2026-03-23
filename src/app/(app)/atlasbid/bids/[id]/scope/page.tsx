@@ -1947,7 +1947,7 @@ async function addLabor() {
         {task.trim() && (
           <button
             type="button"
-            title="AI suggest description"
+            title="Atlas suggest description"
             disabled={suggestingFor === "add"}
             onClick={async () => { await suggestDescription("add", task.trim(), quantity, unit); }}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
@@ -2222,7 +2222,7 @@ async function addLabor() {
                 />
                 <button
                   type="button"
-                  title="AI suggest description"
+                  title="Atlas suggest description"
                   disabled={suggestingFor === row.id}
                   onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
@@ -2439,7 +2439,7 @@ async function addLabor() {
                       />
                       <button
                         type="button"
-                        title="AI suggest description"
+                        title="Atlas suggest description"
                         disabled={suggestingFor === row.id}
                         onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-sm leading-none disabled:opacity-40"

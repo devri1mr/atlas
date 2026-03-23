@@ -114,8 +114,8 @@ const sections = [
     color: "text-gray-600 bg-gray-100",
   },
   {
-    title: "AI Design",
-    description: "Monthly usage, generation limits, and recent AI landscape design history.",
+    title: "Atlas Design",
+    description: "Monthly usage, generation limits, and recent Atlas landscape design history.",
     href: "/operations-center/ai-design",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">

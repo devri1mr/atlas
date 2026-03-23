@@ -316,7 +316,7 @@ export default function DesignPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-[#0d2616]">AI Landscape Design</h2>
+        <h2 className="text-base font-semibold text-[#0d2616]">Atlas Landscape Design</h2>
         {step !== "upload" && (
           <button
             onClick={() => {
@@ -594,7 +594,7 @@ export default function DesignPage() {
               src={resultUrl}
               className="absolute inset-0 w-full h-full object-fill"
               draggable={false}
-              alt="AI design result"
+              alt="Atlas design result"
             />
             {/* Before (original) — clipped to left side */}
             <div
