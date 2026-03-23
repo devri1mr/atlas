@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
-// Zip-code-first map code lookup (Saginaw, MI service area)
-// F3 = north of McCarty Rd, F2 = between McCarty & Gratiot, F1 = south of Gratiot
 const ZIP_ZONES: Record<string, "F1" | "F2" | "F3"> = {
   "48601": "F2", "48602": "F2", "48603": "F3", "48604": "F3",
   "48607": "F1", "48608": "F1", "48609": "F3", "48623": "F3",
@@ -63,6 +61,8 @@ export default function SapPage() {
   const [mapCode, setMapCode] = useState<"F1" | "F2" | "F3" | "">("");
   const [geocoding, setGeocoding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  // Won items: set of indices that are won (all on by default once items load)
+  const [wonItems, setWonItems] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!bidId) return;
@@ -79,26 +79,17 @@ export default function SapPage() {
       .finally(() => setLoading(false));
   }, [bidId]);
 
-  // Auto-detect map code: zip lookup first, then geocode fallback
+  // Auto-detect map code
   useEffect(() => {
     if (!bid || mapCode) return;
-
     const zip = clean(bid.zip).replace(/\D/g, "").slice(0, 5);
-    if (zip && ZIP_ZONES[zip]) {
-      setMapCode(ZIP_ZONES[zip]);
-      return;
-    }
-
-    // Fallback: geocode the full address
+    if (zip && ZIP_ZONES[zip]) { setMapCode(ZIP_ZONES[zip]); return; }
     const addr = [clean(bid.address1 ?? bid.address), clean(bid.city), clean(bid.state), zip].filter(Boolean).join(", ");
     if (!addr) return;
     setGeocoding(true);
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`)
       .then(r => r.json())
-      .then(data => {
-        const lat = parseFloat(data?.[0]?.lat ?? "");
-        if (!isNaN(lat)) setMapCode(inferFromLat(lat));
-      })
+      .then(data => { const lat = parseFloat(data?.[0]?.lat ?? ""); if (!isNaN(lat)) setMapCode(inferFromLat(lat)); })
       .catch(() => {})
       .finally(() => setGeocoding(false));
   }, [bid]);
@@ -121,7 +112,14 @@ export default function SapPage() {
     return items;
   }, [labor, bundleNameMap]);
 
-  const totalSell = useMemo(() => {
+  // Default all items to won when they first load
+  useEffect(() => {
+    if (lineItems.length > 0 && wonItems.size === 0) {
+      setWonItems(new Set(lineItems.map((_, i) => i)));
+    }
+  }, [lineItems]);
+
+  const totalBid = useMemo(() => {
     if (bid?.prepay_enabled && Number(bid.prepay_price ?? 0) > 0) return Number(bid.prepay_price);
     return Number(bid?.sell_rounded ?? 0);
   }, [bid]);
@@ -129,7 +127,7 @@ export default function SapPage() {
   const itemsWithAmounts = useMemo(() => {
     if (!lineItems.length) return [];
     const totalCost = lineItems.reduce((s, r) => s + r.cost, 0);
-    const rounded = Math.round(totalSell);
+    const rounded = Math.round(totalBid);
     let run = 0;
     return lineItems.map((r, i) => {
       if (i === lineItems.length - 1) return { ...r, amount: rounded - run };
@@ -137,7 +135,23 @@ export default function SapPage() {
       run += a;
       return { ...r, amount: a };
     });
-  }, [lineItems, totalSell]);
+  }, [lineItems, totalBid]);
+
+  const wonTotal = useMemo(
+    () => itemsWithAmounts.filter((_, i) => wonItems.has(i)).reduce((s, r) => s + r.amount, 0),
+    [itemsWithAmounts, wonItems]
+  );
+
+  const allWon = wonItems.size === itemsWithAmounts.length;
+  const partialWin = wonItems.size > 0 && wonItems.size < itemsWithAmounts.length;
+
+  function toggleItem(i: number) {
+    setWonItems(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  }
 
   function copy(value: string, key: string) {
     navigator.clipboard.writeText(value);
@@ -151,9 +165,7 @@ export default function SapPage() {
       <button
         onClick={() => copy(value, key)}
         className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
-          isCopied
-            ? "bg-emerald-600 border-emerald-600 text-white"
-            : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          isCopied ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
         }`}
       >
         {isCopied ? "✓" : "Copy"}
@@ -166,9 +178,7 @@ export default function SapPage() {
       <div className="flex items-center justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
         <div className="min-w-0">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">{label}</div>
-          <div className={`text-sm font-medium ${value ? "text-gray-900" : "text-gray-300 italic"}`}>
-            {value || "—"}
-          </div>
+          <div className={`text-sm font-medium ${value ? "text-gray-900" : "text-gray-300 italic"}`}>{value || "—"}</div>
         </div>
         {value && <CopyBtn value={value} id={id} />}
       </div>
@@ -187,10 +197,9 @@ export default function SapPage() {
   const city = clean(bid.city);
   const state = clean(bid.state);
   const zip = clean(bid.zip);
+  const zoneLabel = mapCode === "F3" ? "North of McCarty Rd" : mapCode === "F2" ? "Between McCarty & Gratiot" : mapCode === "F1" ? "South of Gratiot Rd" : "";
 
-  const zoneLabel = mapCode === "F3" ? "North of McCarty Rd"
-    : mapCode === "F2" ? "Between McCarty & Gratiot"
-    : mapCode === "F1" ? "South of Gratiot Rd" : "";
+  const wonItemsList = itemsWithAmounts.filter((_, i) => wonItems.has(i));
 
   function buildCopyAll() {
     return [
@@ -203,9 +212,9 @@ export default function SapPage() {
       city && `City: ${city}`,
       state && `State: ${state}`,
       mapCode && `Map Code: ${mapCode}`,
-      itemsWithAmounts.length && "\nSERVICES:",
-      ...itemsWithAmounts.map(r => `  ${r.label}  $${r.amount.toLocaleString()}`),
-      `\nTotal: $${Math.round(totalSell).toLocaleString()}`,
+      wonItemsList.length && "\nSERVICES WON:",
+      ...wonItemsList.map(r => `  ${r.label}  $${r.amount.toLocaleString()}`),
+      `\nWon Total: $${wonTotal.toLocaleString()}`,
     ].filter((s): s is string => typeof s === "string").join("\n");
   }
 
@@ -216,7 +225,7 @@ export default function SapPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Service AutoPilot Entry</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Copy each field directly into SAP's Add Client form</p>
+          <p className="text-xs text-gray-400 mt-0.5">Mark won items, then copy fields into SAP's Add Client form</p>
         </div>
         <button
           onClick={() => copy(buildCopyAll(), "__all__")}
@@ -227,6 +236,27 @@ export default function SapPage() {
           {copied === "__all__" ? "✓ Copied!" : "Copy All"}
         </button>
       </div>
+
+      {/* Won/Lost summary banner — only show when partial */}
+      {partialWin && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-amber-600 font-semibold text-sm">Partial Win</span>
+            <span className="text-gray-400 text-xs">·</span>
+            <span className="text-xs text-gray-500">{wonItems.size} of {itemsWithAmounts.length} items won</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm tabular-nums">
+            <span className="text-gray-400 line-through">${Math.round(totalBid).toLocaleString()}</span>
+            <span className="font-bold text-emerald-700">${wonTotal.toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+      {allWon && itemsWithAmounts.length > 0 && (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          <span className="text-emerald-700 font-semibold text-sm">Full Win</span>
+          <span className="font-bold text-emerald-700 tabular-nums text-sm">${wonTotal.toLocaleString()}</span>
+        </div>
+      )}
 
       {/* Client Name */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -252,75 +282,94 @@ export default function SapPage() {
           <Field label="Postal Code" value={zip} id="zip" />
           <Field label="City" value={city} id="city" />
           <Field label="State" value={state} id="state" />
-
-          {/* Map Code */}
           <div className="py-3">
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Map Code</div>
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex gap-2">
                 {(["F1", "F2", "F3"] as const).map(code => (
-                  <button
-                    key={code}
-                    onClick={() => setMapCode(code)}
+                  <button key={code} onClick={() => setMapCode(code)}
                     className={`w-12 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
-                      mapCode === code
-                        ? "bg-[#123b1f] text-white border-[#123b1f]"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
-                    }`}
-                  >
+                      mapCode === code ? "bg-[#123b1f] text-white border-[#123b1f]" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}>
                     {code}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-1">
                 {geocoding && <span className="text-xs text-gray-400 animate-pulse">Detecting…</span>}
-                {!geocoding && mapCode && (
-                  <>
-                    <span className="text-xs text-gray-500">{zoneLabel}</span>
-                    <CopyBtn value={mapCode} id="mapcode" />
-                  </>
-                )}
-                {!geocoding && !mapCode && (
-                  <span className="text-xs text-gray-400">Select zone above</span>
-                )}
+                {!geocoding && mapCode && <><span className="text-xs text-gray-500">{zoneLabel}</span><CopyBtn value={mapCode} id="mapcode" /></>}
+                {!geocoding && !mapCode && <span className="text-xs text-gray-400">Select zone above</span>}
               </div>
             </div>
-            <div className="mt-2 text-[10px] text-gray-300">
-              F3 = north of McCarty Rd · F2 = between McCarty &amp; Gratiot · F1 = south of Gratiot
-            </div>
+            <div className="mt-2 text-[10px] text-gray-300">F3 = north of McCarty Rd · F2 = between McCarty &amp; Gratiot · F1 = south of Gratiot</div>
           </div>
         </div>
       </div>
 
-      {/* Services */}
+      {/* Services — won/lost toggles */}
       {itemsWithAmounts.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Services / Quote Line Items</span>
+            <button
+              onClick={() => setWonItems(allWon ? new Set() : new Set(itemsWithAmounts.map((_, i) => i)))}
+              className="text-[11px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {allWon ? "Uncheck all" : "Check all"}
+            </button>
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_100px_60px] gap-2 px-5 py-2 border-b border-gray-100 bg-gray-50/50">
+          <div className="grid grid-cols-[28px_1fr_90px_60px] gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+            <span></span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Service</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right">Amount</span>
             <span></span>
           </div>
 
-          <div className="px-5">
-            {itemsWithAmounts.map((r, i) => (
-              <div key={i} className="grid grid-cols-[1fr_100px_60px] gap-2 items-center py-2.5 border-b border-gray-50">
-                <span className="text-sm text-gray-900 pr-2">{r.label}</span>
-                <span className="text-sm font-semibold text-gray-900 tabular-nums text-right">${r.amount.toLocaleString()}</span>
-                <div className="flex justify-end">
-                  <CopyBtn value={r.label} id={`svc-${i}`} />
+          <div className="px-4">
+            {itemsWithAmounts.map((r, i) => {
+              const won = wonItems.has(i);
+              return (
+                <div
+                  key={i}
+                  onClick={() => toggleItem(i)}
+                  className={`grid grid-cols-[28px_1fr_90px_60px] gap-2 items-center py-3 border-b border-gray-50 cursor-pointer transition-colors ${won ? "hover:bg-gray-50" : "opacity-40 hover:opacity-60"}`}
+                >
+                  {/* Checkbox */}
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${won ? "bg-[#123b1f] border-[#123b1f]" : "border-gray-300 bg-white"}`}>
+                    {won && (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`text-sm pr-2 ${won ? "text-gray-900" : "text-gray-400 line-through"}`}>{r.label}</span>
+                  <span className={`text-sm font-semibold tabular-nums text-right ${won ? "text-gray-900" : "text-gray-400"}`}>${r.amount.toLocaleString()}</span>
+                  <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+                    {won && <CopyBtn value={r.label} id={`svc-${i}`} />}
+                  </div>
                 </div>
+              );
+            })}
+
+            {/* Totals row */}
+            <div className="grid grid-cols-[28px_1fr_90px_60px] gap-2 items-center py-3 border-t border-gray-200 mt-1">
+              <span></span>
+              <div>
+                <div className="text-sm font-bold text-gray-900">Won Total</div>
+                {partialWin && <div className="text-[11px] text-gray-400">Bid: ${Math.round(totalBid).toLocaleString()}</div>}
               </div>
-            ))}
-            <div className="grid grid-cols-[1fr_100px_60px] gap-2 items-center py-3">
-              <span className="text-sm font-bold text-gray-900">Total</span>
-              <span className="text-sm font-bold text-gray-900 tabular-nums text-right">${Math.round(totalSell).toLocaleString()}</span>
+              <div className="text-right">
+                <div className="text-sm font-bold text-gray-900 tabular-nums">${wonTotal.toLocaleString()}</div>
+                {partialWin && (
+                  <div className="text-[11px] text-gray-400 tabular-nums">
+                    {Math.round((wonTotal / totalBid) * 100)}% of bid
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end">
-                <CopyBtn value={Math.round(totalSell).toString()} id="total" />
+                <CopyBtn value={wonTotal.toString()} id="total" />
               </div>
             </div>
           </div>
