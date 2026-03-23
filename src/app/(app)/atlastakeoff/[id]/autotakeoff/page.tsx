@@ -750,6 +750,7 @@ function MatchRow({
   const isSaving = savingId === item.match?.id;
   const isMatOpen = openMat === item.id;
   const isTaskOpen = openTask === item.id;
+  const [showCalc, setShowCalc] = useState(false);
 
   const filteredCatalog = catalogOptions.filter(c =>
     !materialSearch || c.name.toLowerCase().includes(materialSearch.toLowerCase()) ||
@@ -974,7 +975,51 @@ function MatchRow({
               Total: {money(item.material_cost + item.labor_cost)}
             </div>
           )}
+          {(item.material_cost > 0 || item.labor_cost > 0) && (
+            <button
+              onClick={() => setShowCalc(v => !v)}
+              title="Show calculation breakdown"
+              style={{
+                background: showCalc ? "rgba(148,163,184,0.15)" : "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
+                padding: "4px 8px", cursor: "pointer", fontSize: 11, color: showCalc ? "#e2e8f0" : "rgba(255,255,255,0.35)",
+                fontWeight: 700, letterSpacing: 1,
+              }}
+            >
+              ≡
+            </button>
+          )}
         </div>
+
+        {/* Calculation breakdown */}
+        {showCalc && (
+          <div style={{
+            marginTop: 10, padding: "10px 14px", borderRadius: 8,
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+            fontSize: 12, display: "flex", flexDirection: "column", gap: 5,
+          }}>
+            {item.material_cost > 0 && item.catalog_material && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Material: {item.count} {item.unit} × {money(item.catalog_material.default_unit_cost ?? 0)}/{item.catalog_material.default_unit}
+                </span>
+                <span style={{ color: "#60a5fa", fontWeight: 700 }}>{money(item.material_cost)}</span>
+              </div>
+            )}
+            {item.labor_cost > 0 && item.task_catalog && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Labor: {item.count} {item.unit} × {item.task_catalog.minutes_per_unit ?? "?"} min/{item.task_catalog.unit ?? item.unit}
+                </span>
+                <span style={{ color: "#a78bfa", fontWeight: 700 }}>{money(item.labor_cost)}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, paddingTop: 5, borderTop: "1px solid rgba(255,255,255,0.07)", fontWeight: 700 }}>
+              <span style={{ color: "rgba(255,255,255,0.6)" }}>Line Total</span>
+              <span style={{ color: "#fff" }}>{money(item.material_cost + item.labor_cost)}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

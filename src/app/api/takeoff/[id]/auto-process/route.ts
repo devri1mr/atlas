@@ -251,7 +251,9 @@ If nothing found: { "items": [] }`,
 
     // ── STEP 3: Auto-measure area items ──────────────────────
     const allItems: any[] = [...plantItems, ...scopeItems];
-    const areaItems = allItems.filter(i => Number(i.count ?? 0) === 0 && AREA_CATEGORIES.has(i.category));
+    // Measure any item with count=0 — seed mixes, sod, rock are often categorized
+    // as "grass" or "other" which may not be in AREA_CATEGORIES, so cast the net wide.
+    const areaItems = allItems.filter(i => Number(i.count ?? 0) === 0);
     let measuredCount = 0;
     let scaleFound: string | null = null;
 
@@ -418,6 +420,7 @@ Rules:
 - Area-based items (river rock, mulch, sod) with qty 0 → still try to match material, labor match by area install task
 - Confidence: "high" = strong name/botanical match; "medium" = category/size match; "none" = no reasonable match
 - Only use IDs that exist in the provided lists. Never invent IDs.
+- Correct obvious OCR/transcription errors when matching (e.g. "Shale" in a plant context likely means "Shade", "Ornmntl" → "Ornamental").
 
 Return ONLY valid JSON with no extra text:
 {"matches":[{"takeoff_item_id":"<uuid>","catalog_material_id":"<uuid or null>","material_match_conf":"high|medium|none","material_match_note":"<brief reason>","task_catalog_id":"<uuid or null>","labor_match_conf":"high|medium|none","labor_match_note":"<brief reason>"}]}`;

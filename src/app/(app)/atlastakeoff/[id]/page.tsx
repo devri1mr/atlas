@@ -1099,7 +1099,12 @@ export default function TakeoffEditorPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {autoProcessSteps.length === 0 ? (
                 /* Animate steps active based on progress quartile */
-                (["Parsing plant schedule", "Scanning scope notes", "Measuring areas", "Matching catalog"] as const).map((label, i) => {
+                ([
+                  "Reading plant schedule & extracting quantities",
+                  "Scanning notes, keynotes & scope items",
+                  "Measuring area items (SF/LF) from plan",
+                  "Matching items to materials & labor catalog",
+                ] as const).map((label, i) => {
                   const threshold = i * 25;
                   const active = autoProgress >= threshold;
                   const done = autoProgress >= threshold + 25;
