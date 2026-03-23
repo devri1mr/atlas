@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
         client_name: body.client_name ?? null,
         address: body.address ?? null,
         notes: body.notes ?? null,
+        division_id: body.division_id ?? null,
+        salesperson_name: body.salesperson_name ?? null,
         status: "active",
       })
       .select()

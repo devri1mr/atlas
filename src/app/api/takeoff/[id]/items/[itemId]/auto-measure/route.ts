@@ -96,7 +96,7 @@ Return ONLY valid JSON:
     }
 
     const unit = result.unit || item.unit || "SF";
-    const note = `AI estimate (${result.confidence ?? "medium"}): ${result.note ?? ""}`.trim();
+    const note = `Atlas estimate (${result.confidence ?? "medium"}): ${result.note ?? ""}`.trim();
 
     const { error: ue } = await sb
       .from("takeoff_items")

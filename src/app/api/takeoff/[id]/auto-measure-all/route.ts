@@ -43,9 +43,8 @@ export async function POST(
       .eq("takeoff_id", takeoffId);
     if (ie) return NextResponse.json({ error: ie.message }, { status: 500 });
 
-    const areaItems = (allItems ?? []).filter(
-      i => Number(i.count ?? 0) === 0 && AREA_CATEGORIES.has(i.category)
-    );
+    // Measure all count-0 items — seed mixes and grasses may not be in AREA_CATEGORIES
+    const areaItems = (allItems ?? []).filter(i => Number(i.count ?? 0) === 0);
 
     if (areaItems.length === 0) {
       return NextResponse.json({ message: "No unmeasured area items found.", updated: [] });
@@ -115,7 +114,7 @@ If you cannot find an item on the plan at all, return estimated_qty: 0 and confi
 
     const message = await anthropic.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{
         role: "user",
         content: [contentBlock, { type: "text", text: prompt }],
@@ -125,12 +124,12 @@ If you cannot find an item on the plan at all, return estimated_qty: 0 and confi
     const raw = (message.content[0] as any).text ?? "";
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return NextResponse.json({ error: "AI could not read measurements from this plan." }, { status: 422 });
+      return NextResponse.json({ error: "Atlas could not read measurements from this plan." }, { status: 422 });
     }
 
     let parsed: { scale_found?: string; measurements: any[] };
     try { parsed = JSON.parse(jsonMatch[0]); }
-    catch { return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 422 }); }
+    catch { return NextResponse.json({ error: "Atlas returned an unreadable response — please try again." }, { status: 422 }); }
 
     // Update items with AI estimates
     const updated: { id: string; name: string; qty: number; unit: string; confidence: string; note: string }[] = [];
@@ -143,7 +142,7 @@ If you cannot find an item on the plan at all, return estimated_qty: 0 and confi
       if (!item) continue;
 
       const unit = m.unit || item.unit || "SF";
-      const note = `AI estimate (${m.confidence ?? "medium"}): ${m.note ?? ""}`.trim();
+      const note = `Atlas estimate (${m.confidence ?? "medium"}): ${m.note ?? ""}`.trim();
 
       const { error: ue } = await sb
         .from("takeoff_items")

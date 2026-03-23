@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type Takeoff = {
   id: string;
@@ -14,6 +15,16 @@ type Takeoff = {
   plan_file_name: string | null;
   takeoff_items: { id: string }[];
 };
+type Division = { id: string; name: string };
+type UserProfile = { id: string; full_name: string | null; email: string };
+
+const inputStyle = {
+  width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8,
+  padding: "9px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" as const,
+};
+const selectStyle = {
+  ...inputStyle, background: "#fff", cursor: "pointer",
+};
 
 export default function AtlasTakeoffPage() {
   const router = useRouter();
@@ -21,9 +32,17 @@ export default function AtlasTakeoffPage() {
   const [loading, setLoading]   = useState(true);
   const [showNew, setShowNew]   = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", client_name: "", address: "" });
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [form, setForm] = useState({
+    name: "", client_name: "", address: "",
+    division_id: "", salesperson_name: "",
+  });
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    loadFormData();
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -36,9 +55,32 @@ export default function AtlasTakeoffPage() {
     }
   }
 
+  async function loadFormData() {
+    const [divRes, userRes] = await Promise.all([
+      fetch("/api/divisions").then(r => r.json()),
+      fetch("/api/users").then(r => r.json()),
+    ]);
+    const divs: Division[] = divRes.data ?? [];
+    const usrs: UserProfile[] = userRes.data ?? [];
+    setDivisions(divs);
+    setUsers(usrs);
+
+    // Autofill salesperson with current user
+    try {
+      const sb = getSupabaseClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) {
+        const profile = usrs.find(u => u.id === user.id || u.email === user.email);
+        const name = profile?.full_name ?? user.user_metadata?.full_name ?? user.email ?? "";
+        setForm(p => ({ ...p, salesperson_name: name }));
+      }
+    } catch { /* not authenticated — leave blank */ }
+  }
+
   async function createTakeoff(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
+    if (!form.division_id) { alert("Please select a division."); return; }
     setCreating(true);
     try {
       const res  = await fetch("/api/takeoff", {
@@ -183,12 +225,13 @@ export default function AtlasTakeoffPage() {
           display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
         }} onClick={() => setShowNew(false)}>
           <div
-            style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 440, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+            style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
             onClick={e => e.stopPropagation()}
           >
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>New Takeoff</h2>
             <p style={{ fontSize: 13, color: "#64748b", marginBottom: 24 }}>You can upload the plan after creating the takeoff.</p>
             <form onSubmit={createTakeoff} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 5 }}>PROJECT NAME *</label>
                 <input
@@ -196,27 +239,60 @@ export default function AtlasTakeoffPage() {
                   value={form.name}
                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. CHC Mackinaw Center — Landscape"
-                  style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                  style={inputStyle}
                 />
               </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 5 }}>DIVISION *</label>
+                <select
+                  required
+                  value={form.division_id}
+                  onChange={e => setForm(p => ({ ...p, division_id: e.target.value }))}
+                  style={{ ...selectStyle, borderColor: form.division_id ? "#e2e8f0" : "#f59e0b" }}
+                >
+                  <option value="">— Select Division —</option>
+                  {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 5 }}>SALESPERSON *</label>
+                <select
+                  required
+                  value={form.salesperson_name}
+                  onChange={e => setForm(p => ({ ...p, salesperson_name: e.target.value }))}
+                  style={selectStyle}
+                >
+                  <option value="">— Select Salesperson —</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.full_name ?? u.email}>
+                      {u.full_name ?? u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 5 }}>CLIENT</label>
                 <input
                   value={form.client_name}
                   onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))}
                   placeholder="e.g. Covenant Healthcare"
-                  style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                  style={inputStyle}
                 />
               </div>
+
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 5 }}>ADDRESS</label>
                 <input
                   value={form.address}
                   onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
                   placeholder="e.g. 5400 Mackinaw Road, Saginaw Township, MI"
-                  style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "9px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                  style={inputStyle}
                 />
               </div>
+
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                 <button
                   type="button"
@@ -227,8 +303,8 @@ export default function AtlasTakeoffPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={creating}
-                  style={{ flex: 2, background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "11px", fontSize: 14, fontWeight: 700, cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.7 : 1 }}
+                  disabled={creating || !form.division_id}
+                  style={{ flex: 2, background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "11px", fontSize: 14, fontWeight: 700, cursor: creating || !form.division_id ? "not-allowed" : "pointer", opacity: creating || !form.division_id ? 0.7 : 1 }}
                 >
                   {creating ? "Creating…" : "Create & Open →"}
                 </button>

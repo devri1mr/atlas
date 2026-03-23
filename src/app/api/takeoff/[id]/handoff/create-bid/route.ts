@@ -18,7 +18,7 @@ export async function POST(
     // Load takeoff
     const { data: takeoff, error: te } = await sb
       .from("takeoffs")
-      .select("id, company_id, client_name, address, name")
+      .select("id, company_id, client_name, address, name, division_id, salesperson_name")
       .eq("id", takeoffId)
       .single();
     if (te || !takeoff) return NextResponse.json({ error: "Takeoff not found" }, { status: 404 });
@@ -98,8 +98,9 @@ export async function POST(
     const clientLastName = nameParts.length > 1 ? nameParts.pop()! : "";
     const clientFirstName = nameParts.join(" ") || fullName;
 
-    const divisionId = body.division_id ?? null;
-    const createdByName = body.created_by_name ?? null;
+    // Division/salesperson come from the takeoff; body values are overrides
+    const divisionId = body.division_id ?? takeoff.division_id ?? null;
+    const createdByName = body.created_by_name ?? takeoff.salesperson_name ?? null;
 
     // ── Create the bid ───────────────────────────────────────
     const { data: bid, error: bidErr } = await sb
@@ -121,8 +122,8 @@ export async function POST(
     const bidId = bid.id;
 
     // ── Build material inserts ───────────────────────────────
-    const materialInserts: any[] = [];
-    const laborInserts: any[] = [];
+    // Aggregate by catalog_material_id to avoid duplicate key constraint
+    const materialTotals = new Map<string, { qty: number; cat: any }>();
     const laborTaskCounts = new Map<string, number>(); // aggregate by task_catalog_id
 
     for (const match of matches) {
@@ -131,31 +132,40 @@ export async function POST(
 
       const count = Number(item.count ?? 0);
 
-      // Material line
       if (match.catalog_material_id && match.material_match_conf !== "none") {
         const cat = catalogById.get(match.catalog_material_id);
         if (cat) {
-          materialInserts.push({
-            company_id: companyId,
-            bid_id: bidId,
-            material_id: match.catalog_material_id,
-            name: cat.name,
-            details: [item.size, item.container].filter(Boolean).join(", ") || null,
-            qty: count,
-            unit: cat.default_unit ?? item.unit ?? "EA",
-            unit_cost: Number(cat.default_unit_cost ?? 0),
-            source_type: "takeoff_handoff",
-            source_task_id: null,
-          });
+          const existing = materialTotals.get(match.catalog_material_id);
+          if (existing) {
+            existing.qty += count;
+          } else {
+            materialTotals.set(match.catalog_material_id, { qty: count, cat });
+          }
         }
       }
 
-      // Aggregate labor by task (multiple items of same category → one labor row per task)
       if (match.task_catalog_id && match.labor_match_conf !== "none") {
         laborTaskCounts.set(match.task_catalog_id, (laborTaskCounts.get(match.task_catalog_id) ?? 0) + count);
       }
     }
 
+    const materialInserts: any[] = [];
+    for (const [materialId, { qty, cat }] of materialTotals) {
+      materialInserts.push({
+        company_id: companyId,
+        bid_id: bidId,
+        material_id: materialId,
+        name: cat.name,
+        details: null,
+        qty,
+        unit: cat.default_unit ?? "EA",
+        unit_cost: Number(cat.default_unit_cost ?? 0),
+        source_type: "takeoff_handoff",
+        source_task_id: null,
+      });
+    }
+
+    const laborInserts: any[] = [];
     // Build labor rows (one per unique task)
     for (const [taskId, totalQty] of laborTaskCounts) {
       const task = taskById.get(taskId);
