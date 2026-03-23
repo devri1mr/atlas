@@ -858,6 +858,14 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
     }) ?? null;
   }, [materialName, materialQty, labor]);
 
+  // Auto-apply labor qty match when a material is selected and qty is still 0
+  useEffect(() => {
+    if (laborQtyMatch && laborQtyMatch.quantity > 0 && materialQty === 0) {
+      setMaterialQty(laborQtyMatch.quantity);
+      if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit);
+    }
+  }, [laborQtyMatch]);
+
   // Collect unique proposal sections across all labor rows (for datalist suggestions)
   const laborSections = useMemo(() => {
     const seen = new Set<string>();
