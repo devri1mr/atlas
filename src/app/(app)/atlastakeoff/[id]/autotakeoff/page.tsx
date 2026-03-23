@@ -724,6 +724,7 @@ function MatchRow({
   onMaterialSearchChange, onTaskSearchChange,
   onOpenMat, onOpenTask, onCloseMat, onCloseTask,
   onSelectMaterial, onSelectTask, onExclude, onAddToCatalog,
+  onAutoMeasure, measuringThisItem,
 }: {
   item: ReviewItem;
   catalogOptions: CatalogOption[];
