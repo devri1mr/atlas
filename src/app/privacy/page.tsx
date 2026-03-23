@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <div style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 100%)" }}>
         <div className="max-w-3xl mx-auto px-6 py-8 flex items-center gap-4">
           <Link href="/">
-            <Image src="/atlas-logo-transparent.png" alt="Atlas" width={120} height={40} style={{ objectFit: "contain", filter: "invert(1)" }} />
+            <Image src="/atlas-logo-transparent.png" alt="Atlas" width={120} height={40} style={{ objectFit: "contain" }} />
           </Link>
         </div>
       </div>
