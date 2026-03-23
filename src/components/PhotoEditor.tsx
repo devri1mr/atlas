@@ -588,7 +588,10 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
         {(tool === "text" || editingTextIdx !== null) && (
           <label className="flex items-center gap-1.5 text-xs text-gray-400">
             Font
-            <input type="range" min={12} max={80} value={fs} onChange={e => setFs(+e.target.value)} className="w-20 accent-emerald-500" />
+            <input type="range" min={12} max={80} value={fs}
+              onChange={e => setFs(+e.target.value)}
+              onMouseDown={e => e.preventDefault()}
+              className="w-20 accent-emerald-500" />
             <span className="text-white w-6 text-center">{fs}</span>
           </label>
         )}
