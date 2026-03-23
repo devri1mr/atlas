@@ -84,9 +84,15 @@ function SummaryCard({ item, mode = "month" }: { item: SummaryItem; mode?: "mont
   // When there's no revenue, this is a cost-only division — use $ mode
   const noRevenue = rev === 0 && revB === 0;
 
-  // Goal: for month mode use sheet goal row; for YTD derive from budgeted GP% (profB/revB)
+  // Goal from sheet GOAL: row (month mode only)
   const sheetGoalPct = (mode === "month" && cm >= 0) ? (data.profit.goal?.[cm] ?? null) : null;
-  const ytdGoalPct   = (mode === "ytd" && revB > 0) ? (profB / revB) * 100 : null;
+  // Goal derived from budget rows — revB/profB are already mode-aware (month or YTD)
+  // This is the "true" goal from the sheet: budgeted GP% for that period
+  const budgetGoalPct = revB > 0 ? (profB / revB) * 100 : null;
+  // Use sheet GOAL row first, then budget-derived — never fall back to Operations Center target
+  const effectiveGoal = sheetGoalPct ?? budgetGoalPct;
+  // For status dot only, use targetGp as absolute last resort when sheet has no budget data
+  const goalForStatus = effectiveGoal ?? targetGp;
 
   // Status dot + label logic
   let dot: string;
@@ -100,15 +106,13 @@ function SummaryCard({ item, mode = "month" }: { item: SummaryItem; mode?: "mont
     else if (profB > 0 && prof >= profB * 0.8) { dot = "#f59e0b"; label = "Near goal"; }
     else { dot = "#ef4444"; label = "Over budget"; }
   } else {
-    const effectiveGoal = sheetGoalPct ?? ytdGoalPct ?? targetGp;
     const profitPct = rev > 0 ? (prof / rev) * 100 : null;
-    dot   = statusColor(profitPct, effectiveGoal);
-    label = statusLabel(profitPct, effectiveGoal);
+    dot   = statusColor(profitPct, goalForStatus);
+    label = statusLabel(profitPct, goalForStatus);
   }
 
   const profitPct   = rev > 0 ? (prof / rev) * 100 : null;
   const revPct      = revB > 0 ? Math.min((rev / revB) * 100, 100) : null;
-  const effectiveGoal = sheetGoalPct ?? ytdGoalPct ?? targetGp;
   const costPct     = (v: number) => rev > 0 ? Math.round((v / rev) * 100) : 0;
 
   // Holiday Lights YTD: sum through current month
@@ -192,13 +196,16 @@ function SummaryCard({ item, mode = "month" }: { item: SummaryItem; mode?: "mont
                 <div style={{
                   fontSize: 22, fontWeight: 900,
                   color: profitPct == null ? "#9ca3af"
+                    : effectiveGoal == null ? "#374151"
                     : profitPct >= effectiveGoal ? "#15803d"
                     : profitPct >= effectiveGoal * 0.8 ? "#d97706"
                     : "#dc2626",
                 }}>
                   {profitPct != null ? `${Math.round(profitPct)}%` : "—"}
                 </div>
-                <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {effectiveGoal}%</div>
+                {effectiveGoal != null && (
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {Math.round(effectiveGoal)}%</div>
+                )}
               </>
             )}
           </div>
