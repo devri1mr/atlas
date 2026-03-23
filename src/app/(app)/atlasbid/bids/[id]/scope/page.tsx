@@ -566,6 +566,16 @@ async function mergeMaterialRow(
   setTaskSearch(name);
   setShowTaskResults(false);
 
+  // Pre-seed material search with keywords from task name
+  const STOP_WORDS = new Set(["install","installation","apply","application","remove","removal","spread","place","hand","machine","by","of","the","a","an","to","in","on","at","per","with","and","or","—","-"]);
+  const keywords = name.split(/[\s—\-]+/).filter(w => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()));
+  if (keywords.length > 0) {
+    const hint = keywords.slice(0, 2).join(" ");
+    setMaterialSearch(hint);
+    setMaterialName(hint);
+    setShowMaterialResults(true);
+  }
+
   setSelectedTaskCatalogId(t.id || "");
   setSelectedTaskMinutesPerUnit(t.minutes_per_unit ?? null);
   setSelectedTaskTemplate(t.client_facing_template || "");
