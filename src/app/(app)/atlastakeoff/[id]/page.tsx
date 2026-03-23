@@ -582,6 +582,20 @@ export default function TakeoffEditorPage() {
           </button>
         )}
         {aiStatus && <span style={{ fontSize: 11, color: "#4ade80", fontWeight: 600 }}>{aiStatus}</span>}
+
+        {/* Handoff */}
+        {items.length > 0 && (
+          <button
+            onClick={() => router.push(`/atlastakeoff/${id}/handoff`)}
+            style={{
+              background: "linear-gradient(135deg,#16a34a,#15803d)",
+              border: "none", borderRadius: 8, padding: "7px 16px",
+              color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}
+          >
+            Handoff →
+          </button>
+        )}
       </div>
 
       {/* ── Body ── */}
