@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Tool = "select" | "pen" | "arrow" | "rect" | "circle" | "text" | "crop";
+type Tool = "select" | "arrow" | "text";
 
 type ArrowAnn  = { type: "arrow";  x1: number; y1: number; x2: number; y2: number; color: string; sw: number };
 type RectAnn   = { type: "rect";   x: number;  y: number;  w: number;  h: number;  color: string; sw: number };
@@ -137,15 +137,11 @@ function canvasPt(e: React.MouseEvent | MouseEvent | React.Touch | Touch, canvas
 const COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#8b5cf6","#ffffff","#000000"];
 
 const TOOLS: { id: Tool; label: string; icon: React.ReactNode }[] = [
-  { id: "select", label: "Select/Move", icon: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M4 0L4 20L9 15L13 24L15.5 23L11.5 14L18 14Z"/></svg>
+  { id: "select", label: "Select", icon: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 0L4 20L9 15L13 24L15.5 23L11.5 14L18 14Z"/></svg>
   )},
-  { id: "pen",    label: "Pen",     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
-  { id: "arrow",  label: "Arrow",   icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg> },
-  { id: "rect",   label: "Rect",    icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> },
-  { id: "circle", label: "Circle",  icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="9"/></svg> },
-  { id: "text",   label: "Text",    icon: <span className="font-bold text-sm leading-none">T</span> },
-  { id: "crop",   label: "Crop",    icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 2v14h14"/><path d="M2 6h14v14"/></svg> },
+  { id: "arrow",  label: "Arrow",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg> },
+  { id: "text",   label: "Text",   icon: <span className="font-bold text-base leading-none">T</span> },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -153,6 +149,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const imgRef     = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [tool, setTool]     = useState<Tool>("arrow");
   const [color, setColor]   = useState("#ef4444");
@@ -171,9 +168,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
   // Drawing state (refs to avoid stale closures)
   const drawing    = useRef(false);
   const startPt    = useRef({ x: 0, y: 0 });
-  const penPts     = useRef<[number, number][]>([]);
   const inProgress = useRef<Annotation | null>(null);
-  const cropRect   = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
   // Drag/select state
   const draggingIdx   = useRef<number | null>(null);
@@ -213,18 +208,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
       try { drawSelectionBox(ctx, anns[selIdx]); } catch {}
     }
 
-    // Crop overlay
-    if (tool === "crop" && cropRect.current) {
-      const cr = cropRect.current;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.clearRect(cr.x, cr.y, cr.w, cr.h);
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([6, 3]);
-      ctx.strokeRect(cr.x, cr.y, cr.w, cr.h);
-      ctx.restore();
-    }
-  }, [brightness, contrast, saturation, tool]);
+  }, [brightness, contrast, saturation]);
 
   useEffect(() => {
     if (loaded) redraw(annotations, inProgress.current, selectedIdx);
@@ -376,8 +360,6 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
 
     drawing.current = true;
     startPt.current = pt;
-    if (tool === "pen") penPts.current = [[pt.x, pt.y]];
-    if (tool === "crop") cropRect.current = { x: pt.x, y: pt.y, w: 0, h: 0 };
   }
 
   function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -400,17 +382,8 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     if (!drawing.current) return;
     const sp = startPt.current;
 
-    if (tool === "pen") {
-      penPts.current.push([pt.x, pt.y]);
-      inProgress.current = { type: "pen", pts: [...penPts.current], color, sw };
-    } else if (tool === "arrow") {
+    if (tool === "arrow") {
       inProgress.current = { type: "arrow", x1: sp.x, y1: sp.y, x2: pt.x, y2: pt.y, color, sw };
-    } else if (tool === "rect") {
-      inProgress.current = { type: "rect", x: sp.x, y: sp.y, w: pt.x - sp.x, h: pt.y - sp.y, color, sw };
-    } else if (tool === "circle") {
-      inProgress.current = { type: "circle", x: sp.x, y: sp.y, w: pt.x - sp.x, h: pt.y - sp.y, color, sw };
-    } else if (tool === "crop" && cropRect.current) {
-      cropRect.current = { x: sp.x, y: sp.y, w: pt.x - sp.x, h: pt.y - sp.y };
     }
     redraw(annotations, inProgress.current, selectedIdx);
   }
@@ -426,11 +399,6 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
 
     if (!drawing.current) return;
     drawing.current = false;
-
-    if (tool === "crop") {
-      redraw(annotations, null);
-      return;
-    }
 
     const completed = inProgress.current;
     inProgress.current = null;
@@ -531,110 +499,115 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
   }
 
   const cursors: Record<Tool, string> = {
-    select: "default", pen: "crosshair", arrow: "crosshair", rect: "crosshair",
-    circle: "crosshair", text: "text", crop: "crosshair",
+    select: "default", arrow: "crosshair", text: "text",
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-gray-950">
       {/* Toolbar */}
-      <div className="shrink-0 bg-gray-900 border-b border-gray-800 px-3 py-2 flex flex-wrap items-center gap-3">
-        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors mr-1" title="Close">
+      <div ref={toolbarRef} className="shrink-0 bg-gray-900 border-b border-gray-800 px-3 py-2.5 flex flex-wrap items-center gap-2">
+
+        {/* Close */}
+        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors" title="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
 
+        <div className="w-px h-6 bg-gray-700 mx-1" />
+
         {/* Tools */}
-        <div className="flex items-center gap-0.5 bg-gray-800 rounded-lg p-0.5">
+        <div className="flex items-center gap-1">
           {TOOLS.map(t => (
             <button
               key={t.id}
               title={t.label}
               onClick={() => { setTool(t.id); if (t.id !== "select") setSelectedIdx(null); }}
-              className={`px-2.5 py-1.5 rounded-md text-sm font-semibold transition-colors flex items-center justify-center ${tool === t.id ? "bg-emerald-600 text-white" : "text-gray-300 hover:text-white hover:bg-gray-700"}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${tool === t.id ? "bg-emerald-600 text-white" : "text-gray-300 hover:text-white hover:bg-gray-800"}`}
             >
               {t.icon}
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Select hint */}
-        {tool === "select" && (
-          <span className="text-xs text-gray-400">Click to select · Drag to move · Double-click text to edit · Delete to remove</span>
-        )}
-
         {/* Colors */}
-        {tool !== "select" && tool !== "crop" && (
-          <div className="flex items-center gap-1">
-            {COLORS.map(c => (
-              <button key={c} onClick={() => setColor(c)}
-                className="w-5 h-5 rounded-full transition-transform hover:scale-110 shrink-0"
-                style={{ background: c, outline: color === c ? "2px solid #4ade80" : "2px solid transparent", outlineOffset: 1 }}
-              />
-            ))}
-            <input type="color" value={color} onChange={e => setColor(e.target.value)}
-              className="w-5 h-5 rounded cursor-pointer opacity-80 hover:opacity-100" title="Custom color" />
-          </div>
+        {tool !== "select" && (
+          <>
+            <div className="w-px h-6 bg-gray-700 mx-1" />
+            <div className="flex items-center gap-1.5">
+              {COLORS.map(c => (
+                <button key={c} onClick={() => setColor(c)}
+                  className="w-6 h-6 rounded-full transition-transform hover:scale-110 shrink-0"
+                  style={{ background: c, outline: color === c ? "2px solid #4ade80" : "2px solid transparent", outlineOffset: 2 }}
+                />
+              ))}
+              <input type="color" value={color} onChange={e => setColor(e.target.value)}
+                className="w-6 h-6 rounded cursor-pointer opacity-80 hover:opacity-100" title="Custom color" />
+            </div>
+          </>
         )}
 
-        {/* Stroke / font size */}
-        {tool !== "select" && tool !== "crop" && tool !== "text" && (
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
-            Size
-            <input type="range" min={1} max={20} value={sw} onChange={e => setSw(+e.target.value)} className="w-20 accent-emerald-500" />
-            <span className="text-white w-4 text-center">{sw}</span>
-          </label>
-        )}
+        {/* Font size — shown for text tool or while editing text */}
         {(tool === "text" || editingTextIdx !== null) && (
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
-            Font
-            <input type="range" min={12} max={80} value={fs}
-              onChange={e => setFs(+e.target.value)}
-              onMouseDown={e => e.preventDefault()}
-              className="w-20 accent-emerald-500" />
-            <span className="text-white w-6 text-center">{fs}</span>
-          </label>
+          <>
+            <div className="w-px h-6 bg-gray-700 mx-1" />
+            <label className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="text-gray-300 font-medium">Size</span>
+              <input type="range" min={12} max={80} value={fs}
+                onChange={e => setFs(+e.target.value)}
+                className="w-24 accent-emerald-500" />
+              <span className="text-white font-semibold w-7 text-center tabular-nums">{fs}</span>
+            </label>
+          </>
         )}
 
-        <div className="w-px h-6 bg-gray-700" />
+        <div className="w-px h-6 bg-gray-700 mx-1" />
 
-        {/* Adjustments */}
-        {[
-          { label: "☀", value: brightness, set: setBrightness, title: "Brightness" },
-          { label: "◑", value: contrast, set: setContrast, title: "Contrast" },
-          { label: "🎨", value: saturation, set: setSaturation, title: "Saturation" },
-        ].map(({ label, value, set, title }) => (
-          <label key={title} className="flex items-center gap-1 text-xs text-gray-400" title={title}>
-            <span>{label}</span>
-            <input type="range" min={0} max={200} value={value} onChange={e => set(+e.target.value)} className="w-16 accent-emerald-500" />
-          </label>
-        ))}
+        {/* Photo adjustments */}
+        <div className="flex items-center gap-3">
+          {[
+            { label: "Brightness", icon: "☀", value: brightness, set: setBrightness },
+            { label: "Contrast",   icon: "◑", value: contrast,   set: setContrast },
+            { label: "Saturation", icon: "🎨", value: saturation, set: setSaturation },
+          ].map(({ label, icon, value, set }) => (
+            <label key={label} className="flex items-center gap-1.5 text-xs text-gray-400" title={label}>
+              <span className="text-base leading-none">{icon}</span>
+              <input type="range" min={0} max={200} value={value}
+                onChange={e => set(+e.target.value)}
+                className="w-16 accent-emerald-500" />
+            </label>
+          ))}
+        </div>
 
-        <div className="w-px h-6 bg-gray-700" />
+        <div className="w-px h-6 bg-gray-700 mx-1" />
 
-        <button onClick={() => rotate("ccw")} title="Rotate CCW" className="text-gray-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700">⟲</button>
-        <button onClick={() => rotate("cw")}  title="Rotate CW"  className="text-gray-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700">⟳</button>
+        {/* Rotate */}
+        <div className="flex items-center gap-1">
+          <button onClick={() => rotate("ccw")} title="Rotate CCW" className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 text-base transition-colors">⟲</button>
+          <button onClick={() => rotate("cw")}  title="Rotate CW"  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 text-base transition-colors">⟳</button>
+        </div>
 
-        {tool === "crop" && (
-          <button onClick={applyCrop} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-            Apply Crop
-          </button>
-        )}
+        <div className="w-px h-6 bg-gray-700 mx-1" />
 
+        {/* Undo / Reset */}
         <button onClick={undo} disabled={history.length === 0} title="Undo (⌘Z)"
-          className="text-gray-300 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700 disabled:opacity-30 flex items-center gap-1">
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-gray-800 disabled:opacity-30 transition-colors">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
-          Undo
+          <span className="hidden sm:inline">Undo</span>
         </button>
-
         <button onClick={() => { setAnnotations([]); setHistory([]); setBrightness(100); setContrast(100); setSaturation(100); setSelectedIdx(null); }}
-          className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700 transition-colors">
+          className="px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
           Reset
         </button>
 
+        {/* Save */}
         <button onClick={handleSave} disabled={saving}
-          className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-          {saving ? "Saving…" : "Save as New Photo"}
+          className="ml-auto flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-5 py-2 rounded-lg transition-colors disabled:opacity-50">
+          {saving ? (
+            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+          ) : (
+            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save</>
+          )}
         </button>
       </div>
 
@@ -672,7 +645,11 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
               value={textValue}
               onChange={e => setTextValue(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") commitText(); if (e.key === "Escape") { setTextInput(null); setTextValue(""); setEditingTextIdx(null); } }}
-              onBlur={commitText}
+              onBlur={e => {
+                // Don't commit if focus moved to the toolbar (e.g. font size slider)
+                if (toolbarRef.current?.contains(e.relatedTarget as Node)) return;
+                commitText();
+              }}
               style={{
                 position: "absolute",
                 left: textInput.x,
