@@ -168,7 +168,7 @@ export default function ProposalPage() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [proposalRows]);
+  }, [loading]);
 
   useEffect(() => {
     if (!bidId) return;
