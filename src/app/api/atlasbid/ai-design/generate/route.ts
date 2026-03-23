@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
 
     // Call Stability AI
     const stabilityForm = new FormData();
-    stabilityForm.append("image", new Blob([processedImage], { type: "image/png" }), "image.png");
-    stabilityForm.append("mask", new Blob([processedMask], { type: "image/png" }), "mask.png");
+    stabilityForm.append("image", new Blob([new Uint8Array(processedImage)], { type: "image/png" }), "image.png");
+    stabilityForm.append("mask", new Blob([new Uint8Array(processedMask)], { type: "image/png" }), "mask.png");
     stabilityForm.append("prompt", prompt);
     stabilityForm.append("output_format", "png");
     stabilityForm.append("strength", "0.95");
