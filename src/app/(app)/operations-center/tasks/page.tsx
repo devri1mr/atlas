@@ -423,32 +423,33 @@ export default function TaskCatalogPage() {
                 <div>
                   <label className={labelCls}>
                     Seasonal Difficulty Rating
-                    <span className="ml-2 text-gray-500 font-normal normal-case tracking-normal text-xs">rank each season 1 (easiest) → 4 (hardest) · each rank used once</span>
+                    <span className="ml-2 text-gray-500 font-normal normal-case tracking-normal text-xs">rank 1–4 · each used once</span>
                   </label>
                   {(() => {
                     const TIER_MULTS: Record<string, number> = { "1": 1.0, "2": 1.15, "3": 1.30, "4": 1.50 };
-                    const TIER_LABELS = ["Std", "Mod", "Diff", "Extr"];
+                    const TIER_LABELS = ["Standard", "Moderate", "Difficult", "Extreme"];
                     const allVals = [fSpringMultiplier, fSummerMultiplier, fFallMultiplier, fWinterMultiplier];
-                    const seasons: { label: string; state: string; set: (v: string) => void }[] = [
-                      { label: "🌱 Spring", state: fSpringMultiplier, set: setFSpringMultiplier },
-                      { label: "☀️ Summer", state: fSummerMultiplier, set: setFSummerMultiplier },
-                      { label: "🍂 Fall",   state: fFallMultiplier,   set: setFFallMultiplier   },
-                      { label: "❄️ Winter", state: fWinterMultiplier, set: setFWinterMultiplier },
+                    const seasons: { label: string; emoji: string; state: string; set: (v: string) => void }[] = [
+                      { label: "Spring", emoji: "🌱", state: fSpringMultiplier, set: setFSpringMultiplier },
+                      { label: "Summer", emoji: "☀️", state: fSummerMultiplier, set: setFSummerMultiplier },
+                      { label: "Fall",   emoji: "🍂", state: fFallMultiplier,   set: setFFallMultiplier   },
+                      { label: "Winter", emoji: "❄️", state: fWinterMultiplier, set: setFWinterMultiplier },
                     ];
                     return (
                       <>
-                        <div className="grid grid-cols-4 gap-2">
-                          {seasons.map(({ label, state, set }) => {
+                        <div className="grid grid-cols-4 gap-3">
+                          {seasons.map(({ label, emoji, state, set }) => {
                             const usedTiers = allVals
                               .filter((v) => v !== "" && v !== state)
                               .map((v) => Object.entries(TIER_MULTS).find(([, m]) => String(m) === v)?.[0])
                               .filter(Boolean) as string[];
                             const currentTier = Object.entries(TIER_MULTS).find(([, m]) => String(m) === state)?.[0] || "";
                             return (
-                              <div key={label}>
-                                <div className="text-xs text-gray-500 mb-1">{label}</div>
+                              <div key={label} className="flex flex-col items-center gap-1">
+                                <div className="text-base">{emoji}</div>
+                                <div className="text-xs font-semibold text-gray-600">{label}</div>
                                 <select
-                                  className={inputCls}
+                                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   value={currentTier}
                                   onChange={(e) => {
                                     const tier = e.target.value;
@@ -458,18 +459,18 @@ export default function TaskCatalogPage() {
                                   <option value="">—</option>
                                   {["1","2","3","4"].map((t) => (
                                     <option key={t} value={t} disabled={usedTiers.includes(t)}>
-                                      {t} — {TIER_LABELS[Number(t)-1]} ({TIER_MULTS[t]}×)
+                                      {t} — {TIER_LABELS[Number(t)-1]}
                                     </option>
                                   ))}
                                 </select>
-                                {currentTier && (
-                                  <div className="text-xs text-gray-400 mt-0.5 text-center">{TIER_MULTS[currentTier]}× applied</div>
-                                )}
+                                <div className="text-xs text-gray-400 h-4">
+                                  {currentTier ? `${TIER_MULTS[currentTier]}×` : ""}
+                                </div>
                               </div>
                             );
                           })}
                         </div>
-                        <div className="mt-1.5 text-xs text-gray-400 flex gap-4 flex-wrap">
+                        <div className="mt-1 text-xs text-gray-400 flex gap-3 flex-wrap">
                           <span>1 = Standard (1.0×)</span><span>2 = Moderate (1.15×)</span><span>3 = Difficult (1.3×)</span><span>4 = Extreme (1.5×)</span>
                         </div>
                       </>
