@@ -378,32 +378,54 @@ Return ONLY valid JSON:
           const validCatalogIds = new Set(filteredCatalog.map((c: any) => c.id));
           const validTaskIds = new Set((tasks ?? []).map((t: any) => t.id));
 
-          const msg4 = await anthropic.messages.create({
-            model: "claude-opus-4-6",
-            max_tokens: 4096,
-            messages: [{
-              role: "user",
-              content: `Match each takeoff item to the best catalog material and labor task.
+          const catalogCompact = filteredCatalog.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            botanical_name: c.botanical_name ?? null,
+            landscape_category: c.landscape_category ?? null,
+            unit: c.default_unit,
+          }));
+          const tasksCompact = (tasks ?? []).map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            landscape_category: t.landscape_category ?? null,
+            unit: t.unit,
+            minutes_per_unit: t.minutes_per_unit,
+          }));
+
+          const matchPrompt = `You are a landscape estimating assistant. Match each takeoff item to the best catalog material and labor task.
 
 TAKEOFF ITEMS:
-${JSON.stringify(needsAI.map(i => ({ id: i.id, common_name: i.common_name, botanical_name: i.botanical_name, category: i.category, size: i.size, container: i.container })))}
+${JSON.stringify(needsAI.map(i => ({
+  id: i.id,
+  common_name: i.common_name,
+  botanical_name: i.botanical_name,
+  category: i.category,
+  size: i.size,
+  container: i.container,
+})), null, 2)}
 
-MATERIALS CATALOG (${filteredCatalog.length} items):
-${JSON.stringify(filteredCatalog.map((c: any) => ({ id: c.id, name: c.name, botanical_name: c.botanical_name, landscape_category: c.landscape_category, unit: c.default_unit })))}
+MATERIALS CATALOG (${catalogCompact.length} items):
+${JSON.stringify(catalogCompact, null, 2)}
 
-LABOR TASKS (${(tasks ?? []).length} tasks):
-${JSON.stringify((tasks ?? []).map(t => ({ id: t.id, name: t.name, landscape_category: t.landscape_category, unit: t.unit, minutes_per_unit: t.minutes_per_unit })))}
+LABOR TASKS (${tasksCompact.length} tasks):
+${JSON.stringify(tasksCompact, null, 2)}
 
 Rules:
-- Match materials by botanical name first, then common name, then category+size
-- Match labor by install type and category
-- Scope items → labor only, not materials
-- Confidence: "high" = strong name match; "medium" = category match; "none" = no match
-- Only use IDs from the provided lists
+- For materials: match by botanical name first, then common name, then category+size
+- For labor: match by install type and category (tree→install tree task, shrub→install shrub task, etc.)
+- Scope/specification items (category "scope") → labor tasks only, not materials
+- Area-based items (river rock, mulch, sod) with qty 0 → still try to match material, labor match by area install task
+- Confidence: "high" = strong name/botanical match; "medium" = category/size match; "none" = no reasonable match
+- Only use IDs that exist in the provided lists. Never invent IDs.
 
-Return ONLY valid JSON:
-{"matches":[{"takeoff_item_id":"<uuid>","catalog_material_id":"<uuid or null>","material_match_conf":"high|medium|none","material_match_note":"<reason>","task_catalog_id":"<uuid or null>","labor_match_conf":"high|medium|none","labor_match_note":"<reason>"}]}`,
-            }],
+Return ONLY valid JSON with no extra text:
+{"matches":[{"takeoff_item_id":"<uuid>","catalog_material_id":"<uuid or null>","material_match_conf":"high|medium|none","material_match_note":"<brief reason>","task_catalog_id":"<uuid or null>","labor_match_conf":"high|medium|none","labor_match_note":"<brief reason>"}]}`;
+
+          const msg4 = await anthropic.messages.create({
+            model: "claude-opus-4-6",
+            max_tokens: 8192,
+            messages: [{ role: "user", content: matchPrompt }],
           });
 
           const raw4 = (msg4.content[0] as any).text ?? "";
@@ -422,7 +444,7 @@ Return ONLY valid JSON:
                   from_rule: false,
                 };
               }
-            } catch { /* AI parse failed — items unmatched */ }
+            } catch { /* AI parse failed — items remain unmatched */ }
           }
         }
 
