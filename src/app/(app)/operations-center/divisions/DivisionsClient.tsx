@@ -10,6 +10,7 @@ type Division = {
   allow_overtime: boolean;
   active: boolean;
   created_at?: string;
+  performance_sheet_url?: string | null;
 };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -57,6 +58,7 @@ export default function DivisionsClient() {
   const [editTargetGp, setEditTargetGp] = useState<string>("0");
   const [editAllowOt, setEditAllowOt] = useState(true);
   const [editActive, setEditActive] = useState(true);
+  const [editSheetUrl, setEditSheetUrl] = useState<string>("");
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
@@ -93,6 +95,7 @@ export default function DivisionsClient() {
     setEditTargetGp(String(row.target_gross_profit_percent ?? 0));
     setEditAllowOt(Boolean(row.allow_overtime));
     setEditActive(Boolean(row.active));
+    setEditSheetUrl(row.performance_sheet_url ?? "");
     setShowEdit(true);
   }
 
@@ -155,6 +158,7 @@ export default function DivisionsClient() {
           target_gross_profit_percent: gp,
           allow_overtime: editAllowOt,
           active: editActive,
+          performance_sheet_url: editSheetUrl.trim() || null,
         }),
       });
 
@@ -508,6 +512,20 @@ export default function DivisionsClient() {
                     />
                     Active
                   </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">
+                    AtlasPerformance Sheet URL
+                    <span className="ml-1 font-normal text-emerald-900/50">(Google Sheets export URL for COGS sheet)</span>
+                  </label>
+                  <input
+                    value={editSheetUrl}
+                    onChange={(e) => setEditSheetUrl(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-xs font-mono outline-none focus:border-emerald-400"
+                    placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=..."
+                  />
+                  <p className="mt-1 text-xs text-emerald-900/40">Leave blank to hide this division in AtlasPerformance.</p>
                 </div>
               </div>
 

@@ -307,10 +307,28 @@ export async function POST(
     const cleanN = (s: any) => (s && String(s).trim().toLowerCase() !== "null" ? String(s).trim() : "");
     const custName = cleanN(src.customer_name);
     const cliName  = cleanN(src.client_name);
+    const baseName = cleanN(src.project_name) || "Untitled";
+
+    // Find a unique project_name by trying " (Copy)", " (Copy 2)", etc.
+    let copyName = `${baseName} (Copy)`;
+    const { data: existing } = await supabase
+      .from(TABLE_BIDS)
+      .select("project_name")
+      .ilike("project_name", `${baseName} (Copy%`);
+    if (existing && existing.length > 0) {
+      const takenNames = new Set(existing.map((r: any) => r.project_name));
+      if (takenNames.has(copyName)) {
+        let n = 2;
+        while (takenNames.has(`${baseName} (Copy ${n})`)) n++;
+        copyName = `${baseName} (Copy ${n})`;
+      }
+    }
+
     const { data: copy, error: copyErr } = await supabase
       .from(TABLE_BIDS)
       .insert({
         ...rest,
+        project_name:  copyName,
         customer_name: custName ? `${custName} (Copy)` : null,
         client_name:   !custName && cliName ? `${cliName} (Copy)` : src.client_name,
       })

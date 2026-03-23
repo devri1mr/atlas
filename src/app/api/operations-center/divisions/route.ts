@@ -20,6 +20,7 @@ type DivisionRow = {
   allow_overtime: boolean;
   active: boolean;
   created_at?: string;
+  performance_sheet_url?: string | null;
 };
 
 function json(data: unknown, init?: ResponseInit) {
@@ -32,7 +33,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("divisions")
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url")
       .order("name", { ascending: true });
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -60,18 +61,21 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(target_gross_profit_percent))
       return json({ error: "target_gross_profit_percent must be a number" }, { status: 400 });
 
+    const performance_sheet_url = body.performance_sheet_url ? String(body.performance_sheet_url).trim() : null;
+
     const insertPayload = {
       name,
       labor_rate,
       target_gross_profit_percent,
       allow_overtime,
       active,
+      performance_sheet_url,
     };
 
     const { data, error } = await supabase
       .from("divisions")
       .insert(insertPayload)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -99,6 +103,8 @@ export async function PATCH(req: NextRequest) {
       patch.target_gross_profit_percent = Number(body.target_gross_profit_percent);
     if (body.allow_overtime !== undefined) patch.allow_overtime = Boolean(body.allow_overtime);
     if (body.active !== undefined) patch.active = Boolean(body.active);
+    if (body.performance_sheet_url !== undefined)
+      patch.performance_sheet_url = body.performance_sheet_url ? String(body.performance_sheet_url).trim() : null;
 
     if (patch.name !== undefined && !patch.name) return json({ error: "name cannot be blank" }, { status: 400 });
     if (patch.labor_rate !== undefined && !Number.isFinite(patch.labor_rate))
@@ -113,7 +119,7 @@ export async function PATCH(req: NextRequest) {
       .from("divisions")
       .update(patch)
       .eq("id", id)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });
