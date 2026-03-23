@@ -53,6 +53,7 @@ export default function TakeoffEditorPage() {
   const [zoom,         setZoom]         = useState(1);
   const [uploadState,  setUploadState]  = useState<"idle"|"uploading"|"rendering">("idle");
   const [aiParsing,    setAiParsing]    = useState(false);
+  const [aiScopeScanning, setAiScopeScanning] = useState(false);
   const [aiStatus,     setAiStatus]     = useState("");
   const [showAddItem,  setShowAddItem]  = useState(false);
   const [newItemForm,  setNewItemForm]  = useState({ common_name: "", category: "tree", color: "#15803d" });
@@ -417,6 +418,26 @@ export default function TakeoffEditorPage() {
     }
   }
 
+  /* ── Scope scan ── */
+  async function runScopeScan() {
+    setAiScopeScanning(true);
+    setAiStatus("Scanning for scope items…");
+    try {
+      const res = await fetch(`/api/takeoff/${id}/parse-scope`, { method: "POST" });
+      const json = await res.json();
+      if (json.error) { setAiStatus(""); alert("Scope scan: " + json.error); return; }
+      setAiStatus(`✓ Found ${json.count} scope item${json.count !== 1 ? "s" : ""}`);
+      const ir = await fetch(`/api/takeoff/${id}/items`).then(r => r.json());
+      setItems(ir.data ?? []);
+      setTimeout(() => setAiStatus(""), 4000);
+    } catch (e: any) {
+      setAiStatus("");
+      alert("Scope scan failed: " + e.message);
+    } finally {
+      setAiScopeScanning(false);
+    }
+  }
+
   /* ── Add item manually ── */
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
@@ -579,6 +600,24 @@ export default function TakeoffEditorPage() {
             {aiParsing ? (
               <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Parsing…</>
             ) : "✦ AI Parse Schedule"}
+          </button>
+        )}
+
+        {/* Scope Scan */}
+        {takeoff?.plan_image_path && (
+          <button
+            onClick={runScopeScan}
+            disabled={aiScopeScanning}
+            style={{
+              background: aiScopeScanning ? "rgba(20,184,166,0.3)" : "linear-gradient(135deg,#0d9488,#0f766e)",
+              border: "none", borderRadius: 8, padding: "7px 14px",
+              color: "#fff", cursor: aiScopeScanning ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            {aiScopeScanning ? (
+              <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Scanning…</>
+            ) : "◆ Scan Scope"}
           </button>
         )}
         {aiStatus && <span style={{ fontSize: 11, color: "#4ade80", fontWeight: 600 }}>{aiStatus}</span>}

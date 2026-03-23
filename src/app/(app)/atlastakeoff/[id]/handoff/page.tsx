@@ -40,8 +40,12 @@ type ReviewData = {
 type Division = { id: string; name: string };
 
 const CAT_ICON: Record<string, string> = {
-  tree: "🌳", shrub: "🌿", perennial: "🌸", grass: "🌾", groundcover: "🟫", other: "📦",
+  tree: "🌳", shrub: "🌿", perennial: "🌸", grass: "🌾", groundcover: "🟫", other: "📦", scope: "◆",
 };
+
+function needsMeasurement(item: ReviewItem) {
+  return item.count === 0 && (item.category === "groundcover" || item.category === "other" || item.category === "scope");
+}
 const CONF_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   high:   { bg: "rgba(34,197,94,0.15)",  text: "#4ade80", label: "Auto-matched" },
   medium: { bg: "rgba(234,179,8,0.15)",  text: "#fbbf24", label: "Suggested" },
@@ -138,6 +142,11 @@ export default function HandoffReviewPage() {
     setMatchStatus("Running AI matching…");
     try {
       const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match`, { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text();
+        alert("Matching failed: " + text);
+        return;
+      }
       const json = await res.json();
       if (json.error) { alert("Matching failed: " + json.error); return; }
       setMatchStatus(`${json.matched}/${json.total} matched (${json.pct_matched}%)`);
@@ -733,6 +742,9 @@ function MatchRow({
             )}
             {item.match?.inventory_flagged && (
               <span style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80", borderRadius: 10, padding: "1px 7px", fontSize: 10 }} title={`${item.match.inventory_qty_on_hand} in stock`}>📦 In Stock</span>
+            )}
+            {needsMeasurement(item) && (
+              <span style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa", borderRadius: 10, padding: "1px 7px", fontSize: 10 }} title="Draw area/length on plan to set quantity">📐 Measure on plan</span>
             )}
           </div>
 
