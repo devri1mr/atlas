@@ -69,6 +69,7 @@ export default function BidsPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -166,6 +167,32 @@ export default function BidsPage() {
       setSelected(new Set());
     } else {
       setSelected(new Set(sorted.map(r => r.id)));
+    }
+  }
+
+  async function bulkUpdateStatus(statusId: number) {
+    if (!selected.size) return;
+    setBulkUpdating(true);
+    try {
+      await Promise.all(
+        [...selected].map(id =>
+          fetch(`/api/bids/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status_id: statusId }),
+          })
+        )
+      );
+      setRows(prev => prev.map(r =>
+        selected.has(r.id)
+          ? { ...r, statuses: statusOptions.find(s => s.id === statusId) ?? r.statuses }
+          : r
+      ));
+      setSelected(new Set());
+    } catch {
+      setError("Failed to update status on some bids.");
+    } finally {
+      setBulkUpdating(false);
     }
   }
 
@@ -271,16 +298,32 @@ export default function BidsPage() {
           </div>
 
           {selected.size > 0 && (
-            <button
-              onClick={deleteSelected}
-              disabled={deleting}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
-              </svg>
-              {deleting ? "Deleting…" : `Delete ${selected.size} selected`}
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                disabled={bulkUpdating}
+                defaultValue=""
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) { bulkUpdateStatus(Number(val)); e.target.value = ""; }
+                }}
+                className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-60"
+              >
+                <option value="" disabled>Set status…</option>
+                {statusOptions.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={deleteSelected}
+                disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
+                </svg>
+                {deleting ? "Deleting…" : `Delete ${selected.size}`}
+              </button>
+            </div>
           )}
         </div>
 
