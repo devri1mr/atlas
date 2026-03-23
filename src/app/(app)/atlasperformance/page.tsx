@@ -68,105 +68,178 @@ function statusLabel(profitPct: number | null, targetGp: number): string {
 /* ─── Summary KPI card ───────────────────────────────────────────────── */
 function SummaryCard({ item }: { item: SummaryItem }) {
   const { data, targetGp, divisionName } = item;
-  // Each card uses its own current month so a division with no data doesn't zero out others
+
+  // Each card derives its own current month
   const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-  const rev   = currentMonth >= 0 ? data.revenue.actual[currentMonth] : 0;
-  const revB  = currentMonth >= 0 ? data.revenue.budget[currentMonth] : 0;
-  const prof  = currentMonth >= 0 ? data.profit.actual[currentMonth] : 0;
-  const profB = currentMonth >= 0 ? data.profit.budget[currentMonth] : 0;
-  const mat   = currentMonth >= 0 ? data.materials.actual[currentMonth] : 0;
-  const lab   = currentMonth >= 0 ? data.labor.actual[currentMonth] : 0;
-  const fuel  = currentMonth >= 0 ? data.fuel.actual[currentMonth] : 0;
-  const equip = currentMonth >= 0 ? data.equipment.actual[currentMonth] : 0;
 
-  // Prefer the sheet's goal % for the current month; fall back to division setting
-  const sheetGoal = currentMonth >= 0 ? (data.profit.goal?.[currentMonth] ?? null) : null;
-  const effectiveGoal = sheetGoal ?? targetGp;
+  // Also check profit for divisions with no revenue (e.g. Holiday Lights takedown months)
+  const effectiveMonth = currentMonth >= 0 ? currentMonth
+    : data.profit.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
 
-  const profitPct = rev > 0 ? (prof / rev) * 100 : null;
-  const revPct    = revB > 0 ? Math.min((rev / revB) * 100, 100) : null;
-  const dot       = statusColor(profitPct, effectiveGoal);
-  const label     = statusLabel(profitPct, effectiveGoal);
+  const cm = effectiveMonth;
 
-  const costPct = (v: number) => rev > 0 ? Math.round((v / rev) * 100) : 0;
+  const rev   = cm >= 0 ? data.revenue.actual[cm] : 0;
+  const revB  = cm >= 0 ? data.revenue.budget[cm] : 0;
+  const prof  = cm >= 0 ? data.profit.actual[cm] : 0;
+  const profB = cm >= 0 ? data.profit.budget[cm] : 0;
+  const mat   = cm >= 0 ? data.materials.actual[cm] : 0;
+  const lab   = cm >= 0 ? data.labor.actual[cm] : 0;
+  const fuel  = cm >= 0 ? data.fuel.actual[cm] : 0;
+  const equip = cm >= 0 ? data.equipment.actual[cm] : 0;
+
+  // When there's no revenue, this is a cost-only division — use $ mode
+  const noRevenue = rev === 0 && revB === 0;
+
+  // Goal: prefer sheet goal row for current month, fall back to division setting
+  const sheetGoalPct = cm >= 0 ? (data.profit.goal?.[cm] ?? null) : null;
+
+  // Status dot + label logic
+  let dot: string;
+  let label: string;
+  if (noRevenue) {
+    // For cost-only divisions: "good" means actual profit >= budget profit
+    // (e.g. -14,936 >= -23,480 means we lost less than budgeted → green)
+    if (profB === 0 && prof === 0) { dot = "#9ca3af"; label = "No data"; }
+    else if (prof >= profB) { dot = "#22c55e"; label = "Under budget"; }
+    else if (profB < 0 && prof >= profB * 1.2) { dot = "#f59e0b"; label = "Near budget"; }
+    else if (profB > 0 && prof >= profB * 0.8) { dot = "#f59e0b"; label = "Near goal"; }
+    else { dot = "#ef4444"; label = "Over budget"; }
+  } else {
+    const effectiveGoal = sheetGoalPct ?? targetGp;
+    const profitPct = rev > 0 ? (prof / rev) * 100 : null;
+    dot   = statusColor(profitPct, effectiveGoal);
+    label = statusLabel(profitPct, effectiveGoal);
+  }
+
+  const profitPct   = rev > 0 ? (prof / rev) * 100 : null;
+  const revPct      = revB > 0 ? Math.min((rev / revB) * 100, 100) : null;
+  const effectiveGoal = sheetGoalPct ?? targetGp;
+  const costPct     = (v: number) => rev > 0 ? Math.round((v / rev) * 100) : 0;
+
+  // Holiday Lights YTD: sum through current month
+  const isHolidayLights = divisionName.toLowerCase().includes("holiday");
+  const ytdActual = cm >= 0 ? data.profit.actual.slice(0, cm + 1).reduce((a, b) => a + b, 0) : 0;
+  const ytdBudget = cm >= 0 ? data.profit.budget.slice(0, cm + 1).reduce((a, b) => a + b, 0) : 0;
+  // Remaining = how much of the budget is still available (positive = under budget)
+  const ytdRemaining = ytdActual - ytdBudget; // positive means better than budgeted
 
   return (
     <div style={{
-      background: "#fff",
-      borderRadius: 14,
-      border: `1px solid ${GRID}`,
-      overflow: "hidden",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-      display: "flex",
-      flexDirection: "column",
+      background: "#fff", borderRadius: 14, border: `1px solid ${GRID}`,
+      overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+      display: "flex", flexDirection: "column",
     }}>
       {/* Card header */}
       <div style={{
         background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 100%)`,
-        padding: "12px 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{divisionName}</span>
-        <span style={{
-          display: "flex", alignItems: "center", gap: 5,
-          background: "rgba(255,255,255,0.12)",
-          borderRadius: 20, padding: "2px 8px",
-        }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "2px 8px" }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, display: "inline-block", boxShadow: `0 0 6px ${dot}` }} />
           <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: 600 }}>{label}</span>
         </span>
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* Revenue */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Revenue</span>
-            <span style={{ fontSize: 10, color: "#9ca3af" }}>
-              {revPct != null ? `${Math.round(revPct)}% of budget` : ""}
-            </span>
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: rev > 0 ? "#15803d" : "#9ca3af", lineHeight: 1 }}>
-            {fmtK(rev)}
-          </div>
-          {revB > 0 && (
-            <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>Budget: {fmtK(revB)}</div>
-          )}
-          {/* Progress bar */}
-          <div style={{ marginTop: 6, height: 5, borderRadius: 99, background: "#f3f4f6", overflow: "hidden" }}>
-            <div style={{
-              height: "100%", borderRadius: 99,
-              width: `${revPct ?? 0}%`,
-              background: (revPct ?? 0) >= 90 ? "#22c55e" : (revPct ?? 0) >= 70 ? "#f59e0b" : "#ef4444",
-              transition: "width 0.6s ease",
-            }} />
-          </div>
-        </div>
 
-        {/* Profit */}
+        {/* Revenue — only show if division has revenue */}
+        {!noRevenue && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Revenue</span>
+              <span style={{ fontSize: 10, color: "#9ca3af" }}>{revPct != null ? `${Math.round(revPct)}% of budget` : ""}</span>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: rev > 0 ? "#15803d" : "#9ca3af", lineHeight: 1 }}>{fmtK(rev)}</div>
+            {revB > 0 && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>Budget: {fmtK(revB)}</div>}
+            <div style={{ marginTop: 6, height: 5, borderRadius: 99, background: "#f3f4f6", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 99, width: `${revPct ?? 0}%`,
+                background: (revPct ?? 0) >= 90 ? "#22c55e" : (revPct ?? 0) >= 70 ? "#f59e0b" : "#ef4444",
+                transition: "width 0.6s ease",
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Profit / GP */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Profit</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: prof > 0 ? "#15803d" : prof < 0 ? "#dc2626" : "#9ca3af" }}>
-              {fmtK(prof)}
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
+              {noRevenue ? "Gross Profit" : "Profit"}
             </div>
-            {profB > 0 && <div style={{ fontSize: 10, color: "#9ca3af" }}>Budget: {fmtK(profB)}</div>}
+            <div style={{ fontSize: 18, fontWeight: 800, color: prof > 0 ? "#15803d" : prof < 0 ? "#dc2626" : "#9ca3af" }}>
+              {cm >= 0 ? fmtK(prof) : "—"}
+            </div>
+            {profB !== 0 && (
+              <div style={{ fontSize: 10, color: "#9ca3af" }}>
+                {noRevenue ? "Goal:" : "Budget:"} {fmtK(profB)}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{
-              fontSize: 22, fontWeight: 900,
-              color: profitPct == null ? "#9ca3af" : profitPct >= effectiveGoal ? "#15803d" : profitPct >= effectiveGoal * 0.8 ? "#d97706" : "#dc2626",
-            }}>
-              {profitPct != null ? `${Math.round(profitPct)}%` : "—"}
-            </div>
-            <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {effectiveGoal}%</div>
+            {noRevenue ? (
+              /* Cost-only: show $ variance from budget */
+              <>
+                <div style={{
+                  fontSize: 16, fontWeight: 900,
+                  color: prof >= profB ? "#15803d" : "#dc2626",
+                }}>
+                  {prof !== 0 || profB !== 0
+                    ? `${prof >= profB ? "+" : ""}${fmtK(prof - profB)}`
+                    : "—"}
+                </div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>vs goal</div>
+              </>
+            ) : (
+              /* Revenue division: show profit % vs goal % */
+              <>
+                <div style={{
+                  fontSize: 22, fontWeight: 900,
+                  color: profitPct == null ? "#9ca3af"
+                    : profitPct >= effectiveGoal ? "#15803d"
+                    : profitPct >= effectiveGoal * 0.8 ? "#d97706"
+                    : "#dc2626",
+                }}>
+                  {profitPct != null ? `${Math.round(profitPct)}%` : "—"}
+                </div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {effectiveGoal}%</div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Cost breakdown mini-bars */}
-        {rev > 0 && (
+        {/* Holiday Lights YTD section */}
+        {isHolidayLights && cm >= 0 && (
+          <div style={{ borderTop: `1px solid #f3f4f6`, paddingTop: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+              YTD thru {MONTHS_FULL[cm]}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: "#6b7280" }}>Actual GP</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: ytdActual >= 0 ? "#15803d" : "#dc2626" }}>{fmtK(ytdActual)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#6b7280" }}>Budget GP</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>{fmtK(ytdBudget)}</span>
+            </div>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              background: ytdRemaining >= 0 ? "#f0fdf4" : "#fef2f2",
+              borderRadius: 8, padding: "6px 10px",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: ytdRemaining >= 0 ? "#15803d" : "#dc2626" }}>
+                {ytdRemaining >= 0 ? "Under budget" : "Over budget"}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: ytdRemaining >= 0 ? "#15803d" : "#dc2626" }}>
+                {ytdRemaining >= 0 ? "+" : ""}{fmtK(ytdRemaining)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Cost breakdown mini-bars — revenue divisions only */}
+        {!noRevenue && rev > 0 && (
           <div style={{ borderTop: `1px solid #f3f4f6`, paddingTop: 10 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Cost Breakdown</div>
             {[
@@ -174,17 +247,15 @@ function SummaryCard({ item }: { item: SummaryItem }) {
               { label: "Labor",     val: lab, color: "#2563eb" },
               { label: "Fuel",      val: fuel, color: "#ea580c" },
               { label: "Equipment", val: equip, color: "#0891b2" },
-            ].map(({ label, val, color }) => (
-              val > 0 ? (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 54, fontSize: 9, color: "#6b7280", fontWeight: 600 }}>{label}</div>
-                  <div style={{ flex: 1, height: 4, borderRadius: 99, background: "#f3f4f6", overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(costPct(val), 100)}%`, background: color, borderRadius: 99 }} />
-                  </div>
-                  <div style={{ width: 24, fontSize: 9, color: "#6b7280", textAlign: "right", fontWeight: 600 }}>{costPct(val)}%</div>
+            ].map(({ label, val, color }) => val > 0 ? (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <div style={{ width: 54, fontSize: 9, color: "#6b7280", fontWeight: 600 }}>{label}</div>
+                <div style={{ flex: 1, height: 4, borderRadius: 99, background: "#f3f4f6", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(costPct(val), 100)}%`, background: color, borderRadius: 99 }} />
                 </div>
-              ) : null
-            ))}
+                <div style={{ width: 24, fontSize: 9, color: "#6b7280", textAlign: "right", fontWeight: 600 }}>{costPct(val)}%</div>
+              </div>
+            ) : null)}
           </div>
         )}
       </div>
