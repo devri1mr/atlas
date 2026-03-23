@@ -54,18 +54,21 @@ For each item return a JSON object with:
 - common_name: common name (required)
 - botanical_name: botanical/scientific name if shown (or null)
 - category: one of "tree", "shrub", "perennial", "grass", "groundcover", "other"
+- qty: integer quantity from the QTY or quantity column (use 0 if not shown)
 - size: size spec e.g. "2.5\\" CAL.", "8' HT.", "1 GAL." (or null)
 - container: e.g. "B&B", "CONT.", "POT" (or null)
 - spacing: spacing e.g. "4' O.C.", "PER PLAN" (or null)
 - designation: "Native" or "Non-Native" if shown (or null)
 - remarks: any remarks column text (or null)
 
+IMPORTANT: Read the QTY column carefully and include the exact integer quantity for each plant row.
+
 Also extract area surface materials (mulch, sod, pavers, seed mixes, rock) using category "groundcover" or "other".
 
 Return ONLY valid JSON:
 {
   "items": [
-    { "common_name": "...", "botanical_name": null, "category": "tree", "size": "2.5\\" CAL.", "container": "B&B", "spacing": "PER PLAN", "designation": "Native", "remarks": null }
+    { "common_name": "...", "botanical_name": null, "category": "tree", "qty": 3, "size": "2.5\\" CAL.", "container": "B&B", "spacing": "PER PLAN", "designation": "Native", "remarks": null }
   ]
 }
 
@@ -105,7 +108,7 @@ If no plant schedule found, return { "items": [] }.`,
         remarks: i.remarks ?? null,
         color: CATEGORY_COLORS[i.category ?? "other"] ?? "#6b7280",
         symbol: "●",
-        count: 0,
+        count: typeof i.qty === "number" && i.qty > 0 ? i.qty : 0,
         unit: "EA",
         unit_price: null,
         sort_order: (existing ?? 0) + idx,

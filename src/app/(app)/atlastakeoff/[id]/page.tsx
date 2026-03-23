@@ -781,7 +781,14 @@ export default function TakeoffEditorPage() {
                 style={{ display: "block", maxWidth: "none", userSelect: "none" }}
                 onLoad={() => {
                   setImgLoaded(true);
-                  setImgDims({ w: imgRef.current!.naturalWidth, h: imgRef.current!.naturalHeight });
+                  const nat = { w: imgRef.current!.naturalWidth, h: imgRef.current!.naturalHeight };
+                  setImgDims(nat);
+                  // Fit image to viewer on load
+                  if (viewerRef.current && nat.w > 0 && nat.h > 0) {
+                    const vw = viewerRef.current.clientWidth - 48;
+                    const vh = viewerRef.current.clientHeight - 48;
+                    setZoom(Math.min(1, vw / nat.w, vh / nat.h));
+                  }
                 }}
                 draggable={false}
               />
