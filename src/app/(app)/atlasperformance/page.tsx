@@ -66,8 +66,10 @@ function statusLabel(profitPct: number | null, targetGp: number): string {
 }
 
 /* ─── Summary KPI card ───────────────────────────────────────────────── */
-function SummaryCard({ item, currentMonth }: { item: SummaryItem; currentMonth: number }) {
+function SummaryCard({ item }: { item: SummaryItem }) {
   const { data, targetGp, divisionName } = item;
+  // Each card uses its own current month so a division with no data doesn't zero out others
+  const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
   const rev   = currentMonth >= 0 ? data.revenue.actual[currentMonth] : 0;
   const revB  = currentMonth >= 0 ? data.revenue.budget[currentMonth] : 0;
   const prof  = currentMonth >= 0 ? data.profit.actual[currentMonth] : 0;
@@ -395,13 +397,13 @@ export default function AtlasPerformancePage() {
                     style={{ cursor: "pointer" }}
                     title={`Open ${item.divisionName} detail`}
                   >
-                    <SummaryCard item={item} currentMonth={currentMonth} />
+                    <SummaryCard item={item} />
                   </div>
                 ))}
               </div>
               {/* All-divisions totals row */}
               {summaryItems && summaryItems.length > 1 && (
-                <AllDivisionsTotals items={summaryItems} currentMonth={currentMonth} />
+                <AllDivisionsTotals items={summaryItems} />
               )}
             </>
           )
@@ -443,7 +445,13 @@ function TabBtn({ label, active, dot, onClick, icon }: { label: string; active: 
 }
 
 /* ─── All divisions totals strip ─────────────────────────────────────── */
-function AllDivisionsTotals({ items, currentMonth }: { items: SummaryItem[]; currentMonth: number }) {
+function AllDivisionsTotals({ items }: { items: SummaryItem[] }) {
+  // Use the latest month that has ANY revenue across ANY division
+  const bestMonth = items.reduce((best, item) => {
+    const m = item.data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+    return m > best ? m : best;
+  }, -1);
+  const currentMonth = bestMonth;
   const sum = (vals: number[]) => vals.reduce((a, b) => a + b, 0);
   const rev   = sum(items.map(i => currentMonth >= 0 ? i.data.revenue.actual[currentMonth] : 0));
   const revB  = sum(items.map(i => currentMonth >= 0 ? i.data.revenue.budget[currentMonth] : 0));
