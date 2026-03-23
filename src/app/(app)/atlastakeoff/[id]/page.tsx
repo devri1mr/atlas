@@ -1047,7 +1047,7 @@ export default function TakeoffEditorPage() {
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>AutoTakeoff</div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
-                  {autoProcessing ? "AI is processing your blueprint…" : "Complete — navigating to review…"}
+                  {autoProcessing ? "Atlas is processing your blueprint…" : "Complete — navigating to review…"}
                 </div>
               </div>
             </div>
