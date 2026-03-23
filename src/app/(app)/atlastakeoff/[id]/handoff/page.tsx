@@ -72,6 +72,9 @@ export default function HandoffReviewPage() {
   const [matchStatus, setMatchStatus] = useState("");
   const [tab, setTab] = useState<"all" | "matched" | "review" | "unmatched">("all");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [autoMeasuring, setAutoMeasuring] = useState(false);
+  const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
+  const [measureStatus, setMeasureStatus] = useState("");
 
   // Dropdown search state per item
   const [materialSearch, setMaterialSearch] = useState<Record<string, string>>({});
@@ -134,6 +137,45 @@ export default function HandoffReviewPage() {
     if (!res?.ok) return;
     const json = await res.json();
     setClientHistory(json.data ?? []);
+  }
+
+  /* ── Auto-measure all area items ── */
+  async function runAutoMeasureAll() {
+    setAutoMeasuring(true);
+    setMeasureStatus("Measuring areas…");
+    try {
+      const res = await fetch(`/api/takeoff/${takeoffId}/auto-measure-all`, { method: "POST" });
+      if (!res.ok) { const t = await res.text(); alert("Auto-measure failed: " + t); return; }
+      const json = await res.json();
+      if (json.error) { alert("Auto-measure failed: " + json.error); return; }
+      const count = json.updated?.length ?? 0;
+      setMeasureStatus(`✓ Measured ${count} item${count !== 1 ? "s" : ""}${json.scale_found ? ` · scale ${json.scale_found}` : ""}`);
+      await loadReview();
+      setTimeout(() => setMeasureStatus(""), 6000);
+    } catch (e: any) {
+      alert("Auto-measure failed: " + e.message);
+    } finally {
+      setAutoMeasuring(false);
+    }
+  }
+
+  /* ── Auto-measure single item ── */
+  async function runAutoMeasureOne(itemId: string) {
+    setMeasuringItemId(itemId);
+    try {
+      const res = await fetch(`/api/takeoff/${takeoffId}/items/${itemId}/auto-measure`, { method: "POST" });
+      if (!res.ok) { const t = await res.text(); alert("Measure failed: " + t); return; }
+      const json = await res.json();
+      if (json.error) { alert("Measure failed: " + json.error); return; }
+      // Update item locally
+      setItems(prev => prev.map(i =>
+        i.id === itemId ? { ...i, count: json.qty, unit: json.unit } : i
+      ));
+    } catch (e: any) {
+      alert("Measure failed: " + e.message);
+    } finally {
+      setMeasuringItemId(null);
+    }
   }
 
   /* ── Run AI matching ── */
@@ -345,8 +387,21 @@ export default function HandoffReviewPage() {
         )}
 
         {matchStatus && <span style={{ fontSize: 11, color: "#4ade80", fontWeight: 600 }}>{matchStatus}</span>}
+        {measureStatus && <span style={{ fontSize: 11, color: "#60a5fa", fontWeight: 600 }}>{measureStatus}</span>}
 
         <div style={{ flex: 1 }} />
+
+        {items.some(i => needsMeasurement(i)) && (
+          <button
+            onClick={runAutoMeasureAll}
+            disabled={autoMeasuring}
+            style={{ background: autoMeasuring ? "rgba(96,165,250,0.3)" : "linear-gradient(135deg,#1d4ed8,#1e40af)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: autoMeasuring ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: autoMeasuring ? 0.7 : 1 }}
+          >
+            {autoMeasuring
+              ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Measuring…</>
+              : "📐 Auto-measure all"}
+          </button>
+        )}
 
         <button
           onClick={runMatching}
@@ -459,6 +514,8 @@ export default function HandoffReviewPage() {
               setAddForm({ name: item.common_name, vendor: "", sku: "", default_unit: "EA", default_unit_cost: "" });
               setAddPanel({ item });
             }}
+            onAutoMeasure={() => runAutoMeasureOne(item.id)}
+            measuringThisItem={measuringItemId === item.id}
           />
         ))}
       </div>
@@ -686,6 +743,8 @@ function MatchRow({
   onSelectTask: (id: string | null) => void;
   onExclude: () => void;
   onAddToCatalog: () => void;
+  onAutoMeasure: () => void;
+  measuringThisItem: boolean;
 }) {
   const isSaving = savingId === item.match?.id;
   const isMatOpen = openMat === item.id;
@@ -744,7 +803,15 @@ function MatchRow({
               <span style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80", borderRadius: 10, padding: "1px 7px", fontSize: 10 }} title={`${item.match.inventory_qty_on_hand} in stock`}>📦 In Stock</span>
             )}
             {needsMeasurement(item) && (
-              <span style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa", borderRadius: 10, padding: "1px 7px", fontSize: 10 }} title="Draw area/length on plan to set quantity">📐 Measure on plan</span>
+              <button
+                onClick={onAutoMeasure}
+                disabled={measuringThisItem}
+                style={{ background: measuringThisItem ? "rgba(96,165,250,0.1)" : "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.3)", color: "#60a5fa", borderRadius: 10, padding: "1px 8px", fontSize: 10, cursor: measuringThisItem ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                {measuringThisItem
+                  ? <><span style={{ width: 8, height: 8, border: "1.5px solid rgba(96,165,250,0.3)", borderTopColor: "#60a5fa", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Measuring…</>
+                  : "📐 Auto-measure"}
+              </button>
             )}
           </div>
 
