@@ -286,13 +286,11 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     newImg.src = off.toDataURL("image/jpeg", 0.95);
   }
 
-// ── Mouse handlers ────────────────────────────────────────────────────────
-  function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+// ── Shared pointer logic (mouse + touch) ──────────────────────────────────
+  function handlePointerDown(pt: { x: number; y: number }, clientX: number, clientY: number) {
     if (textInput) return;
     const canvas = canvasRef.current!;
-    const pt = canvasPt(e, canvas);
 
-    // SELECT tool
     if (tool === "select") {
       let found = -1;
       for (let i = annotations.length - 1; i >= 0; i--) {
@@ -313,14 +311,13 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
       return;
     }
 
-    // TEXT tool
     if (tool === "text") {
       const rect = canvas.getBoundingClientRect();
       const scaleY = rect.height / canvas.height;
       setEditingTextIdx(null);
       setTextInput({
-        x: (e as React.MouseEvent).clientX - rect.left,
-        y: (e as React.MouseEvent).clientY - rect.top,
+        x: clientX - rect.left,
+        y: clientY - rect.top,
         canvasX: pt.x,
         canvasY: pt.y + fs * scaleY,
       });
@@ -333,11 +330,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     startPt.current = pt;
   }
 
-  function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current!;
-    const pt = canvasPt(e, canvas);
-
-    // Drag with select tool
+  function handlePointerMove(pt: { x: number; y: number }) {
     if (tool === "select" && draggingIdx.current !== null && dragOriginPt.current && dragOriginAnn.current) {
       const dx = pt.x - dragOriginPt.current.mx;
       const dy = pt.y - dragOriginPt.current.my;
@@ -359,8 +352,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     redraw(annotations, inProgress.current, selectedIdx);
   }
 
-  function onMouseUp() {
-    // End drag
+  function handlePointerUp() {
     if (tool === "select") {
       draggingIdx.current = null;
       dragOriginPt.current = null;
@@ -382,6 +374,32 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
         return next;
       });
     }
+  }
+
+// ── Mouse handlers ────────────────────────────────────────────────────────
+  function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    handlePointerDown(canvasPt(e, canvasRef.current!), e.clientX, e.clientY);
+  }
+  function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    handlePointerMove(canvasPt(e, canvasRef.current!));
+  }
+  function onMouseUp() { handlePointerUp(); }
+
+// ── Touch handlers ────────────────────────────────────────────────────────
+  function onTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault();
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    handlePointerDown(canvasPt(t, canvasRef.current!), t.clientX, t.clientY);
+  }
+  function onTouchMove(e: React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault();
+    if (e.touches.length !== 1) return;
+    handlePointerMove(canvasPt(e.touches[0], canvasRef.current!));
+  }
+  function onTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault();
+    handlePointerUp();
   }
 
   // ── Double-click: edit text annotation ────────────────────────────────────
@@ -609,6 +627,9 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
             onDoubleClick={onDoubleClick}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           />
           {textInput && (
             <input
