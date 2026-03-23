@@ -112,43 +112,16 @@ export async function POST(req: NextRequest) {
 
     const total_cost = round2(labor_cost + material_cost + trucking_cost);
 
-    const { data: opsRow } = await supabase
-      .from("operations_settings")
-      .select("*")
-      .eq("company_id", bidRow.company_id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    // Fallback: read from bid_settings if operations_settings is missing values
+    // Read settings from bid_settings (same source as scope page)
     const { data: bidSettings } = await supabase
       .from("bid_settings")
       .select("contingency_pct, round_up_increment, prepay_discount_pct")
       .limit(1)
       .maybeSingle();
 
-    const contingency =
-      num(
-        opsRow?.company_contingency_percent ??
-          opsRow?.contingency_pct ??
-          bidSettings?.contingency_pct,
-        3
-      ) / 100;
-
-    const round_to = num(
-      opsRow?.round_increment ??
-        opsRow?.round_up_increment ??
-        bidSettings?.round_up_increment,
-      100
-    );
-
-    const prepay_discount =
-      num(
-        opsRow?.prepay_discount_percent ??
-          opsRow?.prepay_discount_pct ??
-          bidSettings?.prepay_discount_pct,
-        3
-      ) / 100;
+    const contingency = num(bidSettings?.contingency_pct, 3) / 100;
+    const round_to = num(bidSettings?.round_up_increment, 100);
+    const prepay_discount = num(bidSettings?.prepay_discount_pct, 3) / 100;
 
 const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
     const clamped_target_gp_pct = Math.max(0, Math.min(95, target_gp_pct));
@@ -181,9 +154,10 @@ const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
 
     const gp_base_price = prepay_enabled ? prepay_price : final_price;
 
+    const cost_with_contingency = round2(total_cost * (1 + contingency));
     const effective_gp =
       gp_base_price > 0
-        ? round2(((gp_base_price - total_cost) / gp_base_price) * 100)
+        ? round2(((gp_base_price - cost_with_contingency) / gp_base_price) * 100)
         : 0;
 
     const override_amount = round2(final_price - suggested_price);
