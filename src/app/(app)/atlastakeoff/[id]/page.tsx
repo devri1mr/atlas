@@ -444,11 +444,16 @@ export default function TakeoffEditorPage() {
         >
           ← Back
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Image src="/atlas-takeoff-icon.png" alt="" width={22} height={22} style={{ objectFit: "contain" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Image src="/atlas-takeoff-icon.png" alt="" width={26} height={26} style={{ objectFit: "contain" }} />
           <div>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{takeoff?.name ?? "Takeoff"}</div>
-            {takeoff?.client_name && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{takeoff.client_name}{takeoff.address ? ` · ${takeoff.address}` : ""}</div>}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+              <span style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: "-0.3px" }}>ATLAS</span>
+              <span style={{ color: "#38bdf8", fontWeight: 900, fontSize: 13, letterSpacing: "0.3px" }}>TAKEOFF</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontWeight: 400, marginLeft: 4 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600 }}>{takeoff?.name ?? ""}</span>
+            </div>
+            {takeoff?.client_name && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{takeoff.client_name}{takeoff.address ? ` · ${takeoff.address}` : ""}</div>}
           </div>
         </div>
 
