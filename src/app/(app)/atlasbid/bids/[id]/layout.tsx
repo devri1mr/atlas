@@ -35,6 +35,7 @@ export default async function BidLayout({
     { name: "Measurements", href: `/atlasbid/bids/${id}/measurements` },
     { name: "Pricing", href: `/atlasbid/bids/${id}/pricing` },
     { name: "Photos/Videos", href: `/atlasbid/bids/${id}/photos` },
+    { name: "Design", href: `/atlasbid/bids/${id}/design` },
     { name: "Proposal", href: `/atlasbid/bids/${id}/proposal` },
   ];
 
