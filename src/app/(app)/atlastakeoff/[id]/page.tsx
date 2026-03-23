@@ -492,7 +492,7 @@ export default function TakeoffEditorPage() {
           ← Back
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={36} width={54} style={{ objectFit: "contain", display: "block", flexShrink: 0 }} />
+          <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={36} width={54} style={{ objectFit: "contain", display: "block", flexShrink: 0, filter: "drop-shadow(0 0 3px rgba(255,255,255,0.35))" }} />
           <div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
               <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontWeight: 400 }}>·</span>
@@ -625,14 +625,14 @@ export default function TakeoffEditorPage() {
         {/* Handoff */}
         {items.length > 0 && (
           <button
-            onClick={() => router.push(`/atlastakeoff/${id}/handoff`)}
+            onClick={() => router.push(`/atlastakeoff/${id}/autotakeoff`)}
             style={{
               background: "linear-gradient(135deg,#16a34a,#15803d)",
               border: "none", borderRadius: 8, padding: "7px 16px",
               color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700,
             }}
           >
-            Handoff →
+            AutoTakeoff →
           </button>
         )}
       </div>

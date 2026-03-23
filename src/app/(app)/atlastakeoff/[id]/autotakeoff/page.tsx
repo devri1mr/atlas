@@ -358,7 +358,7 @@ export default function HandoffReviewPage() {
 
         <div>
           <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>
-            Atlas Handoff{data?.takeoff.name ? ` · ${data.takeoff.name}` : ""}
+            AutoTakeoff{data?.takeoff.name ? ` · ${data.takeoff.name}` : ""}
           </div>
           {data?.takeoff.client_name && (
             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
