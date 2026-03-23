@@ -128,11 +128,10 @@ export default function PricingPage() {
           if (row) {
             const nextTargetGp = Number(row?.target_gp_pct ?? 50);
             const nextPrepayEnabled = Boolean(row?.prepay_enabled ?? false);
-            const nextManualPrice = row?.sell_rounded != null && Number(row?.sell_rounded) > 0 ? String(Number(row.sell_rounded)) : "";
             setTargetGpPct(nextTargetGp);
             setPrepayEnabled(nextPrepayEnabled);
-            setManualPrice(nextManualPrice);
-            await calculate(nextTargetGp, nextPrepayEnabled, nextManualPrice);
+            setManualPrice("");
+            await calculate(nextTargetGp, nextPrepayEnabled, "");
           } else {
             await calculate(50, false, "");
           }
