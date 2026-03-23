@@ -585,7 +585,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
             <span className="text-white w-4 text-center">{sw}</span>
           </label>
         )}
-        {tool === "text" && (
+        {(tool === "text" || editingTextIdx !== null) && (
           <label className="flex items-center gap-1.5 text-xs text-gray-400">
             Font
             <input type="range" min={12} max={80} value={fs} onChange={e => setFs(+e.target.value)} className="w-20 accent-emerald-500" />

@@ -113,6 +113,17 @@ const sections = [
     ),
     color: "text-gray-600 bg-gray-100",
   },
+  {
+    title: "AI Design",
+    description: "Monthly usage, generation limits, and recent AI landscape design history.",
+    href: "/operations-center/ai-design",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l3 3"/><path d="M18 2l4 4-4 4"/><path d="M22 6H16"/>
+      </svg>
+    ),
+    color: "text-violet-600 bg-violet-50",
+  },
 ];
 
 export default function OperationsCenterPage() {
