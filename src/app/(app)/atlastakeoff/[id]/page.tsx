@@ -471,9 +471,7 @@ export default function TakeoffEditorPage() {
           ← Back
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "#fff", borderRadius: 8, padding: "3px 8px", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-            <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={36} width={54} style={{ objectFit: "contain", display: "block" }} />
-          </div>
+          <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={36} width={54} style={{ objectFit: "contain", display: "block", flexShrink: 0 }} />
           <div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
               <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontWeight: 400 }}>·</span>

@@ -64,9 +64,7 @@ export default function AtlasTakeoffPage() {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "#fff", borderRadius: 10, padding: "6px 12px", display: "inline-flex", alignItems: "center" }}>
-              <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={52} width={78} style={{ objectFit: "contain", display: "block" }} />
-            </div>
+            <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={52} width={78} style={{ objectFit: "contain", display: "block" }} />
             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
               AI-powered landscape plan takeoffs
             </div>
