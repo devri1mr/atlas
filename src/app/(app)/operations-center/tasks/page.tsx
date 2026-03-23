@@ -459,7 +459,7 @@ export default function TaskCatalogPage() {
                                   <option value="">—</option>
                                   {["1","2","3","4"].map((t) => (
                                     <option key={t} value={t} disabled={usedTiers.includes(t)}>
-                                      {t} — {TIER_LABELS[Number(t)-1]}
+                                      {TIER_LABELS[Number(t)-1]}
                                     </option>
                                   ))}
                                 </select>
