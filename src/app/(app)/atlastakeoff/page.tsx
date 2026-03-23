@@ -135,13 +135,33 @@ export default function AtlasTakeoffPage() {
                   }}>
                     📋
                   </div>
-                  <span style={{
-                    fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
-                    background: t.plan_file_name ? "#dcfce7" : "#f1f5f9",
-                    color: t.plan_file_name ? "#15803d" : "#64748b",
-                  }}>
-                    {t.plan_file_name ? "Plan uploaded" : "No plan yet"}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
+                      background: t.plan_file_name ? "#dcfce7" : "#f1f5f9",
+                      color: t.plan_file_name ? "#15803d" : "#64748b",
+                    }}>
+                      {t.plan_file_name ? "Plan uploaded" : "No plan yet"}
+                    </span>
+                    <button
+                      onClick={async e => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete "${t.name}"? This cannot be undone.`)) return;
+                        await fetch(`/api/takeoff/${t.id}`, { method: "DELETE" });
+                        setTakeoffs(prev => prev.filter(x => x.id !== t.id));
+                      }}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "#cbd5e1", fontSize: 14, padding: "2px 4px", borderRadius: 4,
+                        lineHeight: 1,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "#cbd5e1")}
+                      title="Delete takeoff"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>{t.name}</div>
                 {t.client_name && <div style={{ fontSize: 13, color: "#475569", marginBottom: 2 }}>{t.client_name}</div>}
