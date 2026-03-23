@@ -58,6 +58,7 @@ export default function TakeoffEditorPage() {
   const [aiStatus,     setAiStatus]     = useState("");
   const [autoProcessing, setAutoProcessing] = useState(false);
   const [autoProcessSteps, setAutoProcessSteps] = useState<ProcessStep[]>([]);
+  const [autoProgress, setAutoProgress] = useState(0);
   const [showAddItem,  setShowAddItem]  = useState(false);
   const [newItemForm,  setNewItemForm]  = useState({ common_name: "", category: "tree", color: "#15803d" });
   const [inProgressPts, setInProgressPts] = useState<{ x: number; y: number }[]>([]);
@@ -219,6 +220,20 @@ export default function TakeoffEditorPage() {
   }, [marks, items, imgLoaded, zoom, inProgressPts, activeTool, activeItemId]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
+
+  /* ── AutoProcess progress animation ── */
+  useEffect(() => {
+    if (!autoProcessing) return;
+    setAutoProgress(0);
+    const iv = setInterval(() => {
+      setAutoProgress(prev => {
+        if (prev >= 90) return prev;
+        const inc = Math.max(0.15, (90 - prev) * 0.012);
+        return Math.min(90, prev + inc);
+      });
+    }, 500);
+    return () => clearInterval(iv);
+  }, [autoProcessing]);
 
   /* ── Canvas click ── */
   function getCanvasPercent(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -457,7 +472,8 @@ export default function TakeoffEditorPage() {
       const json = await res.json();
 
       if (!res.ok) {
-        setAutoProcessSteps([{ step: "Error", status: "error", detail: json.error ?? "Unknown error" }]);
+        setAutoProgress(100);
+      setAutoProcessSteps([{ step: "Error", status: "error", detail: json.error ?? "Unknown error" }]);
         return;
       }
 
@@ -466,6 +482,7 @@ export default function TakeoffEditorPage() {
         status: s.status === "ok" || s.status === "skipped" ? "done" : "error",
         detail: s.detail,
       }));
+      setAutoProgress(100);
       setAutoProcessSteps(steps);
 
       // Reload items
@@ -478,6 +495,7 @@ export default function TakeoffEditorPage() {
         router.push(`/atlastakeoff/${id}/autotakeoff`);
       }, 3000);
     } catch (e: any) {
+      setAutoProgress(100);
       setAutoProcessSteps([{ step: "Error", status: "error", detail: e.message }]);
     } finally {
       setAutoProcessing(false);
@@ -1052,28 +1070,70 @@ export default function TakeoffEditorPage() {
               </div>
             </div>
 
+            {/* Progress bar */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  {autoProcessing ? "Processing…" : autoProgress === 100 && autoProcessSteps.every(s => s.status !== "error") ? "Complete" : autoProgress === 100 ? "Done with errors" : ""}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: autoProgress === 100 ? "#4ade80" : "#ca8a04" }}>
+                  {Math.round(autoProgress)}%
+                </span>
+              </div>
+              <div style={{ height: 10, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 99,
+                  width: `${autoProgress}%`,
+                  background: autoProgress === 100
+                    ? "linear-gradient(90deg,#16a34a,#4ade80)"
+                    : "linear-gradient(90deg,#ca8a04,#fbbf24)",
+                  transition: "width 0.5s ease-out, background 0.4s ease",
+                  boxShadow: autoProgress === 100
+                    ? "0 0 12px rgba(74,222,128,0.5)"
+                    : "0 0 10px rgba(251,191,36,0.4)",
+                }} />
+              </div>
+            </div>
+
             {/* Steps */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {autoProcessing && autoProcessSteps.length === 0 ? (
-                /* Initial pulse while waiting for first response */
-                ["Parsing plant schedule", "Scanning scope notes", "Measuring areas", "Matching catalog"].map((label, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)" }}>
-                    <span style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0, display: "inline-block" }} />
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)" }}>{label}</span>
-                  </div>
-                ))
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {autoProcessSteps.length === 0 ? (
+                /* Animate steps active based on progress quartile */
+                (["Parsing plant schedule", "Scanning scope notes", "Measuring areas", "Matching catalog"] as const).map((label, i) => {
+                  const threshold = i * 25;
+                  const active = autoProgress >= threshold;
+                  const done = autoProgress >= threshold + 25;
+                  return (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 12, padding: "9px 14px", borderRadius: 10,
+                      background: done ? "rgba(74,222,128,0.07)" : active ? "rgba(202,138,4,0.1)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${done ? "rgba(74,222,128,0.18)" : active ? "rgba(202,138,4,0.25)" : "rgba(255,255,255,0.05)"}`,
+                      transition: "all 0.4s ease",
+                    }}>
+                      <span style={{ fontSize: 15, flexShrink: 0, color: done ? "#4ade80" : active ? "#fbbf24" : "rgba(255,255,255,0.15)" }}>
+                        {done ? "✓" : active ? "◉" : "○"}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: done ? "#4ade80" : active ? "#fde68a" : "rgba(255,255,255,0.25)", transition: "color 0.4s ease" }}>
+                        {label}
+                      </span>
+                      {active && !done && (
+                        <span style={{ marginLeft: "auto", width: 12, height: 12, border: "2px solid rgba(251,191,36,0.3)", borderTopColor: "#fbbf24", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block", flexShrink: 0 }} />
+                      )}
+                    </div>
+                  );
+                })
               ) : (
                 autoProcessSteps.map((s, i) => (
                   <div key={i} style={{
-                    display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 14px", borderRadius: 10,
+                    display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 14px", borderRadius: 10,
                     background: s.status === "done" ? "rgba(74,222,128,0.07)" : s.status === "error" ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)",
                     border: `1px solid ${s.status === "done" ? "rgba(74,222,128,0.2)" : s.status === "error" ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.06)"}`,
                   }}>
-                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
-                      {s.status === "done" ? "✓" : s.status === "error" ? "✕" : "…"}
+                    <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1, color: s.status === "done" ? "#4ade80" : "#f87171" }}>
+                      {s.status === "done" ? "✓" : "✕"}
                     </span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: s.status === "done" ? "#4ade80" : s.status === "error" ? "#f87171" : "#fff" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: s.status === "done" ? "#4ade80" : "#f87171" }}>
                         {s.step}
                       </div>
                       {s.detail && (
@@ -1085,12 +1145,11 @@ export default function TakeoffEditorPage() {
               )}
             </div>
 
-            {/* Spinner or done message */}
+            {/* Bottom action */}
             <div style={{ marginTop: 20, textAlign: "center" }}>
               {autoProcessing ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
-                  <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "#ca8a04", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
-                  This may take up to 2–3 minutes for large plans
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
+                  Large plans may take 2–3 minutes
                 </div>
               ) : (
                 <button
