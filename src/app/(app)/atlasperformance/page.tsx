@@ -79,10 +79,14 @@ function SummaryCard({ item }: { item: SummaryItem }) {
   const fuel  = currentMonth >= 0 ? data.fuel.actual[currentMonth] : 0;
   const equip = currentMonth >= 0 ? data.equipment.actual[currentMonth] : 0;
 
+  // Prefer the sheet's goal % for the current month; fall back to division setting
+  const sheetGoal = currentMonth >= 0 ? (data.profit.goal?.[currentMonth] ?? null) : null;
+  const effectiveGoal = sheetGoal ?? targetGp;
+
   const profitPct = rev > 0 ? (prof / rev) * 100 : null;
   const revPct    = revB > 0 ? Math.min((rev / revB) * 100, 100) : null;
-  const dot       = statusColor(profitPct, targetGp);
-  const label     = statusLabel(profitPct, targetGp);
+  const dot       = statusColor(profitPct, effectiveGoal);
+  const label     = statusLabel(profitPct, effectiveGoal);
 
   const costPct = (v: number) => rev > 0 ? Math.round((v / rev) * 100) : 0;
 
@@ -153,11 +157,11 @@ function SummaryCard({ item }: { item: SummaryItem }) {
           <div style={{ textAlign: "right" }}>
             <div style={{
               fontSize: 22, fontWeight: 900,
-              color: profitPct == null ? "#9ca3af" : profitPct >= targetGp ? "#15803d" : profitPct >= targetGp * 0.8 ? "#d97706" : "#dc2626",
+              color: profitPct == null ? "#9ca3af" : profitPct >= effectiveGoal ? "#15803d" : profitPct >= effectiveGoal * 0.8 ? "#d97706" : "#dc2626",
             }}>
               {profitPct != null ? `${Math.round(profitPct)}%` : "—"}
             </div>
-            <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {targetGp}%</div>
+            <div style={{ fontSize: 10, color: "#9ca3af" }}>Goal: {effectiveGoal}%</div>
           </div>
         </div>
 
