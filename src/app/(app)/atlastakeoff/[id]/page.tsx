@@ -530,9 +530,22 @@ export default function TakeoffEditorPage() {
 
         {/* Zoom */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.07)", borderRadius: 8, padding: "4px 8px" }}>
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>−</button>
+          <button onClick={() => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>−</button>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>+</button>
+          <button onClick={() => setZoom(z => Math.min(4, +(z + 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>+</button>
+          {imgLoaded && (
+            <button
+              onClick={() => {
+                if (viewerRef.current && imgDims.w > 0) {
+                  const vw = viewerRef.current.clientWidth - 48;
+                  const vh = viewerRef.current.clientHeight - 48;
+                  setZoom(Math.min(1, vw / imgDims.w, vh / imgDims.h));
+                }
+              }}
+              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 10, fontWeight: 600, marginLeft: 2 }}
+              title="Fit to screen"
+            >FIT</button>
+          )}
         </div>
 
         {/* Plan upload */}
@@ -746,8 +759,9 @@ export default function TakeoffEditorPage() {
         {/* ── Plan viewer ── */}
         <div
           ref={viewerRef}
-          style={{ flex: 1, overflow: "auto", background: "#0d1520", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 20 }}
+          style={{ flex: 1, overflow: "auto", background: "#0d1520" }}
         >
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", minWidth: "100%", minHeight: "100%", padding: 24, boxSizing: "border-box" }}>
           {!imageUrl ? (
             <div
               style={{
@@ -772,13 +786,13 @@ export default function TakeoffEditorPage() {
               </button>
             </div>
           ) : (
-            <div style={{ position: "relative", display: "inline-block", transform: `scale(${zoom})`, transformOrigin: "top left" }}>
+            <div style={{ position: "relative", display: "inline-block", flexShrink: 0 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 ref={imgRef}
                 src={imageUrl}
                 alt="Landscape plan"
-                style={{ display: "block", maxWidth: "none", userSelect: "none" }}
+                style={{ display: "block", width: imgLoaded ? imgDims.w * zoom : undefined, maxWidth: "none", userSelect: "none" }}
                 onLoad={() => {
                   setImgLoaded(true);
                   const nat = { w: imgRef.current!.naturalWidth, h: imgRef.current!.naturalHeight };
@@ -820,6 +834,7 @@ export default function TakeoffEditorPage() {
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* ── Right: mark list ── */}
