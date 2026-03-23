@@ -158,6 +158,19 @@ export default function ProposalPage() {
   const DOC_WIDTH = 816;
 
   useEffect(() => {
+    function measure() {
+      if (!wrapperRef.current || !docRef.current) return;
+      const w = wrapperRef.current.clientWidth;
+      const s = w < DOC_WIDTH ? w / DOC_WIDTH : 1;
+      setScale(s);
+      setDocHeight(docRef.current.scrollHeight);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [proposalRows]);
+
+  useEffect(() => {
     if (!bidId) return;
 
     let cancelled = false;
@@ -380,19 +393,6 @@ export default function ProposalPage() {
 
   const showPrepaySection =
     prepayEnabled && prepayPrice > 0 && prepayPrice < projectTotal;
-
-  useEffect(() => {
-    function measure() {
-      if (!wrapperRef.current || !docRef.current) return;
-      const w = wrapperRef.current.clientWidth;
-      const s = w < DOC_WIDTH ? w / DOC_WIDTH : 1;
-      setScale(s);
-      setDocHeight(docRef.current.scrollHeight);
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [proposalRows]); // re-measure when content changes
 
   return (
     <div
