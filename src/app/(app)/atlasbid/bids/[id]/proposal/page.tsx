@@ -217,10 +217,6 @@ export default function ProposalPage() {
     return () => window.removeEventListener("resize", measure);
   }, [loading]);
 
-  // Email modal state
-  const [showEmail, setShowEmail] = useState(false);
-  const [copied, setCopied]       = useState(false);
-
   // Signature state
   const [sigMode, setSigMode]       = useState<"draw" | "type">("draw");
   const [typedName, setTypedName]   = useState("");
@@ -427,12 +423,6 @@ export default function ProposalPage() {
 
   const canAccept = agreed && (sigMode === "draw" ? sigHasContent : typedName.trim().length > 0);
 
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div ref={wrapperRef} className="bg-white overflow-x-hidden">
@@ -455,15 +445,6 @@ export default function ProposalPage() {
         </span>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setShowEmail(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-            </svg>
-            Email
-          </button>
-          <button
             onClick={() => window.open(`/print/proposal/${bidId}`, "_blank")}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#123b1f] text-white text-sm font-semibold hover:bg-[#0d2616] transition-colors"
           >
@@ -474,49 +455,6 @@ export default function ProposalPage() {
           </button>
         </div>
       </div>
-
-      {/* ── Email modal ── */}
-      {showEmail && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowEmail(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">Send Proposal to Client</h3>
-              <button onClick={() => setShowEmail(false)} className="text-gray-400 hover:text-gray-600">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-500 mb-3">
-              Share this link with <strong className="text-gray-700">{clientFullName}</strong> so they can review and sign online.
-            </p>
-
-            {/* Link copy */}
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 mb-4">
-              <span className="text-xs text-gray-500 truncate flex-1 font-mono">{typeof window !== "undefined" ? window.location.href : ""}</span>
-              <button
-                onClick={copyLink}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#123b1f] text-white hover:bg-[#0d2616] transition-colors"
-              >
-                {copied ? "Copied!" : "Copy"}
-              </button>
-            </div>
-
-            <a
-              href={`mailto:?subject=Your Proposal from Garpiel Group&body=Please review your landscape proposal and sign online:%0A%0A${typeof window !== "undefined" ? encodeURIComponent(window.location.href) : ""}`}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-[#123b1f] text-[#123b1f] font-semibold text-sm hover:bg-[#f0f4f0] transition-colors"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-              </svg>
-              Open in Email App
-            </a>
-
-            <p className="mt-3 text-xs text-gray-400 text-center">
-              The client will be able to read the terms and sign digitally from any device.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           PAGE 1 — PROPOSAL SCOPE

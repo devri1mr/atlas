@@ -186,7 +186,7 @@ export default function PrintProposalPage() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: letter portrait; margin: 0; }
+          @page { size: letter portrait; margin: 0.65in 0.7in; }
           body { margin: 0; }
         }
         @media screen {
@@ -212,7 +212,7 @@ export default function PrintProposalPage() {
       </div>
 
       {/* ── PAGE 1: PROPOSAL ── */}
-      <div style={{ ...PAGE, padding: "0.55in 0.7in" }}>
+      <div style={{ ...PAGE, padding: "0.4in 0.7in" }}>
 
         {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -306,7 +306,7 @@ export default function PrintProposalPage() {
       </div>
 
       {/* ── PAGE 2: TERMS ── */}
-      <div style={{ ...PAGE, padding: "0.7in 0.7in 0.8in 0.7in", breakBefore:"page", pageBreakBefore:"always" }}>
+      <div style={{ ...PAGE, padding: "0.4in 0.7in 0.5in 0.7in", breakBefore:"page", pageBreakBefore:"always" }}>
         <h1 style={{ textAlign:"center", fontSize:22, fontWeight:700, marginBottom:24 }}>
           Garpiel Group Terms of Service
         </h1>
