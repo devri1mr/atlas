@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
@@ -91,6 +91,16 @@ export default function HandoffReviewPage() {
   // Client history
   const [clientHistory, setClientHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClick() {
+      setOpenMat(null);
+      setOpenTask(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   /* ── Load ── */
   useEffect(() => { loadReview(); loadDivisions(); loadClientHistory(); }, [takeoffId]);
@@ -747,7 +757,7 @@ function MatchRow({
             </div>
 
             {isMatOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus
@@ -820,7 +830,7 @@ function MatchRow({
             </div>
 
             {isTaskOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus

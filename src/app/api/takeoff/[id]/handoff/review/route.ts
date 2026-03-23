@@ -70,11 +70,10 @@ export async function GET(
       for (const c of catalogItems ?? []) catalogMap.set(c.id, c);
     }
 
-    // Fetch all active catalog materials for dropdown options
+    // Fetch all active catalog materials for dropdown options (no company_id filter — catalog is shared)
     const { data: allCatalog } = await sb
       .from("materials_catalog")
       .select("id, name, botanical_name, default_unit, default_unit_cost, vendor, landscape_category")
-      .eq("company_id", companyId)
       .eq("is_active", true)
       .order("name", { ascending: true })
       .limit(500);

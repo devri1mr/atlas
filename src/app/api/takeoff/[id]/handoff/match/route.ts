@@ -71,11 +71,10 @@ export async function POST(
       ruleMap.set(key, { catalog_material_id: r.catalog_material_id, task_catalog_id: r.task_catalog_id });
     }
 
-    // Load active materials catalog
+    // Load active materials catalog (no company_id filter — catalog is shared)
     const { data: catalog } = await sb
       .from("materials_catalog")
       .select("id, name, botanical_name, landscape_category, default_unit, default_unit_cost, vendor, sku")
-      .eq("company_id", companyId)
       .eq("is_active", true)
       .limit(400);
 
