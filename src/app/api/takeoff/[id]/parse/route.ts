@@ -24,16 +24,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single();
     if (te || !takeoff) return NextResponse.json({ error: "Takeoff not found" }, { status: 404 });
 
+    // Prefer original PDF for accurate text extraction; fall back to rendered image
+    const pdfPath = (takeoff.plan_storage_path?.toLowerCase().endsWith(".pdf")
+      ? takeoff.plan_storage_path : null) as string | null;
     const imgPath = (takeoff.plan_image_path || takeoff.plan_storage_path) as string | null;
-    if (!imgPath) return NextResponse.json({ error: "No plan image available. Upload and render a plan first." }, { status: 400 });
+    const parsePath = pdfPath ?? imgPath;
+    if (!parsePath) return NextResponse.json({ error: "No plan uploaded yet." }, { status: 400 });
 
-    // Download image from storage
-    const { data: fileData, error: fe } = await sb.storage.from(BUCKET).download(imgPath);
-    if (fe || !fileData) return NextResponse.json({ error: "Could not load plan image" }, { status: 500 });
+    const { data: fileData, error: fe } = await sb.storage.from(BUCKET).download(parsePath);
+    if (fe || !fileData) return NextResponse.json({ error: "Could not load plan file" }, { status: 500 });
 
     const buf = Buffer.from(await fileData.arrayBuffer());
     const base64 = buf.toString("base64");
-    const mediaType = imgPath.endsWith(".png") ? "image/png" : "image/jpeg";
+    const isPdf = parsePath.toLowerCase().endsWith(".pdf");
+    const mediaType = isPdf ? "application/pdf"
+      : parsePath.endsWith(".png") ? "image/png" : "image/jpeg";
+
+    const contentBlock: any = isPdf
+      ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
+      : { type: "image",    source: { type: "base64", media_type: mediaType, data: base64 } };
 
     const message = await anthropic.messages.create({
       model: "claude-opus-4-6",
@@ -42,10 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         {
           role: "user",
           content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: base64 },
-            },
+            contentBlock,
             {
               type: "text",
               text: `This is a landscape architecture plan. Find the plant schedule or plant legend table and extract every plant/material listed.
