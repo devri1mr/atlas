@@ -60,32 +60,33 @@ function statusLabel(profitPct: number | null, targetGp: number): string {
 }
 
 /* ─── Summary KPI card ───────────────────────────────────────────────── */
-function SummaryCard({ item }: { item: SummaryItem }) {
+function SummaryCard({ item, mode = "month" }: { item: SummaryItem; mode?: "month" | "ytd" }) {
   const { data, targetGp, divisionName } = item;
 
   // Each card derives its own current month
   const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-
-  // Also check profit for divisions with no revenue (e.g. Holiday Lights takedown months)
+  // Also check profit for cost-only divisions (e.g. Holiday Lights)
   const effectiveMonth = currentMonth >= 0 ? currentMonth
     : data.profit.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-
   const cm = effectiveMonth;
 
-  const rev   = cm >= 0 ? data.revenue.actual[cm] : 0;
-  const revB  = cm >= 0 ? data.revenue.budget[cm] : 0;
-  const prof  = cm >= 0 ? data.profit.actual[cm] : 0;
-  const profB = cm >= 0 ? data.profit.budget[cm] : 0;
-  const mat   = cm >= 0 ? data.materials.actual[cm] : 0;
-  const lab   = cm >= 0 ? data.labor.actual[cm] : 0;
-  const fuel  = cm >= 0 ? data.fuel.actual[cm] : 0;
-  const equip = cm >= 0 ? data.equipment.actual[cm] : 0;
+  const sumTo = (arr: number[]) => cm >= 0 ? arr.slice(0, cm + 1).reduce((a, b) => a + b, 0) : 0;
+
+  const rev   = mode === "ytd" ? sumTo(data.revenue.actual)   : cm >= 0 ? data.revenue.actual[cm]   : 0;
+  const revB  = mode === "ytd" ? sumTo(data.revenue.budget)   : cm >= 0 ? data.revenue.budget[cm]   : 0;
+  const prof  = mode === "ytd" ? sumTo(data.profit.actual)    : cm >= 0 ? data.profit.actual[cm]    : 0;
+  const profB = mode === "ytd" ? sumTo(data.profit.budget)    : cm >= 0 ? data.profit.budget[cm]    : 0;
+  const mat   = mode === "ytd" ? sumTo(data.materials.actual) : cm >= 0 ? data.materials.actual[cm] : 0;
+  const lab   = mode === "ytd" ? sumTo(data.labor.actual)     : cm >= 0 ? data.labor.actual[cm]     : 0;
+  const fuel  = mode === "ytd" ? sumTo(data.fuel.actual)      : cm >= 0 ? data.fuel.actual[cm]      : 0;
+  const equip = mode === "ytd" ? sumTo(data.equipment.actual) : cm >= 0 ? data.equipment.actual[cm] : 0;
 
   // When there's no revenue, this is a cost-only division — use $ mode
   const noRevenue = rev === 0 && revB === 0;
 
-  // Goal: prefer sheet goal row for current month, fall back to division setting
-  const sheetGoalPct = cm >= 0 ? (data.profit.goal?.[cm] ?? null) : null;
+  // Goal: for month mode use sheet goal row; for YTD derive from budgeted GP% (profB/revB)
+  const sheetGoalPct = (mode === "month" && cm >= 0) ? (data.profit.goal?.[cm] ?? null) : null;
+  const ytdGoalPct   = (mode === "ytd" && revB > 0) ? (profB / revB) * 100 : null;
 
   // Status dot + label logic
   let dot: string;
@@ -99,7 +100,7 @@ function SummaryCard({ item }: { item: SummaryItem }) {
     else if (profB > 0 && prof >= profB * 0.8) { dot = "#f59e0b"; label = "Near goal"; }
     else { dot = "#ef4444"; label = "Over budget"; }
   } else {
-    const effectiveGoal = sheetGoalPct ?? targetGp;
+    const effectiveGoal = sheetGoalPct ?? ytdGoalPct ?? targetGp;
     const profitPct = rev > 0 ? (prof / rev) * 100 : null;
     dot   = statusColor(profitPct, effectiveGoal);
     label = statusLabel(profitPct, effectiveGoal);
@@ -107,7 +108,7 @@ function SummaryCard({ item }: { item: SummaryItem }) {
 
   const profitPct   = rev > 0 ? (prof / rev) * 100 : null;
   const revPct      = revB > 0 ? Math.min((rev / revB) * 100, 100) : null;
-  const effectiveGoal = sheetGoalPct ?? targetGp;
+  const effectiveGoal = sheetGoalPct ?? ytdGoalPct ?? targetGp;
   const costPct     = (v: number) => rev > 0 ? Math.round((v / rev) * 100) : 0;
 
   // Holiday Lights YTD: sum through current month
@@ -203,8 +204,8 @@ function SummaryCard({ item }: { item: SummaryItem }) {
           </div>
         </div>
 
-        {/* Holiday Lights YTD section */}
-        {isHolidayLights && cm >= 0 && (
+        {/* Holiday Lights YTD section — only in month mode (YTD mode already shows YTD) */}
+        {isHolidayLights && mode === "month" && cm >= 0 && (
           <div style={{ borderTop: `1px solid #f3f4f6`, paddingTop: 10 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
               YTD thru {MONTHS_FULL[cm]}
@@ -261,6 +262,7 @@ function SummaryCard({ item }: { item: SummaryItem }) {
 export default function AtlasPerformancePage() {
   const [divisions, setDivisions]         = useState<Division[]>([]);
   const [activeTab, setActiveTab]         = useState<string>("summary");
+  const [summaryView, setSummaryView]     = useState<"month" | "ytd">("month");
   const [divData, setDivData]             = useState<Record<string, Data | null | "loading" | "error">>({});
   const [summaryItems, setSummaryItems]   = useState<SummaryItem[] | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -342,10 +344,15 @@ export default function AtlasPerformancePage() {
 
   const minsAgo = Math.floor((Date.now() - lastRefresh.getTime()) / 60000);
   const currentMonth = (() => {
-    // Try to get from first available data
-    const first = summaryItems?.[0]?.data ?? (typeof divData[activeTab] === "object" && divData[activeTab] !== null ? divData[activeTab] as Data : null);
-    if (!first) return new Date().getMonth();
-    return (first.revenue.actual as number[]).reduce((last, v, i) => v !== 0 ? i : last, -1);
+    // Use the best month across all summary items (avoids issues with cost-only divisions at index 0)
+    if (summaryItems && summaryItems.length > 0) {
+      return summaryItems.reduce((best, item) => {
+        const m  = item.data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+        const mp = item.data.profit.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+        return Math.max(best, m, mp);
+      }, -1);
+    }
+    return new Date().getMonth();
   })();
 
   if (pageLoading) return (
@@ -448,11 +455,37 @@ export default function AtlasPerformancePage() {
             <EmptyState msg="No division performance sheets configured yet. Go to Operations Center → Divisions and add a sheet URL to each division." />
           ) : (
             <>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
-                  {MONTHS_FULL[currentMonth] ?? ""} Overview
+              {/* Header + toggle */}
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
+                    {summaryView === "month"
+                      ? `${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`
+                      : `YTD · Jan – ${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                    {summaryView === "month" ? "Current month" : "Year to date thru current month"} · all active divisions
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: "#9ca3af" }}>Current month · all active divisions</div>
+                {/* Month / YTD toggle */}
+                <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 3, gap: 2 }}>
+                  {(["month", "ytd"] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setSummaryView(v)}
+                      style={{
+                        padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontSize: 12, fontWeight: 700,
+                        background: summaryView === v ? "#fff" : "transparent",
+                        color: summaryView === v ? "#15803d" : "#6b7280",
+                        boxShadow: summaryView === v ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {v === "month" ? `${MONTHS_FULL[currentMonth]?.slice(0,3) ?? "Month"}` : "YTD"}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div style={{
                 display: "grid",
@@ -466,13 +499,13 @@ export default function AtlasPerformancePage() {
                     style={{ cursor: "pointer" }}
                     title={`Open ${item.divisionName} detail`}
                   >
-                    <SummaryCard item={item} />
+                    <SummaryCard item={item} mode={summaryView} />
                   </div>
                 ))}
               </div>
               {/* All-divisions totals row */}
               {summaryItems && summaryItems.length > 1 && (
-                <AllDivisionsTotals items={summaryItems} />
+                <AllDivisionsTotals items={summaryItems} mode={summaryView} />
               )}
             </>
           )
@@ -514,22 +547,38 @@ function TabBtn({ label, active, dot, onClick, icon }: { label: string; active: 
 }
 
 /* ─── All divisions totals strip ─────────────────────────────────────── */
-function AllDivisionsTotals({ items }: { items: SummaryItem[] }) {
-  // Use the latest month that has ANY revenue across ANY division
+function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; mode?: "month" | "ytd" }) {
+  // Use the latest month that has ANY data across ANY division
   const bestMonth = items.reduce((best, item) => {
     const m = item.data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-    return m > best ? m : best;
+    const mp = item.data.profit.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+    return Math.max(best, m, mp);
   }, -1);
-  const currentMonth = bestMonth;
-  const sum = (vals: number[]) => vals.reduce((a, b) => a + b, 0);
-  const rev   = sum(items.map(i => currentMonth >= 0 ? i.data.revenue.actual[currentMonth] : 0));
-  const revB  = sum(items.map(i => currentMonth >= 0 ? i.data.revenue.budget[currentMonth] : 0));
-  const prof  = sum(items.map(i => currentMonth >= 0 ? i.data.profit.actual[currentMonth] : 0));
-  const mat   = sum(items.map(i => currentMonth >= 0 ? i.data.materials.actual[currentMonth] : 0));
-  const lab   = sum(items.map(i => currentMonth >= 0 ? i.data.labor.actual[currentMonth] : 0));
-  const fuel  = sum(items.map(i => currentMonth >= 0 ? i.data.fuel.actual[currentMonth] : 0));
-  const equip = sum(items.map(i => currentMonth >= 0 ? i.data.equipment.actual[currentMonth] : 0));
+  const cm = bestMonth;
+
+  const sumArr = (vals: number[]) => vals.reduce((a, b) => a + b, 0);
+  const sumTo  = (arr: number[]) => cm >= 0 ? arr.slice(0, cm + 1).reduce((a, b) => a + b, 0) : 0;
+  const pick   = (item: SummaryItem, key: keyof Pick<Data, "revenue"|"materials"|"labor"|"fuel"|"equipment"|"profit">) => {
+    const arr = item.data[key].actual;
+    return mode === "ytd" ? sumTo(arr) : cm >= 0 ? arr[cm] : 0;
+  };
+  const pickB  = (item: SummaryItem, key: keyof Pick<Data, "revenue">) => {
+    const arr = item.data[key].budget;
+    return mode === "ytd" ? sumTo(arr) : cm >= 0 ? arr[cm] : 0;
+  };
+
+  const rev   = sumArr(items.map(i => pick(i, "revenue")));
+  const revB  = sumArr(items.map(i => pickB(i, "revenue")));
+  const prof  = sumArr(items.map(i => pick(i, "profit")));
+  const mat   = sumArr(items.map(i => pick(i, "materials")));
+  const lab   = sumArr(items.map(i => pick(i, "labor")));
+  const fuel  = sumArr(items.map(i => pick(i, "fuel")));
+  const equip = sumArr(items.map(i => pick(i, "equipment")));
   const profPct = rev > 0 ? (prof / rev) * 100 : null;
+
+  const subLabel = mode === "ytd"
+    ? `YTD · Jan – ${MONTHS_FULL[cm] ?? ""}`
+    : `${MONTHS_FULL[cm] ?? ""} combined`;
 
   const pill = (label: string, val: number, color: string) => (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
@@ -547,7 +596,7 @@ function AllDivisionsTotals({ items }: { items: SummaryItem[] }) {
     }}>
       <div style={{ marginRight: 8 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{MONTHS_FULL[currentMonth] ?? ""} combined</div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
       </div>
       {pill("Revenue", rev, rev >= revB ? "#4ade80" : "#fbbf24")}
       {pill("Budget", revB, "rgba(255,255,255,0.6)")}
