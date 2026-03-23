@@ -27,7 +27,7 @@ export default function PrivacyPage() {
         </div>
 
         <p>
-          This Privacy Policy describes how <strong>InterRivus Systems LLC</strong> ("InterRivus," "we," "us," or "our")
+          This Privacy Policy describes how <strong>InterRivus Systems</strong> ("InterRivus," "we," "us," or "our")
           collects, uses, and protects information in connection with <strong>Atlas</strong>
           — our operational intelligence platform available at{" "}
           <a href="https://atlas.interrivus.com" className="text-emerald-700 hover:underline">atlas.interrivus.com</a>{" "}
@@ -141,7 +141,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-bold text-gray-900 uppercase tracking-wide">9. Contact Us</h2>
           <p>If you have questions or concerns about this Privacy Policy, please contact us:</p>
           <div className="bg-gray-50 rounded-xl px-5 py-4 space-y-1">
-            <div className="font-semibold text-gray-900">InterRivus Systems LLC</div>
+            <div className="font-semibold text-gray-900">InterRivus Systems</div>
             <div>
               Email:{" "}
               <a href="mailto:matthew@garpielgroup.com" className="text-emerald-700 hover:underline">
@@ -158,7 +158,7 @@ export default function PrivacyPage() {
         </section>
 
         <div className="pt-8 border-t border-gray-100 text-xs text-gray-400 text-center">
-          © {new Date().getFullYear()} InterRivus Systems LLC. All rights reserved.
+          © {new Date().getFullYear()} InterRivus Systems. All rights reserved.
         </div>
       </div>
     </div>
