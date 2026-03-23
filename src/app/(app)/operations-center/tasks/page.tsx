@@ -427,7 +427,7 @@ export default function TaskCatalogPage() {
                   </label>
                   {(() => {
                     const TIER_MULTS: Record<string, number> = { "1": 1.0, "2": 1.15, "3": 1.30, "4": 1.50 };
-                    const TIER_LABELS = ["Standard", "Moderate", "Difficult", "Extreme"];
+                    const TIER_LABELS = ["Std", "Mod", "Diff", "Extr"];
                     const allVals = [fSpringMultiplier, fSummerMultiplier, fFallMultiplier, fWinterMultiplier];
                     const seasons: { label: string; state: string; set: (v: string) => void }[] = [
                       { label: "🌱 Spring", state: fSpringMultiplier, set: setFSpringMultiplier },
@@ -470,7 +470,7 @@ export default function TaskCatalogPage() {
                           })}
                         </div>
                         <div className="mt-1.5 text-xs text-gray-400 flex gap-4 flex-wrap">
-                          <span>1 = Standard (1.0×)</span><span>2 = Moderate (1.15×)</span><span>3 = Difficult (1.30×)</span><span>4 = Extreme (1.50×)</span>
+                          <span>1 = Standard (1.0×)</span><span>2 = Moderate (1.15×)</span><span>3 = Difficult (1.3×)</span><span>4 = Extreme (1.5×)</span>
                         </div>
                       </>
                     );
