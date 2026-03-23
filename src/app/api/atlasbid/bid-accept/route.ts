@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     const { data: acceptedStatus } = await supabase
       .from("statuses")
       .select("id")
-      .ilike("name", "accepted")
+      .ilike("name", "approved")
       .limit(1)
       .maybeSingle();
     if (acceptedStatus) {

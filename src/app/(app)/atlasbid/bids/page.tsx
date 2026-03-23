@@ -23,6 +23,7 @@ type BidRow = {
   divisions: { id: string; name: string } | null;
 };
 
+type StatusOption = { id: number; name: string; color: string | null };
 type SortKey = "client" | "division" | "location" | "value" | "cost" | "gp" | "status" | "date" | "createdBy";
 type SortDir = "asc" | "desc";
 
@@ -54,6 +55,7 @@ const STATUS_COLORS: Record<string, string> = {
   sent:        "bg-blue-50 text-blue-700",
   won:         "bg-emerald-50 text-emerald-700",
   lost:        "bg-red-50 text-red-600",
+  approved:    "bg-emerald-50 text-emerald-700",
   "in review": "bg-amber-50 text-amber-700",
   archived:    "bg-gray-100 text-gray-400",
 };
@@ -62,11 +64,13 @@ export default function BidsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<BidRow[]>([]);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -87,7 +91,28 @@ export default function BidsPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    fetch("/api/statuses").then(r => r.json()).then(j => setStatusOptions(j?.data ?? [])).catch(() => {});
+  }, []);
+
+  async function patchStatus(bidId: string, statusId: number) {
+    setUpdatingStatusId(bidId);
+    try {
+      await fetch(`/api/bids/${bidId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status_id: statusId }),
+      });
+      setRows(prev => prev.map(r => {
+        if (r.id !== bidId) return r;
+        const opt = statusOptions.find(s => s.id === statusId);
+        return { ...r, statuses: opt ? { id: opt.id, name: opt.name, color: opt.color } : r.statuses };
+      }));
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -300,7 +325,20 @@ export default function BidsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900 truncate">{name}</span>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 ${badgeCls}`}>{b.statuses?.name ?? "Draft"}</span>
+                        <select
+                          value={b.statuses?.id ?? ""}
+                          disabled={updatingStatusId === b.id}
+                          onChange={e => { e.stopPropagation(); patchStatus(b.id, Number(e.target.value)); }}
+                          onClick={e => e.stopPropagation()}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize shrink-0 border-0 outline-none appearance-none cursor-pointer ${badgeCls} disabled:opacity-60`}
+                        >
+                          {b.statuses && !statusOptions.find(s => s.id === b.statuses!.id) && (
+                            <option value={b.statuses.id}>{b.statuses.name}</option>
+                          )}
+                          {statusOptions.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
                       </div>
                       {b.project_name && (
                         <div className="text-xs text-[#16a34a] font-medium truncate mt-0.5">{b.project_name}</div>
@@ -393,10 +431,20 @@ export default function BidsPage() {
                         <td className={`px-4 py-3.5 text-center tabular-nums whitespace-nowrap ${gpColor}`}>
                           {gp != null ? `${gp.toFixed(1)}%` : "—"}
                         </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${badgeCls}`}>
-                            {b.statuses?.name ?? "Draft"}
-                          </span>
+                        <td className="px-4 py-3.5 text-center" onClick={e => e.stopPropagation()}>
+                          <select
+                            value={b.statuses?.id ?? ""}
+                            disabled={updatingStatusId === b.id}
+                            onChange={e => patchStatus(b.id, Number(e.target.value))}
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize cursor-pointer border-0 outline-none appearance-none text-center ${badgeCls} disabled:opacity-60`}
+                          >
+                            {b.statuses && !statusOptions.find(s => s.id === b.statuses!.id) && (
+                              <option value={b.statuses.id}>{b.statuses.name}</option>
+                            )}
+                            {statusOptions.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap text-center">{b.created_by_name || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap text-center">{fmtDate(b.created_at)}</td>
