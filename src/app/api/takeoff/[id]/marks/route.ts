@@ -3,13 +3,14 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("takeoff_marks")
       .select("*")
-      .eq("takeoff_id", params.id)
+      .eq("takeoff_id", id)
       .order("created_at");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data: data ?? [] });
@@ -18,15 +19,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const body = await req.json().catch(() => ({}));
 
     const { data, error } = await sb
       .from("takeoff_marks")
       .insert({
-        takeoff_id: params.id,
+        takeoff_id: id,
         item_id: body.item_id ?? null,
         mark_type: body.mark_type ?? "count",
         x_pct: body.x_pct ?? null,
@@ -44,8 +46,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const { searchParams } = new URL(req.url);
     const markId = searchParams.get("id");
@@ -55,7 +58,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       .from("takeoff_marks")
       .delete()
       .eq("id", markId)
-      .eq("takeoff_id", params.id);
+      .eq("takeoff_id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {

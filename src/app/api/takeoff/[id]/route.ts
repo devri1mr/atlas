@@ -3,13 +3,14 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("takeoffs")
       .select("*, takeoff_items(*), takeoff_marks(*)")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 404 });
     return NextResponse.json({ data });
@@ -18,8 +19,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const body = await req.json().catch(() => ({}));
     const allowed = ["name", "client_name", "address", "notes", "status",
@@ -30,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await sb
       .from("takeoffs")
       .update(patch)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,10 +42,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
-    const { error } = await sb.from("takeoffs").delete().eq("id", params.id);
+    const { error } = await sb.from("takeoffs").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {

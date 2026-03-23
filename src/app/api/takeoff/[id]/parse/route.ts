@@ -8,22 +8,19 @@ const anthropic = new Anthropic();
 const BUCKET = "takeoff-plans";
 
 const CATEGORY_COLORS: Record<string, string> = {
-  tree:        "#15803d",
-  shrub:       "#7c3aed",
-  perennial:   "#ea580c",
-  grass:       "#ca8a04",
-  groundcover: "#0891b2",
-  other:       "#6b7280",
+  tree: "#15803d", shrub: "#7c3aed", perennial: "#ea580c",
+  grass: "#ca8a04", groundcover: "#0891b2", other: "#6b7280",
 };
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
 
     const { data: takeoff, error: te } = await sb
       .from("takeoffs")
       .select("plan_image_path, plan_storage_path")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
     if (te || !takeoff) return NextResponse.json({ error: "Takeoff not found" }, { status: 404 });
 
@@ -36,8 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const buf = Buffer.from(await fileData.arrayBuffer());
     const base64 = buf.toString("base64");
-
-    // Detect media type
     const mediaType = imgPath.endsWith(".png") ? "image/png" : "image/jpeg";
 
     const message = await anthropic.messages.create({
@@ -65,17 +60,16 @@ For each item return a JSON object with:
 - designation: "Native" or "Non-Native" if shown (or null)
 - remarks: any remarks column text (or null)
 
-Also look for area/surface materials (mulch beds, sod, pavers, seed mixes, rock) and hardscape items.
-For those use category "groundcover" or "other" as appropriate.
+Also extract area surface materials (mulch, sod, pavers, seed mixes, rock) using category "groundcover" or "other".
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "items": [
     { "common_name": "...", "botanical_name": null, "category": "tree", "size": "2.5\\" CAL.", "container": "B&B", "spacing": "PER PLAN", "designation": "Native", "remarks": null }
   ]
 }
 
-If no plant schedule is found, return { "items": [] }.`,
+If no plant schedule found, return { "items": [] }.`,
             },
           ],
         },
@@ -83,30 +77,24 @@ If no plant schedule is found, return { "items": [] }.`,
     });
 
     const raw = (message.content[0] as any).text ?? "";
-    // Extract JSON from response
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return NextResponse.json({ error: "AI could not parse a plant schedule from this plan." }, { status: 422 });
 
     let parsed: { items: any[] };
-    try {
-      parsed = JSON.parse(match[0]);
-    } catch {
-      return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 422 });
-    }
+    try { parsed = JSON.parse(match[0]); }
+    catch { return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 422 }); }
 
     if (!Array.isArray(parsed.items)) return NextResponse.json({ error: "No items found" }, { status: 422 });
 
-    // Get existing item count for sort_order
     const { count: existing } = await sb
       .from("takeoff_items")
       .select("id", { count: "exact", head: true })
-      .eq("takeoff_id", params.id);
+      .eq("takeoff_id", id);
 
-    // Insert all items
     const inserts = parsed.items
       .filter((i: any) => i.common_name)
       .map((i: any, idx: number) => ({
-        takeoff_id: params.id,
+        takeoff_id: id,
         common_name: String(i.common_name).trim(),
         botanical_name: i.botanical_name ?? null,
         category: i.category ?? "other",

@@ -610,7 +610,7 @@ export default function TakeoffEditorPage() {
                           boxShadow: activeItemId === item.id ? `0 0 8px ${item.color}` : "none",
                         }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", truncate: "true", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {item.common_name}
                           </div>
                           {(item.size || item.container) && (

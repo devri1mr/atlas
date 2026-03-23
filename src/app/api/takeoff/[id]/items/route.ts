@@ -3,13 +3,19 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+const CATEGORY_COLORS: Record<string, string> = {
+  tree: "#15803d", shrub: "#7c3aed", perennial: "#ea580c",
+  grass: "#ca8a04", groundcover: "#0891b2", other: "#6b7280",
+};
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("takeoff_items")
       .select("*")
-      .eq("takeoff_id", params.id)
+      .eq("takeoff_id", id)
       .order("sort_order")
       .order("created_at");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -19,23 +25,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const body = await req.json().catch(() => ({}));
     const common_name = String(body.common_name ?? "").trim();
     if (!common_name) return NextResponse.json({ error: "common_name is required" }, { status: 400 });
 
-    // Get next sort order
     const { count } = await sb
       .from("takeoff_items")
       .select("id", { count: "exact", head: true })
-      .eq("takeoff_id", params.id);
+      .eq("takeoff_id", id);
 
     const { data, error } = await sb
       .from("takeoff_items")
       .insert({
-        takeoff_id: params.id,
+        takeoff_id: id,
         common_name,
         botanical_name: body.botanical_name ?? null,
         category: body.category ?? "other",
@@ -60,12 +66,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const body = await req.json().catch(() => ({}));
-    const id = String(body.id ?? "").trim();
-    if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+    const itemId = String(body.id ?? "").trim();
+    if (!itemId) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
     const allowed = ["common_name","botanical_name","category","size","container",
                      "spacing","designation","remarks","color","symbol","count","unit","unit_price","sort_order"];
@@ -75,8 +82,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await sb
       .from("takeoff_items")
       .update(patch)
-      .eq("id", id)
-      .eq("takeoff_id", params.id)
+      .eq("id", itemId)
+      .eq("takeoff_id", id)
       .select()
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -86,8 +93,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const { searchParams } = new URL(req.url);
     const itemId = searchParams.get("id");
@@ -97,21 +105,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       .from("takeoff_items")
       .delete()
       .eq("id", itemId)
-      .eq("takeoff_id", params.id);
+      .eq("takeoff_id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
-
-const CATEGORY_COLORS: Record<string, string> = {
-  tree:        "#15803d",
-  shrub:       "#7c3aed",
-  perennial:   "#ea580c",
-  grass:       "#ca8a04",
-  groundcover: "#0891b2",
-  area:        "#2563eb",
-  length:      "#dc2626",
-  other:       "#6b7280",
-};
