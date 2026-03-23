@@ -29,13 +29,7 @@ type SummaryItem = { divisionId: string; divisionName: string; targetGp: number;
 /* ─── Formatters ─────────────────────────────────────────────────────── */
 const fmt$ = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
-const fmtK = (n: number) => {
-  if (n === 0) return "$0";
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${n < 0 ? "-" : ""}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${n < 0 ? "-" : ""}$${Math.round(abs / 1_000)}K`;
-  return fmt$(n);
-};
+const fmtK = (n: number) => fmt$(n);
 const fmtPct = (n: number | null | undefined) => n == null ? "" : `${Math.round(n)}%`;
 
 const SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
