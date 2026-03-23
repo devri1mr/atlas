@@ -176,6 +176,12 @@ export default function Home() {
                 </p>
               )}
 
+              <div className="mt-4 text-center text-xs text-white/40 lg:text-gray-400 flex items-center justify-center gap-3">
+                <a href="/privacy" className="hover:underline">Privacy Policy</a>
+                <span>·</span>
+                <a href="/terms" className="hover:underline">Terms of Service</a>
+              </div>
+
               <div className="mt-10 pt-6 border-t border-white/10 lg:border-gray-200 text-center">
                 <a
                   href="https://interrivus.com"
