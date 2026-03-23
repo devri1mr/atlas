@@ -345,14 +345,41 @@ export default function TakeoffEditorPage() {
       });
       setTakeoff(prev => prev ? { ...prev, plan_storage_path: path, plan_file_name: file.name } : prev);
 
-      // If PDF, render to image
+      // If PDF, render to image client-side using pdfjs-dist
       if (ext === "pdf") {
         setUploadState("rendering");
-        const renderRes  = await fetch(`/api/takeoff/${id}/render`, { method: "POST" });
-        const renderJson = await renderRes.json();
-        if (renderJson.imageUrl) {
-          setImageUrl(renderJson.imageUrl);
-          setTakeoff(prev => prev ? { ...prev, plan_image_path: renderJson.imagePath } : prev);
+        try {
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+          const arrayBuffer = await file.arrayBuffer();
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const page = await pdfDoc.getPage(1);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d")!;
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const blob = await new Promise<Blob>((res) =>
+            canvas.toBlob((b) => res(b!), "image/jpeg", 0.85)
+          );
+          const jpegName = file.name.replace(/\.pdf$/i, "-rendered.jpg");
+          const jpegPresign = await fetch("/api/takeoff/presign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: jpegName }),
+          }).then(r => r.json());
+          if (!jpegPresign.signedUrl) throw new Error("Failed to get JPEG upload URL");
+          await fetch(jpegPresign.signedUrl, { method: "PUT", body: blob, headers: { "Content-Type": "image/jpeg" } });
+          await fetch(`/api/takeoff/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan_image_path: jpegPresign.path }),
+          });
+          setImageUrl(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${jpegPresign.path}`);
+          setTakeoff(prev => prev ? { ...prev, plan_image_path: jpegPresign.path } : prev);
+        } catch (renderErr: any) {
+          alert("PDF render failed: " + renderErr.message);
         }
       } else {
         setImageUrl(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`);
@@ -444,13 +471,13 @@ export default function TakeoffEditorPage() {
         >
           ← Back
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Image src="/atlas-takeoff-icon.png" alt="" width={26} height={26} style={{ objectFit: "contain" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ background: "#fff", borderRadius: 8, padding: "3px 8px", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+            <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={36} width={54} style={{ objectFit: "contain", display: "block" }} />
+          </div>
           <div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-              <span style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: "-0.3px" }}>ATLAS</span>
-              <span style={{ color: "#38bdf8", fontWeight: 900, fontSize: 13, letterSpacing: "0.3px" }}>TAKEOFF</span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontWeight: 400, marginLeft: 4 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, fontWeight: 400 }}>·</span>
               <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600 }}>{takeoff?.name ?? ""}</span>
             </div>
             {takeoff?.client_name && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{takeoff.client_name}{takeoff.address ? ` · ${takeoff.address}` : ""}</div>}
