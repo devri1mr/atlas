@@ -22,23 +22,7 @@ type BidRecord = {
   state?: string | null;
   zip?: string | null;
   created_at?: string | null;
-  sell_rounded?: number | null;
-  prepay_enabled?: boolean | null;
-  prepay_price?: number | null;
-  project_name?: string | null;
 };
-type LaborRow = {
-  id: string;
-  task: string;
-  proposal_text?: string | null;
-  proposal_section?: string | null;
-  bundle_run_id?: string | null;
-  show_as_line_item?: boolean | null;
-  hidden_from_proposal?: boolean | null;
-  man_hours?: number | null;
-  hourly_rate?: number | null;
-};
-type BundleRunMeta = { id: string; bundle_name: string };
 
 function cleanText(value?: string | null) {
   const s = String(value ?? "").trim();
@@ -96,11 +80,8 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   const [bid, setBid] = React.useState<BidRecord | null>(null);
   const [divisions, setDivisions] = React.useState<Division[]>([]);
   const [statuses, setStatuses] = React.useState<Status[]>([]);
-  const [labor, setLabor] = React.useState<LaborRow[]>([]);
-  const [bundlesMeta, setBundlesMeta] = React.useState<BundleRunMeta[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [saveMessage, setSaveMessage] = React.useState<string | null>(null);
-  const [copiedField, setCopiedField] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
     customer_name: "", client_name: "", client_last_name: "",
@@ -129,21 +110,14 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
     setError(null);
     try {
       if (!effectiveBidId) throw new Error("Missing bid id.");
-      const [divRes, stRes, laborRes, brRes] = await Promise.all([
+      const [divRes, stRes] = await Promise.all([
         fetch("/api/labor-rates", { cache: "no-store" }),
         fetch("/api/statuses", { cache: "no-store" }),
-        fetch(`/api/atlasbid/bid-labor?bid_id=${effectiveBidId}`, { cache: "no-store" }),
-        fetch(`/api/atlasbid/bundle-runs?bid_id=${effectiveBidId}`, { cache: "no-store" }),
       ]);
       const divJson = await readJsonOrThrow(divRes) as { divisions?: Division[] };
       const stJson = await readJsonOrThrow(stRes) as { data?: Status[] };
-      const laborJson = await readJsonOrThrow(laborRes) as { data?: LaborRow[]; rows?: LaborRow[] };
-      const brJson = await readJsonOrThrow(brRes) as { rows?: BundleRunMeta[] };
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
       setStatuses(Array.isArray(stJson?.data) ? stJson.data : []);
-      const laborRows = laborJson?.data ?? laborJson?.rows ?? [];
-      setLabor(Array.isArray(laborRows) ? laborRows : []);
-      setBundlesMeta(Array.isArray(brJson?.rows) ? brJson.rows : []);
       const b = await fetchBidById(effectiveBidId);
       setBid(b);
       syncFormFromBid(b);
@@ -204,78 +178,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
   const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
 
-  // ── SAP panel helpers ────────────────────────────────────────────────────
-  const isApproved = React.useMemo(() => {
-    const s = statuses.find(s => s.id === Number(form.status_id));
-    return s?.name?.toLowerCase() === "approved";
-  }, [statuses, form.status_id]);
-
-  const bundleNameMap = React.useMemo(() => new Map(bundlesMeta.map(b => [b.id, b.bundle_name])), [bundlesMeta]);
-
-  const sapLineItems = React.useMemo(() => {
-    const seen = new Set<string>();
-    const items: { label: string; cost: number }[] = [];
-    for (const row of labor) {
-      if (row.hidden_from_proposal) continue;
-      const brid = row.bundle_run_id;
-      const sec = row.proposal_section?.trim();
-      const key = brid ? `bundle:${brid}` : sec ? `sec:${sec}` : `row:${row.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const label = brid
-        ? (bundleNameMap.get(brid) ?? row.task)
-        : sec ?? row.proposal_text ?? row.task;
-      const cost = (row.man_hours ?? 0) * (row.hourly_rate ?? 0);
-      items.push({ label, cost });
-    }
-    return items;
-  }, [labor, bundleNameMap]);
-
-  const totalSell = bid?.sell_rounded ?? 0;
-  const sapTotal = (bid?.prepay_enabled && (bid?.prepay_price ?? 0) > 0)
-    ? Number(bid.prepay_price)
-    : totalSell;
-
-  // Pro-rate sell price across line items by cost
-  const sapItemsWithAmounts = React.useMemo(() => {
-    const totalCost = sapLineItems.reduce((s, r) => s + r.cost, 0);
-    const rounded = Math.round(sapTotal);
-    if (!sapLineItems.length) return [];
-    let run = 0;
-    return sapLineItems.map((r, i) => {
-      if (i === sapLineItems.length - 1) return { ...r, amount: rounded - run };
-      const a = totalCost > 0 ? Math.round((r.cost / totalCost) * rounded) : Math.floor(rounded / sapLineItems.length);
-      run += a;
-      return { ...r, amount: a };
-    });
-  }, [sapLineItems, sapTotal]);
-
-  function copyField(value: string, key: string) {
-    navigator.clipboard.writeText(value);
-    setCopiedField(key);
-    setTimeout(() => setCopiedField(null), 1800);
-  }
-
-  function buildSapText() {
-    const name = computedDisplayName;
-    const addr = [form.address1, form.address2, form.city && form.state ? `${form.city}, ${form.state}` : form.city || form.state, form.zip].filter(Boolean).join("\n");
-    const lines = sapItemsWithAmounts.map(r => `  • ${r.label}: $${r.amount.toLocaleString()}`).join("\n");
-    return `CLIENT: ${name}\nADDRESS:\n${addr}\n\nSERVICES:\n${lines}\n\nTOTAL: $${Math.round(sapTotal).toLocaleString()}`;
-  }
-
-  function CopyBtn({ value, id }: { value: string; id: string }) {
-    const copied = copiedField === id;
-    return (
-      <button
-        onClick={() => copyField(value, id)}
-        className={`ml-2 shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md transition-colors ${copied ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-      >
-        {copied ? "✓" : "Copy"}
-      </button>
-    );
-  }
-
-  return (
+return (
     <div className="min-h-screen bg-[#f0f4f0]">
       {/* Page header */}
       <div className="bg-white border-b border-gray-100">
@@ -314,94 +217,6 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               {saveMessage}
             </div>}
-
-            {/* ── SAP Entry Panel ── */}
-            {isApproved && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-emerald-200 bg-emerald-100/60">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">📋</span>
-                    <span className="font-bold text-emerald-900 text-sm">Enter in Service AutoPilot</span>
-                  </div>
-                  <button
-                    onClick={() => copyField(buildSapText(), "all")}
-                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${copiedField === "all" ? "bg-emerald-600 text-white" : "bg-emerald-700 text-white hover:bg-emerald-800"}`}
-                  >
-                    {copiedField === "all" ? "✓ Copied!" : "Copy All"}
-                  </button>
-                </div>
-                <div className="px-5 py-4 space-y-3 text-sm">
-                  {/* Client */}
-                  <div>
-                    <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">Client Name</div>
-                    <div className="flex items-center">
-                      <span className="font-semibold text-gray-900">{computedDisplayName}</span>
-                      <CopyBtn value={computedDisplayName} id="name" />
-                    </div>
-                    {form.customer_name && (form.client_name || form.client_last_name) && (
-                      <div className="flex items-center mt-1 text-gray-500 text-xs">
-                        <span>Contact: {[form.client_name, form.client_last_name].filter(Boolean).join(" ")}</span>
-                        <CopyBtn value={[form.client_name, form.client_last_name].filter(Boolean).join(" ")} id="contact" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Address */}
-                  {form.address1 && (
-                    <div>
-                      <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">Service Address</div>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center">
-                          <span className="text-gray-900">{form.address1}</span>
-                          <CopyBtn value={form.address1} id="addr1" />
-                        </div>
-                        {form.address2 && (
-                          <div className="flex items-center">
-                            <span className="text-gray-500">{form.address2}</span>
-                            <CopyBtn value={form.address2} id="addr2" />
-                          </div>
-                        )}
-                        {(form.city || form.state || form.zip) && (
-                          <div className="flex items-center">
-                            <span className="text-gray-900">
-                              {[form.city, form.state].filter(Boolean).join(", ")}{form.zip ? ` ${form.zip}` : ""}
-                            </span>
-                            <CopyBtn value={[form.city, form.state].filter(Boolean).join(", ") + (form.zip ? ` ${form.zip}` : "")} id="citystatezip" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Line items */}
-                  {sapItemsWithAmounts.length > 0 && (
-                    <div>
-                      <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">Services / Line Items</div>
-                      <div className="space-y-1">
-                        {sapItemsWithAmounts.map((r, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2">
-                            <span className="text-gray-800 flex-1">{r.label}</span>
-                            <div className="flex items-center shrink-0">
-                              <span className="font-semibold text-gray-900 tabular-nums">${r.amount.toLocaleString()}</span>
-                              <CopyBtn value={r.amount.toString()} id={`item-${i}`} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Total */}
-                  <div className="pt-2 border-t border-emerald-200 flex items-center justify-between">
-                    <span className="font-bold text-emerald-900">Total</span>
-                    <div className="flex items-center">
-                      <span className="font-bold text-emerald-900 text-base tabular-nums">${Math.round(sapTotal).toLocaleString()}</span>
-                      <CopyBtn value={Math.round(sapTotal).toString()} id="total" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Client name preview */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
