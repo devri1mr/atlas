@@ -158,6 +158,19 @@ export default function PricingPage() {
     return () => clearTimeout(t);
   }, [targetGpPct, prepayEnabled, manualPrice]);
 
+  // Auto-save prepay_enabled to DB when toggled so scope + proposal stay in sync
+  useEffect(() => {
+    if (!bidId || loading) return;
+    const t = setTimeout(() => {
+      fetch(`/api/bids/${bidId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prepay_enabled: prepayEnabled }),
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [prepayEnabled]);
+
   const finalPrice = useMemo(() => Number(data?.final_price ?? 0), [data]);
   const suggestedPrice = useMemo(() => Number(data?.suggested_price ?? 0), [data]);
   const overrideAmount = useMemo(() => Number(data?.override_amount ?? finalPrice - suggestedPrice), [data, finalPrice, suggestedPrice]);
