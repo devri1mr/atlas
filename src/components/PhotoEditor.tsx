@@ -286,36 +286,7 @@ export default function PhotoEditor({ photoUrl, fileName, bidId, onClose, onSave
     newImg.src = off.toDataURL("image/jpeg", 0.95);
   }
 
-  // ── Crop apply ────────────────────────────────────────────────────────────
-  function applyCrop() {
-    const cr = cropRect.current;
-    const img = imgRef.current;
-    const canvas = canvasRef.current;
-    if (!cr || !img || !canvas) return;
-    if (cr.w < 10 || cr.h < 10) return;
-    pushHistory();
-    const off = document.createElement("canvas");
-    const sx = cr.w > 0 ? cr.x : cr.x + cr.w;
-    const sy = cr.h > 0 ? cr.y : cr.y + cr.h;
-    const sw2 = Math.abs(cr.w); const sh = Math.abs(cr.h);
-    off.width = sw2; off.height = sh;
-    const ctx = off.getContext("2d")!;
-    ctx.drawImage(img, sx, sy, sw2, sh, 0, 0, sw2, sh);
-    const newImg = new Image();
-    newImg.onload = () => {
-      imgRef.current = newImg;
-      canvas.width = newImg.naturalWidth;
-      canvas.height = newImg.naturalHeight;
-      cropRect.current = null;
-      setAnnotations([]);
-      setSelectedIdx(null);
-      redraw([], null);
-    };
-    newImg.src = off.toDataURL("image/jpeg", 0.95);
-    setTool("arrow");
-  }
-
-  // ── Mouse handlers ────────────────────────────────────────────────────────
+// ── Mouse handlers ────────────────────────────────────────────────────────
   function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
     if (textInput) return;
     const canvas = canvasRef.current!;
