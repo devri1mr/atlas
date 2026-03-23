@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/generate/inpaint";
+const MONTHLY_LIMIT = 50; // generations per company per calendar month
 
 function align64(n: number) {
   return Math.max(64, Math.round(n / 64) * 64);
@@ -37,6 +38,25 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!bid) return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+
+    // Monthly usage check
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+    const { count } = await supabase
+      .from("bid_ai_designs")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", bid.company_id)
+      .gte("created_at", monthStart)
+      .lt("created_at", monthEnd);
+
+    if ((count ?? 0) >= MONTHLY_LIMIT) {
+      return NextResponse.json(
+        { error: `Monthly design limit of ${MONTHLY_LIMIT} reached. Resets on the 1st of next month.` },
+        { status: 429 }
+      );
+    }
 
     // Resize both image and mask to Stability-friendly dimensions
     const rawImage = Buffer.from(await imageFile.arrayBuffer());
