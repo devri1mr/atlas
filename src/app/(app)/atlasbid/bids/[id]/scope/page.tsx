@@ -435,6 +435,7 @@ async function mergeMaterialRow(
       if (!b?.id) { setBid(null); setLoading(false); return; }
 
       setBid(b);
+      setPrepayEnabled(Boolean(b?.prepay_enabled ?? false));
       setBidPricingDate(
         b?.pricing_date ? String(b.pricing_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
       );

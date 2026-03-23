@@ -169,7 +169,7 @@ export default function PricingPage() {
       }).catch(() => {});
     }, 300);
     return () => clearTimeout(t);
-  }, [prepayEnabled]);
+  }, [bidId, loading, prepayEnabled]);
 
   const finalPrice = useMemo(() => Number(data?.final_price ?? 0), [data]);
   const suggestedPrice = useMemo(() => Number(data?.suggested_price ?? 0), [data]);
