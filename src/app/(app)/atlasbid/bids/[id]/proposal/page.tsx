@@ -464,7 +464,7 @@ export default function ProposalPage() {
             Email
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={() => window.open(`/print/proposal/${bidId}`, "_blank")}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#123b1f] text-white text-sm font-semibold hover:bg-[#0d2616] transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -828,7 +828,7 @@ export default function ProposalPage() {
               <p className="mt-4 text-center text-xs text-gray-400">
                 Prefer to print?{" "}
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => window.open(`/print/proposal/${bidId}`, "_blank")}
                   className="underline hover:text-gray-600 transition-colors"
                 >
                   Print this page

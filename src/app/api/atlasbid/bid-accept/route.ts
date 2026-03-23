@@ -56,6 +56,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
+    // Update bid status to "accepted" — look up the status id first
+    const { data: acceptedStatus } = await supabase
+      .from("statuses")
+      .select("id")
+      .ilike("name", "accepted")
+      .limit(1)
+      .maybeSingle();
+    if (acceptedStatus) {
+      await supabase.from("bids").update({ status_id: acceptedStatus.id }).eq("id", bid_id);
+    }
+
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

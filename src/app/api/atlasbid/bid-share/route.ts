@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 export const runtime = "nodejs";
 
@@ -43,9 +44,12 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json({ data: existing });
 
+  // Generate URL-safe token in Node.js (postgres 'base64url' encoding not supported)
+  const token = crypto.randomBytes(32).toString("base64url");
+
   const { data, error } = await supabase
     .from("bid_share_links")
-    .insert({ bid_id: body.bid_id })
+    .insert({ bid_id: body.bid_id, token })
     .select("id, token")
     .single();
 
