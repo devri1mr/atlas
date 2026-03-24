@@ -98,10 +98,22 @@ export default function AtlasTakeoffPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4f8" }}>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .to-header{padding:48px 24px 44px}
+        .to-title{font-size:42px;letter-spacing:-1.5px}
+        .to-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+        .to-content{padding:24px}
+        @media(max-width:600px){
+          .to-header{padding:28px 16px 24px}
+          .to-title{font-size:28px;letter-spacing:-0.5px}
+          .to-grid{grid-template-columns:1fr}
+          .to-content{padding:12px}
+        }
+      `}</style>
       {/* Header */}
-      <div style={{
+      <div className="to-header" style={{
         background: "linear-gradient(135deg, #060f1e 0%, #0d1f3c 40%, #1a3a6b 100%)",
-        padding: "48px 24px 44px",
         textAlign: "center",
         position: "relative",
         overflow: "hidden",
@@ -117,7 +129,7 @@ export default function AtlasTakeoffPage() {
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ color: "#fff", fontSize: 42, fontWeight: 900, letterSpacing: "-1.5px", lineHeight: 1, marginBottom: 12 }}>
+          <div className="to-title" style={{ color: "#fff", fontWeight: 900, lineHeight: 1, marginBottom: 12 }}>
             Atlas{" "}
             <span style={{ background: "linear-gradient(90deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               Takeoff
@@ -141,11 +153,10 @@ export default function AtlasTakeoffPage() {
         </div>
       </div>
 
-      <div style={{ padding: "24px 24px" }}>
+      <div className="to-content">
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
             <div style={{ width: 32, height: 32, border: "3px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         ) : takeoffs.length === 0 ? (
           <div style={{ textAlign: "center", paddingTop: 80 }}>
@@ -162,7 +173,7 @@ export default function AtlasTakeoffPage() {
             </button>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          <div className="to-grid">
             {takeoffs.map(t => (
               <div
                 key={t.id}

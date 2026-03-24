@@ -379,21 +379,36 @@ export default function AutoTakeoffReviewPage() {
         @keyframes spin { to { transform: rotate(360deg); } }
         .dropdown-opt:hover { background: rgba(255,255,255,0.08) !important; }
         .item-row:hover { background: rgba(255,255,255,0.03) !important; }
+      @media(max-width:640px){
+        .ato-header{flex-wrap:wrap;padding:8px 10px;gap:8px}
+        .ato-header-title{font-size:12px}
+        .ato-header-sub{font-size:10px}
+        .ato-actions{order:10;width:100%;display:flex;flex-wrap:wrap;gap:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08)}
+        .ato-actions button{font-size:11px;padding:6px 10px}
+        .tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding:6px 10px}
+        .tab-bar::-webkit-scrollbar{display:none}
+        .tab-bar button{white-space:nowrap;font-size:11px;padding:4px 9px}
+        .scope-row{flex-wrap:wrap;gap:6px}
+        .scope-row-right{width:100%;display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:2px}
+        .missing-row{flex-wrap:wrap;gap:6px}
+        .missing-row-right{width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+        .scope-status-label{min-width:unset !important;font-size:10px !important}
+      }
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ background: "linear-gradient(135deg,#0d1f3c,#1a3a6b)", padding: "8px 16px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="ato-header" style={{ background: "linear-gradient(135deg,#0d1f3c,#1a3a6b)", padding: "8px 16px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
         <button
           onClick={() => router.push(`/atlastakeoff/${takeoffId}`)}
           style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 7, padding: "6px 12px", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12 }}
         >← Back</button>
 
-        <div>
-          <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="ato-header-title" style={{ color: "#fff", fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             AutoTakeoff{data?.takeoff.name ? ` · ${data.takeoff.name}` : ""}
           </div>
           {data?.takeoff.client_name && (
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
+            <div className="ato-header-sub" style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {data.takeoff.client_name}{data.takeoff.address ? ` · ${data.takeoff.address}` : ""}
             </div>
           )}
@@ -423,46 +438,48 @@ export default function AutoTakeoffReviewPage() {
 
         <div style={{ flex: 1 }} />
 
-        {items.some(i => needsMeasurement(i)) && (
+        <div className="ato-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {items.some(i => needsMeasurement(i)) && (
+            <button
+              onClick={runAutoMeasureAll}
+              disabled={autoMeasuring}
+              style={{ background: autoMeasuring ? "rgba(96,165,250,0.3)" : "linear-gradient(135deg,#1d4ed8,#1e40af)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: autoMeasuring ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: autoMeasuring ? 0.7 : 1 }}
+            >
+              {autoMeasuring
+                ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Measuring…</>
+                : "📐 Measure"}
+            </button>
+          )}
+
           <button
-            onClick={runAutoMeasureAll}
-            disabled={autoMeasuring}
-            style={{ background: autoMeasuring ? "rgba(96,165,250,0.3)" : "linear-gradient(135deg,#1d4ed8,#1e40af)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: autoMeasuring ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: autoMeasuring ? 0.7 : 1 }}
+            onClick={runVerify}
+            disabled={verifying}
+            style={{ background: verifying ? "rgba(20,184,166,0.3)" : "linear-gradient(135deg,#0f766e,#0d9488)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: verifying ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: verifying ? 0.7 : 1 }}
           >
-            {autoMeasuring
-              ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Measuring…</>
-              : "📐 Auto-measure all"}
+            {verifying
+              ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Verifying…</>
+              : "🔍 Verify"}
           </button>
-        )}
 
-        <button
-          onClick={runVerify}
-          disabled={verifying}
-          style={{ background: verifying ? "rgba(20,184,166,0.3)" : "linear-gradient(135deg,#0f766e,#0d9488)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: verifying ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: verifying ? 0.7 : 1 }}
-        >
-          {verifying
-            ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Verifying…</>
-            : "🔍 Verify Scope"}
-        </button>
-
-        <button
-          onClick={runMatching}
-          disabled={matching}
-          style={{ background: matching ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg,#7c3aed,#6d28d9)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: matching ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: matching ? 0.7 : 1 }}
-        >
-          {matching
-            ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Matching…</>
-            : data?.session ? "↺ Re-run Matching" : "✦ Run Matching"}
-        </button>
-
-        {data?.session && summary.matched > 0 && (
           <button
-            onClick={() => setShowBidForm(true)}
-            style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 8, padding: "7px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+            onClick={runMatching}
+            disabled={matching}
+            style={{ background: matching ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg,#7c3aed,#6d28d9)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: matching ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: matching ? 0.7 : 1 }}
           >
-            Create Bid →
+            {matching
+              ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Matching…</>
+              : data?.session ? "↺ Match" : "✦ Match"}
           </button>
-        )}
+
+          {data?.session && summary.matched > 0 && (
+            <button
+              onClick={() => setShowBidForm(true)}
+              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 8, padding: "7px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}
+            >
+              Bid →
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Client history banner ── */}
@@ -485,7 +502,7 @@ export default function AutoTakeoffReviewPage() {
       )}
 
       {/* ── Tab bar ── */}
-      <div style={{ display: "flex", gap: 2, padding: "8px 16px", background: "rgba(0,0,0,0.3)", flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="tab-bar" style={{ display: "flex", gap: 2, padding: "8px 16px", background: "rgba(0,0,0,0.3)", flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         {(["all", "matched", "review", "unmatched"] as const).map(t => {
           const labels = { all: "All", matched: "✅ Auto-matched", review: "⚠️ Needs Review", unmatched: "❌ Unmatched" };
           const counts = { all: tabCounts.all, matched: tabCounts.matched, review: tabCounts.review, unmatched: tabCounts.unmatched };
@@ -592,6 +609,7 @@ export default function AutoTakeoffReviewPage() {
                     return (
                       <div
                         key={vi.id ?? idx}
+                        className="scope-row"
                         style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: idx < (verifyData.items.length - 1) ? "1px solid rgba(255,255,255,0.05)" : "none", background: sc.bg }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -599,58 +617,60 @@ export default function AutoTakeoffReviewPage() {
                           {vi.note && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{vi.note}</div>}
                         </div>
 
-                        {/* Qty mismatch: show counts + fix button */}
-                        {vi.status === "qty_mismatch" && vi.plan_qty !== null && vi.plan_qty !== undefined && (
-                          <>
-                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right" }}>
-                              <span style={{ color: "#f87171" }}>{vi.extracted_qty}</span>
-                              <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>→</span>
-                              <span style={{ color: "#4ade80" }}>{vi.plan_qty}</span>
-                            </div>
+                        <div className="scope-row-right" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          {/* Qty mismatch: show counts + fix button */}
+                          {vi.status === "qty_mismatch" && vi.plan_qty !== null && vi.plan_qty !== undefined && (
+                            <>
+                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right" }}>
+                                <span style={{ color: "#f87171" }}>{vi.extracted_qty}</span>
+                                <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>→</span>
+                                <span style={{ color: "#4ade80" }}>{vi.plan_qty}</span>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  if (!vi.id) return;
+                                  await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, count: vi.plan_qty }) });
+                                  setItems(prev => prev.map(i => i.id === vi.id ? { ...i, count: vi.plan_qty } : i));
+                                  setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", extracted_qty: vi.plan_qty } : x) }));
+                                }}
+                                style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                              >Fix → {vi.plan_qty}</button>
+                            </>
+                          )}
+
+                          {/* Name error: show corrected name + fix button */}
+                          {vi.status === "name_error" && vi.corrected_name && (
+                            <>
+                              <div style={{ fontSize: 12, color: "#4ade80", fontStyle: "italic" }}>{vi.corrected_name}</div>
+                              <button
+                                onClick={async () => {
+                                  if (!vi.id) return;
+                                  await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, common_name: vi.corrected_name }) });
+                                  setItems(prev => prev.map(i => i.id === vi.id ? { ...i, common_name: vi.corrected_name } : i));
+                                  setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", name: vi.corrected_name } : x) }));
+                                }}
+                                style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                              >Fix Name</button>
+                            </>
+                          )}
+
+                          {/* Not on plan: remove button */}
+                          {vi.status === "not_found_on_plan" && vi.id && (
                             <button
                               onClick={async () => {
-                                if (!vi.id) return;
-                                await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, count: vi.plan_qty }) });
-                                setItems(prev => prev.map(i => i.id === vi.id ? { ...i, count: vi.plan_qty } : i));
-                                setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", extracted_qty: vi.plan_qty } : x) }));
+                                await fetch(`/api/takeoff/${takeoffId}/items?id=${vi.id}`, { method: "DELETE" });
+                                setItems(prev => prev.filter(i => i.id !== vi.id));
+                                setVerifyData((prev: any) => ({ ...prev, items: prev.items.filter((x: any) => x.id !== vi.id) }));
                               }}
-                              style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
-                            >Fix → {vi.plan_qty}</button>
-                          </>
-                        )}
+                              style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 10px", color: "#f87171", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                            >Remove</button>
+                          )}
 
-                        {/* Name error: show corrected name + fix button */}
-                        {vi.status === "name_error" && vi.corrected_name && (
-                          <>
-                            <div style={{ fontSize: 12, color: "#4ade80", fontStyle: "italic" }}>{vi.corrected_name}</div>
-                            <button
-                              onClick={async () => {
-                                if (!vi.id) return;
-                                await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, common_name: vi.corrected_name }) });
-                                setItems(prev => prev.map(i => i.id === vi.id ? { ...i, common_name: vi.corrected_name } : i));
-                                setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", name: vi.corrected_name } : x) }));
-                              }}
-                              style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
-                            >Fix Name</button>
-                          </>
-                        )}
-
-                        {/* Not on plan: remove button */}
-                        {vi.status === "not_found_on_plan" && vi.id && (
-                          <button
-                            onClick={async () => {
-                              await fetch(`/api/takeoff/${takeoffId}/items?id=${vi.id}`, { method: "DELETE" });
-                              setItems(prev => prev.filter(i => i.id !== vi.id));
-                              setVerifyData((prev: any) => ({ ...prev, items: prev.items.filter((x: any) => x.id !== vi.id) }));
-                            }}
-                            style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 10px", color: "#f87171", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
-                          >Remove</button>
-                        )}
-
-                        {vi.status === "confirmed" && (
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{vi.extracted_qty} {localItem?.unit ?? ""}</div>
-                        )}
-                        <span style={{ fontSize: 11, fontWeight: 600, color: sc.text, whiteSpace: "nowrap", minWidth: 90, textAlign: "right" }}>{sc.label}</span>
+                          {vi.status === "confirmed" && (
+                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{vi.extracted_qty} {localItem?.unit ?? ""}</div>
+                          )}
+                          <span className="scope-status-label" style={{ fontSize: 11, fontWeight: 600, color: sc.text, whiteSpace: "nowrap", minWidth: 90, textAlign: "right" }}>{sc.label}</span>
+                        </div>
                       </div>
                     );
                   })}
@@ -667,15 +687,17 @@ export default function AutoTakeoffReviewPage() {
                     {verifyData.missing_from_extraction.map((mi: any, idx: number) => (
                       <div
                         key={idx}
+                        className="missing-row"
                         style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: idx < verifyData.missing_from_extraction.length - 1 ? "1px solid rgba(239,68,68,0.1)" : "none" }}
                       >
                         <div style={{ fontSize: 18 }}>⚠️</div>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{mi.name}{mi.botanical_name ? <span style={{ color: "rgba(255,255,255,0.4)", fontStyle: "italic", fontWeight: 400 }}> · {mi.botanical_name}</span> : ""}</div>
                           {mi.size && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{mi.size}</div>}
                           {mi.note && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{mi.note}</div>}
                         </div>
-                        <div style={{ fontSize: 13, color: "#f87171", fontWeight: 700 }}>Qty: {mi.qty}</div>
+                        <div className="missing-row-right" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <div style={{ fontSize: 13, color: "#f87171", fontWeight: 700, whiteSpace: "nowrap" }}>Qty: {mi.qty}</div>
                         <button
                           onClick={async () => {
                             const res = await fetch(`/api/takeoff/${takeoffId}/items`, {
@@ -698,6 +720,7 @@ export default function AutoTakeoffReviewPage() {
                           }}
                           style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
                         >+ Add Item</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -705,7 +728,7 @@ export default function AutoTakeoffReviewPage() {
               )}
 
               {/* Update Takeoff */}
-              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
                   Apply all corrections above, then update the takeoff to re-price with the latest data.
                 </div>
