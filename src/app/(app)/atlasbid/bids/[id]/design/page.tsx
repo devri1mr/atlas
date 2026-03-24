@@ -684,6 +684,11 @@ export default function DesignPage() {
             </div>}
           </div>
 
+          {/* Disclaimer */}
+          <p className="text-[11px] text-gray-400 text-center leading-relaxed px-2">
+            AI concept visualization only — not an architectural rendering. Results are best for planting beds and surface materials. Complex structures, furniture, and 3D elements may not render accurately.
+          </p>
+
           {/* Save confirmation */}
           {justSaved && (
             <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
