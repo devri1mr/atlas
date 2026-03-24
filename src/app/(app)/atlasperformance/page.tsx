@@ -680,6 +680,7 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
         {adminRevenue && (
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>
             Divs: {fmt$(revB - adminBudget)} · Admin act: {fmt$(adminActual)} · Admin bud: {fmt$(adminBudget)}
+            {" | "}{items.map(i => `${i.divisionName}: ${fmt$(pickB(i, "revenue"))}`).join(" · ")}
           </div>
         )}
       </div>
