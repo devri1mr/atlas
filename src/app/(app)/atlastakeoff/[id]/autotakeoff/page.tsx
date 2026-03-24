@@ -257,7 +257,12 @@ export default function AutoTakeoffReviewPage() {
         if ("task_catalog_id" in update) {
           newTaskCatalog = data?.task_options.find(t => t.id === update.task_catalog_id) ?? null;
         }
-        const matCost = newCatalogMaterial
+        const AREA_UNITS = new Set(["SF", "SY", "SQ FT", "SQFT", "AC", "ACRE", "MSF", "LF", "LIN FT"]);
+        const itemUnit = (item.unit ?? "EA").toUpperCase().trim();
+        const matUnit  = (newCatalogMaterial?.default_unit ?? "EA").toUpperCase().trim();
+        const unitsAlign = itemUnit === matUnit ||
+          (AREA_UNITS.has(itemUnit) && AREA_UNITS.has(matUnit));
+        const matCost = newCatalogMaterial && unitsAlign
           ? Number(newCatalogMaterial.default_unit_cost ?? 0) * Number(item.count ?? 0)
           : 0;
         return { ...item, match: newMatch, catalog_material: newCatalogMaterial, task_catalog: newTaskCatalog, material_cost: matCost };

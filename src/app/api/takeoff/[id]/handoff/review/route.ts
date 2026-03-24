@@ -158,7 +158,12 @@ export async function GET(
       const invQty = catalogMaterial ? (inventoryMap.get(catalogMaterial.id) ?? 0) : 0;
       const stale = catalogMaterial ? staleCatalogIds.has(catalogMaterial.id) : false;
 
-      const materialCost = catalogMaterial
+      const AREA_UNITS = new Set(["SF", "SY", "SQ FT", "SQFT", "AC", "ACRE", "MSF", "LF", "LIN FT"]);
+      const itemUnit = (item.unit ?? "EA").toUpperCase().trim();
+      const matUnit  = (catalogMaterial?.default_unit ?? "EA").toUpperCase().trim();
+      const unitsAlign = itemUnit === matUnit ||
+        (AREA_UNITS.has(itemUnit) && AREA_UNITS.has(matUnit));
+      const materialCost = catalogMaterial && unitsAlign
         ? Number(catalogMaterial.default_unit_cost ?? 0) * Number(item.count ?? 0)
         : 0;
 
