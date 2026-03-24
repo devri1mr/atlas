@@ -116,7 +116,7 @@ export default function AtlasTakeoffPage() {
 
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 10 }}>
-            <div style={{ width: 56, height: 56, overflow: "hidden", flexShrink: 0, mixBlendMode: "screen" }}>
+            <div style={{ width: 56, height: 56, overflow: "hidden", flexShrink: 0 }}>
               <Image
                 src="/atlas-takeoff-logo-transparent.png"
                 alt="Atlas Takeoff"
