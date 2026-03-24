@@ -935,9 +935,8 @@ export default function TakeoffEditorPage() {
         {/* ── Plan viewer ── */}
         <div
           ref={viewerRef}
-          style={{ flex: 1, overflow: "auto", background: "#0d1520" }}
+          style={{ flex: 1, overflow: "auto", background: "#0d1520", display: "flex", alignItems: "flex-start" }}
         >
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", minWidth: "100%", minHeight: "100%", padding: 24, boxSizing: "border-box" }}>
           {!imageUrl ? (
             <div
               style={{
@@ -962,7 +961,7 @@ export default function TakeoffEditorPage() {
               </button>
             </div>
           ) : (
-            <div style={{ position: "relative", display: "inline-block", flexShrink: 0 }}>
+            <div style={{ position: "relative", display: "inline-block", flexShrink: 0, margin: "auto", padding: 24 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 ref={imgRef}
@@ -1012,7 +1011,6 @@ export default function TakeoffEditorPage() {
               )}
             </div>
           )}
-        </div>
         </div>
 
         {/* ── Right: mark list ── */}
