@@ -327,18 +327,19 @@ export default function AtlasPerformancePage() {
           setSummaryItems(prev => [...(prev ?? []), ...newItems]);
         }
       }
-      if (!aborter.signal.aborted) setLastRefresh(new Date());
+      if (!aborter.signal.aborted) {
+        setLastRefresh(new Date());
+        // Fetch admin revenue only for the winning (non-aborted) call
+        try {
+          const ar = await fetch("/api/performance/admin", { cache: "no-store" });
+          if (ar.ok) setAdminRevenue(await ar.json());
+        } catch { /* non-fatal */ }
+      }
     } catch (e: any) {
       if (e?.name === "AbortError") return;
     } finally {
       if (!aborter.signal.aborted) setSummaryLoading(false);
     }
-
-    // Fetch admin revenue in parallel (best-effort)
-    try {
-      const ar = await fetch("/api/performance/admin", { cache: "no-store" });
-      if (ar.ok) setAdminRevenue(await ar.json());
-    } catch { /* non-fatal */ }
   }, []);
 
   /* Load single division */
@@ -677,6 +678,11 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
+        {adminRevenue && (
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>
+            Admin adj: actual {fmt$(adminActual)} · budget {fmt$(adminBudget)}
+          </div>
+        )}
       </div>
       {/* Row 1: Revenue, Budget, Profit, Profit% */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
