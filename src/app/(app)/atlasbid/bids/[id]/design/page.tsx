@@ -35,7 +35,8 @@ export default function DesignPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
-  const [savedDesigns, setSavedDesigns] = useState<{ id: string; signed_url: string | null; refined_prompt: string | null; created_at: string }[]>([]);
+  const [savedDesigns, setSavedDesigns] = useState<{ id: string; signed_url: string | null; original_url: string | null; refined_prompt: string | null; created_at: string }[]>([]);
+  const [beforeUrl, setBeforeUrl] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -242,6 +243,7 @@ export default function DesignPage() {
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
 
       setResultUrl(json.result_url);
+      setBeforeUrl(json.original_url ?? imageDataUrl);
       setStep("result");
       setJustSaved(true);
       loadSavedDesigns();
@@ -610,15 +612,17 @@ export default function DesignPage() {
       )}
 
       {/* ── RESULT ─────────────────────────────────────────────────── */}
-      {step === "result" && resultUrl && imageDataUrl && (
+      {step === "result" && resultUrl && (
         <div className="space-y-4">
-          <p className="text-xs text-gray-400 text-center">Drag the handle to compare before & after</p>
+          {(beforeUrl ?? imageDataUrl) && (
+            <p className="text-xs text-gray-400 text-center">Drag the handle to compare before & after</p>
+          )}
 
           {/* Before/after slider */}
           <div
             ref={sliderContainerRef}
             className="relative rounded-xl overflow-hidden select-none w-full cursor-ew-resize"
-            style={{ aspectRatio: `${imageW} / ${imageH}`, touchAction: "none" }}
+            style={{ aspectRatio: imageW && imageH ? `${imageW} / ${imageH}` : "4/3", touchAction: "none" }}
             onPointerDown={onSliderPointerDown}
             onPointerMove={onSliderPointerMove}
             onPointerUp={onSliderPointerUp}
@@ -627,33 +631,37 @@ export default function DesignPage() {
             {/* After (result) — full background */}
             <img
               src={resultUrl}
-              className="absolute inset-0 w-full h-full object-fill"
+              className="absolute inset-0 w-full h-full object-cover"
               draggable={false}
               alt="Atlas design result"
             />
-            {/* Before (original) — clipped to left side */}
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-            >
-              <img
-                src={imageDataUrl}
-                className="absolute inset-0 w-full h-full object-fill"
-                draggable={false}
-                alt="Original photo"
-              />
-            </div>
+            {/* Before (original) — clipped to left side, only if available */}
+            {(beforeUrl ?? imageDataUrl) && (
+              <div
+                className="absolute inset-0 overflow-hidden"
+                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+              >
+                <img
+                  src={(beforeUrl ?? imageDataUrl)!}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  draggable={false}
+                  alt="Original photo"
+                />
+              </div>
+            )}
 
             {/* Labels */}
+            {(beforeUrl ?? imageDataUrl) && (
             <div className="absolute top-3 left-3 bg-black/60 text-white text-[10px] font-bold px-2.5 py-1 rounded-full pointer-events-none">
               BEFORE
             </div>
+            )}
             <div className="absolute top-3 right-3 bg-[#123b1f]/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-full pointer-events-none">
               AFTER
             </div>
 
-            {/* Slider line + handle */}
-            <div
+            {/* Slider line + handle — only when before image is available */}
+            {(beforeUrl ?? imageDataUrl) && <div
               className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.4)] pointer-events-none"
               style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
             >
@@ -663,7 +671,7 @@ export default function DesignPage() {
                   <polyline points="9 6 15 12 9 18" style={{ transform: "translateX(6px)" }} />
                 </svg>
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Save confirmation */}
@@ -720,6 +728,7 @@ export default function DesignPage() {
               <div key={d.id} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer"
                 onClick={() => {
                   setResultUrl(d.signed_url!);
+                  setBeforeUrl(d.original_url ?? null);
                   setJustSaved(false);
                   setStep("result");
                 }}

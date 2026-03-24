@@ -125,21 +125,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Stability ${stabRes.status}: ${msg}` }, { status: stabRes.status });
     }
 
-    // Save result to storage
+    // Save result and original to storage under the same timestamp key
+    const ts = Date.now();
     const resultBuffer = Buffer.from(stabJson.image, "base64");
-    const storagePath = `${bid.company_id}/${bidId}/ai-designs/${Date.now()}.png`;
+    const storagePath = `${bid.company_id}/${bidId}/ai-designs/${ts}.png`;
+    const originalPath = `${bid.company_id}/${bidId}/ai-designs/${ts}-original.jpg`;
 
-    const { error: uploadErr } = await supabase.storage
-      .from("bid-photos")
-      .upload(storagePath, resultBuffer, { contentType: "image/png", upsert: false });
+    const [uploadResult, uploadOriginal] = await Promise.all([
+      supabase.storage.from("bid-photos").upload(storagePath, resultBuffer, { contentType: "image/png", upsert: false }),
+      supabase.storage.from("bid-photos").upload(originalPath, Buffer.from(await imageFile.arrayBuffer()), { contentType: "image/jpeg", upsert: false }),
+    ]);
 
-    if (uploadErr) {
-      return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+    if (uploadResult.error) {
+      return NextResponse.json({ error: uploadResult.error.message }, { status: 500 });
     }
 
-    const { data: urlData } = await supabase.storage
-      .from("bid-photos")
-      .createSignedUrl(storagePath, 7200);
+    const [{ data: urlData }, { data: originalUrlData }] = await Promise.all([
+      supabase.storage.from("bid-photos").createSignedUrl(storagePath, 7200),
+      supabase.storage.from("bid-photos").createSignedUrl(originalPath, 7200),
+    ]);
 
     // Record the generation
     const { data: design } = await supabase
@@ -149,12 +153,14 @@ export async function POST(req: NextRequest) {
         company_id: bid.company_id,
         refined_prompt: prompt,
         result_storage_path: storagePath,
+        original_storage_path: originalPath,
       })
       .select("id")
       .single();
 
     return NextResponse.json({
       result_url: urlData?.signedUrl ?? null,
+      original_url: originalUrlData?.signedUrl ?? null,
       design_id: design?.id ?? null,
     });
   } catch (e: any) {
