@@ -95,21 +95,26 @@ function findBestTask(
 ): { task: TaskOption; conf: "high" | "medium" } | null {
   if (!tasks.length) return null;
 
-  // 1. Infer category from material name when landscape_category is null
+  // Drive everything from the material, not the bid item name.
+  // Infer plant category from material name; only fall back to itemCategory if
+  // the material gives us nothing (e.g. no material selected yet).
   const inferredCat = matCategory ?? (matName ? inferCategoryFromMatName(matName) : null) ?? itemCategory;
+  const isPlantMaterial = matName ? PLANT_MATERIAL_PATTERN.test(matName) : false;
 
-  // 2. Cross-reference: find tasks used by other items in the same category
-  // Only when material category agrees with item category — prevents seed/hardscape
-  // tasks bleeding into plant suggestions just because they share an "other" item category
-  if (allItems?.length && inferredCat === itemCategory) {
-    const sameCategory = allItems.filter(i =>
-      i.category === itemCategory &&
-      i.match?.task_catalog_id &&
-      !i.match.excluded
-    );
-    if (sameCategory.length > 0) {
+  // Cross-reference: find tasks used by other items whose material infers the same category.
+  // Keyed on material-inferred category so "Required Parking Area + Spruce" groups with
+  // other spruce/tree items, not with seed/area items that share the same bid item category.
+  if (allItems?.length) {
+    const sameMatCat = allItems.filter(i => {
+      if (!i.match?.task_catalog_id || i.match.excluded) return false;
+      const iCat = i.catalog_material?.landscape_category ??
+        (i.catalog_material?.name ? inferCategoryFromMatName(i.catalog_material.name) : null) ??
+        i.category;
+      return iCat === inferredCat;
+    });
+    if (sameMatCat.length > 0) {
       const freq = new Map<string, number>();
-      for (const i of sameCategory) {
+      for (const i of sameMatCat) {
         const tid = i.match!.task_catalog_id!;
         const weight = i.match!.override_by_user ? 3 : 1;
         freq.set(tid, (freq.get(tid) ?? 0) + weight);
@@ -119,36 +124,29 @@ function findBestTask(
       if (topTask) return { task: topTask, conf: "medium" };
     }
   }
-  const keywords = [
-    ...(CATEGORY_KEYWORDS[inferredCat] ?? []),
-    ...(CATEGORY_KEYWORDS[itemCategory] ?? []),
-  ];
+
+  // Keyword scoring — driven by inferred material category, not item category
+  const keywords = [...(CATEGORY_KEYWORDS[inferredCat] ?? [])];
   if (matName) {
     matName.toLowerCase().split(/\s+/).filter(w => w.length > 3 && isNaN(Number(w))).forEach(w => keywords.push(w));
   }
   const unique = [...new Set(keywords)];
-  const isPlantMaterial = matName ? PLANT_MATERIAL_PATTERN.test(matName) : false;
 
-  // Score each task
   const scored = tasks.map(t => {
     const name = t.name.toLowerCase();
     let score = 0;
     if (t.landscape_category === inferredCat) score += 100;
-    if (t.landscape_category === itemCategory) score += 50;
     for (const kw of unique) { if (name.includes(kw)) score += 10; }
-    // Penalize hardscape tasks when material is clearly a plant
     if (isPlantMaterial && HARDSCAPE_TASK_PATTERN.test(t.name)) score -= 50;
     return { task: t, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
 
-  // Fallback: any non-hardscape plant/install task
   if (!scored.length) {
     const fallback = tasks.find(t => /plant|install/i.test(t.name) && !(isPlantMaterial && HARDSCAPE_TASK_PATTERN.test(t.name)));
     if (fallback) return { task: fallback, conf: "medium" };
     return null;
   }
-  const best = scored[0];
-  return { task: best.task, conf: best.score >= 100 ? "high" : "medium" };
+  return { task: scored[0].task, conf: scored[0].score >= 100 ? "high" : "medium" };
 }
 
 /* ─── Main Page ──────────────────────────────────────────────────────── */
