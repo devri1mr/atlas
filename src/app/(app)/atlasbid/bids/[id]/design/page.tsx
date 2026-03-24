@@ -32,6 +32,7 @@ export default function DesignPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
 
@@ -212,7 +213,7 @@ export default function DesignPage() {
     }
 
     setError(null);
-    setStep("generating");
+    setIsGenerating(true);
 
     try {
       const maskDataUrl = exportMask();
@@ -233,7 +234,8 @@ export default function DesignPage() {
       setStep("result");
     } catch (e: any) {
       setError(e?.message ?? "Generation failed");
-      setStep("editing");
+    } finally {
+      setIsGenerating(false);
     }
   }
 
@@ -403,7 +405,13 @@ export default function DesignPage() {
                 onPointerUp={handleCanvasPointerUp}
                 onPointerLeave={handleCanvasPointerUp}
               />
-              {!hasPainted && (
+              {isGenerating && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 pointer-events-none">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mb-3" />
+                  <span className="text-white text-sm font-medium">Generating design…</span>
+                </div>
+              )}
+              {!hasPainted && !isGenerating && (
                 <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
                   <span className="bg-black/60 text-white text-xs font-medium px-3 py-1.5 rounded-full">
                     Paint over the area you want to redesign
@@ -546,9 +554,10 @@ export default function DesignPage() {
 
             <button
               onClick={generate}
-              className="w-full py-3 rounded-xl bg-[#123b1f] text-white font-semibold text-sm hover:bg-[#1a5c2e] transition-colors shadow-sm"
+              disabled={isGenerating}
+              className="w-full py-3 rounded-xl bg-[#123b1f] text-white font-semibold text-sm hover:bg-[#1a5c2e] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Generate Design →
+              {isGenerating ? "Generating…" : "Generate Design →"}
             </button>
           </div>
         </div>

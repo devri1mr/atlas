@@ -104,7 +104,21 @@ export async function POST(req: NextRequest) {
       body: stabilityForm,
     });
 
-    const stabJson = await stabRes.json();
+    const contentType = stabRes.headers.get("content-type") ?? "";
+    let stabJson: any;
+    if (contentType.includes("application/json")) {
+      stabJson = await stabRes.json();
+    } else if (contentType.startsWith("image/")) {
+      // API returned raw image bytes — base64-encode directly
+      const buf = Buffer.from(await stabRes.arrayBuffer());
+      stabJson = { image: buf.toString("base64") };
+    } else {
+      const text = await stabRes.text();
+      return NextResponse.json(
+        { error: `Stability API error: ${text.slice(0, 300)}` },
+        { status: stabRes.status }
+      );
+    }
 
     if (!stabRes.ok || !stabJson.image) {
       const msg =
