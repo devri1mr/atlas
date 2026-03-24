@@ -263,6 +263,55 @@ export default function TaskCatalogPage() {
     setTimeout(() => setSuccessMsg(null), 3000);
   }
 
+  async function exportAllCSV() {
+    // Fetch tasks for every division in parallel
+    const rows: string[][] = [];
+    rows.push(["Division", "Task Name", "Unit", "Hrs/Unit", "Min/Unit", "Default Qty", "Spring ×", "Summer ×", "Fall ×", "Winter ×", "Notes"]);
+
+    await Promise.all(
+      divisions.map(async (div) => {
+        try {
+          const res = await fetch(`/api/task-catalog?division_id=${div.id}`, { cache: "no-store" });
+          const j = await res.json();
+          const tasks: Task[] = j?.data ?? [];
+          for (const t of tasks) {
+            const hpu = t.minutes_per_unit != null ? (t.minutes_per_unit / 60).toFixed(4) : "";
+            const mpu = t.minutes_per_unit != null ? t.minutes_per_unit.toFixed(2) : "";
+            rows.push([
+              div.name,
+              t.name,
+              t.unit ?? "",
+              hpu,
+              mpu,
+              t.default_qty != null ? String(t.default_qty) : "",
+              t.spring_multiplier != null ? String(t.spring_multiplier) : "",
+              t.summer_multiplier != null ? String(t.summer_multiplier) : "",
+              t.fall_multiplier != null ? String(t.fall_multiplier) : "",
+              t.winter_multiplier != null ? String(t.winter_multiplier) : "",
+              t.notes ?? "",
+            ]);
+          }
+        } catch { /* skip failed divisions */ }
+      })
+    );
+
+    // Sort by division then task name (skip header)
+    const header = rows[0];
+    const data = rows.slice(1).sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+
+    const csv = [header, ...data]
+      .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `atlas-labor-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function matDisplayName(m: TaskMaterial) {
     return m.materials?.name || m.material_name || "Unknown";
   }
@@ -317,12 +366,21 @@ export default function TaskCatalogPage() {
               <span className="font-semibold text-[#123b1f] text-sm">
                 {loadingTasks ? "Loading…" : `${tasks.length} task${tasks.length !== 1 ? "s" : ""}`}
               </span>
-              <button
-                onClick={openAdd}
-                className="bg-emerald-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-emerald-700"
-              >
-                + New Task
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportAllCSV}
+                  className="border border-[#123b1f] text-[#123b1f] text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-[#eef6f0]"
+                  title="Export all divisions to CSV"
+                >
+                  ↓ Export All
+                </button>
+                <button
+                  onClick={openAdd}
+                  className="bg-emerald-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-emerald-700"
+                >
+                  + New Task
+                </button>
+              </div>
             </div>
             <div className="divide-y divide-gray-50">
               {tasks.length === 0 && !loadingTasks && (
