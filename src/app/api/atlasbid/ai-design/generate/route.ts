@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/generate/inpaint";
+const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/edit/inpaint";
 const MONTHLY_LIMIT = 50; // generations per company per calendar month
 
 function align64(n: number) {
