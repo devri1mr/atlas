@@ -100,26 +100,47 @@ export default function AtlasTakeoffPage() {
     <div style={{ minHeight: "100vh", background: "#f0f4f8" }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #0d1f3c 0%, #1a3a6b 60%, #1e4d8c 100%)",
-        padding: "16px 24px",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        background: "linear-gradient(135deg, #060f1e 0%, #0d1f3c 40%, #1a3a6b 100%)",
+        padding: "48px 24px 40px",
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div style={{ color: "#fff", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>Atlas Takeoff</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>Automated landscape plan takeoffs</div>
+        {/* Decorative rings */}
+        <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 400, height: 400, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.04)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: -30, left: "50%", transform: "translateX(-50%)", width: 280, height: 280, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
+        {/* Glow */}
+        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 600, height: 120, background: "radial-gradient(ellipse, rgba(37,99,235,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Badge */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 99, padding: "4px 12px", marginBottom: 16 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+            <span style={{ color: "#4ade80", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em" }}>AI-POWERED</span>
           </div>
+
+          <div style={{ color: "#fff", fontSize: 36, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1.1, marginBottom: 10 }}>
+            Atlas{" "}
+            <span style={{ background: "linear-gradient(90deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Takeoff
+            </span>
+          </div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 28, letterSpacing: "0.01em" }}>
+            Upload a landscape plan · Atlas counts, measures, and prices it
+          </div>
+
           <button
             onClick={() => setShowNew(true)}
             style={{
               background: "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)",
-              color: "#fff", border: "none", borderRadius: 10,
-              padding: "10px 22px", fontSize: 14, fontWeight: 700,
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              boxShadow: "0 4px 14px rgba(74,222,128,0.35)",
+              color: "#fff", border: "none", borderRadius: 12,
+              padding: "12px 28px", fontSize: 15, fontWeight: 700,
+              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+              boxShadow: "0 4px 20px rgba(74,222,128,0.4)",
             }}
           >
-            <span style={{ fontSize: 18 }}>+</span> New Takeoff
+            <span style={{ fontSize: 20 }}>+</span> New Takeoff
           </button>
         </div>
       </div>
