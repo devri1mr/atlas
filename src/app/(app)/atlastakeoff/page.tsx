@@ -101,31 +101,35 @@ export default function AtlasTakeoffPage() {
     <div style={{ minHeight: "100vh", background: "#f0f4f8" }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #060f1e 0%, #0d1f3c 40%, #1a3a6b 100%)",
-        padding: "48px 24px 40px",
+        background: "linear-gradient(180deg, #ffffff 0%, #f0f6ff 35%, #1a3a6b 65%, #060f1e 100%)",
         textAlign: "center",
         position: "relative",
         overflow: "hidden",
-        borderBottom: "1px solid rgba(255,255,255,0.07)",
       }}>
-        {/* Decorative rings */}
-        <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 400, height: 400, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.04)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", top: -30, left: "50%", transform: "translateX(-50%)", width: 280, height: 280, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
-        {/* Glow */}
-        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 600, height: 120, background: "radial-gradient(ellipse, rgba(37,99,235,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
+        {/* Blue streak decorations */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: "20%", left: "-10%", width: "120%", height: "2px", background: "linear-gradient(90deg, transparent 0%, #93c5fd 35%, #60a5fa 55%, transparent 100%)", transform: "rotate(-8deg)", opacity: 0.2 }} />
+          <div style={{ position: "absolute", top: "45%", right: "-5%", width: "70%", height: "1px", background: "linear-gradient(90deg, transparent 0%, #bfdbfe 50%, transparent 100%)", transform: "rotate(5deg)", opacity: 0.25 }} />
+          <div style={{ position: "absolute", bottom: "25%", left: "5%", width: "90%", height: "1.5px", background: "linear-gradient(90deg, transparent 0%, #60a5fa 45%, transparent 100%)", transform: "rotate(-4deg)", opacity: 0.15 }} />
+        </div>
 
-        <div style={{ position: "relative", zIndex: 1 }}>
+        {/* Logo section — white background so multiply blend works */}
+        <div style={{ position: "relative", paddingTop: 32, paddingBottom: 0 }}>
           <Image
-            src="/atlas-takeoff-logo-transparent.png"
+            src="/atlas-takeoff-logo.png"
             alt="Atlas Takeoff"
-            width={200}
-            height={300}
-            style={{ objectFit: "contain", display: "block", margin: "0 auto 4px" }}
+            width={280}
+            height={420}
+            style={{ objectFit: "contain", display: "block", margin: "0 auto", mixBlendMode: "multiply" }}
+            priority
           />
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 28, letterSpacing: "0.01em" }}>
+        </div>
+
+        {/* Dark section — tagline + button */}
+        <div style={{ position: "relative", padding: "24px 24px 40px" }}>
+          <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 24, letterSpacing: "0.01em" }}>
             Upload a landscape plan · Atlas counts, measures, and prices it
           </div>
-
           <button
             onClick={() => setShowNew(true)}
             style={{
