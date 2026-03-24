@@ -114,9 +114,10 @@ export default function AutoTakeoffReviewPage() {
   const [clientHistory, setClientHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click (ignore clicks inside a dropdown)
   useEffect(() => {
-    function handleClick() {
+    function handleClick(e: MouseEvent) {
+      if ((e.target as HTMLElement).closest("[data-dropdown]")) return;
       setOpenMat(null);
       setOpenTask(null);
     }
@@ -1167,7 +1168,7 @@ function MatchRow({
             </div>
 
             {isMatOpen && (
-              <div onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus
@@ -1240,7 +1241,7 @@ function MatchRow({
             </div>
 
             {isTaskOpen && (
-              <div onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus
