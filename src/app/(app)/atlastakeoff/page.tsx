@@ -115,14 +115,16 @@ export default function AtlasTakeoffPage() {
         <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 600, height: 120, background: "radial-gradient(ellipse, rgba(37,99,235,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 10 }}>
-            <Image
-              src="/atlas-takeoff-logo.png"
-              alt="Atlas Takeoff"
-              width={64}
-              height={42}
-              style={{ objectFit: "contain", mixBlendMode: "screen" }}
-            />
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 10 }}>
+            <div style={{ width: 52, height: 52, overflow: "hidden", flexShrink: 0 }}>
+              <Image
+                src="/atlas-takeoff-logo-transparent.png"
+                alt="Atlas Takeoff"
+                width={52}
+                height={88}
+                style={{ objectFit: "cover", objectPosition: "top", display: "block" }}
+              />
+            </div>
             <div style={{ color: "#fff", fontSize: 36, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1.1 }}>
               Atlas{" "}
               <span style={{ background: "linear-gradient(90deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
