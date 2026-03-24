@@ -278,6 +278,7 @@ export default function AtlasPerformancePage() {
   const [pageLoading, setPageLoading]     = useState(true);
   const [pageError, setPageError]         = useState<string | null>(null);
   const scrollRef                         = useRef<HTMLDivElement>(null);
+  const summaryAbortRef                   = useRef<AbortController | null>(null);
 
   /* Load divisions list */
   const loadDivisions = useCallback(async () => {
@@ -297,15 +298,21 @@ export default function AtlasPerformancePage() {
 
   /* Load summary (all divisions current month) — NDJSON stream */
   const loadSummary = useCallback(async () => {
+    // Cancel any previous in-flight stream to prevent duplicate appends
+    summaryAbortRef.current?.abort();
+    const aborter = new AbortController();
+    summaryAbortRef.current = aborter;
+
     setSummaryLoading(true);
     setSummaryItems(null);
     try {
-      const res = await fetch("/api/performance?all=1", { cache: "no-store" });
+      const res = await fetch("/api/performance?all=1", { cache: "no-store", signal: aborter.signal });
       if (!res.ok || !res.body) throw new Error("fetch failed");
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
       while (true) {
+        if (aborter.signal.aborted) { reader.cancel(); break; }
         const { done, value } = await reader.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
@@ -316,13 +323,16 @@ export default function AtlasPerformancePage() {
           if (!line.trim()) continue;
           try { newItems.push(JSON.parse(line)); } catch { /* skip malformed */ }
         }
-        if (newItems.length > 0) {
+        if (newItems.length > 0 && !aborter.signal.aborted) {
           setSummaryItems(prev => [...(prev ?? []), ...newItems]);
         }
       }
-      setLastRefresh(new Date());
-    } catch {}
-    finally { setSummaryLoading(false); }
+      if (!aborter.signal.aborted) setLastRefresh(new Date());
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
+    } finally {
+      if (!aborter.signal.aborted) setSummaryLoading(false);
+    }
 
     // Fetch admin revenue in parallel (best-effort)
     try {
