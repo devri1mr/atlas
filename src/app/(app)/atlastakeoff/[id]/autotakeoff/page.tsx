@@ -135,7 +135,37 @@ export default function AutoTakeoffReviewPage() {
       const json = await res.json();
       if (json.error) return;
       setData(json);
-      setItems(json.items ?? []);
+      const loadedItems: ReviewItem[] = json.items ?? [];
+      setItems(loadedItems);
+
+      // Auto-fill labor for items that have a material but no labor task
+      const taskOptions: TaskOption[] = json.task_options ?? [];
+      const needsLabor = loadedItems.filter(i =>
+        i.match && i.catalog_material && !i.task_catalog && !i.match.excluded
+      );
+      if (needsLabor.length > 0) {
+        await Promise.all(needsLabor.map(async (item) => {
+          const effectiveCategory = item.catalog_material?.landscape_category ?? item.category;
+          const autoTask = taskOptions.find(t => t.landscape_category === effectiveCategory)
+            ?? taskOptions.find(t => t.landscape_category === item.category)
+            ?? taskOptions.find(t => t.name.toLowerCase().includes(effectiveCategory))
+            ?? null;
+          if (!autoTask || !item.match) return;
+          await fetch(`/api/takeoff/${takeoffId}/handoff/match/${item.match.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              task_catalog_id: autoTask.id,
+              labor_match_conf: "medium",
+              labor_match_note: "Auto-populated from material category",
+            }),
+          });
+        }));
+        // Reload to reflect the filled labor
+        const res2 = await fetch(`/api/takeoff/${takeoffId}/handoff/review`);
+        const json2 = await res2.json();
+        if (!json2.error) { setData(json2); setItems(json2.items ?? []); }
+      }
     } finally {
       setLoading(false);
     }
@@ -786,9 +816,14 @@ export default function AutoTakeoffReviewPage() {
             onSelectMaterial={async (matId) => {
               setOpenMat(null);
               // Auto-populate labor whenever material changes
+              // Prefer the material's landscape_category over the item's category
+              // (e.g. item is "area" but material is "shrub" → find shrub planting task)
+              const selectedMat = matId ? (data?.catalog_options ?? []).find(c => c.id === matId) : null;
+              const effectiveCategory = selectedMat?.landscape_category ?? item.category;
               const autoTask = matId
-                ? (data?.task_options ?? []).find(t => t.landscape_category === item.category)
-                  ?? (data?.task_options ?? []).find(t => t.name.toLowerCase().includes(item.category))
+                ? (data?.task_options ?? []).find(t => t.landscape_category === effectiveCategory)
+                  ?? (data?.task_options ?? []).find(t => t.landscape_category === item.category)
+                  ?? (data?.task_options ?? []).find(t => t.name.toLowerCase().includes(effectiveCategory))
                   ?? null
                 : null;
               if (!item.match) {
