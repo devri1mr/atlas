@@ -377,25 +377,47 @@ export default function AtlasPerformancePage() {
   /* ── Render ── */
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#f0f2f0", overflow: "hidden" }}>
+      <style>{`
+        @media(max-width:640px){
+          .perf-hdr{padding:7px 10px !important}
+          .perf-hdr-sub{display:none}
+          .perf-live{display:none}
+          .perf-logo{width:26px !important;height:26px !important}
+          .perf-title{font-size:14px !important}
+          .perf-tab-bar{padding:0 6px !important}
+          .perf-tab-bar::-webkit-scrollbar{display:none}
+          .perf-content{padding:8px !important}
+          .perf-sum-title{font-size:15px !important}
+          .perf-sum-grid{grid-template-columns:1fr !important}
+          .perf-totals{padding:10px 12px !important;gap:6px !important}
+          .perf-totals-label{font-size:8px !important}
+          .perf-totals-val{font-size:13px !important}
+          .perf-pill{padding:5px 8px !important}
+          .perf-kpi-strip{display:grid !important;grid-template-columns:1fr 1fr !important;gap:6px !important}
+          .perf-kpi-card{min-width:unset !important;padding:8px 10px !important}
+          .perf-kpi-val{font-size:15px !important}
+          .perf-table-hint{display:flex !important}
+        }
+      `}</style>
 
       {/* ── Header ── */}
-      <div style={{ background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 55%, #1a5c2a 100%)`, padding: "10px 16px", flexShrink: 0 }}>
+      <div className="perf-hdr" style={{ background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 55%, #1a5c2a 100%)`, padding: "10px 16px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "#fff", borderRadius: 8, padding: 3 }}>
-              <Image src="/atlas-performance-logo.png" alt="Atlas Performance" width={32} height={32} style={{ objectFit: "contain", display: "block" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <div style={{ background: "#fff", borderRadius: 8, padding: 3, flexShrink: 0 }}>
+              <Image className="perf-logo" src="/atlas-performance-logo.png" alt="Atlas Performance" width={32} height={32} style={{ objectFit: "contain", display: "block" }} />
             </div>
-            <div>
-              <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>AtlasPerformance</span>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>2026 · Budget vs. Actual · Live from Google Sheets</div>
+            <div style={{ minWidth: 0 }}>
+              <span className="perf-title" style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>AtlasPerformance</span>
+              <div className="perf-hdr-sub" style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>2026 · Budget vs. Actual · Live from Google Sheets</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "3px 10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <div className="perf-live" style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "3px 10px" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
               <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>{minsAgo === 0 ? "Live" : `${minsAgo}m ago`}</span>
             </div>
-            <button onClick={refresh} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
+            <button onClick={refresh} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
               ↻ Refresh
             </button>
           </div>
@@ -403,7 +425,7 @@ export default function AtlasPerformancePage() {
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ background: "#fff", borderBottom: `1px solid ${GRID}`, display: "flex", alignItems: "center", gap: 0, overflowX: "auto", flexShrink: 0, padding: "0 12px" }}>
+      <div className="perf-tab-bar" style={{ background: "#fff", borderBottom: `1px solid ${GRID}`, display: "flex", alignItems: "center", gap: 0, overflowX: "auto", flexShrink: 0, padding: "0 12px", WebkitOverflowScrolling: "touch" as any, scrollbarWidth: "none" as any }}>
         {/* Summary tab */}
         <TabBtn
           label="Summary"
@@ -452,7 +474,7 @@ export default function AtlasPerformancePage() {
       </div>
 
       {/* ── Content ── */}
-      <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: 12 }}>
+      <div ref={scrollRef} className="perf-content" style={{ flex: 1, overflow: "auto", padding: 12 }}>
 
         {/* Summary tab */}
         {activeTab === "summary" && (
@@ -465,7 +487,7 @@ export default function AtlasPerformancePage() {
               {/* Header + toggle */}
               <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
+                  <div className="perf-sum-title" style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
                     {summaryView === "month"
                       ? `${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`
                       : `YTD · Jan – ${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`}
@@ -494,7 +516,7 @@ export default function AtlasPerformancePage() {
                   ))}
                 </div>
               </div>
-              <div style={{
+              <div className="perf-sum-grid" style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
                 gap: 14,
@@ -588,29 +610,29 @@ function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; m
     : `${MONTHS_FULL[cm] ?? ""} combined`;
 
   const pill = (label: string, val: number, color: string) => (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color }}>{fmtK(val)}</div>
+    <div className="perf-pill" style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
+      <div className="perf-totals-label" style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>{label}</div>
+      <div className="perf-totals-val" style={{ fontSize: 16, fontWeight: 800, color }}>{fmtK(val)}</div>
     </div>
   );
 
   return (
-    <div style={{
+    <div className="perf-totals" style={{
       marginTop: 16,
       background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 100%)`,
       borderRadius: 14, padding: "14px 20px",
       display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10,
     }}>
-      <div style={{ marginRight: 8 }}>
+      <div style={{ marginRight: 4 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
       </div>
       {pill("Revenue", rev, rev >= revB ? "#4ade80" : "#fbbf24")}
       {pill("Budget", revB, "rgba(255,255,255,0.6)")}
       {pill("Profit", prof, prof > 0 ? "#4ade80" : "#f87171")}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Profit %</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: profPct != null && profPct > 0 ? "#4ade80" : "#f87171" }}>
+      <div className="perf-pill" style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
+        <div className="perf-totals-label" style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Profit %</div>
+        <div className="perf-totals-val" style={{ fontSize: 16, fontWeight: 800, color: profPct != null && profPct > 0 ? "#4ade80" : "#f87171" }}>
           {profPct != null ? `${Math.round(profPct)}%` : "—"}
         </div>
       </div>
@@ -760,12 +782,17 @@ function DivisionTable({ data }: { data: Data }) {
   return (
     <>
       {/* KPI strip */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+      <div className="perf-kpi-strip" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
         <KpiCard label="Revenue MTD" value={fmtK(curRev)} sub={revBudget > 0 ? `Budget: ${fmtK(revBudget)}` : ""} color={curRev > 0 ? "#15803d" : "#9ca3af"} />
         <KpiCard label="Profit MTD" value={fmtK(curProf)} sub="" color={curProf > 0 ? "#15803d" : curProf < 0 ? "#dc2626" : "#9ca3af"} />
         <KpiCard label="Profit %" value={curProfPct != null ? `${Math.round(curProfPct)}%` : "—"} sub={data.targetGp ? `Goal: ${data.targetGp}%` : ""} color={curProfPct != null && data.targetGp && curProfPct >= data.targetGp ? "#15803d" : "#dc2626"} />
         <KpiCard label="YTD Revenue" value={fmtK(data.revenue.totalActual)} sub={data.revenue.totalBudget > 0 ? `Budget: ${fmtK(data.revenue.totalBudget)}` : ""} color="#374151" />
         <KpiCard label="YTD Profit" value={fmtK(data.profit.totalActual)} sub={data.profit.totalPctActual != null ? `${Math.round(data.profit.totalPctActual)}% of rev` : ""} color={data.profit.totalActual > 0 ? "#15803d" : "#dc2626"} />
+      </div>
+
+      {/* Scroll hint (mobile only) */}
+      <div className="perf-table-hint" style={{ display: "none", alignItems: "center", gap: 5, marginBottom: 6, color: "#9ca3af", fontSize: 11 }}>
+        <span>←</span><span>Swipe to scroll table</span><span>→</span>
       </div>
 
       {/* Table */}
@@ -889,13 +916,13 @@ function DivisionTable({ data }: { data: Data }) {
 /* ─── KPI card ───────────────────────────────────────────────────────── */
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
-    <div style={{
+    <div className="perf-kpi-card" style={{
       background: "#fff", borderRadius: 10, border: `1px solid ${GRID}`,
       padding: "10px 16px", minWidth: 110,
       boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
     }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color, marginTop: 2 }}>{value}</div>
+      <div className="perf-kpi-val" style={{ fontSize: 18, fontWeight: 800, color, marginTop: 2 }}>{value}</div>
       {sub && <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 1 }}>{sub}</div>}
     </div>
   );
