@@ -293,12 +293,12 @@ export default function TakeoffEditorPage() {
     setIsPanning(true);
 
     function onMove(ev: MouseEvent) {
-      if (!panRef.current) return;
+      if (!panRef.current || !viewerRef.current) return;
       const dx = ev.clientX - panRef.current.startX;
       const dy = ev.clientY - panRef.current.startY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPanRef.current = true;
-      viewer.scrollLeft = panRef.current.scrollLeft - dx;
-      viewer.scrollTop  = panRef.current.scrollTop  - dy;
+      viewerRef.current.scrollLeft = panRef.current.scrollLeft - dx;
+      viewerRef.current.scrollTop  = panRef.current.scrollTop  - dy;
     }
     function onUp() {
       panRef.current = null;
