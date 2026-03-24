@@ -273,6 +273,7 @@ export default function AtlasPerformancePage() {
   const [divData, setDivData]             = useState<Record<string, Data | null | "loading" | "error">>({});
   const [summaryItems, setSummaryItems]   = useState<SummaryItem[] | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [adminRevenue, setAdminRevenue]   = useState<{ actual: number[]; budget: number[] } | null>(null);
   const [lastRefresh, setLastRefresh]     = useState(new Date());
   const [pageLoading, setPageLoading]     = useState(true);
   const [pageError, setPageError]         = useState<string | null>(null);
@@ -294,16 +295,40 @@ export default function AtlasPerformancePage() {
     }
   }, []);
 
-  /* Load summary (all divisions current month) */
+  /* Load summary (all divisions current month) — NDJSON stream */
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
+    setSummaryItems(null);
     try {
-      const res  = await fetch("/api/performance?all=1", { cache: "no-store" });
-      const json = await res.json();
-      setSummaryItems(json.items ?? []);
+      const res = await fetch("/api/performance?all=1", { cache: "no-store" });
+      if (!res.ok || !res.body) throw new Error("fetch failed");
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        const newItems: SummaryItem[] = [];
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try { newItems.push(JSON.parse(line)); } catch { /* skip malformed */ }
+        }
+        if (newItems.length > 0) {
+          setSummaryItems(prev => [...(prev ?? []), ...newItems]);
+        }
+      }
       setLastRefresh(new Date());
     } catch {}
     finally { setSummaryLoading(false); }
+
+    // Fetch admin revenue in parallel (best-effort)
+    try {
+      const ar = await fetch("/api/performance/admin", { cache: "no-store" });
+      if (ar.ok) setAdminRevenue(await ar.json());
+    } catch { /* non-fatal */ }
   }, []);
 
   /* Load single division */
@@ -534,7 +559,7 @@ export default function AtlasPerformancePage() {
               </div>
               {/* All-divisions totals row */}
               {summaryItems && summaryItems.length > 1 && (
-                <AllDivisionsTotals items={summaryItems} mode={summaryView} />
+                <AllDivisionsTotals items={summaryItems} mode={summaryView} adminRevenue={adminRevenue} />
               )}
             </>
           )
@@ -576,7 +601,7 @@ function TabBtn({ label, active, dot, onClick, icon }: { label: string; active: 
 }
 
 /* ─── All divisions totals strip ─────────────────────────────────────── */
-function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; mode?: "month" | "ytd" }) {
+function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: SummaryItem[]; mode?: "month" | "ytd"; adminRevenue?: { actual: number[]; budget: number[] } | null }) {
   // Use the latest month that has ANY data across ANY division
   const bestMonth = items.reduce((best, item) => {
     const m = item.data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
@@ -596,8 +621,15 @@ function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; m
     return mode === "ytd" ? sumTo(arr) : cm >= 0 ? arr[cm] : 0;
   };
 
-  const rev   = sumArr(items.map(i => pick(i, "revenue")));
-  const revB  = sumArr(items.map(i => pickB(i, "revenue")));
+  const adminActual = adminRevenue
+    ? (mode === "ytd" ? sumTo(adminRevenue.actual) : cm >= 0 ? adminRevenue.actual[cm] : 0)
+    : 0;
+  const adminBudget = adminRevenue
+    ? (mode === "ytd" ? sumTo(adminRevenue.budget) : cm >= 0 ? adminRevenue.budget[cm] : 0)
+    : 0;
+
+  const rev   = sumArr(items.map(i => pick(i, "revenue"))) + adminActual;
+  const revB  = sumArr(items.map(i => pickB(i, "revenue"))) + adminBudget;
   const prof  = sumArr(items.map(i => pick(i, "profit")));
   const mat   = sumArr(items.map(i => pick(i, "materials")));
   const lab   = sumArr(items.map(i => pick(i, "labor")));

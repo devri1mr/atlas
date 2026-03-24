@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+/* ── Server-side sheet cache (per warm instance, 5-min TTL) ── */
+const sheetCache = new Map<string, { data: any; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
 function supabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -65,7 +69,17 @@ function findSection(rows: string[][], cat: string) {
 }
 
 async function fetchSheetData(sheetUrl: string, divisionName: string) {
-  const res = await fetch(sheetUrl, { cache: "no-store" });
+  const cached = sheetCache.get(sheetUrl);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(sheetUrl, { cache: "no-store", signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) throw new Error(`Sheet fetch failed for ${divisionName}: ${res.status}`);
 
   const csv  = await res.text();
@@ -92,7 +106,7 @@ async function fetchSheetData(sheetUrl: string, divisionName: string) {
     totalPctBudget: parsePct(s.budget[15]),
   });
 
-  return {
+  const result = {
     division:    divisionName,
     lastFetched: new Date().toISOString(),
     months,
@@ -104,6 +118,8 @@ async function fetchSheetData(sheetUrl: string, divisionName: string) {
     profit: { ...build(prof), goal: getPctMonths(prof.goal), needed: parseMoney(prof.budget[16]) },
     profitBehind: getMoneyMonths(profBehindRow),
   };
+  sheetCache.set(sheetUrl, { data: result, ts: Date.now() });
+  return result;
 }
 
 export async function GET(req: NextRequest) {
@@ -115,7 +131,6 @@ export async function GET(req: NextRequest) {
     const supabase = supabaseAdmin();
 
     if (all) {
-      // Fetch all active divisions that have a performance sheet URL
       const { data: divisions, error } = await supabase
         .from("divisions")
         .select("id,name,performance_sheet_url,target_gross_profit_percent,active")
@@ -125,19 +140,28 @@ export async function GET(req: NextRequest) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      const results = await Promise.allSettled(
-        (divisions ?? []).map(async (div) => {
-          if (!div.performance_sheet_url) return null;
-          const data = await fetchSheetData(div.performance_sheet_url, div.name);
-          return { divisionId: div.id, divisionName: div.name, targetGp: div.target_gross_profit_percent, data };
-        })
-      );
+      const stream = new ReadableStream({
+        async start(controller) {
+          const enc = new TextEncoder();
+          await Promise.allSettled(
+            (divisions ?? []).map(async (div) => {
+              if (!div.performance_sheet_url) return;
+              try {
+                const data = await fetchSheetData(div.performance_sheet_url, div.name);
+                const item = { divisionId: div.id, divisionName: div.name, targetGp: div.target_gross_profit_percent, data };
+                controller.enqueue(enc.encode(JSON.stringify(item) + "\n"));
+              } catch {
+                // skip failed divisions silently
+              }
+            })
+          );
+          controller.close();
+        },
+      });
 
-      const items = results
-        .map((r, i) => r.status === "fulfilled" ? r.value : null)
-        .filter(Boolean);
-
-      return NextResponse.json({ items });
+      return new Response(stream, {
+        headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" },
+      });
     }
 
     if (divisionId) {
