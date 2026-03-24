@@ -287,25 +287,27 @@ export default function TakeoffEditorPage() {
     if (activeTool !== "select") return;
     const viewer = viewerRef.current;
     if (!viewer) return;
+    e.preventDefault();
     didPanRef.current = false;
     panRef.current = { startX: e.clientX, startY: e.clientY, scrollLeft: viewer.scrollLeft, scrollTop: viewer.scrollTop };
     setIsPanning(true);
-  }
 
-  function onCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!panRef.current) return;
-    const dx = e.clientX - panRef.current.startX;
-    const dy = e.clientY - panRef.current.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPanRef.current = true;
-    const viewer = viewerRef.current;
-    if (!viewer) return;
-    viewer.scrollLeft = panRef.current.scrollLeft - dx;
-    viewer.scrollTop  = panRef.current.scrollTop  - dy;
-  }
-
-  function onCanvasPanEnd() {
-    panRef.current = null;
-    setIsPanning(false);
+    function onMove(ev: MouseEvent) {
+      if (!panRef.current) return;
+      const dx = ev.clientX - panRef.current.startX;
+      const dy = ev.clientY - panRef.current.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPanRef.current = true;
+      viewer.scrollLeft = panRef.current.scrollLeft - dx;
+      viewer.scrollTop  = panRef.current.scrollTop  - dy;
+    }
+    function onUp() {
+      panRef.current = null;
+      setIsPanning(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   }
 
   function onCanvasWheel(e: React.WheelEvent<HTMLCanvasElement>) {
@@ -971,9 +973,6 @@ export default function TakeoffEditorPage() {
                 }}
                 onClick={onCanvasClick}
                 onMouseDown={onCanvasMouseDown}
-                onMouseMove={onCanvasMouseMove}
-                onMouseUp={onCanvasPanEnd}
-                onMouseLeave={onCanvasPanEnd}
                 onWheel={onCanvasWheel}
                 onContextMenu={e => {
                   e.preventDefault();
