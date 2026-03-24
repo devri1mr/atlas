@@ -640,7 +640,7 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
     : 0;
 
   const rev   = sumArr(items.map(i => pick(i, "revenue"))) + adminActual;
-  const revB  = sumArr(items.map(i => pickB(i, "revenue"))) + adminBudget;
+  const revB  = sumArr(items.map(i => pickB(i, "revenue")));  // budget already includes admin in division sheets
   const prof  = sumArr(items.map(i => pick(i, "profit")));
   const mat   = sumArr(items.map(i => pick(i, "materials")));
   const lab   = sumArr(items.map(i => pick(i, "labor")));
@@ -678,9 +678,9 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
-        {adminRevenue && (
+        {adminRevenue && adminActual !== 0 && (
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>
-            Admin adj: actual {fmt$(adminActual)} · budget {fmt$(adminBudget)}
+            Incl. admin actual: {fmt$(adminActual)}
           </div>
         )}
       </div>
