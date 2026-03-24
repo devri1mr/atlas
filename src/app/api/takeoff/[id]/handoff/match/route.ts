@@ -215,7 +215,7 @@ Return ONLY valid JSON with no extra text:
 
       const message = await anthropic.messages.create({
         model: "claude-opus-4-6",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -239,8 +239,8 @@ Return ONLY valid JSON with no extra text:
               from_rule: false,
             };
           }
-        } catch {
-          // AI parse failed — items remain unmatched, that's OK
+        } catch (parseErr) {
+          console.error("Match route: AI JSON parse failed", parseErr, raw.slice(0, 500));
         }
       }
     }
