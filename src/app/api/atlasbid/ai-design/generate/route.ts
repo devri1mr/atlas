@@ -120,8 +120,9 @@ export async function POST(req: NextRequest) {
         stabJson.errors?.[0] ??
         stabJson.message ??
         stabJson.name ??
-        "Generation failed";
-      return NextResponse.json({ error: msg }, { status: stabRes.status });
+        rawBytes.toString("utf-8").slice(0, 300);
+      console.error("Stability error", stabRes.status, rawBytes.toString("utf-8").slice(0, 500));
+      return NextResponse.json({ error: `Stability ${stabRes.status}: ${msg}` }, { status: stabRes.status });
     }
 
     // Save result to storage
