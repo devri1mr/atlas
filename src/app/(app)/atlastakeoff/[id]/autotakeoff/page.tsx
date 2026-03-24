@@ -73,6 +73,19 @@ export default function AutoTakeoffReviewPage() {
   const [tab, setTab] = useState<"all" | "matched" | "review" | "unmatched" | "scope">("all");
   const [verifyData, setVerifyData] = useState<any | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState(0);
+
+  useEffect(() => {
+    if (!verifying) { setVerifyProgress(0); return; }
+    setVerifyProgress(0);
+    const interval = setInterval(() => {
+      setVerifyProgress(prev => {
+        const increment = Math.max(0.2, (90 - prev) * 0.015);
+        return Math.min(89, prev + increment);
+      });
+    }, 500);
+    return () => clearInterval(interval);
+  }, [verifying]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [autoMeasuring, setAutoMeasuring] = useState(false);
   const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
@@ -187,6 +200,7 @@ export default function AutoTakeoffReviewPage() {
       const res = await fetch(`/api/takeoff/${takeoffId}/verify`, { method: "POST" });
       const json = await res.json();
       if (json.error) { alert("Verify failed: " + json.error); return; }
+      setVerifyProgress(100);
       setVerifyData(json);
       setTab("scope");
     } catch (e: any) {
@@ -516,9 +530,12 @@ export default function AutoTakeoffReviewPage() {
       {tab === "scope" && (
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 140px" }}>
           {verifying ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 14, color: "rgba(255,255,255,0.5)" }}>
-              <span style={{ width: 28, height: 28, border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#2dd4bf", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
-              <span style={{ fontSize: 13 }}>Atlas is reviewing your blueprint…</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 20 }}>
+              <div style={{ color: "#2dd4bf", fontSize: 15, fontWeight: 600 }}>Atlas is reviewing your blueprint…</div>
+              <div style={{ width: 320, background: "rgba(255,255,255,0.08)", borderRadius: 99, height: 8, overflow: "hidden" }}>
+                <div style={{ width: `${verifyProgress}%`, height: "100%", background: "linear-gradient(90deg, #0d9488, #2dd4bf)", borderRadius: 99, transition: "width 0.5s ease-out" }} />
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>Comparing extracted items against the plan…</div>
             </div>
           ) : !verifyData ? (
             <div style={{ textAlign: "center", paddingTop: 80, color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
