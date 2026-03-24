@@ -72,6 +72,25 @@ export default function TakeoffEditorPage() {
   const didPanRef    = useRef(false);
   const [isPanning,  setIsPanning]  = useState(false);
 
+  function applyZoom(newZoom: number) {
+    const viewer = viewerRef.current;
+    if (!viewer) { setZoom(newZoom); return; }
+    // Record center anchor as fraction of current scroll range before zoom changes
+    const prevMaxX = viewer.scrollWidth  - viewer.clientWidth;
+    const prevMaxY = viewer.scrollHeight - viewer.clientHeight;
+    const fracX = prevMaxX > 0 ? (viewer.scrollLeft  + viewer.clientWidth  / 2) / viewer.scrollWidth  : 0.5;
+    const fracY = prevMaxY > 0 ? (viewer.scrollTop   + viewer.clientHeight / 2) / viewer.scrollHeight : 0.5;
+    setZoom(newZoom);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!viewerRef.current) return;
+        const v = viewerRef.current;
+        v.scrollLeft = fracX * v.scrollWidth  - v.clientWidth  / 2;
+        v.scrollTop  = fracY * v.scrollHeight - v.clientHeight / 2;
+      });
+    });
+  }
+
   /* ── Load ── */
   useEffect(() => { load(); }, [id]);
 
@@ -314,7 +333,7 @@ export default function TakeoffEditorPage() {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(z => Math.min(4, Math.max(0.1, +(z + delta).toFixed(2))));
+      applyZoom(Math.min(4, Math.max(0.1, +(zoom + delta).toFixed(2))));
     }
   }
 
@@ -650,16 +669,16 @@ export default function TakeoffEditorPage() {
 
         {/* Zoom */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.07)", borderRadius: 8, padding: "4px 8px" }}>
-          <button onClick={() => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>−</button>
+          <button onClick={() => applyZoom(Math.max(0.1, +(zoom - 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>−</button>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(4, +(z + 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>+</button>
+          <button onClick={() => applyZoom(Math.min(4, +(zoom + 0.1).toFixed(2)))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>+</button>
           {imgLoaded && (
             <button
               onClick={() => {
                 if (viewerRef.current && imgDims.w > 0) {
                   const vw = viewerRef.current.clientWidth - 48;
                   const vh = viewerRef.current.clientHeight - 48;
-                  setZoom(Math.min(1, vw / imgDims.w, vh / imgDims.h));
+                  applyZoom(Math.min(1, vw / imgDims.w, vh / imgDims.h));
                 }
               }}
               style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 10, fontWeight: 600, marginLeft: 2 }}
@@ -958,7 +977,7 @@ export default function TakeoffEditorPage() {
                   if (viewerRef.current && nat.w > 0 && nat.h > 0) {
                     const vw = viewerRef.current.clientWidth - 48;
                     const vh = viewerRef.current.clientHeight - 48;
-                    setZoom(Math.min(1, vw / nat.w, vh / nat.h));
+                    applyZoom(Math.min(1, vw / nat.w, vh / nat.h));
                   }
                 }}
                 draggable={false}
