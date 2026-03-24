@@ -34,9 +34,7 @@ function fmtDate(iso: string | null) {
 
 function fmtMoney(n: number | null) {
   if (n == null || n === 0) return "—";
-  return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M`
-    : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K`
-    : `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function cleanStr(v?: string | null) {

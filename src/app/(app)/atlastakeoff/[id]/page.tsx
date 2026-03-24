@@ -68,6 +68,9 @@ export default function TakeoffEditorPage() {
   const imgRef       = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewerRef    = useRef<HTMLDivElement>(null);
+  const panRef       = useRef<{ startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const didPanRef    = useRef(false);
+  const [isPanning,  setIsPanning]  = useState(false);
 
   /* ── Load ── */
   useEffect(() => { load(); }, [id]);
@@ -245,6 +248,7 @@ export default function TakeoffEditorPage() {
 
   async function onCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
     if (activeTool === "select") return;
+    if (didPanRef.current) { didPanRef.current = false; return; }
     const { x, y } = getCanvasPercent(e);
 
     if (activeTool === "count") {
@@ -276,6 +280,39 @@ export default function TakeoffEditorPage() {
       } else {
         setInProgressPts(prev => [...prev, { x, y }]);
       }
+    }
+  }
+
+  function onCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (activeTool !== "select") return;
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    didPanRef.current = false;
+    panRef.current = { startX: e.clientX, startY: e.clientY, scrollLeft: viewer.scrollLeft, scrollTop: viewer.scrollTop };
+    setIsPanning(true);
+  }
+
+  function onCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!panRef.current) return;
+    const dx = e.clientX - panRef.current.startX;
+    const dy = e.clientY - panRef.current.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPanRef.current = true;
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.scrollLeft = panRef.current.scrollLeft - dx;
+    viewer.scrollTop  = panRef.current.scrollTop  - dy;
+  }
+
+  function onCanvasPanEnd() {
+    panRef.current = null;
+    setIsPanning(false);
+  }
+
+  function onCanvasWheel(e: React.WheelEvent<HTMLCanvasElement>) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(z => Math.min(4, Math.max(0.1, +(z + delta).toFixed(2))));
     }
   }
 
@@ -928,11 +965,16 @@ export default function TakeoffEditorPage() {
                 ref={canvasRef}
                 style={{
                   position: "absolute", inset: 0, width: "100%", height: "100%",
-                  cursor: activeTool === "select" ? "default"
-                        : activeTool === "count"  ? "crosshair"
+                  cursor: activeTool === "select"
+                        ? (isPanning ? "grabbing" : "grab")
                         : "crosshair",
                 }}
                 onClick={onCanvasClick}
+                onMouseDown={onCanvasMouseDown}
+                onMouseMove={onCanvasMouseMove}
+                onMouseUp={onCanvasPanEnd}
+                onMouseLeave={onCanvasPanEnd}
+                onWheel={onCanvasWheel}
                 onContextMenu={e => {
                   e.preventDefault();
                   if (inProgressPts.length >= 2) finishPolygon();
