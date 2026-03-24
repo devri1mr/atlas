@@ -616,30 +616,40 @@ function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; m
     </div>
   );
 
+  const profitPctPill = (
+    <div className="perf-pill" style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px", flex: 1 }}>
+      <div className="perf-totals-label" style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Profit %</div>
+      <div className="perf-totals-val" style={{ fontSize: 16, fontWeight: 800, color: profPct != null && profPct > 0 ? "#4ade80" : "#f87171" }}>
+        {profPct != null ? `${Math.round(profPct)}%` : "—"}
+      </div>
+    </div>
+  );
+
   return (
     <div className="perf-totals" style={{
       marginTop: 16,
       background: `linear-gradient(135deg, ${ATLAS_DARK} 0%, ${ATLAS_GREEN} 100%)`,
       borderRadius: 14, padding: "14px 20px",
-      display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10,
     }}>
-      <div style={{ marginRight: 4 }}>
+      {/* Label row */}
+      <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
       </div>
-      {pill("Revenue", rev, rev >= revB ? "#4ade80" : "#fbbf24")}
-      {pill("Budget", revB, "rgba(255,255,255,0.6)")}
-      {pill("Profit", prof, prof > 0 ? "#4ade80" : "#f87171")}
-      <div className="perf-pill" style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 16px" }}>
-        <div className="perf-totals-label" style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Profit %</div>
-        <div className="perf-totals-val" style={{ fontSize: 16, fontWeight: 800, color: profPct != null && profPct > 0 ? "#4ade80" : "#f87171" }}>
-          {profPct != null ? `${Math.round(profPct)}%` : "—"}
-        </div>
+      {/* Row 1: Revenue, Budget, Profit, Profit% */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+        {pill("Revenue", rev, rev >= revB ? "#4ade80" : "#fbbf24")}
+        {pill("Budget", revB, "rgba(255,255,255,0.6)")}
+        {pill("Profit", prof, prof > 0 ? "#4ade80" : "#f87171")}
+        {profitPctPill}
       </div>
-      {pill("Materials", mat, "rgba(255,255,255,0.8)")}
-      {pill("Labor", lab, "rgba(255,255,255,0.8)")}
-      {fuel > 0 && pill("Fuel", fuel, "rgba(255,255,255,0.8)")}
-      {equip > 0 && pill("Equipment", equip, "rgba(255,255,255,0.8)")}
+      {/* Row 2: Materials, Labor, Fuel, Equipment — aligned to columns above */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+        {pill("Materials", mat, "rgba(255,255,255,0.8)")}
+        {pill("Labor", lab, "rgba(255,255,255,0.8)")}
+        {fuel > 0 ? pill("Fuel", fuel, "rgba(255,255,255,0.8)") : <div />}
+        {equip > 0 ? pill("Equipment", equip, "rgba(255,255,255,0.8)") : <div />}
+      </div>
     </div>
   );
 }
