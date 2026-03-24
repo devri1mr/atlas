@@ -70,37 +70,78 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   other:       ["install", "place", "plant", "set", "apply"],
 };
 
+// Infer plant category from material name when landscape_category is null
+function inferCategoryFromMatName(matName: string): string | null {
+  const n = matName.toLowerCase();
+  if (/spruce|pine|fir|oak|maple|elm|ash|linden|birch|arborvitae|cedar|thuja|juniper|willow|poplar|larch|hemlock/.test(n)) return "tree";
+  if (/viburnum|spirea|barberry|forsythia|euonymus|boxwood|holly|yew|lilac|hydrangea|rhododendron|azalea|dogwood/.test(n)) return "shrub";
+  if (/perennial|hosta|daylily|coneflower|echinacea|rudbeckia|salvia|lavender|sedum|phlox/.test(n)) return "perennial";
+  if (/seed|sod|lawn|grass|turf|rye|fescue|bluegrass/.test(n)) return "grass";
+  if (/mulch|groundcover|pachysandra|vinca|liriope/.test(n)) return "groundcover";
+  return null;
+}
+
+// Tasks clearly in the wrong domain for plant materials
+const HARDSCAPE_TASK_PATTERN = /boulder|rock\s|stone|wall|paver|curb|concrete|asphalt|flagstone/i;
+// Materials that are clearly plants (not hardscape/seed/mulch)
+const PLANT_MATERIAL_PATTERN = /spruce|pine|fir|oak|maple|elm|ash|linden|birch|arborvitae|cedar|thuja|juniper|willow|viburnum|spirea|barberry|forsythia|euonymus|boxwood|holly|yew|lilac|hydrangea|rhododendron|azalea|dogwood|hosta|daylily|coneflower|perennial|shrub/i;
+
 function findBestTask(
   matName: string | undefined,
   matCategory: string | undefined | null,
   itemCategory: string,
-  tasks: TaskOption[]
+  tasks: TaskOption[],
+  allItems?: ReviewItem[]
 ): { task: TaskOption; conf: "high" | "medium" } | null {
   if (!tasks.length) return null;
-  const effectiveCat = matCategory ?? itemCategory;
+
+  // 1. Cross-reference: find tasks already used by other items in the same category
+  if (allItems?.length) {
+    const sameCategory = allItems.filter(i =>
+      i.category === itemCategory &&
+      i.match?.task_catalog_id &&
+      !i.match.excluded
+    );
+    if (sameCategory.length > 0) {
+      const freq = new Map<string, number>();
+      for (const i of sameCategory) {
+        const tid = i.match!.task_catalog_id!;
+        const weight = i.match!.override_by_user ? 3 : 1;
+        freq.set(tid, (freq.get(tid) ?? 0) + weight);
+      }
+      const [topId] = [...freq.entries()].sort((a, b) => b[1] - a[1])[0];
+      const topTask = tasks.find(t => t.id === topId);
+      if (topTask) return { task: topTask, conf: "medium" };
+    }
+  }
+
+  // 2. Infer category from material name when landscape_category is null
+  const inferredCat = matCategory ?? (matName ? inferCategoryFromMatName(matName) : null) ?? itemCategory;
   const keywords = [
-    ...(CATEGORY_KEYWORDS[effectiveCat] ?? []),
+    ...(CATEGORY_KEYWORDS[inferredCat] ?? []),
     ...(CATEGORY_KEYWORDS[itemCategory] ?? []),
   ];
-  // Add significant words from the material name (length > 3, not numbers)
   if (matName) {
     matName.toLowerCase().split(/\s+/).filter(w => w.length > 3 && isNaN(Number(w))).forEach(w => keywords.push(w));
   }
   const unique = [...new Set(keywords)];
+  const isPlantMaterial = matName ? PLANT_MATERIAL_PATTERN.test(matName) : false;
 
   // Score each task
   const scored = tasks.map(t => {
     const name = t.name.toLowerCase();
     let score = 0;
-    if (t.landscape_category === effectiveCat) score += 100;
+    if (t.landscape_category === inferredCat) score += 100;
     if (t.landscape_category === itemCategory) score += 50;
     for (const kw of unique) { if (name.includes(kw)) score += 10; }
+    // Penalize hardscape tasks when material is clearly a plant
+    if (isPlantMaterial && HARDSCAPE_TASK_PATTERN.test(t.name)) score -= 50;
     return { task: t, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
 
-  // Fallback: any task with "install" or "plant" in the name
+  // Fallback: any non-hardscape plant/install task
   if (!scored.length) {
-    const fallback = tasks.find(t => /plant|install/i.test(t.name));
+    const fallback = tasks.find(t => /plant|install/i.test(t.name) && !(isPlantMaterial && HARDSCAPE_TASK_PATTERN.test(t.name)));
     if (fallback) return { task: fallback, conf: "medium" };
     return null;
   }
@@ -193,7 +234,7 @@ export default function AutoTakeoffReviewPage() {
       );
       if (needsLabor.length > 0) {
         await Promise.all(needsLabor.map(async (item) => {
-          const suggest = findBestTask(item.catalog_material?.name, item.catalog_material?.landscape_category, item.category, taskOptions);
+          const suggest = findBestTask(item.catalog_material?.name, item.catalog_material?.landscape_category, item.category, taskOptions, loadedItems);
           if (!suggest || !item.match) return;
           await fetch(`/api/takeoff/${takeoffId}/handoff/match/${item.match.id}`, {
             method: "PATCH",
@@ -862,7 +903,7 @@ export default function AutoTakeoffReviewPage() {
               // Auto-suggest labor whenever material changes
               const selectedMat = matId ? (data?.catalog_options ?? []).find(c => c.id === matId) : null;
               const autoSuggest = matId
-                ? findBestTask(selectedMat?.name, selectedMat?.landscape_category, item.category, data?.task_options ?? [])
+                ? findBestTask(selectedMat?.name, selectedMat?.landscape_category, item.category, data?.task_options ?? [], items)
                 : null;
               if (!item.match) {
                 // No match record yet — create one
