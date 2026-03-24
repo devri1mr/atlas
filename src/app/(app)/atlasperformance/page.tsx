@@ -648,7 +648,7 @@ function AllDivisionsTotals({ items, mode = "month" }: { items: SummaryItem[]; m
         {pill("Materials", mat, "rgba(255,255,255,0.8)")}
         {pill("Labor", lab, "rgba(255,255,255,0.8)")}
         {fuel > 0 ? pill("Fuel", fuel, "rgba(255,255,255,0.8)") : <div />}
-        {equip > 0 ? pill("Equipment", equip, "rgba(255,255,255,0.8)") : <div />}
+        {pill("Equipment", equip, "rgba(255,255,255,0.8)")}
       </div>
     </div>
   );
