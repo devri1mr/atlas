@@ -13,21 +13,26 @@ export async function GET(req: NextRequest) {
 
     const { data: designs, error } = await sb
       .from("bid_ai_designs")
-      .select("id, result_storage_path, original_storage_path, refined_prompt, created_at")
+      .select("id, result_storage_path, refined_prompt, created_at")
       .eq("bid_id", bidId)
       .order("created_at", { ascending: false })
       .limit(20);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Derive original path from result path (same timestamp, -original.jpg suffix)
+    // e.g. company/bid/ai-designs/1234567890.png → company/bid/ai-designs/1234567890-original.jpg
+    function originalPathFor(resultPath: string): string {
+      return resultPath.replace(/(\d+)\.png$/, "$1-original.jpg");
+    }
+
     // Generate signed URLs for result and original
     const withUrls = await Promise.all(
       (designs ?? []).map(async (d) => {
+        const origPath = originalPathFor(d.result_storage_path);
         const [{ data: result }, { data: original }] = await Promise.all([
           sb.storage.from("bid-photos").createSignedUrl(d.result_storage_path, 7200),
-          d.original_storage_path
-            ? sb.storage.from("bid-photos").createSignedUrl(d.original_storage_path, 7200)
-            : Promise.resolve({ data: null }),
+          sb.storage.from("bid-photos").createSignedUrl(origPath, 7200),
         ]);
         return { ...d, signed_url: result?.signedUrl ?? null, original_url: original?.signedUrl ?? null };
       })

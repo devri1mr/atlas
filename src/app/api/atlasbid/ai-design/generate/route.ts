@@ -153,7 +153,6 @@ export async function POST(req: NextRequest) {
         company_id: bid.company_id,
         refined_prompt: prompt,
         result_storage_path: storagePath,
-        original_storage_path: originalPath,
       })
       .select("id")
       .single();
