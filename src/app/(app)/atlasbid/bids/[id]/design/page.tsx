@@ -37,6 +37,7 @@ export default function DesignPage() {
   const [sliderPos, setSliderPos] = useState(50);
   const [savedDesigns, setSavedDesigns] = useState<{ id: string; signed_url: string | null; original_url: string | null; refined_prompt: string | null; created_at: string }[]>([]);
   const [beforeUrl, setBeforeUrl] = useState<string | null>(null);
+  const [firstImageDataUrl, setFirstImageDataUrl] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,7 +68,7 @@ export default function DesignPage() {
     setError(null);
   }, [imageDataUrl]);
 
-  async function handleImageFile(file: File) {
+  async function handleImageFile(file: File, isRefinement = false) {
     if (!file.type.startsWith("image/")) {
       setError("Please upload an image file.");
       return;
@@ -97,6 +98,7 @@ export default function DesignPage() {
 
     URL.revokeObjectURL(objectUrl);
     setImageDataUrl(dataUrl);
+    if (!isRefinement) setFirstImageDataUrl(dataUrl);
     setImageW(w);
     setImageH(h);
     setResultUrl(null);
@@ -261,7 +263,7 @@ export default function DesignPage() {
       const res = await fetch(resultUrl);
       const blob = await res.blob();
       const file = new File([blob], "design.png", { type: "image/png" });
-      await handleImageFile(file);
+      await handleImageFile(file, true);
     } catch {
       setError("Could not load result image for editing.");
     }
@@ -352,6 +354,8 @@ export default function DesignPage() {
             onClick={() => {
               setStep("upload");
               setImageDataUrl(null);
+              setFirstImageDataUrl(null);
+              setBeforeUrl(null);
               setResultUrl(null);
               setDescription("");
               setRefinedPrompt(null);
@@ -614,7 +618,7 @@ export default function DesignPage() {
       {/* ── RESULT ─────────────────────────────────────────────────── */}
       {step === "result" && resultUrl && (
         <div className="space-y-4">
-          {(beforeUrl ?? imageDataUrl) && (
+          {(firstImageDataUrl ?? beforeUrl) && (
             <p className="text-xs text-gray-400 text-center">Drag the handle to compare before & after</p>
           )}
 
@@ -636,13 +640,13 @@ export default function DesignPage() {
               alt="Atlas design result"
             />
             {/* Before (original) — clipped to left side, only if available */}
-            {(beforeUrl ?? imageDataUrl) && (
+            {(firstImageDataUrl ?? beforeUrl) && (
               <div
                 className="absolute inset-0 overflow-hidden"
                 style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
               >
                 <img
-                  src={(beforeUrl ?? imageDataUrl)!}
+                  src={(firstImageDataUrl ?? beforeUrl)!}
                   className="absolute inset-0 w-full h-full object-cover"
                   draggable={false}
                   alt="Original photo"
@@ -651,7 +655,7 @@ export default function DesignPage() {
             )}
 
             {/* Labels */}
-            {(beforeUrl ?? imageDataUrl) && (
+            {(firstImageDataUrl ?? beforeUrl) && (
             <div className="absolute top-3 left-3 bg-black/60 text-white text-[10px] font-bold px-2.5 py-1 rounded-full pointer-events-none">
               BEFORE
             </div>
@@ -661,7 +665,7 @@ export default function DesignPage() {
             </div>
 
             {/* Slider line + handle — only when before image is available */}
-            {(beforeUrl ?? imageDataUrl) && <div
+            {(firstImageDataUrl ?? beforeUrl) && <div
               className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.4)] pointer-events-none"
               style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
             >
