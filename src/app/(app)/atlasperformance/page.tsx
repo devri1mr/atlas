@@ -580,7 +580,7 @@ export default function AtlasPerformancePage() {
           const d = divData[activeTab];
           if (!d || d === "loading") return <CenteredSpinner />;
           if (d === "error") return <EmptyState msg="Failed to load sheet data. Check that the sheet URL is correct and publicly accessible." retry={() => loadDivision(activeTab)} />;
-          return <DivisionTable data={d as Data} />;
+          return <DivisionTable data={d as Data} globalMonth={currentMonth} />;
         })()}
       </div>
     </div>
@@ -702,8 +702,9 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
 }
 
 /* ─── Division detail table ──────────────────────────────────────────── */
-function DivisionTable({ data }: { data: Data }) {
-  const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+function DivisionTable({ data, globalMonth }: { data: Data; globalMonth?: number }) {
+  const ownMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+  const currentMonth = globalMonth !== undefined && globalMonth >= 0 ? globalMonth : ownMonth;
 
   const cell: React.CSSProperties = {
     fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
