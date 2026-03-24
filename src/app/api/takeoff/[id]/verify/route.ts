@@ -100,7 +100,7 @@ Return ONLY valid JSON:
 
     const message = await anthropic.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{
         role: "user",
         content: [contentBlock, { type: "text", text: prompt }],
