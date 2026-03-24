@@ -56,6 +56,8 @@ export default function TakeoffEditorPage() {
   const [aiParsing,    setAiParsing]    = useState(false);
   const [aiScopeScanning, setAiScopeScanning] = useState(false);
   const [aiStatus,     setAiStatus]     = useState("");
+  const [scanDiscrepancies, setScanDiscrepancies] = useState<{ name: string; schedule_qty: number; drawing_qty: number }[]>([]);
+  const [showDiscrepancies, setShowDiscrepancies] = useState(false);
   const [autoProcessing, setAutoProcessing] = useState(false);
   const [autoProcessSteps, setAutoProcessSteps] = useState<ProcessStep[]>([]);
   const [autoProgress, setAutoProgress] = useState(0);
@@ -475,17 +477,23 @@ export default function TakeoffEditorPage() {
   /* ── AI Parse ── */
   async function runAiParse() {
     setAiParsing(true);
-    setAiStatus("Atlas is reading your plan…");
+    setScanDiscrepancies([]);
+    setShowDiscrepancies(false);
+    setAiStatus("Atlas is scanning your plan…");
     try {
       const res  = await fetch(`/api/takeoff/${id}/parse`, { method: "POST" });
       const json = await res.json();
       if (json.error) { setAiStatus(""); alert("Parse error: " + json.error); return; }
-      setAiStatus(`✓ Found ${json.count} items`);
+      const discrepancies = json.discrepancies ?? [];
+      const unmatchedMsg = json.unmatched_count > 0 ? ` · ${json.unmatched_count} need review` : "";
+      const discrepMsg = discrepancies.length > 0 ? ` · ${discrepancies.length} qty mismatch${discrepancies.length !== 1 ? "es" : ""}` : "";
+      setAiStatus(`✓ Found ${json.count} items${unmatchedMsg}${discrepMsg}`);
+      if (discrepancies.length > 0) { setScanDiscrepancies(discrepancies); setShowDiscrepancies(true); }
       // Reload items
       const ir = await fetch(`/api/takeoff/${id}/items`).then(r => r.json());
       setItems(ir.data ?? []);
       if (ir.data?.length > 0 && !activeItemId) setActiveItemId(ir.data[0].id);
-      setTimeout(() => setAiStatus(""), 4000);
+      setTimeout(() => setAiStatus(""), 6000);
     } catch (e: any) {
       setAiStatus("");
       alert("Parse failed: " + e.message);
@@ -732,7 +740,7 @@ export default function TakeoffEditorPage() {
           <button
             onClick={runAiParse}
             disabled={aiParsing}
-            title="Parse plant schedule only"
+            title="Scan full plan — schedule + drawing"
             style={{
               background: "rgba(255,255,255,0.07)",
               border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 12px",
@@ -741,8 +749,8 @@ export default function TakeoffEditorPage() {
             }}
           >
             {aiParsing ? (
-              <><span style={{ width: 10, height: 10, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Parsing…</>
-            ) : "✦ Parse"}
+              <><span style={{ width: 10, height: 10, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Scanning…</>
+            ) : "✦ Full Scan"}
           </button>
         )}
         {aiStatus && <span style={{ fontSize: 11, color: "#4ade80", fontWeight: 600 }}>{aiStatus}</span>}
@@ -791,6 +799,23 @@ export default function TakeoffEditorPage() {
           <div style={{ flex: 1, overflowY: "auto" }}>
             {sidebarTab === "items" ? (
               <div style={{ padding: "10px 10px" }}>
+                {/* Quantity discrepancy banner */}
+                {showDiscrepancies && scanDiscrepancies.length > 0 && (
+                  <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <span style={{ color: "#fca5a5", fontSize: 11, fontWeight: 700 }}>⚠ QTY DISCREPANCIES — VERIFY</span>
+                      <button onClick={() => setShowDiscrepancies(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }}>✕</button>
+                    </div>
+                    {scanDiscrepancies.map((d, i) => (
+                      <div key={i} style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 3 }}>
+                        <span style={{ color: "#fff", fontWeight: 600 }}>{d.name}</span>
+                        {" — "}schedule: <span style={{ color: "#fca5a5" }}>{d.schedule_qty}</span>
+                        {" · "}drawing count: <span style={{ color: "#fca5a5" }}>{d.drawing_qty}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Add item + AI hint */}
                 <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                   <button
