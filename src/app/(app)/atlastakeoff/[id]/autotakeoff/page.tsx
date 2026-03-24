@@ -711,23 +711,15 @@ export default function AutoTakeoffReviewPage() {
                 </div>
                 <button
                   onClick={async () => {
-                    setMatching(true);
-                    setMatchStatus("Updating takeoff…");
+                    setMatchStatus("Refreshing…");
                     setTab("all");
-                    try {
-                      const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match`, { method: "POST" });
-                      const json = await res.json();
-                      if (!json.error) setMatchStatus(`${json.matched}/${json.total} matched (${json.pct_matched}%)`);
-                      await loadReview();
-                    } finally {
-                      setMatching(false);
-                      setTimeout(() => setMatchStatus(""), 5000);
-                    }
+                    await loadReview();
+                    setMatchStatus("✓ Takeoff updated");
+                    setTimeout(() => setMatchStatus(""), 4000);
                   }}
-                  disabled={matching}
-                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 9, padding: "10px 22px", color: "#fff", cursor: matching ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", opacity: matching ? 0.7 : 1 }}
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 9, padding: "10px 22px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}
                 >
-                  {matching ? "Updating…" : "✓ Update Takeoff →"}
+                  ✓ Update Takeoff →
                 </button>
               </div>
             </div>
