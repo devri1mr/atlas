@@ -98,7 +98,12 @@ function findBestTask(
     return { task: t, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
 
-  if (!scored.length) return null;
+  // Fallback: any task with "install" or "plant" in the name
+  if (!scored.length) {
+    const fallback = tasks.find(t => /plant|install/i.test(t.name));
+    if (fallback) return { task: fallback, conf: "medium" };
+    return null;
+  }
   const best = scored[0];
   return { task: best.task, conf: best.score >= 100 ? "high" : "medium" };
 }
