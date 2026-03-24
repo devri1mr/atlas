@@ -785,8 +785,8 @@ export default function AutoTakeoffReviewPage() {
             onCloseTask={() => setOpenTask(null)}
             onSelectMaterial={async (matId) => {
               setOpenMat(null);
-              // Auto-populate labor: find best task for this category (only if no task set yet)
-              const autoTask = !item.task_catalog && matId
+              // Auto-populate labor whenever material changes
+              const autoTask = matId
                 ? (data?.task_options ?? []).find(t => t.landscape_category === item.category)
                   ?? (data?.task_options ?? []).find(t => t.name.toLowerCase().includes(item.category))
                   ?? null
@@ -1081,6 +1081,25 @@ function MatchRow({
   const isMatOpen = openMat === item.id;
   const isTaskOpen = openTask === item.id;
   const [showCalc, setShowCalc] = useState(false);
+  const [matDropDir, setMatDropDir] = useState<"down" | "up">("down");
+  const [taskDropDir, setTaskDropDir] = useState<"down" | "up">("down");
+  const matTriggerRef = useRef<HTMLDivElement>(null);
+  const taskTriggerRef = useRef<HTMLDivElement>(null);
+
+  function openMatWithDir() {
+    if (matTriggerRef.current) {
+      const rect = matTriggerRef.current.getBoundingClientRect();
+      setMatDropDir(rect.bottom > window.innerHeight - 280 ? "up" : "down");
+    }
+    onOpenMat();
+  }
+  function openTaskWithDir() {
+    if (taskTriggerRef.current) {
+      const rect = taskTriggerRef.current.getBoundingClientRect();
+      setTaskDropDir(rect.bottom > window.innerHeight - 280 ? "up" : "down");
+    }
+    onOpenTask();
+  }
 
   const filteredCatalog = catalogOptions.filter(c =>
     !materialSearch || c.name.toLowerCase().includes(materialSearch.toLowerCase()) ||
@@ -1149,7 +1168,8 @@ function MatchRow({
 
           <div style={{ position: "relative" }}>
             <div
-              onClick={item.match ? onOpenMat : undefined}
+              ref={matTriggerRef}
+              onClick={item.match ? openMatWithDir : undefined}
               style={{
                 background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 10px",
                 cursor: item.match ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6,
@@ -1168,7 +1188,7 @@ function MatchRow({
             </div>
 
             {isMatOpen && (
-              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", ...(matDropDir === "up" ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }), left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus
@@ -1226,7 +1246,8 @@ function MatchRow({
 
           <div style={{ position: "relative" }}>
             <div
-              onClick={item.match ? onOpenTask : undefined}
+              ref={taskTriggerRef}
+              onClick={item.match ? openTaskWithDir : undefined}
               style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 10px", cursor: item.match ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6, color: item.task_catalog ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 12 }}
             >
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1241,7 +1262,7 @@ function MatchRow({
             </div>
 
             {isTaskOpen && (
-              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div data-dropdown onMouseDown={e => e.stopPropagation()} style={{ position: "absolute", ...(taskDropDir === "up" ? { bottom: "calc(100% + 4px)" } : { top: "calc(100% + 4px)" }), left: 0, right: 0, background: "#0d2a50", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, zIndex: 50, maxHeight: 260, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "8px 8px 4px" }}>
                   <input
                     autoFocus
