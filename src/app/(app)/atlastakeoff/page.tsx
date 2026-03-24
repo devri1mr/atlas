@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
@@ -103,13 +102,12 @@ export default function AtlasTakeoffPage() {
       <div style={{
         background: "linear-gradient(135deg, #0d1f3c 0%, #1a3a6b 60%, #1e4d8c 100%)",
         padding: "16px 24px",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Image src="/atlas-takeoff-logo.png" alt="Atlas Takeoff" height={52} width={78} style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 3px rgba(255,255,255,0.35))" }} />
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
-              Automated landscape plan takeoffs
-            </div>
+          <div>
+            <div style={{ color: "#fff", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>Atlas Takeoff</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>Automated landscape plan takeoffs</div>
           </div>
           <button
             onClick={() => setShowNew(true)}
