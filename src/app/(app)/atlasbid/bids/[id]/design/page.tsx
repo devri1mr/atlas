@@ -48,6 +48,8 @@ export default function DesignPage() {
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const sliderDraggingRef = useRef(false);
   const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const sliderLineRef = useRef<HTMLDivElement>(null);
+  const sliderBeforeRef = useRef<HTMLDivElement>(null);
 
   // Load saved designs for this bid
   async function loadSavedDesigns() {
@@ -325,7 +327,9 @@ export default function DesignPage() {
     if (!container) return;
     const rect = container.getBoundingClientRect();
     const pct = Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
-    setSliderPos(pct);
+    // Direct DOM update — no React re-render, smooth on mobile
+    if (sliderLineRef.current) sliderLineRef.current.style.left = `${pct}%`;
+    if (sliderBeforeRef.current) sliderBeforeRef.current.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
   }
 
   function onSliderPointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -642,8 +646,9 @@ export default function DesignPage() {
             {/* Before (original) — clipped to left side, only if available */}
             {(firstImageDataUrl ?? beforeUrl) && (
               <div
+                ref={sliderBeforeRef}
                 className="absolute inset-0 overflow-hidden"
-                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                style={{ clipPath: `inset(0 50% 0 0)` }}
               >
                 <img
                   src={(firstImageDataUrl ?? beforeUrl)!}
@@ -666,8 +671,9 @@ export default function DesignPage() {
 
             {/* Slider line + handle — only when before image is available */}
             {(firstImageDataUrl ?? beforeUrl) && <div
+              ref={sliderLineRef}
               className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.4)] pointer-events-none"
-              style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
+              style={{ left: "50%", transform: "translateX(-50%)" }}
             >
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 bg-white rounded-full shadow-xl flex items-center justify-center">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round">
