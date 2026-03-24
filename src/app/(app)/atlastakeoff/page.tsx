@@ -114,12 +114,6 @@ export default function AtlasTakeoffPage() {
         <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 600, height: 120, background: "radial-gradient(ellipse, rgba(37,99,235,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          {/* Badge */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 99, padding: "4px 12px", marginBottom: 16 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-            <span style={{ color: "#4ade80", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em" }}>AI-POWERED</span>
-          </div>
-
           <div style={{ color: "#fff", fontSize: 36, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1.1, marginBottom: 10 }}>
             Atlas{" "}
             <span style={{ background: "linear-gradient(90deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
