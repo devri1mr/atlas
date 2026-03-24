@@ -60,6 +60,49 @@ function suggestedPrice(totalCost: number, markupPct: number) {
   return Math.ceil((totalCost / (1 - markupPct / 100)) / 100) * 100;
 }
 
+/* ─── Labor task auto-suggest ───────────────────────────────────────── */
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  tree:        ["tree", "plant", "install", "b&b", "caliper", "deciduous", "evergreen"],
+  shrub:       ["shrub", "plant", "install", "bush", "evergreen", "conifer", "spruce", "arborvitae"],
+  perennial:   ["perennial", "plant", "install", "flower", "groundcover"],
+  grass:       ["grass", "plant", "install", "ornamental", "groundcover"],
+  groundcover: ["groundcover", "cover", "mulch", "spread", "sod", "seed", "rock", "install"],
+  other:       ["install", "place", "plant", "set", "apply"],
+};
+
+function findBestTask(
+  matName: string | undefined,
+  matCategory: string | undefined | null,
+  itemCategory: string,
+  tasks: TaskOption[]
+): { task: TaskOption; conf: "high" | "medium" } | null {
+  if (!tasks.length) return null;
+  const effectiveCat = matCategory ?? itemCategory;
+  const keywords = [
+    ...(CATEGORY_KEYWORDS[effectiveCat] ?? []),
+    ...(CATEGORY_KEYWORDS[itemCategory] ?? []),
+  ];
+  // Add significant words from the material name (length > 3, not numbers)
+  if (matName) {
+    matName.toLowerCase().split(/\s+/).filter(w => w.length > 3 && isNaN(Number(w))).forEach(w => keywords.push(w));
+  }
+  const unique = [...new Set(keywords)];
+
+  // Score each task
+  const scored = tasks.map(t => {
+    const name = t.name.toLowerCase();
+    let score = 0;
+    if (t.landscape_category === effectiveCat) score += 100;
+    if (t.landscape_category === itemCategory) score += 50;
+    for (const kw of unique) { if (name.includes(kw)) score += 10; }
+    return { task: t, score };
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return null;
+  const best = scored[0];
+  return { task: best.task, conf: best.score >= 100 ? "high" : "medium" };
+}
+
 /* ─── Main Page ──────────────────────────────────────────────────────── */
 export default function AutoTakeoffReviewPage() {
   const { id: takeoffId } = useParams<{ id: string }>();
@@ -145,19 +188,15 @@ export default function AutoTakeoffReviewPage() {
       );
       if (needsLabor.length > 0) {
         await Promise.all(needsLabor.map(async (item) => {
-          const effectiveCategory = item.catalog_material?.landscape_category ?? item.category;
-          const autoTask = taskOptions.find(t => t.landscape_category === effectiveCategory)
-            ?? taskOptions.find(t => t.landscape_category === item.category)
-            ?? taskOptions.find(t => t.name.toLowerCase().includes(effectiveCategory))
-            ?? null;
-          if (!autoTask || !item.match) return;
+          const suggest = findBestTask(item.catalog_material?.name, item.catalog_material?.landscape_category, item.category, taskOptions);
+          if (!suggest || !item.match) return;
           await fetch(`/api/takeoff/${takeoffId}/handoff/match/${item.match.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              task_catalog_id: autoTask.id,
-              labor_match_conf: "medium",
-              labor_match_note: "Auto-populated from material category",
+              task_catalog_id: suggest.task.id,
+              labor_match_conf: suggest.conf,
+              labor_match_note: "Auto-suggested from material",
             }),
           });
         }));
@@ -815,16 +854,10 @@ export default function AutoTakeoffReviewPage() {
             onCloseTask={() => setOpenTask(null)}
             onSelectMaterial={async (matId) => {
               setOpenMat(null);
-              // Auto-populate labor whenever material changes
-              // Prefer the material's landscape_category over the item's category
-              // (e.g. item is "area" but material is "shrub" → find shrub planting task)
+              // Auto-suggest labor whenever material changes
               const selectedMat = matId ? (data?.catalog_options ?? []).find(c => c.id === matId) : null;
-              const effectiveCategory = selectedMat?.landscape_category ?? item.category;
-              const autoTask = matId
-                ? (data?.task_options ?? []).find(t => t.landscape_category === effectiveCategory)
-                  ?? (data?.task_options ?? []).find(t => t.landscape_category === item.category)
-                  ?? (data?.task_options ?? []).find(t => t.name.toLowerCase().includes(effectiveCategory))
-                  ?? null
+              const autoSuggest = matId
+                ? findBestTask(selectedMat?.name, selectedMat?.landscape_category, item.category, data?.task_options ?? [])
                 : null;
               if (!item.match) {
                 // No match record yet — create one
@@ -834,7 +867,7 @@ export default function AutoTakeoffReviewPage() {
                   body: JSON.stringify({
                     takeoff_item_id: item.id,
                     catalog_material_id: matId ?? null,
-                    task_catalog_id: autoTask?.id ?? null,
+                    task_catalog_id: autoSuggest?.task.id ?? null,
                   }),
                 });
                 const json = await res.json();
@@ -846,10 +879,10 @@ export default function AutoTakeoffReviewPage() {
                 catalog_material_id: matId,
                 material_match_conf: matId ? "high" : "none",
               };
-              if (autoTask) {
-                payload.task_catalog_id = autoTask.id;
-                payload.labor_match_conf = "high";
-                payload.labor_match_note = "Auto-populated from material";
+              if (autoSuggest) {
+                payload.task_catalog_id = autoSuggest.task.id;
+                payload.labor_match_conf = autoSuggest.conf;
+                payload.labor_match_note = "Auto-suggested from material";
               }
               await updateMatch(item.match.id, payload);
             }}
