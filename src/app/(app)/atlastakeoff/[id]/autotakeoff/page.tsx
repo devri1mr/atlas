@@ -95,8 +95,13 @@ function findBestTask(
 ): { task: TaskOption; conf: "high" | "medium" } | null {
   if (!tasks.length) return null;
 
-  // 1. Cross-reference: find tasks already used by other items in the same category
-  if (allItems?.length) {
+  // 1. Infer category from material name when landscape_category is null
+  const inferredCat = matCategory ?? (matName ? inferCategoryFromMatName(matName) : null) ?? itemCategory;
+
+  // 2. Cross-reference: find tasks used by other items in the same category
+  // Only when material category agrees with item category — prevents seed/hardscape
+  // tasks bleeding into plant suggestions just because they share an "other" item category
+  if (allItems?.length && inferredCat === itemCategory) {
     const sameCategory = allItems.filter(i =>
       i.category === itemCategory &&
       i.match?.task_catalog_id &&
@@ -114,9 +119,6 @@ function findBestTask(
       if (topTask) return { task: topTask, conf: "medium" };
     }
   }
-
-  // 2. Infer category from material name when landscape_category is null
-  const inferredCat = matCategory ?? (matName ? inferCategoryFromMatName(matName) : null) ?? itemCategory;
   const keywords = [
     ...(CATEGORY_KEYWORDS[inferredCat] ?? []),
     ...(CATEGORY_KEYWORDS[itemCategory] ?? []),
