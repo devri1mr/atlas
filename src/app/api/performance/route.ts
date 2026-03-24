@@ -37,17 +37,12 @@ function parsePct(s: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-/* Detect column offset: if col C (index 2) is blank, months start at col D (offset=1) */
-function monthOffset(row: string[]): number {
-  return row[2]?.trim() === "" ? 1 : 0;
+function getMoneyMonths(row: string[]): number[] {
+  return row.slice(2, 14).map(parseMoney);
 }
 
-function getMoneyMonths(row: string[], offset = 0): number[] {
-  return row.slice(2 + offset, 14 + offset).map(parseMoney);
-}
-
-function getPctMonths(row: string[], offset = 0): (number | null)[] {
-  return row.slice(2 + offset, 14 + offset).map(parsePct);
+function getPctMonths(row: string[]): (number | null)[] {
+  return row.slice(2, 14).map(parsePct);
 }
 
 function findSection(rows: string[][], cat: string) {
@@ -101,30 +96,27 @@ async function fetchSheetData(sheetUrl: string, divisionName: string) {
   const months = ["January","February","March","April","May","June",
                   "July","August","September","October","November","December"];
 
-  /* Detect sheet column offset from the revenue actual row */
-  const off = monthOffset(rev.actual);
-
   const build = (s: ReturnType<typeof findSection>) => ({
-    actual:         getMoneyMonths(s.actual, off),
-    budget:         getMoneyMonths(s.budget, off),
-    pct:            getPctMonths(s.pct, off),
-    totalActual:    parseMoney(s.actual[14 + off]),
-    totalBudget:    parseMoney(s.budget[14 + off]),
-    totalPctActual: parsePct(s.actual[15 + off]),
-    totalPctBudget: parsePct(s.budget[15 + off]),
+    actual:         getMoneyMonths(s.actual),
+    budget:         getMoneyMonths(s.budget),
+    pct:            getPctMonths(s.pct),
+    totalActual:    parseMoney(s.actual[14]),
+    totalBudget:    parseMoney(s.budget[14]),
+    totalPctActual: parsePct(s.actual[15]),
+    totalPctBudget: parsePct(s.budget[15]),
   });
 
   const result = {
     division:    divisionName,
     lastFetched: new Date().toISOString(),
     months,
-    revenue: { ...build(rev), remaining: parseMoney(rev.actual[16 + off]) },
+    revenue: { ...build(rev), remaining: parseMoney(rev.actual[16]) },
     materials: build(mat),
     labor:     build(labor),
     fuel:      build(fuel),
     equipment: build(equip),
-    profit: { ...build(prof), goal: getPctMonths(prof.goal, off), needed: parseMoney(prof.budget[16 + off]) },
-    profitBehind: getMoneyMonths(profBehindRow, off),
+    profit: { ...build(prof), goal: getPctMonths(prof.goal), needed: parseMoney(prof.budget[16]) },
+    profitBehind: getMoneyMonths(profBehindRow),
   };
   sheetCache.set(sheetUrl, { data: result, ts: Date.now() });
   return result;
