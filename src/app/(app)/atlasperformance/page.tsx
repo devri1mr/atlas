@@ -677,9 +677,9 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
-        {adminRevenue && adminActual !== 0 && (
+        {adminRevenue && (
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>
-            Incl. admin actual: {fmt$(adminActual)}
+            Divs: {fmt$(revB - adminBudget)} · Admin act: {fmt$(adminActual)} · Admin bud: {fmt$(adminBudget)}
           </div>
         )}
       </div>
