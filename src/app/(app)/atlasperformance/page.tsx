@@ -639,7 +639,7 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
     : 0;
 
   const rev   = sumArr(items.map(i => pick(i, "revenue"))) + adminActual;
-  const revB  = sumArr(items.map(i => pickB(i, "revenue")));  // budget already includes admin in division sheets
+  const revB  = sumArr(items.map(i => pickB(i, "revenue"))) + adminBudget;
   const prof  = sumArr(items.map(i => pick(i, "profit")));
   const mat   = sumArr(items.map(i => pick(i, "materials")));
   const lab   = sumArr(items.map(i => pick(i, "labor")));
