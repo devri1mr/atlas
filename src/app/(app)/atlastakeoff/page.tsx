@@ -116,13 +116,13 @@ export default function AtlasTakeoffPage() {
 
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 10 }}>
-            <div style={{ width: 52, height: 52, overflow: "hidden", flexShrink: 0 }}>
+            <div style={{ width: 56, height: 56, overflow: "hidden", flexShrink: 0, mixBlendMode: "screen" }}>
               <Image
                 src="/atlas-takeoff-logo-transparent.png"
                 alt="Atlas Takeoff"
-                width={52}
-                height={88}
-                style={{ objectFit: "cover", objectPosition: "top", display: "block" }}
+                width={56}
+                height={84}
+                style={{ objectFit: "cover", objectPosition: "top center", display: "block" }}
               />
             </div>
             <div style={{ color: "#fff", fontSize: 36, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1.1 }}>
