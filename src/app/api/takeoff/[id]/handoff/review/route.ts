@@ -166,7 +166,15 @@ export async function GET(
       if (task) {
         const rate = rateByDivision.get(task.division_id) ?? 65;
         const mins = Number(task.minutes_per_unit ?? 0);
-        laborCost = (mins / 60) * rate * Number(item.count ?? 0);
+        const itemUnit = (item.unit ?? "EA").toUpperCase().trim();
+        const taskUnit = (task.unit ?? "EA").toUpperCase().trim();
+        const AREA_UNITS = new Set(["SF", "SY", "SQ FT", "SQFT", "AC", "ACRE", "MSF"]);
+        const itemIsArea = AREA_UNITS.has(itemUnit);
+        const taskIsArea = AREA_UNITS.has(taskUnit);
+        // Only calculate labor when units align (prevents EA-task × SF-count inflating cost)
+        if (itemIsArea === taskIsArea) {
+          laborCost = (mins / 60) * rate * Number(item.count ?? 0);
+        }
       }
 
       return {

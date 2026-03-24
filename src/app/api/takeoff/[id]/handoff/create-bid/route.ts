@@ -145,7 +145,14 @@ export async function POST(
       }
 
       if (match.task_catalog_id && match.labor_match_conf !== "none") {
-        laborTaskCounts.set(match.task_catalog_id, (laborTaskCounts.get(match.task_catalog_id) ?? 0) + count);
+        const task = taskById.get(match.task_catalog_id);
+        const AREA_UNITS = new Set(["SF", "SY", "SQ FT", "SQFT", "AC", "ACRE", "MSF"]);
+        const itemIsArea = AREA_UNITS.has((item.unit ?? "EA").toUpperCase().trim());
+        const taskIsArea = AREA_UNITS.has((task?.unit ?? "EA").toUpperCase().trim());
+        // Skip if units don't align (prevents EA-task × SF-count inflating cost)
+        if (itemIsArea === taskIsArea) {
+          laborTaskCounts.set(match.task_catalog_id, (laborTaskCounts.get(match.task_catalog_id) ?? 0) + count);
+        }
       }
     }
 

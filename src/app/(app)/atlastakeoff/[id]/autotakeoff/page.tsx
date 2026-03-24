@@ -70,7 +70,9 @@ export default function AutoTakeoffReviewPage() {
   const [loading, setLoading] = useState(true);
   const [matching, setMatching] = useState(false);
   const [matchStatus, setMatchStatus] = useState("");
-  const [tab, setTab] = useState<"all" | "matched" | "review" | "unmatched">("all");
+  const [tab, setTab] = useState<"all" | "matched" | "review" | "unmatched" | "scope">("all");
+  const [verifyData, setVerifyData] = useState<any | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [autoMeasuring, setAutoMeasuring] = useState(false);
   const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
@@ -175,6 +177,22 @@ export default function AutoTakeoffReviewPage() {
       alert("Measure failed: " + e.message);
     } finally {
       setMeasuringItemId(null);
+    }
+  }
+
+  /* ── Verify scope accuracy ── */
+  async function runVerify() {
+    setVerifying(true);
+    try {
+      const res = await fetch(`/api/takeoff/${takeoffId}/verify`, { method: "POST" });
+      const json = await res.json();
+      if (json.error) { alert("Verify failed: " + json.error); return; }
+      setVerifyData(json);
+      setTab("scope");
+    } catch (e: any) {
+      alert("Verify failed: " + e.message);
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -404,6 +422,16 @@ export default function AutoTakeoffReviewPage() {
         )}
 
         <button
+          onClick={runVerify}
+          disabled={verifying}
+          style={{ background: verifying ? "rgba(20,184,166,0.3)" : "linear-gradient(135deg,#0f766e,#0d9488)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: verifying ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: verifying ? 0.7 : 1 }}
+        >
+          {verifying
+            ? <><span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />Verifying…</>
+            : "🔍 Verify Scope"}
+        </button>
+
+        <button
           onClick={runMatching}
           disabled={matching}
           style={{ background: matching ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg,#7c3aed,#6d28d9)", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", cursor: matching ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: matching ? 0.7 : 1 }}
@@ -460,6 +488,23 @@ export default function AutoTakeoffReviewPage() {
           );
         })}
 
+        <button
+          onClick={() => { if (!verifyData) runVerify(); else setTab("scope"); }}
+          disabled={verifying}
+          style={{ background: tab === "scope" ? "rgba(20,184,166,0.2)" : "transparent", border: tab === "scope" ? "1px solid rgba(20,184,166,0.4)" : "1px solid transparent", borderRadius: 8, padding: "5px 12px", color: tab === "scope" ? "#2dd4bf" : "rgba(255,255,255,0.4)", cursor: verifying ? "not-allowed" : "pointer", fontSize: 12, fontWeight: tab === "scope" ? 600 : 400, display: "flex", alignItems: "center", gap: 6 }}
+        >
+          🔍 Scope
+          {verifyData && (
+            <span style={{
+              background: verifyData.overall_accuracy === "high" ? "rgba(34,197,94,0.3)" : verifyData.overall_accuracy === "medium" ? "rgba(234,179,8,0.3)" : "rgba(239,68,68,0.3)",
+              color: verifyData.overall_accuracy === "high" ? "#4ade80" : verifyData.overall_accuracy === "medium" ? "#fbbf24" : "#f87171",
+              borderRadius: 10, padding: "1px 7px", fontSize: 11,
+            }}>
+              {verifyData.overall_accuracy}
+            </span>
+          )}
+        </button>
+
         {!data?.session && (
           <div style={{ marginLeft: "auto", color: "rgba(255,255,255,0.4)", fontSize: 12, display: "flex", alignItems: "center" }}>
             Click "Run Matching" to begin
@@ -467,8 +512,116 @@ export default function AutoTakeoffReviewPage() {
         )}
       </div>
 
+      {/* ── Scope / Verify view ── */}
+      {tab === "scope" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 140px" }}>
+          {verifying ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 14, color: "rgba(255,255,255,0.5)" }}>
+              <span style={{ width: 28, height: 28, border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#2dd4bf", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+              <span style={{ fontSize: 13 }}>Atlas is reviewing your blueprint…</span>
+            </div>
+          ) : !verifyData ? (
+            <div style={{ textAlign: "center", paddingTop: 80, color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
+              <div>Click "🔍 Verify Scope" to compare your extracted items against the blueprint.</div>
+            </div>
+          ) : (
+            <div style={{ maxWidth: 860, margin: "0 auto" }}>
+              {/* Accuracy banner */}
+              <div style={{
+                background: verifyData.overall_accuracy === "high" ? "rgba(34,197,94,0.1)" : verifyData.overall_accuracy === "medium" ? "rgba(234,179,8,0.1)" : "rgba(239,68,68,0.1)",
+                border: `1px solid ${verifyData.overall_accuracy === "high" ? "rgba(34,197,94,0.3)" : verifyData.overall_accuracy === "medium" ? "rgba(234,179,8,0.3)" : "rgba(239,68,68,0.3)"}`,
+                borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <span style={{ fontSize: 22 }}>
+                  {verifyData.overall_accuracy === "high" ? "✅" : verifyData.overall_accuracy === "medium" ? "⚠️" : "❌"}
+                </span>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                    Accuracy: <span style={{ color: verifyData.overall_accuracy === "high" ? "#4ade80" : verifyData.overall_accuracy === "medium" ? "#fbbf24" : "#f87171", textTransform: "capitalize" }}>{verifyData.overall_accuracy}</span>
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{verifyData.summary}</div>
+                </div>
+                <button
+                  onClick={runVerify}
+                  disabled={verifying}
+                  style={{ marginLeft: "auto", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, padding: "5px 12px", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 11 }}
+                >↺ Re-verify</button>
+              </div>
+
+              {/* Per-item table */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8, paddingLeft: 4 }}>
+                  EXTRACTED ITEMS — BLUEPRINT CHECK
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {(verifyData.items ?? []).map((vi: any, idx: number) => {
+                    const localItem = items.find(i => i.id === vi.id);
+                    const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                      confirmed:         { bg: "rgba(34,197,94,0.12)",  text: "#4ade80", label: "✓ Confirmed" },
+                      qty_mismatch:      { bg: "rgba(234,179,8,0.12)",  text: "#fbbf24", label: "⚠ Qty mismatch" },
+                      name_error:        { bg: "rgba(239,68,68,0.12)",  text: "#f87171", label: "✗ Name error" },
+                      not_found_on_plan: { bg: "rgba(239,68,68,0.12)",  text: "#f87171", label: "✗ Not on plan" },
+                    };
+                    const sc = statusColors[vi.status] ?? { bg: "rgba(255,255,255,0.04)", text: "rgba(255,255,255,0.4)", label: vi.status };
+                    return (
+                      <div
+                        key={vi.id ?? idx}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: idx < (verifyData.items.length - 1) ? "1px solid rgba(255,255,255,0.05)" : "none", background: sc.bg }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{vi.name ?? localItem?.common_name}</div>
+                          {vi.note && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{vi.note}</div>}
+                        </div>
+                        {vi.status !== "confirmed" && vi.plan_qty !== null && vi.plan_qty !== undefined && (
+                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right", minWidth: 110 }}>
+                            <span style={{ color: "#f87171" }}>extracted: {vi.extracted_qty}</span>
+                            <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>vs</span>
+                            <span style={{ color: "#4ade80" }}>plan: {vi.plan_qty}</span>
+                          </div>
+                        )}
+                        {vi.status === "confirmed" && (
+                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{vi.extracted_qty} {localItem?.unit ?? ""}</div>
+                        )}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{sc.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Missing items */}
+              {(verifyData.missing_from_extraction ?? []).length > 0 && (
+                <div>
+                  <div style={{ color: "#f87171", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8, paddingLeft: 4 }}>
+                    MISSING FROM EXTRACTION — FOUND ON BLUEPRINT
+                  </div>
+                  <div style={{ background: "rgba(239,68,68,0.06)", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    {verifyData.missing_from_extraction.map((mi: any, idx: number) => (
+                      <div
+                        key={idx}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: idx < verifyData.missing_from_extraction.length - 1 ? "1px solid rgba(239,68,68,0.1)" : "none" }}
+                      >
+                        <div style={{ fontSize: 18 }}>⚠️</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{mi.name}{mi.botanical_name ? <span style={{ color: "rgba(255,255,255,0.4)", fontStyle: "italic", fontWeight: 400 }}> · {mi.botanical_name}</span> : ""}</div>
+                          {mi.size && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{mi.size}</div>}
+                          {mi.note && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{mi.note}</div>}
+                        </div>
+                        <div style={{ fontSize: 13, color: "#f87171", fontWeight: 700 }}>Qty: {mi.qty}</div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "#f87171" }}>✗ Not extracted</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Item list ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 0 140px" }}>
+      {tab !== "scope" && <div style={{ flex: 1, overflowY: "auto", padding: "0 0 140px" }}>
         {filteredItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
             {data?.session ? "No items in this category" : "Run Matching to see results"}
@@ -518,7 +671,7 @@ export default function AutoTakeoffReviewPage() {
             measuringThisItem={measuringItemId === item.id}
           />
         ))}
-      </div>
+      </div>}
 
       {/* ── Bottom bid preview bar ── */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(to top, #0d1f3c, rgba(13,31,60,0.97))", borderTop: "1px solid rgba(255,255,255,0.1)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 20, zIndex: 100 }}>
