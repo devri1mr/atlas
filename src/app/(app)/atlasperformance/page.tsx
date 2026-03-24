@@ -60,15 +60,14 @@ function statusLabel(profitPct: number | null, targetGp: number): string {
 }
 
 /* ─── Summary KPI card ───────────────────────────────────────────────── */
-function SummaryCard({ item, mode = "month" }: { item: SummaryItem; mode?: "month" | "ytd" }) {
+function SummaryCard({ item, mode = "month", globalMonth }: { item: SummaryItem; mode?: "month" | "ytd"; globalMonth?: number }) {
   const { data, targetGp, divisionName } = item;
 
-  // Each card derives its own current month
-  const currentMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-  // Also check profit for cost-only divisions (e.g. Holiday Lights)
-  const effectiveMonth = currentMonth >= 0 ? currentMonth
+  // Use global month if provided (so all cards show the same period even if a division has $0 that month)
+  const ownMonth = data.revenue.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
+  const ownEffective = ownMonth >= 0 ? ownMonth
     : data.profit.actual.reduce((last, v, i) => v !== 0 ? i : last, -1);
-  const cm = effectiveMonth;
+  const cm = globalMonth !== undefined && globalMonth >= 0 ? globalMonth : ownEffective;
 
   const sumTo = (arr: number[]) => cm >= 0 ? arr.slice(0, cm + 1).reduce((a, b) => a + b, 0) : 0;
 
@@ -564,7 +563,7 @@ export default function AtlasPerformancePage() {
                     style={{ cursor: "pointer" }}
                     title={`Open ${item.divisionName} detail`}
                   >
-                    <SummaryCard item={item} mode={summaryView} />
+                    <SummaryCard item={item} mode={summaryView} globalMonth={currentMonth} />
                   </div>
                 ))}
               </div>
