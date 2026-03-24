@@ -531,7 +531,7 @@ export default function AutoTakeoffReviewPage() {
               <div style={{
                 background: verifyData.overall_accuracy === "high" ? "rgba(34,197,94,0.1)" : verifyData.overall_accuracy === "medium" ? "rgba(234,179,8,0.1)" : "rgba(239,68,68,0.1)",
                 border: `1px solid ${verifyData.overall_accuracy === "high" ? "rgba(34,197,94,0.3)" : verifyData.overall_accuracy === "medium" ? "rgba(234,179,8,0.3)" : "rgba(239,68,68,0.3)"}`,
-                borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12,
+                borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12,
               }}>
                 <span style={{ fontSize: 22 }}>
                   {verifyData.overall_accuracy === "high" ? "✅" : verifyData.overall_accuracy === "medium" ? "⚠️" : "❌"}
@@ -549,6 +549,14 @@ export default function AutoTakeoffReviewPage() {
                 >↺ Re-verify</button>
               </div>
 
+              {/* Plan overview */}
+              {verifyData.plan_overview && (
+                <div style={{ background: "rgba(20,184,166,0.07)", border: "1px solid rgba(20,184,166,0.2)", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                  <div style={{ color: "#2dd4bf", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 6 }}>PLAN OVERVIEW</div>
+                  <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.6 }}>{verifyData.plan_overview}</div>
+                </div>
+              )}
+
               {/* Per-item table */}
               <div style={{ marginBottom: 24 }}>
                 <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8, paddingLeft: 4 }}>
@@ -558,10 +566,10 @@ export default function AutoTakeoffReviewPage() {
                   {(verifyData.items ?? []).map((vi: any, idx: number) => {
                     const localItem = items.find(i => i.id === vi.id);
                     const statusColors: Record<string, { bg: string; text: string; label: string }> = {
-                      confirmed:         { bg: "rgba(34,197,94,0.12)",  text: "#4ade80", label: "✓ Confirmed" },
-                      qty_mismatch:      { bg: "rgba(234,179,8,0.12)",  text: "#fbbf24", label: "⚠ Qty mismatch" },
-                      name_error:        { bg: "rgba(239,68,68,0.12)",  text: "#f87171", label: "✗ Name error" },
-                      not_found_on_plan: { bg: "rgba(239,68,68,0.12)",  text: "#f87171", label: "✗ Not on plan" },
+                      confirmed:         { bg: "rgba(34,197,94,0.08)",  text: "#4ade80", label: "✓ Confirmed" },
+                      qty_mismatch:      { bg: "rgba(234,179,8,0.08)",  text: "#fbbf24", label: "⚠ Qty mismatch" },
+                      name_error:        { bg: "rgba(239,68,68,0.08)",  text: "#f87171", label: "✗ Name error" },
+                      not_found_on_plan: { bg: "rgba(239,68,68,0.08)",  text: "#f87171", label: "✗ Not on plan" },
                     };
                     const sc = statusColors[vi.status] ?? { bg: "rgba(255,255,255,0.04)", text: "rgba(255,255,255,0.4)", label: vi.status };
                     return (
@@ -573,17 +581,47 @@ export default function AutoTakeoffReviewPage() {
                           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{vi.name ?? localItem?.common_name}</div>
                           {vi.note && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{vi.note}</div>}
                         </div>
-                        {vi.status !== "confirmed" && vi.plan_qty !== null && vi.plan_qty !== undefined && (
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right", minWidth: 110 }}>
-                            <span style={{ color: "#f87171" }}>extracted: {vi.extracted_qty}</span>
-                            <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>vs</span>
-                            <span style={{ color: "#4ade80" }}>plan: {vi.plan_qty}</span>
-                          </div>
+
+                        {/* Qty mismatch: show counts + fix button */}
+                        {vi.status === "qty_mismatch" && vi.plan_qty !== null && vi.plan_qty !== undefined && (
+                          <>
+                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "right" }}>
+                              <span style={{ color: "#f87171" }}>{vi.extracted_qty}</span>
+                              <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 4px" }}>→</span>
+                              <span style={{ color: "#4ade80" }}>{vi.plan_qty}</span>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (!vi.id) return;
+                                await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, count: vi.plan_qty }) });
+                                setItems(prev => prev.map(i => i.id === vi.id ? { ...i, count: vi.plan_qty } : i));
+                                setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", extracted_qty: vi.plan_qty } : x) }));
+                              }}
+                              style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                            >Fix → {vi.plan_qty}</button>
+                          </>
                         )}
+
+                        {/* Name error: show corrected name + fix button */}
+                        {vi.status === "name_error" && vi.corrected_name && (
+                          <>
+                            <div style={{ fontSize: 12, color: "#4ade80", fontStyle: "italic" }}>{vi.corrected_name}</div>
+                            <button
+                              onClick={async () => {
+                                if (!vi.id) return;
+                                await fetch(`/api/takeoff/${takeoffId}/items`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: vi.id, common_name: vi.corrected_name }) });
+                                setItems(prev => prev.map(i => i.id === vi.id ? { ...i, common_name: vi.corrected_name } : i));
+                                setVerifyData((prev: any) => ({ ...prev, items: prev.items.map((x: any) => x.id === vi.id ? { ...x, status: "confirmed", name: vi.corrected_name } : x) }));
+                              }}
+                              style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                            >Fix Name</button>
+                          </>
+                        )}
+
                         {vi.status === "confirmed" && (
                           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{vi.extracted_qty} {localItem?.unit ?? ""}</div>
                         )}
-                        <span style={{ fontSize: 11, fontWeight: 600, color: sc.text, whiteSpace: "nowrap" }}>{sc.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: sc.text, whiteSpace: "nowrap", minWidth: 90, textAlign: "right" }}>{sc.label}</span>
                       </div>
                     );
                   })}
@@ -609,7 +647,28 @@ export default function AutoTakeoffReviewPage() {
                           {mi.note && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{mi.note}</div>}
                         </div>
                         <div style={{ fontSize: 13, color: "#f87171", fontWeight: 700 }}>Qty: {mi.qty}</div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "#f87171" }}>✗ Not extracted</span>
+                        <button
+                          onClick={async () => {
+                            const res = await fetch(`/api/takeoff/${takeoffId}/items`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                common_name: mi.name,
+                                botanical_name: mi.botanical_name ?? null,
+                                category: mi.category ?? "other",
+                                size: mi.size ?? null,
+                                count: mi.qty ?? 0,
+                                unit: mi.unit ?? "EA",
+                              }),
+                            });
+                            const json = await res.json();
+                            if (json.data) {
+                              setItems(prev => [...prev, { ...json.data, match: null, catalog_material: null, task_catalog: null, material_cost: 0, labor_cost: 0 }]);
+                              setVerifyData((prev: any) => ({ ...prev, missing_from_extraction: prev.missing_from_extraction.filter((_: any, i: number) => i !== idx) }));
+                            }
+                          }}
+                          style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 6, padding: "4px 10px", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                        >+ Add Item</button>
                       </div>
                     ))}
                   </div>

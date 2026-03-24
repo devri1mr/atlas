@@ -65,18 +65,20 @@ ${JSON.stringify(items.map(i => ({
 })), null, 2)}
 
 YOUR TASK:
-1. Find the plant schedule / legend on the plan and compare every item.
-2. For each extracted item, check:
-   - Is the name correct? (flag OCR errors like "Shale" instead of "Shade")
+1. Read the entire plan — notes, legends, plant schedule, bed areas, hardscape, seed zones.
+2. Write a concise plan_overview (3-6 sentences) describing the full scope: site context, plant categories and counts, any hardscape or seeding areas, and notable design intent.
+3. For each extracted item, check:
+   - Is the name correct? (flag OCR errors like "Shale" instead of "Shade" — provide corrected_name)
    - Is the quantity correct? (compare to QTY column in plant schedule)
    - Is the size/spec correct?
-3. Note any items visible in the plant schedule that are MISSING from the extracted list.
-4. Note any extracted items you CANNOT find on the plan.
+4. Note any items visible in the plant schedule that are MISSING from the extracted list.
+5. Note any extracted items you CANNOT find on the plan.
 
 Return ONLY valid JSON:
 {
   "overall_accuracy": "high|medium|low",
-  "summary": "<1-2 sentence summary>",
+  "summary": "<1-2 sentence summary of accuracy>",
+  "plan_overview": "<3-6 sentence description of the full plan scope — what the plan is calling for>",
   "items": [
     {
       "id": "<item id from list>",
@@ -84,6 +86,7 @@ Return ONLY valid JSON:
       "status": "confirmed|qty_mismatch|name_error|not_found_on_plan",
       "plan_qty": <number or null>,
       "extracted_qty": <number>,
+      "corrected_name": "<corrected name if status is name_error, otherwise null>",
       "note": "<brief explanation if not confirmed>"
     }
   ],
@@ -92,6 +95,8 @@ Return ONLY valid JSON:
       "name": "<name as shown on plan>",
       "botanical_name": "<or null>",
       "qty": <number>,
+      "unit": "EA",
+      "category": "tree|shrub|perennial|grass|groundcover|other",
       "size": "<or null>",
       "note": "<where found on plan>"
     }
