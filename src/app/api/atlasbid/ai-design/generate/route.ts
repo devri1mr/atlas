@@ -104,20 +104,15 @@ export async function POST(req: NextRequest) {
       body: stabilityForm,
     });
 
-    const contentType = stabRes.headers.get("content-type") ?? "";
+    // Read raw bytes once — avoids double-consume of the response body stream.
+    // Try JSON first; if it fails the bytes are already in hand to treat as image.
+    const rawBytes = Buffer.from(await stabRes.arrayBuffer());
     let stabJson: any;
-    if (contentType.includes("application/json")) {
-      stabJson = await stabRes.json();
-    } else if (contentType.startsWith("image/")) {
-      // API returned raw image bytes — base64-encode directly
-      const buf = Buffer.from(await stabRes.arrayBuffer());
-      stabJson = { image: buf.toString("base64") };
-    } else {
-      const text = await stabRes.text();
-      return NextResponse.json(
-        { error: `Stability API error: ${text.slice(0, 300)}` },
-        { status: stabRes.status }
-      );
+    try {
+      stabJson = JSON.parse(rawBytes.toString("utf-8"));
+    } catch {
+      // Stability returned binary image bytes directly (ignoring Accept header)
+      stabJson = { image: rawBytes.toString("base64") };
     }
 
     if (!stabRes.ok || !stabJson.image) {
