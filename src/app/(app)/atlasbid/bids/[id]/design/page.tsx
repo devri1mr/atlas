@@ -35,6 +35,8 @@ export default function DesignPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
+  const [savedDesigns, setSavedDesigns] = useState<{ id: string; signed_url: string | null; refined_prompt: string | null; created_at: string }[]>([]);
+  const [justSaved, setJustSaved] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +46,15 @@ export default function DesignPage() {
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const sliderDraggingRef = useRef(false);
   const sliderContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load saved designs for this bid
+  async function loadSavedDesigns() {
+    const res = await fetch(`/api/atlasbid/ai-design/list?bid_id=${bidId}`);
+    const json = await res.json();
+    if (!json.error) setSavedDesigns(json.designs ?? []);
+  }
+
+  useEffect(() => { loadSavedDesigns(); }, [bidId]);
 
   // Clear canvas when image changes
   useEffect(() => {
@@ -232,10 +243,25 @@ export default function DesignPage() {
 
       setResultUrl(json.result_url);
       setStep("result");
+      setJustSaved(true);
+      loadSavedDesigns();
     } catch (e: any) {
       setError(e?.message ?? "Generation failed");
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  // ── Use result as new base image ─────────────────────────────────────────
+  async function refineThisDesign() {
+    if (!resultUrl) return;
+    try {
+      const res = await fetch(resultUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "design.png", { type: "image/png" });
+      await handleImageFile(file);
+    } catch {
+      setError("Could not load result image for editing.");
     }
   }
 
@@ -640,13 +666,28 @@ export default function DesignPage() {
             </div>
           </div>
 
+          {/* Save confirmation */}
+          {justSaved && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Saved to this bid
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={refineThisDesign}
+              className="flex-1 py-2.5 rounded-xl border border-[#d7e6db] bg-[#f6fbf7] text-sm font-semibold text-[#123b1f] hover:bg-[#eaf4ec] transition-colors"
+            >
+              ✦ Refine This Design
+            </button>
             <button
               onClick={() => {
                 setStep("editing");
                 setResultUrl(null);
                 setError(null);
+                setJustSaved(false);
               }}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
             >
@@ -660,11 +701,38 @@ export default function DesignPage() {
                 setStep("editing");
                 setResultUrl(null);
                 setError(null);
+                setJustSaved(false);
               }}
               className="flex-1 py-2.5 rounded-xl bg-[#123b1f] text-white text-sm font-semibold hover:bg-[#1a5c2e] transition-colors"
             >
               New Design
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── SAVED DESIGNS ───────────────────────────────────────────── */}
+      {savedDesigns.length > 0 && step !== "generating" && (
+        <div className="space-y-3 pt-2 border-t border-gray-100">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Saved Designs</p>
+          <div className="grid grid-cols-2 gap-3">
+            {savedDesigns.map((d) => d.signed_url && (
+              <div key={d.id} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer"
+                onClick={() => {
+                  setResultUrl(d.signed_url!);
+                  setJustSaved(false);
+                  setStep("result");
+                }}
+              >
+                <img src={d.signed_url} alt="Saved design" className="w-full aspect-video object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold bg-black/60 px-3 py-1.5 rounded-full transition-opacity">View</span>
+                </div>
+                <div className="px-2 py-1.5">
+                  <p className="text-[10px] text-gray-400 truncate">{new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
