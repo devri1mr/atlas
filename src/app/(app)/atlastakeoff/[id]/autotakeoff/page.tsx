@@ -618,6 +618,18 @@ export default function AutoTakeoffReviewPage() {
                           </>
                         )}
 
+                        {/* Not on plan: remove button */}
+                        {vi.status === "not_found_on_plan" && vi.id && (
+                          <button
+                            onClick={async () => {
+                              await fetch(`/api/takeoff/${takeoffId}/items?id=${vi.id}`, { method: "DELETE" });
+                              setItems(prev => prev.filter(i => i.id !== vi.id));
+                              setVerifyData((prev: any) => ({ ...prev, items: prev.items.filter((x: any) => x.id !== vi.id) }));
+                            }}
+                            style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 10px", color: "#f87171", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                          >Remove</button>
+                        )}
+
                         {vi.status === "confirmed" && (
                           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{vi.extracted_qty} {localItem?.unit ?? ""}</div>
                         )}
@@ -674,6 +686,33 @@ export default function AutoTakeoffReviewPage() {
                   </div>
                 </div>
               )}
+
+              {/* Update Takeoff */}
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                  Apply all corrections above, then update the takeoff to re-price with the latest data.
+                </div>
+                <button
+                  onClick={async () => {
+                    setMatching(true);
+                    setMatchStatus("Updating takeoff…");
+                    setTab("all");
+                    try {
+                      const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match`, { method: "POST" });
+                      const json = await res.json();
+                      if (!json.error) setMatchStatus(`${json.matched}/${json.total} matched (${json.pct_matched}%)`);
+                      await loadReview();
+                    } finally {
+                      setMatching(false);
+                      setTimeout(() => setMatchStatus(""), 5000);
+                    }
+                  }}
+                  disabled={matching}
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 9, padding: "10px 22px", color: "#fff", cursor: matching ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", opacity: matching ? 0.7 : 1 }}
+                >
+                  {matching ? "Updating…" : "✓ Update Takeoff →"}
+                </button>
+              </div>
             </div>
           )}
         </div>
