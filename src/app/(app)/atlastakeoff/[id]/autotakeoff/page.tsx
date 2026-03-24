@@ -252,10 +252,14 @@ export default function AutoTakeoffReviewPage() {
         let newCatalogMaterial = item.catalog_material;
         let newTaskCatalog = item.task_catalog;
         if ("catalog_material_id" in update) {
-          newCatalogMaterial = data?.catalog_options.find(c => c.id === update.catalog_material_id) ?? null;
+          newCatalogMaterial = update.catalog_material_id
+            ? (data?.catalog_options.find(c => c.id === update.catalog_material_id) ?? null)
+            : null;
         }
         if ("task_catalog_id" in update) {
-          newTaskCatalog = data?.task_options.find(t => t.id === update.task_catalog_id) ?? null;
+          newTaskCatalog = update.task_catalog_id
+            ? (data?.task_options.find(t => t.id === update.task_catalog_id) ?? null)
+            : null;
         }
         const AREA_UNITS = new Set(["SF", "SY", "SQ FT", "SQFT", "AC", "ACRE", "MSF", "LF", "LIN FT"]);
         const itemUnit = (item.unit ?? "EA").toUpperCase().trim();
@@ -336,7 +340,7 @@ export default function AutoTakeoffReviewPage() {
   const filteredItems = useMemo(() => {
     switch (tab) {
       case "matched":
-        return items.filter(i => i.match && (i.match.catalog_material_id || i.match.task_catalog_id) && !i.match.excluded && (i.match.material_match_conf === "high" || i.match.labor_match_conf === "high"));
+        return items.filter(i => i.match && !i.match.excluded && (i.match.material_match_conf === "high" || i.match.labor_match_conf === "high"));
       case "review":
         return items.filter(i => i.match && !i.match.excluded && (i.match.material_match_conf === "medium" || i.match.labor_match_conf === "medium") && i.match.material_match_conf !== "high" && i.match.labor_match_conf !== "high");
       case "unmatched":
@@ -780,15 +784,52 @@ export default function AutoTakeoffReviewPage() {
             onCloseTask={() => setOpenTask(null)}
             onSelectMaterial={async (matId) => {
               setOpenMat(null);
-              if (!item.match) return;
-              await updateMatch(item.match.id, {
+              // Auto-populate labor: find best task for this category (only if no task set yet)
+              const autoTask = !item.task_catalog && matId
+                ? (data?.task_options ?? []).find(t => t.landscape_category === item.category)
+                  ?? (data?.task_options ?? []).find(t => t.name.toLowerCase().includes(item.category))
+                  ?? null
+                : null;
+              if (!item.match) {
+                // No match record yet — create one
+                const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match/init`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    takeoff_item_id: item.id,
+                    catalog_material_id: matId ?? null,
+                    task_catalog_id: autoTask?.id ?? null,
+                  }),
+                });
+                const json = await res.json();
+                if (json.error) { alert("Save failed: " + json.error); return; }
+                await loadReview();
+                return;
+              }
+              const payload: Record<string, any> = {
                 catalog_material_id: matId,
                 material_match_conf: matId ? "high" : "none",
-              });
+              };
+              if (autoTask) {
+                payload.task_catalog_id = autoTask.id;
+                payload.labor_match_conf = "high";
+                payload.labor_match_note = "Auto-populated from material";
+              }
+              await updateMatch(item.match.id, payload);
             }}
             onSelectTask={async (taskId) => {
               setOpenTask(null);
-              if (!item.match) return;
+              if (!item.match) {
+                const res = await fetch(`/api/takeoff/${takeoffId}/handoff/match/init`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ takeoff_item_id: item.id, task_catalog_id: taskId ?? null }),
+                });
+                const json = await res.json();
+                if (json.error) { alert("Save failed: " + json.error); return; }
+                await loadReview();
+                return;
+              }
               await updateMatch(item.match.id, {
                 task_catalog_id: taskId,
                 labor_match_conf: taskId ? "high" : "none",
