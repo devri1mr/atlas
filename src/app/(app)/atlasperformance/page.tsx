@@ -677,12 +677,6 @@ function AllDivisionsTotals({ items, mode = "month", adminRevenue }: { items: Su
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.07em" }}>All Divisions</div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{subLabel}</div>
-        {adminRevenue && (
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>
-            Divs: {fmt$(revB - adminBudget)} · Admin act: {fmt$(adminActual)} · Admin bud: {fmt$(adminBudget)}
-            {" | "}{items.map(i => `${i.divisionName}: ${fmt$(pickB(i, "revenue"))}`).join(" · ")}
-          </div>
-        )}
       </div>
       {/* Row 1: Revenue, Budget, Profit, Profit% */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
