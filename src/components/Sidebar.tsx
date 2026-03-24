@@ -29,7 +29,7 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
     label: "Takeoff",
     href: "/atlastakeoff",
     icon: (
-      <Image src="/atlas-takeoff-icon.png" alt="AtlasTakeoff" width={18} height={18} className="object-contain" />
+      <Image src="/atlas-takeoff-logo.png" alt="AtlasTakeoff" width={18} height={18} className="object-contain" />
     ),
   },
   {
