@@ -7,7 +7,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
-const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }[] = [
+const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; poweredBy?: string }[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
@@ -78,9 +78,10 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
   {
     label: "Atlas HR",
     href: "/operations-center/atlas-time",
+    poweredBy: "Powered by Kolka",
     icon: (
-      <div style={{ background: "rgba(255,255,255,0.9)", borderRadius: 5, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Image src="/atlas-time-logo.png" alt="Atlas HR" width={14} height={14} className="object-contain" />
+      <div style={{ background: "rgba(255,255,255,0.9)", borderRadius: 5, padding: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Image src="/atlas-hr-logo.png" alt="Atlas HR" width={18} height={18} className="object-contain" />
       </div>
     ),
   },
@@ -238,7 +239,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
               <span className={`shrink-0 ${active ? "text-green-300" : "text-white/50 group-hover:text-white/80"}`}>
                 {item.icon}
               </span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && (
+                <span className="truncate flex-1 min-w-0">
+                  {item.label}
+                  {item.poweredBy && <em className="block text-[9px] not-italic font-normal text-white/35 leading-tight">{item.poweredBy}</em>}
+                </span>
+              )}
               {active && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />}
             </Link>
           );
