@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -123,6 +123,10 @@ export default function EmployeeDetailPage() {
 
   const [showTerminate, setShowTerminate] = useState(false);
 
+  const hasLoadedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef<() => Promise<void>>(async () => {});
+
   function set(key: string, value: any) {
     setForm((prev: Employee) => ({ ...prev, [key]: value }));
   }
@@ -167,6 +171,7 @@ export default function EmployeeDetailPage() {
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }
@@ -293,6 +298,17 @@ export default function EmployeeDetailPage() {
   }
 
   useEffect(() => { load(); }, [id]);
+
+  // Keep saveRef pointing at the latest save closure
+  useEffect(() => { saveRef.current = save; });
+
+  // Autosave: debounce 1.5s after any form/items/custom change
+  useEffect(() => {
+    if (!hasLoadedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveRef.current(), 1500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [form, uniformItems, customValues]);
 
   const mi = form.middle_initial ? ` ${form.middle_initial}.` : "";
   const fullName = form.first_name ? `${form.last_name}, ${form.first_name}${mi}` : "Team Member";
@@ -967,16 +983,25 @@ export default function EmployeeDetailPage() {
           </div>
         )}
 
-        {/* Save */}
-        <div className="flex items-center gap-3 pb-6">
-          <button onClick={save} disabled={saving}
-            className="bg-[#123b1f] text-white font-semibold py-2.5 px-6 rounded-xl hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors text-sm">
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
+        {/* Footer */}
+        <div className="flex items-center justify-between pb-6">
           <Link href="/operations-center/atlas-time/employees"
             className="border border-gray-200 bg-white text-gray-600 font-medium py-2.5 px-4 rounded-xl hover:bg-gray-50 transition-colors text-sm">
-            Back to Team Members
+            ← Back to Team Members
           </Link>
+          <span className="text-xs text-gray-400">
+            {saving ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                Saving…
+              </span>
+            ) : success ? (
+              <span className="flex items-center gap-1.5 text-green-600">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Saved
+              </span>
+            ) : "Changes save automatically"}
+          </span>
         </div>
       </div>
     </div>
