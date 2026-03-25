@@ -10,6 +10,43 @@ function fmtDate(iso: string | null | undefined): string {
   return `${m}/${d}/${y}`;
 }
 
+function CostInput({ value, onChange, className }: { value: number | null; onChange: (v: number | null) => void; className: string }) {
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState("");
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={focused ? draft : (value != null ? value.toFixed(2) : "")}
+      onFocus={() => { setFocused(true); setDraft(value != null ? String(value) : ""); }}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        const n = parseFloat(draft);
+        onChange(isNaN(n) ? null : n);
+      }}
+      className={className}
+    />
+  );
+}
+
+function QtyInput({ value, onChange, className }: { value: number; onChange: (v: number) => void; className: string }) {
+  return (
+    <input
+      type="number"
+      min={1}
+      step={1}
+      value={value}
+      onChange={e => {
+        const n = parseInt(e.target.value, 10);
+        onChange(isNaN(n) || n < 1 ? 1 : n);
+      }}
+      onBlur={e => { e.target.value = String(parseInt(e.target.value, 10) || 1); }}
+      className={className}
+    />
+  );
+}
+
 const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
 const labelCls = "block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide";
 const descCls = "text-xs text-gray-400 mb-2";
@@ -922,9 +959,9 @@ export default function EmployeeDetailPage() {
                               </div>
                               <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                                <input type="number" min={0} step={0.01}
-                                  value={item.cost ?? ""}
-                                  onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
+                                <CostInput
+                                  value={item.cost}
+                                  onChange={v => updateUniformItem(item.key, { cost: v })}
                                   className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                               </div>
                               {anySize && (
@@ -954,9 +991,9 @@ export default function EmployeeDetailPage() {
                                   </select>
                                 ) : <div />
                               )}
-                              <input type="number" min={1} step={1}
+                              <QtyInput
                                 value={item.qty ?? 1}
-                                onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
+                                onChange={v => updateUniformItem(item.key, { qty: v })}
                                 className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                               <input type="date" value={item.issued_date}
                                 onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
@@ -975,6 +1012,17 @@ export default function EmployeeDetailPage() {
                             </div>
                           );
                         })}
+                        {(() => {
+                          const subtotal = group.items.reduce((sum, i) => sum + (i.cost ?? 0) * (i.qty ?? 1), 0);
+                          if (subtotal === 0) return null;
+                          return (
+                            <div className={`grid gap-1.5 px-3 pt-1 border-t border-gray-100 mt-1 ${colClass}`}>
+                              <span className="text-[10px] text-gray-400 italic">Subtotal</span>
+                              <span className="text-[10px] font-semibold text-gray-600 text-center">${subtotal.toFixed(2)}</span>
+                              {anySize && <span />}{anyColor && <span />}<span /><span /><span /><span />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
