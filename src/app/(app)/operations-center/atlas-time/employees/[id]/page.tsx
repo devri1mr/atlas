@@ -845,42 +845,6 @@ export default function EmployeeDetailPage() {
         {/* Uniforms & Gear — always visible */}
         <Section title="Uniforms & Gear" desc="Initial issue tracking. Costs wire to inventory management.">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Sizes</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { key: "t_shirt_size", label: "T-Shirt" },
-                { key: "jacket_size", label: "Jacket / Hoodie" },
-                { key: "pants_size", label: "Pants / Shorts" },
-                { key: "hat_size", label: "Hat / Cap" },
-                { key: "boot_size", label: "Boot / Shoe" },
-              ].map(({ key, label }) => (
-                <div key={key}>
-                  <label className={labelCls}>{label}</label>
-                  <FieldSelect
-                    value={form[key] ?? ""}
-                    onChange={v => set(key, v)}
-                    options={fieldOpts[key] ?? []}
-                    placeholder={label}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <TwoCol>
-            <div>
-              <label className={labelCls}>Repayment Deadline</label>
-              <FieldSelect
-                value={form.uniform_repayment_deadline ?? ""}
-                onChange={v => set("uniform_repayment_deadline", v)}
-                options={fieldOpts["uniform_deadline"] ?? []}
-                placeholder="Select deadline"
-              />
-              <p className="text-xs text-gray-400 mt-1">Configure options in Profile Settings → Dropdown Options.</p>
-            </div>
-          </TwoCol>
-
-          <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Issued Items</p>
               <button onClick={() => setAddingItem(true)} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1 transition-colors">
