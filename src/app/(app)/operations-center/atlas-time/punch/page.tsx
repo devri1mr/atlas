@@ -37,6 +37,60 @@ const PIN_LENGTH = 4;
 const PAD = [["1","2","3"],["4","5","6"],["7","8","9"],["","0","⌫"]];
 const BG = "linear-gradient(160deg,#071a0d 0%,#0d2616 50%,#0f3019 100%)";
 
+// Module-level so it never remounts on state changes
+function Wrap({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function canScroll(target: EventTarget | null, dy: number): boolean {
+      let node = target as HTMLElement | null;
+      while (node && node !== el) {
+        const oy = getComputedStyle(node).overflowY;
+        if (oy === "auto" || oy === "scroll") {
+          if (dy < 0 && node.scrollTop > 0) return true;
+          if (dy > 0 && node.scrollTop < node.scrollHeight - node.clientHeight - 1) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (!canScroll(e.target, e.deltaY)) e.preventDefault();
+    }
+    function onTouchMove(e: TouchEvent) {
+      let node = e.target as HTMLElement | null;
+      while (node && node !== el) {
+        const oy = getComputedStyle(node).overflowY;
+        if ((oy === "auto" || oy === "scroll") && node.scrollHeight > node.clientHeight) return;
+        node = node.parentElement;
+      }
+      e.preventDefault();
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      onClick={onClick}
+      className="fixed inset-0 z-50 flex flex-col select-none overflow-hidden"
+      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function KioskPage() {
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState<View>("pin");
@@ -54,6 +108,13 @@ export default function KioskPage() {
   const clockRef = useRef<any>(null);
   const resetRef = useRef<any>(null);
   const idleRef = useRef<any>(null);
+
+  // Lock body scroll — overflow:hidden only, no position:fixed (causes macOS snap-back)
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   useEffect(() => {
     clockRef.current = setInterval(() => setNow(new Date()), 1000);
@@ -167,17 +228,6 @@ export default function KioskPage() {
     setResult(null); setCoords(null); setActing(false);
   }
 
-  // Shared wrapper — fixed, full screen, covers app chrome
-  const Wrap = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <div
-      onClick={onClick}
-      className="fixed inset-0 z-50 flex flex-col select-none overflow-hidden"
-      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      {children}
-    </div>
-  );
-
   // ─── SUCCESS ────────────────────────────────────────────
   if (view === "success" && result && employee) {
     const isIn = result.action === "in";
@@ -223,7 +273,7 @@ export default function KioskPage() {
     const isClockedIn = !!openPunch;
     return (
       <Wrap>
-        {/* Top bar */}
+        {/* Top bar — always visible */}
         <div className="flex items-center justify-between px-5 py-3 shrink-0" onPointerDown={armIdle}>
           <button onClick={reset} className="flex items-center gap-1 text-white/40 active:text-white text-sm">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -236,18 +286,16 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-4" onPointerDown={armIdle}>
-          <div className="flex flex-col items-center gap-4 pt-2">
+        {/* Scrollable middle — name, status, divisions */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6" onPointerDown={armIdle}>
+          <div className="flex flex-col items-center gap-4 pt-2 pb-4">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
             )}
-
             <div className="text-center">
               <div className="text-2xl font-bold text-white">{displayName(employee)}</div>
               {employee.job_title && <div className="text-xs text-white/35 mt-0.5">{employee.job_title}</div>}
             </div>
-
-            {/* Status */}
             {isClockedIn ? (
               <div className="bg-green-500/12 border border-green-400/20 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
                 <div className="text-[10px] font-semibold text-green-400/70 uppercase tracking-widest mb-1">Clocked In</div>
@@ -265,8 +313,6 @@ export default function KioskPage() {
                 </div>
               </div>
             )}
-
-            {/* Division picker */}
             {!isClockedIn && divisions.length > 0 && (
               <div className="w-full max-w-sm">
                 <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest text-center mb-2">Division</p>
@@ -274,11 +320,11 @@ export default function KioskPage() {
                   {divisions.map(div => (
                     <button
                       key={div.id}
-                      onClick={() => { setSelectedDivision(div.id); armIdle(); }}
-                      className={`w-full py-3 px-4 rounded-xl text-sm font-semibold border transition-all active:scale-98 ${
+                      onPointerDown={e => { e.stopPropagation(); setSelectedDivision(div.id); armIdle(); }}
+                      className={`w-full py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
                         selectedDivision === div.id
                           ? "bg-white text-[#0d2616] border-white"
-                          : "bg-white/5 text-white/60 border-white/10"
+                          : "bg-white/5 text-white/60 border-white/10 active:bg-white/12"
                       }`}
                     >
                       {div.name}
@@ -287,28 +333,30 @@ export default function KioskPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Punch */}
-            <div className="w-full max-w-sm">
-              <button
-                onClick={confirmPunch}
-                disabled={acting || (!isClockedIn && divisions.length > 0 && !selectedDivision)}
-                className={`w-full py-4 rounded-2xl text-lg font-bold text-white transition-all active:scale-95 disabled:opacity-40 ${
-                  isClockedIn ? "bg-red-500" : "bg-green-600"
-                }`}
-                style={{ boxShadow: isClockedIn ? "0 4px 20px rgba(239,68,68,0.3)" : "0 4px 20px rgba(22,163,74,0.3)" }}
-              >
-                {acting ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-                    {isClockedIn ? "Clocking Out…" : "Clocking In…"}
-                  </div>
-                ) : isClockedIn ? "Clock Out" : "Clock In"}
-              </button>
-              <button onClick={reset} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
-                Not me
-              </button>
-            </div>
+        {/* Clock In/Out — always pinned to bottom, never scrolls away */}
+        <div className="shrink-0 px-6 pb-6 pt-3">
+          <div className="w-full max-w-sm mx-auto">
+            <button
+              onPointerDown={e => { e.stopPropagation(); if (!acting && !(!isClockedIn && divisions.length > 0 && !selectedDivision)) confirmPunch(); armIdle(); }}
+              disabled={acting || (!isClockedIn && divisions.length > 0 && !selectedDivision)}
+              className={`w-full py-4 rounded-2xl text-lg font-bold text-white transition-all active:scale-95 disabled:opacity-40 ${
+                isClockedIn ? "bg-red-500" : "bg-green-600"
+              }`}
+              style={{ boxShadow: isClockedIn ? "0 4px 20px rgba(239,68,68,0.3)" : "0 4px 20px rgba(22,163,74,0.3)" }}
+            >
+              {acting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                  {isClockedIn ? "Clocking Out…" : "Clocking In…"}
+                </div>
+              ) : isClockedIn ? "Clock Out" : "Clock In"}
+            </button>
+            <button onPointerDown={e => { e.stopPropagation(); reset(); }} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
+              Not me
+            </button>
           </div>
         </div>
       </Wrap>
@@ -318,7 +366,6 @@ export default function KioskPage() {
   // ─── PIN ENTRY ──────────────────────────────────────────
   return (
     <Wrap>
-      {/* Logo + clock — top center */}
       <div className="shrink-0 flex flex-col items-center pt-6 pb-2 gap-2">
         <div className="rounded-2xl bg-white px-5 py-3 shadow-lg shadow-black/20">
           <Image src="/garpiel-logo.jpg" alt="Garpiel Group" width={110} height={110} priority />
@@ -327,8 +374,6 @@ export default function KioskPage() {
           {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
         </span>
       </div>
-
-      {/* PIN prompt — centered */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <p className="text-white/35 text-xs font-semibold uppercase tracking-widest">
           {loading ? "Checking…" : "Enter PIN"}
@@ -343,8 +388,6 @@ export default function KioskPage() {
           ))}
         </div>
       </div>
-
-      {/* Numpad — bottom */}
       <div className="shrink-0 px-6 pb-6">
         <div className="grid grid-cols-3 gap-2.5 max-w-[280px] mx-auto">
           {PAD.flat().map((key, i) =>

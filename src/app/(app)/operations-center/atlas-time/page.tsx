@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 const sections = [
   {
@@ -154,7 +155,48 @@ const sections = [
   },
 ];
 
+const STORAGE_KEY = "atlas-hr-card-order";
+
+function GripIcon() {
+  return (
+    <div className="flex flex-col gap-[3px] opacity-0 group-hover:opacity-30 shrink-0 mt-0.5 transition-opacity">
+      {[0,1,2].map(r => (
+        <div key={r} className="flex gap-[3px]">
+          <div className="w-1 h-1 rounded-full bg-gray-500"/>
+          <div className="w-1 h-1 rounded-full bg-gray-500"/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AtlasTimePage() {
+  const [order, setOrder] = useState<number[]>(() => sections.map((_, i) => i));
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const dragIdx = useRef<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === sections.length) setOrder(parsed);
+      }
+    } catch {}
+  }, []);
+
+  function handleDrop(toPos: number) {
+    const from = dragIdx.current;
+    setDragOver(null);
+    dragIdx.current = null;
+    if (from === null || from === toPos) return;
+    const newOrder = [...order];
+    const [item] = newOrder.splice(from, 1);
+    newOrder.splice(toPos, 0, item);
+    setOrder(newOrder);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newOrder)); } catch {}
+  }
+
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
       <div
@@ -163,7 +205,7 @@ export default function AtlasTimePage() {
       >
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
-            <span>Operations Center</span>
+            <span>Settings</span>
             <span>/</span>
             <span className="text-white/80">Atlas HR</span>
           </div>
@@ -174,31 +216,44 @@ export default function AtlasTimePage() {
 
       <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sections.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              className="group bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-gray-200 transition-all"
-            >
-              <div className="flex items-start gap-4">
-                <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
-                  {s.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-semibold text-gray-900 text-sm group-hover:text-[#123b1f] transition-colors">{s.title}</h2>
-                    {s.badge && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">{s.badge}</span>
-                    )}
+          {order.map((sIdx, pos) => {
+            const s = sections[sIdx];
+            return (
+              <div
+                key={s.href}
+                draggable
+                onDragStart={() => { dragIdx.current = pos; }}
+                onDragOver={e => { e.preventDefault(); setDragOver(pos); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => handleDrop(pos)}
+                onDragEnd={() => { setDragOver(null); dragIdx.current = null; }}
+                className={`group relative transition-opacity ${dragOver === pos ? "opacity-40" : ""}`}
+                style={{ cursor: "grab" }}
+              >
+                <Link
+                  href={s.href}
+                  draggable={false}
+                  className="block bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-gray-200 transition-all"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
+                      {s.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-gray-900 text-sm group-hover:text-[#123b1f] transition-colors">{s.title}</h2>
+                        {s.badge && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">{s.badge}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 leading-relaxed">{s.description}</p>
+                    </div>
+                    <GripIcon />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">{s.description}</p>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-300 group-hover:text-gray-500 mt-0.5 transition-colors">
-                  <path d="M3 9L9 3M9 3H5M9 3v4"/>
-                </svg>
+                </Link>
               </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
