@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import { UserProvider } from "@/lib/userContext";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -54,6 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // No auth check needed here — middleware handles redirect for unauthenticated users
 
   return (
+    <UserProvider>
     <div className="flex h-screen overflow-hidden bg-[#f6f8f6]">
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -89,5 +91,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </UserProvider>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type React from "react";
+import AccessGate from "@/components/AccessGate";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -449,6 +450,7 @@ export default function UsersPage() {
   const labelCls = "block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide";
 
   return (
+    <AccessGate permKey="users_view">
     <div className="p-4 md:p-8 space-y-6 max-w-5xl">
 
       {/* Header */}
@@ -828,5 +830,6 @@ export default function UsersPage() {
       </Drawer>
 
     </div>
+    </AccessGate>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import AccessGate from "@/components/AccessGate";
 
 type Employee = {
   id: string;
@@ -120,6 +121,7 @@ export default function EmployeesPage() {
   };
 
   return (
+    <AccessGate permKey="hr_team_view">
     <div className="min-h-screen bg-[#f0f4f0]">
       {/* Header */}
       <div
@@ -267,5 +269,6 @@ export default function EmployeesPage() {
         )}
       </div>
     </div>
+    </AccessGate>
   );
 }

@@ -6,11 +6,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { useUser } from "@/lib/userContext";
 
-const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; poweredBy?: string }[] = [
+type Child = { label: string; href: string; badge?: string; permKey?: string };
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+  poweredBy?: string;
+  permKey?: string;
+  children?: Child[];
+};
+
+const NAV: NavItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
+    permKey: "dashboard",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
@@ -21,20 +33,19 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; 
   {
     label: "Bids",
     href: "/atlasbid/bids",
-    icon: (
-      <Image src="/atlas-bid-logo.png" alt="AtlasBid" width={18} height={18} className="object-contain" />
-    ),
+    permKey: "bids_view",
+    icon: <Image src="/atlas-bid-logo.png" alt="AtlasBid" width={18} height={18} className="object-contain" />,
   },
   {
     label: "Takeoff",
     href: "/atlastakeoff",
-    icon: (
-      <Image src="/atlas-takeoff-logo.png" alt="AtlasTakeoff" width={18} height={18} className="object-contain" />
-    ),
+    permKey: "takeoff_view",
+    icon: <Image src="/atlas-takeoff-logo.png" alt="AtlasTakeoff" width={18} height={18} className="object-contain" />,
   },
   {
     label: "Materials",
     href: "/operations-center/materials-catalog",
+    permKey: "mat_catalog_view",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2a10 10 0 0 1 10 10" /><path d="M12 2a10 10 0 0 0-6.88 17.24" />
@@ -42,32 +53,16 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; 
         <circle cx="12" cy="19" r="1" />
       </svg>
     ),
-  },
-  {
-    label: "Inventory",
-    href: "/operations-center/inventory",
-    sub: true,
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
-      </svg>
-    ),
-  },
-  {
-    label: "Pricing Books",
-    href: "/operations-center/materials-catalog/pricing-books",
-    sub: true,
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      </svg>
-    ),
+    children: [
+      { label: "Catalog", href: "/operations-center/materials-catalog", permKey: "mat_catalog_view" },
+      { label: "Inventory", href: "/operations-center/inventory", permKey: "mat_inventory_view" },
+      { label: "Pricing Books", href: "/operations-center/materials-catalog/pricing-books", permKey: "mat_pricing_view" },
+    ],
   },
   {
     label: "Settings",
     href: "/operations-center",
+    permKey: "settings_view",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
@@ -79,33 +74,37 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; 
   {
     label: "Atlas HR",
     href: "/operations-center/atlas-time",
+    permKey: "hr_team_view",
     poweredBy: "Powered by Kolka",
     icon: (
       <div style={{ background: "rgba(255,255,255,0.9)", borderRadius: 5, padding: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Image src="/atlas-hr-logo.png" alt="Atlas HR" width={18} height={18} className="object-contain" />
       </div>
     ),
-  },
-  {
-    label: "Time Clock",
-    href: "/operations-center/atlas-time/punch",
-    sub: true,
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
-    ),
+    children: [
+      { label: "Team Members", href: "/operations-center/atlas-time/employees", permKey: "hr_team_view" },
+      { label: "Time Clock (Kiosk)", href: "/operations-center/atlas-time/punch", permKey: "hr_kiosk" },
+      { label: "Manager View", href: "/operations-center/atlas-time/clock", permKey: "hr_manager" },
+      { label: "Departments", href: "/operations-center/atlas-time/departments", permKey: "hr_dept_view" },
+      { label: "Profile Settings", href: "/operations-center/atlas-time/profile-settings" },
+      { label: "Time Clock Settings", href: "/operations-center/atlas-time/settings", permKey: "hr_settings" },
+      { label: "Import", href: "/operations-center/atlas-time/import", permKey: "hr_import" },
+      { label: "Timesheets", href: "/operations-center/atlas-time/timesheets", permKey: "hr_timesheets_view", badge: "P3" },
+      { label: "PTO & Time Off", href: "/operations-center/atlas-time/pto", permKey: "hr_pto_view", badge: "P4" },
+      { label: "Payroll & Export", href: "/operations-center/atlas-time/payroll", permKey: "hr_payroll_view", badge: "P4" },
+      { label: "Reports", href: "/operations-center/atlas-time/reports", permKey: "hr_reports", badge: "P5" },
+    ],
   },
   {
     label: "Performance",
     href: "/atlasperformance",
-    icon: (
-      <Image src="/atlas-performance-logo.png" alt="Performance" width={18} height={18} className="object-contain" />
-    ),
+    permKey: "perf_view",
+    icon: <Image src="/atlas-performance-logo.png" alt="Performance" width={18} height={18} className="object-contain" />,
   },
   {
     label: "Users",
     href: "/operations-center/users",
+    permKey: "users_view",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -120,41 +119,50 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean; 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
-  const [fullName, setFullName] = useState<string | null>(null);
+  const { user, loading, can } = useUser();
   const [collapsed, setCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
+  // Auto-expand groups whose children include the current path
   useEffect(() => {
-    const sb = getSupabaseClient();
-    sb.auth.getSession().then(async ({ data }) => {
-      const user = data.session?.user;
-      setEmail(user?.email ?? null);
-      const token = data.session?.access_token;
-      if (token) {
-        const res = await fetch("/api/users/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null);
-        const json = await res?.json().catch(() => null);
-        setFullName(json?.data?.full_name ?? null);
+    const toOpen = new Set<string>();
+    for (const item of NAV) {
+      if (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"))) {
+        toOpen.add(item.href);
       }
+    }
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      toOpen.forEach(h => next.add(h));
+      return next;
     });
-    const { data: listener } = sb.auth.onAuthStateChange((_e, session) => {
-      setEmail(session?.user?.email ?? null);
+  }, [pathname]);
+
+  function toggleGroup(href: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(href) ? next.delete(href) : next.add(href);
+      return next;
     });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+  }
 
   async function signOut() {
     await getSupabaseClient().auth.signOut();
     router.push("/");
   }
 
+  const email = user?.email ?? null;
+  const fullName = user?.full_name ?? null;
   const displayName = fullName?.trim() ||
     (email ? email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "");
   const initials = fullName
     ? fullName.trim().split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
     : email ? email.substring(0, 2).toUpperCase() : "…";
-  const username = displayName;
+
+  // Filter nav items by permission
+  const visibleNav = loading
+    ? NAV // show all while loading to avoid flash
+    : NAV.filter(item => !item.permKey || can(item.permKey));
 
   return (
     <aside
@@ -170,10 +178,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
           </div>
         )}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="text-white/40 hover:text-white/80 transition-colors ml-auto"
-        >
+        <button onClick={() => setCollapsed(c => !c)} className="text-white/40 hover:text-white/80 transition-colors ml-auto">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {collapsed
               ? <><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></>
@@ -183,44 +188,88 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
 
-      {/* Divider */}
       <div className="mx-4 mb-4 border-t border-white/10" />
 
       {/* Nav */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-        {NAV.map(item => {
-          const active =
+        {visibleNav.map(item => {
+          const visibleChildren = item.children?.filter(c => !c.permKey || can(c.permKey));
+          const hasChildren = !!visibleChildren?.length;
+          const isOpen = openGroups.has(item.href);
+          const childActive = visibleChildren?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"));
+          const selfActive = !hasChildren && (
             pathname === item.href ||
-            (item.href !== "/dashboard" &&
-              pathname.startsWith(item.href) &&
-              !NAV.some(
-                (other) =>
-                  other.href !== item.href &&
-                  other.href.startsWith(item.href) &&
-                  pathname.startsWith(other.href)
-              ));
+            (item.href !== "/dashboard" && pathname.startsWith(item.href) &&
+              !NAV.some(o => o.href !== item.href && o.href.startsWith(item.href) && pathname.startsWith(o.href)))
+          );
+          const active = selfActive || (!hasChildren && childActive);
+          const groupHighlighted = hasChildren && childActive;
 
-          if (item.sub) {
+          if (item.children && hasChildren) {
             return (
-              <div key={item.href} className={collapsed ? "" : "pl-4"}>
-                <div className={collapsed ? "" : "border-l border-white/10 ml-1"}>
+              <div key={item.href}>
+                {/* Parent row */}
+                <div className={`flex items-center rounded-lg transition-all ${groupHighlighted ? "bg-white/10" : "hover:bg-white/8"}`}>
                   <Link
                     href={item.href}
-                    title={collapsed ? item.label : undefined}
                     onClick={onClose}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${collapsed ? "justify-center" : "ml-2"} ${
-                      active
-                        ? "bg-white/10 text-white"
-                        : "text-white/45 hover:text-white/80 hover:bg-white/8"
-                    }`}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium flex-1 min-w-0 group ${groupHighlighted ? "text-white" : "text-white/60 hover:text-white"}`}
                   >
-                    <span className={`shrink-0 ${active ? "text-green-300" : "text-white/40 group-hover:text-white/60"}`}>
+                    <span className={`shrink-0 ${groupHighlighted ? "text-green-300" : "text-white/50 group-hover:text-white/80"}`}>
                       {item.icon}
                     </span>
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                    {active && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />}
+                    {!collapsed && (
+                      <span className="truncate flex-1 min-w-0">
+                        {item.label}
+                        {item.poweredBy && <em className="block text-[9px] not-italic font-normal text-white/35 leading-tight">{item.poweredBy}</em>}
+                      </span>
+                    )}
                   </Link>
+                  {!collapsed && (
+                    <button
+                      onClick={() => toggleGroup(item.href)}
+                      className="shrink-0 px-2 py-2.5 text-white/30 hover:text-white/60 transition-colors"
+                    >
+                      <svg
+                        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                        strokeLinecap="round" strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
+
+                {/* Children */}
+                {isOpen && !collapsed && (
+                  <div className="pl-4 mt-0.5 mb-1">
+                    <div className="border-l border-white/10 ml-3 space-y-0.5 pl-2">
+                      {visibleChildren!.map(child => {
+                        const cActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={onClose}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              cActive ? "bg-white/12 text-white" : "text-white/45 hover:text-white/80 hover:bg-white/6"
+                            }`}
+                          >
+                            <span className="truncate">{child.label}</span>
+                            <span className="flex items-center gap-1.5 shrink-0 ml-1">
+                              {child.badge && (
+                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-white/10 text-white/30">{child.badge}</span>
+                              )}
+                              {cActive && <span className="w-1 h-1 rounded-full bg-green-400" />}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           }
@@ -232,9 +281,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
               title={collapsed ? item.label : undefined}
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
-                active
-                  ? "bg-white/15 text-white shadow-sm"
-                  : "text-white/60 hover:text-white hover:bg-white/10"
+                active ? "bg-white/15 text-white shadow-sm" : "text-white/60 hover:text-white hover:bg-white/10"
               }`}
             >
               <span className={`shrink-0 ${active ? "text-green-300" : "text-white/50 group-hover:text-white/80"}`}>
@@ -254,14 +301,13 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Bottom */}
       <div className="px-2 pb-8 space-y-1 border-t border-white/10 pt-3 mt-2" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
-        {/* User */}
         <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg ${collapsed ? "justify-center" : ""}`}>
           <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
             {initials}
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <div className="text-white text-xs font-semibold truncate">{username}</div>
+              <div className="text-white text-xs font-semibold truncate">{displayName}</div>
               <div className="text-white/40 text-[10px] truncate">{email}</div>
             </div>
           )}

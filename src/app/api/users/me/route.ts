@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profile } = await sb
     .from("user_profiles")
-    .select("id, email, full_name, role")
+    .select("id, email, full_name, role, permissions")
     .eq("id", user.id)
     .single();
 

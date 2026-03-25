@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import AccessGate from "@/components/AccessGate";
 
 type BidRow = {
   id: string;
@@ -248,6 +249,7 @@ export default function BidsPage() {
   const someChecked = selected.size > 0 && selected.size < sorted.length;
 
   return (
+    <AccessGate permKey="bids_view">
     <div className="min-h-screen bg-[#f0f4f0]">
       {/* Header */}
       <div
@@ -522,5 +524,6 @@ export default function BidsPage() {
         </div>
       </div>
     </div>
+    </AccessGate>
   );
 }
