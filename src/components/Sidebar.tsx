@@ -76,6 +76,13 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
     ),
   },
   {
+    label: "Atlas Time",
+    href: "/operations-center/atlas-time",
+    icon: (
+      <Image src="/atlas-time-logo.png" alt="Atlas Time" width={18} height={18} className="object-contain" style={{ mixBlendMode: "multiply" }} />
+    ),
+  },
+  {
     label: "Performance",
     href: "/atlasperformance",
     icon: (

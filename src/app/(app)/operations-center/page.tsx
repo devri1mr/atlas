@@ -124,6 +124,17 @@ const sections = [
     ),
     color: "text-violet-600 bg-violet-50",
   },
+  {
+    title: "Atlas Time",
+    description: "Time clock, payroll, overtime, PTO, bonuses, and QuickBooks Desktop export.",
+    href: "/operations-center/atlas-time",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    ),
+    color: "text-sky-600 bg-sky-50",
+  },
 ];
 
 export default function OperationsCenterPage() {

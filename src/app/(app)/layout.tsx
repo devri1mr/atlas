@@ -18,6 +18,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/operations-center/divisions": "Divisions",
   "/operations-center/inventory-locations": "Inventory Locations",
   "/operations-center/pricing": "Pricing",
+  "/operations-center/atlas-time": "Atlas Time",
+  "/operations-center/atlas-time/settings": "Time Clock Settings",
+  "/operations-center/atlas-time/departments": "Departments",
+  "/operations-center/atlas-time/employees/new": "New Employee",
+  "/operations-center/atlas-time/employees": "Employees",
   "/operations-center": "Operations Center",
 };
 
