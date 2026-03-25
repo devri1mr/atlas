@@ -105,6 +105,12 @@ export default function KioskPage() {
   const [result, setResult] = useState<{ action: "in"|"out"; time: string; hours?: string }|null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number }|null>(null);
 
+  // Lock/unlock state — locked = full kiosk mode (no nav), unlocked = show exit button
+  const [locked, setLocked] = useState(true);
+  const [showUnlock, setShowUnlock] = useState(false);
+  const [masterPin, setMasterPin] = useState("");
+  const [masterError, setMasterError] = useState("");
+
   const clockRef = useRef<any>(null);
   const resetRef = useRef<any>(null);
   const idleRef = useRef<any>(null);
@@ -135,6 +141,22 @@ export default function KioskPage() {
       p => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {}, { timeout: 6000, maximumAge: 60_000 }
     );
+  }
+
+  function getMasterPin(): string {
+    try { return localStorage.getItem("kiosk-master-pin") ?? "0000"; } catch { return "0000"; }
+  }
+
+  function tryUnlock() {
+    if (masterPin === getMasterPin()) {
+      setLocked(false);
+      setShowUnlock(false);
+      setMasterPin("");
+      setMasterError("");
+    } else {
+      setMasterError("Incorrect PIN");
+      setMasterPin("");
+    }
   }
 
   async function pressKey(key: string) {
@@ -366,7 +388,59 @@ export default function KioskPage() {
   // ─── PIN ENTRY ──────────────────────────────────────────
   return (
     <Wrap>
-      <div className="shrink-0 flex flex-col items-center pt-6 pb-2 gap-2">
+      {/* Unlock modal overlay */}
+      {showUnlock && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowUnlock(false); setMasterPin(""); setMasterError(""); }}>
+          <div className="bg-[#0d2616] border border-white/10 rounded-2xl p-6 w-72 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="text-white font-semibold text-base mb-1">Manager Unlock</div>
+            <div className="text-white/40 text-xs mb-4">Enter master PIN to exit kiosk mode</div>
+            {masterError && <div className="text-red-400 text-xs mb-3 text-center">{masterError}</div>}
+            <input
+              type="password"
+              maxLength={10}
+              value={masterPin}
+              onChange={e => { setMasterPin(e.target.value); setMasterError(""); }}
+              onKeyDown={e => e.key === "Enter" && tryUnlock()}
+              placeholder="Master PIN"
+              autoFocus
+              className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-white/30 mb-3 text-center tracking-widest"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowUnlock(false); setMasterPin(""); setMasterError(""); }} className="flex-1 py-2 rounded-xl text-white/40 text-sm border border-white/10 hover:bg-white/5">Cancel</button>
+              <button onClick={tryUnlock} className="flex-1 py-2 rounded-xl bg-white text-[#0d2616] text-sm font-semibold hover:bg-white/90">Unlock</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top bar — lock status */}
+      <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-0">
+        {!locked ? (
+          <Link href="/operations-center/atlas-time" className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Exit Kiosk
+          </Link>
+        ) : <div />}
+        <button
+          onClick={() => locked ? setShowUnlock(true) : setLocked(true)}
+          className="text-white/20 hover:text-white/40 transition-colors ml-auto"
+          title={locked ? "Manager unlock" : "Lock kiosk"}
+        >
+          {locked ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+            </svg>
+          )}
+        </button>
+      </div>
+
+      <div className="shrink-0 flex flex-col items-center pt-4 pb-2 gap-2">
         <div className="rounded-2xl bg-white px-5 py-3 shadow-lg shadow-black/20">
           <Image src="/garpiel-logo.jpg" alt="Garpiel Group" width={110} height={110} priority />
         </div>

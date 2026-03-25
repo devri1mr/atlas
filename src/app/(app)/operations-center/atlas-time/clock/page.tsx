@@ -21,7 +21,9 @@ type Punch = {
   date_for_payroll: string;
   punch_method: string;
   status: string;
+  division_id: string | null;
   at_employees: Employee | null;
+  divisions: { id: string; name: string } | null;
 };
 
 function elapsed(clockIn: string): string {
@@ -55,14 +57,11 @@ export default function ClockPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  // Clock-in search
   const [search, setSearch] = useState("");
-  const [acting, setActing] = useState<string | null>(null); // employee id being actioned
+  const [acting, setActing] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Tick clock every second
   useEffect(() => {
     timerRef.current = setInterval(() => setNow(new Date()), 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -151,13 +150,10 @@ export default function ClockPage() {
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
       {/* Header */}
-      <div
-        className="px-4 md:px-8 py-6 md:py-8"
-        style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}
-      >
-        <div className="max-w-5xl mx-auto">
+      <div className="px-4 md:px-8 py-6 md:py-8" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
-            <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
+            <Link href="/operations-center" className="hover:text-white/80 transition-colors">Settings</Link>
             <span>/</span>
             <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
@@ -170,15 +166,12 @@ export default function ClockPage() {
                 {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
             </div>
-            {/* Live clock */}
             <div className="text-right">
               <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tight">
                 {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
               </div>
             </div>
           </div>
-
-          {/* Stats bar */}
           <div className="mt-5 flex gap-4 flex-wrap">
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
               <div className="text-2xl font-bold text-white">{openPunches.length}</div>
@@ -196,7 +189,7 @@ export default function ClockPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-8 py-5 max-w-5xl mx-auto space-y-5">
+      <div className="px-4 md:px-8 py-5 max-w-6xl mx-auto space-y-5">
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between">
             {error}
@@ -222,7 +215,6 @@ export default function ClockPage() {
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
             </div>
-
             {searchResults.length > 0 && (
               <div className="absolute left-5 right-5 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
                 {searchResults.map((emp) => {
@@ -257,11 +249,16 @@ export default function ClockPage() {
           </div>
         </div>
 
-        {/* Currently clocked in */}
+        {/* Currently clocked in — table layout */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-800">Currently Clocked In</h2>
-            <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Refresh</button>
+            <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.02-4.63"/>
+              </svg>
+              Refresh
+            </button>
           </div>
 
           {loading ? (
@@ -281,72 +278,100 @@ export default function ClockPage() {
               <p className="text-sm text-gray-400">Nobody is clocked in right now.</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
-              {openPunches.map((p) => {
-                const emp = p.at_employees;
-                if (!emp) return null;
-                return (
-                  <div key={p.id} className="flex items-center gap-4 px-5 py-3.5">
-                    {/* Avatar */}
-                    <div className="shrink-0 w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-700 font-bold text-sm">
-                      {initials(emp)}
-                    </div>
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-gray-900">{displayName(emp)}</span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">● Live</span>
+            <>
+              {/* Column headers */}
+              <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_80px_100px] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <span>Name</span>
+                <span>Job Title</span>
+                <span>Division</span>
+                <span>Clock In</span>
+                <span className="text-right">Elapsed</span>
+                <span className="text-right">Action</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {openPunches.map((p) => {
+                  const emp = p.at_employees;
+                  if (!emp) return null;
+                  return (
+                    <div key={p.id} className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_80px_100px] gap-3 items-center px-5 py-3.5">
+                      {/* Name + avatar */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="shrink-0 w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center text-green-700 font-bold text-xs">
+                          {initials(emp)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-gray-900 truncate">{displayName(emp)}</div>
+                          {emp.at_departments && <div className="text-[11px] text-gray-400 truncate">{emp.at_departments.name}</div>}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        In at {fmtTime(p.clock_in_at)}
-                        {emp.at_departments && <span> · {emp.at_departments.name}</span>}
+                      {/* Job title */}
+                      <div className="text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>
+                      {/* Division */}
+                      <div className="min-w-0">
+                        {p.divisions ? (
+                          <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full truncate block w-fit max-w-full">{p.divisions.name}</span>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                      {/* Clock in time */}
+                      <div className="text-xs text-gray-500">{fmtTime(p.clock_in_at)}</div>
+                      {/* Elapsed */}
+                      <div className="text-sm font-bold text-gray-800 tabular-nums text-right">{elapsed(p.clock_in_at)}</div>
+                      {/* Clock out */}
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => clockOut(p.id, emp.id)}
+                          disabled={acting === emp.id}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 transition-colors disabled:opacity-60"
+                        >
+                          {acting === emp.id ? (
+                            <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                          ) : "Clock Out"}
+                        </button>
                       </div>
                     </div>
-                    {/* Elapsed */}
-                    <div className="hidden sm:block text-right shrink-0">
-                      <div className="text-sm font-bold text-gray-800 tabular-nums">{elapsed(p.clock_in_at)}</div>
-                      <div className="text-xs text-gray-400">{p.punch_method}</div>
-                    </div>
-                    {/* Clock out button */}
-                    <button
-                      onClick={() => clockOut(p.id, emp.id)}
-                      disabled={acting === emp.id}
-                      className="shrink-0 ml-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold px-3.5 py-2 rounded-xl border border-red-200 transition-colors disabled:opacity-60"
-                    >
-                      {acting === emp.id ? (
-                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                      ) : "Clock Out"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
-        {/* Completed punches today */}
+        {/* Completed today */}
         {closedPunches.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50">
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
+            </div>
+            {/* Column headers */}
+            <div className="grid grid-cols-[2fr_1.5fr_1.5fr_2fr_90px] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              <span>Name</span>
+              <span>Job Title</span>
+              <span>Division</span>
+              <span>In → Out</span>
+              <span className="text-right">Hours</span>
             </div>
             <div className="divide-y divide-gray-50">
               {closedPunches.map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
                 return (
-                  <div key={p.id} className="flex items-center gap-4 px-5 py-3">
-                    <div className="shrink-0 w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">
-                      {initials(emp)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-700">{displayName(emp)}</span>
-                      <div className="text-xs text-gray-400">
-                        {fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}
-                        {emp.at_departments && <span> · {emp.at_departments.name}</span>}
+                  <div key={p.id} className="grid grid-cols-[2fr_1.5fr_1.5fr_2fr_90px] gap-3 items-center px-5 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">
+                        {initials(emp)}
                       </div>
+                      <span className="text-sm font-medium text-gray-700 truncate">{displayName(emp)}</span>
                     </div>
-                    <div className="shrink-0 text-sm font-semibold text-gray-600 tabular-nums">
+                    <div className="text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>
+                    <div>
+                      {p.divisions ? (
+                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.divisions.name}</span>
+                      ) : <span className="text-gray-300 text-xs">—</span>}
+                    </div>
+                    <div className="text-xs text-gray-400 tabular-nums">
+                      {fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}
+                    </div>
+                    <div className="text-sm font-semibold text-gray-600 tabular-nums text-right">
                       {fmtHours(p.clock_in_at, p.clock_out_at!)}
                     </div>
                   </div>
@@ -360,7 +385,6 @@ export default function ClockPage() {
         )}
 
         <p className="text-xs text-gray-400 pb-4 text-center">
-          Kiosk (PIN) mode and mobile punch coming in Phase 2.{" "}
           <Link href="/operations-center/atlas-time/employees" className="underline hover:text-gray-600">Manage team members →</Link>
         </p>
       </div>

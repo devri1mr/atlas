@@ -22,9 +22,10 @@ export async function GET(req: NextRequest) {
       .from("at_punches")
       .select(`
         id, employee_id, clock_in_at, clock_out_at, date_for_payroll,
-        punch_method, status, employee_note, manager_note,
+        punch_method, status, division_id, employee_note, manager_note,
         at_employees(id, first_name, last_name, preferred_name, job_title, department_id,
-          at_departments(name))
+          at_departments(name)),
+        divisions(id, name)
       `)
       .eq("company_id", companyId)
       .eq("date_for_payroll", today)
