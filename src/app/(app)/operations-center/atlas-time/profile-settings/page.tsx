@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
 type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean; is_default?: boolean; default_qty?: number | null; subsection?: string | null; requires_size?: boolean };
+type Variant = { id: string; item_option_id: string; variant_type: "size" | "color"; label: string; cost: number | null; sort_order: number; active: boolean };
 type CustomFieldDef = {
   id: string; label: string; field_key: string; field_type: string;
   section: string; sort_order: number; active: boolean; options: string[];
@@ -80,6 +81,17 @@ export default function ProfileSettingsPage() {
   const [newOptionSubsection, setNewOptionSubsection] = useState("");
   const [newOptionRequiresSize, setNewOptionRequiresSize] = useState(true);
   const [subsectionOpts, setSubsectionOpts] = useState<FieldOption[]>([]);
+
+  // ── Uniform variants ──
+  const [expandedVariantItemId, setExpandedVariantItemId] = useState<string | null>(null);
+  const [itemVariants, setItemVariants] = useState<Record<string, { sizes: Variant[]; colors: Variant[] }>>({});
+  const [newSizeLabel, setNewSizeLabel] = useState("");
+  const [newSizeCost, setNewSizeCost] = useState("");
+  const [newColorLabel, setNewColorLabel] = useState("");
+  const [addingVariant, setAddingVariant] = useState(false);
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+  const [editingVariantLabel, setEditingVariantLabel] = useState("");
+  const [editingVariantCost, setEditingVariantCost] = useState("");
 
   const [error, setError] = useState("");
 
@@ -277,6 +289,69 @@ export default function ProfileSettingsPage() {
         : o));
       setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost("");
       setEditingOptIsDefault(false); setEditingOptDefaultQty("1"); setEditingOptSubsection(""); setEditingOptRequiresSize(true);
+    }
+  }
+
+  // ── Variant management ──
+  async function loadVariants(itemId: string) {
+    if (itemVariants[itemId]) return;
+    const r = await fetch(`/api/atlas-time/uniform-variants?item_option_id=${itemId}`);
+    const j = await r.json();
+    const sizes = (j.variants ?? []).filter((v: Variant) => v.variant_type === "size");
+    const colors = (j.variants ?? []).filter((v: Variant) => v.variant_type === "color");
+    setItemVariants(prev => ({ ...prev, [itemId]: { sizes, colors } }));
+  }
+
+  function toggleVariantPanel(itemId: string) {
+    if (expandedVariantItemId === itemId) { setExpandedVariantItemId(null); return; }
+    setExpandedVariantItemId(itemId);
+    loadVariants(itemId);
+    setNewSizeLabel(""); setNewSizeCost(""); setNewColorLabel(""); setEditingVariantId(null);
+  }
+
+  async function addVariant(itemId: string, type: "size" | "color", label: string, cost?: string) {
+    if (!label.trim()) return;
+    setAddingVariant(true);
+    const r = await fetch("/api/atlas-time/uniform-variants", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_option_id: itemId, variant_type: type, label: label.trim(), cost: cost && cost !== "" ? Number(cost) : null }),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      setItemVariants(prev => {
+        const cur = prev[itemId] ?? { sizes: [], colors: [] };
+        return { ...prev, [itemId]: type === "size" ? { ...cur, sizes: [...cur.sizes, j] } : { ...cur, colors: [...cur.colors, j] } };
+      });
+      if (type === "size") { setNewSizeLabel(""); setNewSizeCost(""); }
+      else setNewColorLabel("");
+    }
+    setAddingVariant(false);
+  }
+
+  async function saveEditVariant(itemId: string) {
+    if (!editingVariantId || !editingVariantLabel.trim()) return;
+    const r = await fetch(`/api/atlas-time/uniform-variants/${editingVariantId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: editingVariantLabel.trim(), cost: editingVariantCost !== "" ? Number(editingVariantCost) : null }),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      setItemVariants(prev => {
+        const cur = prev[itemId] ?? { sizes: [], colors: [] };
+        const update = (arr: Variant[]) => arr.map(v => v.id === editingVariantId ? j : v);
+        return { ...prev, [itemId]: { sizes: update(cur.sizes), colors: update(cur.colors) } };
+      });
+      setEditingVariantId(null); setEditingVariantLabel(""); setEditingVariantCost("");
+    }
+  }
+
+  async function deleteVariant(itemId: string, variantId: string, type: "size" | "color") {
+    const r = await fetch(`/api/atlas-time/uniform-variants/${variantId}`, { method: "DELETE" });
+    if (r.ok) {
+      setItemVariants(prev => {
+        const cur = prev[itemId] ?? { sizes: [], colors: [] };
+        return { ...prev, [itemId]: type === "size" ? { ...cur, sizes: cur.sizes.filter(v => v.id !== variantId) } : { ...cur, colors: cur.colors.filter(v => v.id !== variantId) } };
+      });
     }
   }
 
@@ -661,7 +736,8 @@ export default function ProfileSettingsPage() {
             ) : (
               <div className="divide-y divide-gray-50">
                 {options.map(opt => (
-                  <div key={opt.id} className="flex items-center gap-3 px-5 py-2.5">
+                  <div key={opt.id}>
+                  <div className="flex items-center gap-3 px-5 py-2.5">
                     {editingOptId === opt.id ? (
                       <div className="flex-1 space-y-2">
                         <div className="flex gap-2">
@@ -742,8 +818,107 @@ export default function ProfileSettingsPage() {
                             <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
                           </svg>
                         </button>
+                        {selectedBuiltIn === "uniform_items" && (
+                          <button onClick={() => toggleVariantPanel(opt.id)} className={`p-1 transition-colors ${expandedVariantItemId === opt.id ? "text-[#123b1f]" : "text-gray-300 hover:text-gray-600"}`} title="Sizes & Colors">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                            </svg>
+                          </button>
+                        )}
                       </>
                     )}
+                  </div>
+                  {selectedBuiltIn === "uniform_items" && expandedVariantItemId === opt.id && (() => {
+                    const vars = itemVariants[opt.id] ?? { sizes: [], colors: [] };
+                    return (
+                      <div className="px-5 py-3 bg-gray-50/60 border-t border-gray-100 space-y-4">
+                        {/* Sizes */}
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sizes <span className="text-gray-300 normal-case font-normal">(cost per size overrides base cost)</span></p>
+                          {vars.sizes.length > 0 && (
+                            <div className="space-y-1 mb-2">
+                              {vars.sizes.map(v => (
+                                <div key={v.id} className="flex items-center gap-2">
+                                  {editingVariantId === v.id ? (
+                                    <>
+                                      <input autoFocus value={editingVariantLabel} onChange={e => setEditingVariantLabel(e.target.value)}
+                                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                                      <div className="relative w-20 shrink-0">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                                        <input type="number" min={0} step={0.01} value={editingVariantCost} onChange={e => setEditingVariantCost(e.target.value)}
+                                          className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" placeholder="0.00" />
+                                      </div>
+                                      <button onClick={() => saveEditVariant(opt.id)} className="text-xs font-semibold text-white bg-[#123b1f] px-2 py-1 rounded-lg">Save</button>
+                                      <button onClick={() => { setEditingVariantId(null); setEditingVariantLabel(""); setEditingVariantCost(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="flex-1 text-sm text-gray-700">{v.label}</span>
+                                      {v.cost != null && <span className="text-xs text-gray-400">${Number(v.cost).toFixed(2)}</span>}
+                                      <button onClick={() => { setEditingVariantId(v.id); setEditingVariantLabel(v.label); setEditingVariantCost(v.cost != null ? String(v.cost) : ""); }} className="text-gray-300 hover:text-gray-600 p-1">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                      </button>
+                                      <button onClick={() => deleteVariant(opt.id, v.id, "size")} className="text-gray-300 hover:text-red-500 p-1">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <input value={newSizeLabel} onChange={e => setNewSizeLabel(e.target.value)} onKeyDown={e => e.key === "Enter" && addVariant(opt.id, "size", newSizeLabel, newSizeCost)}
+                              placeholder="e.g. S, M, L, XL, 4XL" className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                            <div className="relative w-20 shrink-0">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                              <input type="number" min={0} step={0.01} value={newSizeCost} onChange={e => setNewSizeCost(e.target.value)}
+                                placeholder="0.00" className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                            </div>
+                            <button onClick={() => addVariant(opt.id, "size", newSizeLabel, newSizeCost)} disabled={addingVariant || !newSizeLabel.trim()}
+                              className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-1.5 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">Add</button>
+                          </div>
+                        </div>
+                        {/* Colors */}
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Colors</p>
+                          {vars.colors.length > 0 && (
+                            <div className="space-y-1 mb-2">
+                              {vars.colors.map(v => (
+                                <div key={v.id} className="flex items-center gap-2">
+                                  {editingVariantId === v.id ? (
+                                    <>
+                                      <input autoFocus value={editingVariantLabel} onChange={e => setEditingVariantLabel(e.target.value)}
+                                        className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                                      <button onClick={() => saveEditVariant(opt.id)} className="text-xs font-semibold text-white bg-[#123b1f] px-2 py-1 rounded-lg">Save</button>
+                                      <button onClick={() => { setEditingVariantId(null); setEditingVariantLabel(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="flex-1 text-sm text-gray-700">{v.label}</span>
+                                      <button onClick={() => { setEditingVariantId(v.id); setEditingVariantLabel(v.label); setEditingVariantCost(""); }} className="text-gray-300 hover:text-gray-600 p-1">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                      </button>
+                                      <button onClick={() => deleteVariant(opt.id, v.id, "color")} className="text-gray-300 hover:text-red-500 p-1">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <input value={newColorLabel} onChange={e => setNewColorLabel(e.target.value)} onKeyDown={e => e.key === "Enter" && addVariant(opt.id, "color", newColorLabel)}
+                              placeholder="e.g. Green, Blue, Black" className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                            <button onClick={() => addVariant(opt.id, "color", newColorLabel)} disabled={addingVariant || !newColorLabel.trim()}
+                              className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-1.5 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">Add</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   </div>
                 ))}
               </div>

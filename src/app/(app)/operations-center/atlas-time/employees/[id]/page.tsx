@@ -17,7 +17,8 @@ const descCls = "text-xs text-gray-400 mb-2";
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; qb_class_name: string | null };
 type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
-type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number };
+type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number; color?: string };
+type Variant = { id: string; item_option_id: string; variant_type: "size" | "color"; label: string; cost: number | null; sort_order: number; active: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
 type FieldOpt = { id: string; label: string; cost?: number | null; is_default?: boolean; default_qty?: number | null; subsection?: string | null; requires_size?: boolean };
 type CustomFieldDef = { id: string; label: string; field_key: string; field_type: string; section: string; sort_order: number; active: boolean; options: string[] };
@@ -115,6 +116,8 @@ export default function EmployeeDetailPage() {
   const [newItemSubsection, setNewItemSubsection] = useState("");
   const [newItemSize, setNewItemSize] = useState("");
   const [newItemQty, setNewItemQty] = useState("1");
+  const [newItemColor, setNewItemColor] = useState("");
+  const [uniformVariants, setUniformVariants] = useState<Record<string, { sizes: Variant[]; colors: Variant[] }>>({});
 
   const [addingRate, setAddingRate] = useState(false);
   const [newRateDivisionId, setNewRateDivisionId] = useState("");
@@ -138,13 +141,14 @@ export default function EmployeeDetailPage() {
     try {
       setLoading(true);
       setError("");
-      const [empRes, divRes, fcRes, foRes, cfRes, cvRes] = await Promise.all([
+      const [empRes, divRes, fcRes, foRes, cfRes, cvRes, uvRes] = await Promise.all([
         fetch(`/api/atlas-time/employees/${id}`, { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/field-config", { cache: "no-store" }),
         fetch("/api/atlas-time/field-options", { cache: "no-store" }),
         fetch("/api/atlas-time/custom-fields", { cache: "no-store" }),
         fetch(`/api/atlas-time/employees/${id}/custom-values`, { cache: "no-store" }),
+        fetch("/api/atlas-time/uniform-variants", { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
@@ -152,6 +156,7 @@ export default function EmployeeDetailPage() {
       const foJson = await foRes.json().catch(() => ({}));
       const cfJson = await cfRes.json().catch(() => ({}));
       const cvJson = await cvRes.json().catch(() => ({}));
+      const uvJson = await uvRes.json().catch(() => ({}));
 
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
@@ -166,6 +171,16 @@ export default function EmployeeDetailPage() {
         grouped[opt.field_key].push({ id: opt.id, label: opt.label, cost: opt.cost ?? null, is_default: opt.is_default ?? false, default_qty: opt.default_qty ?? 1, subsection: opt.subsection ?? null, requires_size: opt.requires_size !== false });
       }
       setFieldOpts(grouped);
+
+      const variantMap: Record<string, { sizes: Variant[]; colors: Variant[] }> = {};
+      for (const v of (uvJson.variants ?? [])) {
+        if (!v.active) continue;
+        if (!variantMap[v.item_option_id]) variantMap[v.item_option_id] = { sizes: [], colors: [] };
+        if (v.variant_type === "size") variantMap[v.item_option_id].sizes.push(v);
+        else if (v.variant_type === "color") variantMap[v.item_option_id].colors.push(v);
+      }
+      setUniformVariants(variantMap);
+
       setCustomFieldDefs((cfJson.fields ?? []).filter((f: CustomFieldDef) => f.active));
       setCustomValues(cvJson.values ?? {});
 
@@ -232,9 +247,10 @@ export default function EmployeeDetailPage() {
       subsection: newItemSubsection,
       size: newItemSize,
       qty: newItemQty !== "" ? Number(newItemQty) : 1,
+      color: newItemColor,
     }]);
     setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued");
-    setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setAddingItem(false);
+    setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor(""); setAddingItem(false);
   }
 
   function updateUniformItem(key: string, patch: Partial<UniformItem>) {
@@ -874,61 +890,98 @@ export default function EmployeeDetailPage() {
                       <div className="space-y-1">
                         {(() => {
                           const anySize = group.items.some(i => (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item)?.requires_size !== false);
+                          const anyColor = group.items.some(i => {
+                            const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item);
+                            return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
+                          });
+                          const colClass = anySize && anyColor
+                            ? "grid-cols-[1fr_68px_60px_60px_48px_108px_1fr_28px]"
+                            : anySize || anyColor
+                            ? "grid-cols-[1fr_68px_60px_48px_108px_1fr_28px]"
+                            : "grid-cols-[1fr_68px_48px_108px_1fr_28px]";
                           return (
-                            <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${anySize ? "grid-cols-[1fr_68px_56px_48px_108px_1fr_28px]" : "grid-cols-[1fr_68px_48px_108px_1fr_28px]"}`}>
-                              <span>Item</span><span>Cost</span>{anySize && <span>Size</span>}<span>Qty</span><span>Date Issued</span><span>Type</span><span />
-                            </div>
+                            <>
+                              <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
+                                <span>Item</span><span>Cost</span>
+                                {anySize && <span>Size</span>}
+                                {anyColor && <span>Color</span>}
+                                <span>Qty</span><span>Date Issued</span><span>Type</span><span />
+                              </div>
+                              {group.items.map(item => {
+                                const itemOpt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === item.item);
+                                const showSize = itemOpt?.requires_size !== false;
+                                const sizeVars = uniformVariants[itemOpt?.id ?? ""]?.sizes ?? [];
+                                const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
+                                return (
+                                  <div key={item.key} className={`grid gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
+                                      {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
+                                        <select value={item.subsection ?? ""} onChange={e => updateUniformItem(item.key, { subsection: e.target.value })}
+                                          className="mt-0.5 w-full border border-gray-100 rounded-md px-1.5 py-0.5 text-[10px] bg-white text-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500">
+                                          <option value="">— section —</option>
+                                          {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
+                                        </select>
+                                      ) : (item.subsection ? <div className="text-[10px] text-gray-400 mt-0.5">{item.subsection}</div> : null)}
+                                    </div>
+                                    <div className="relative">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                                      <input type="number" min={0} step={0.01}
+                                        value={item.cost ?? ""}
+                                        onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
+                                        className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                    </div>
+                                    {anySize && (
+                                      showSize ? (
+                                        sizeVars.length > 0 ? (
+                                          <select value={item.size ?? ""} onChange={e => {
+                                            const sv = sizeVars.find(v => v.label === e.target.value);
+                                            const patch: Partial<UniformItem> = { size: e.target.value };
+                                            if (sv?.cost != null) patch.cost = sv.cost;
+                                            updateUniformItem(item.key, patch);
+                                          }} className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                            <option value="">—</option>
+                                            {sizeVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
+                                          </select>
+                                        ) : (
+                                          <input value={item.size ?? ""} onChange={e => updateUniformItem(item.key, { size: e.target.value })}
+                                            placeholder="—" className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                        )
+                                      ) : <div />
+                                    )}
+                                    {anyColor && (
+                                      colorVars.length > 0 ? (
+                                        <select value={item.color ?? ""} onChange={e => updateUniformItem(item.key, { color: e.target.value })}
+                                          className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                          <option value="">—</option>
+                                          {colorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
+                                        </select>
+                                      ) : <div />
+                                    )}
+                                    <input type="number" min={1} step={1}
+                                      value={item.qty ?? 1}
+                                      onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
+                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                    <input type="date" value={item.issued_date}
+                                      onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
+                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                    <select value={item.issued_type ?? "company_issued"}
+                                      onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
+                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                      <option value="company_issued">Company Issued</option>
+                                      <option value="team_member_purchase">Team Member Purchase</option>
+                                    </select>
+                                    <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </>
                           );
                         })()}
-                        {group.items.map(item => {
-                          const itemOpt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === item.item);
-                          const showSize = itemOpt?.requires_size !== false;
-                          return (
-                          <div key={item.key} className={`grid gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2 ${showSize ? "grid-cols-[1fr_68px_56px_48px_108px_1fr_28px]" : "grid-cols-[1fr_68px_48px_108px_1fr_28px]"}`}>
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
-                              {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
-                                <select value={item.subsection ?? ""} onChange={e => updateUniformItem(item.key, { subsection: e.target.value })}
-                                  className="mt-0.5 w-full border border-gray-100 rounded-md px-1.5 py-0.5 text-[10px] bg-white text-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500">
-                                  <option value="">— section —</option>
-                                  {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
-                                </select>
-                              ) : (item.subsection ? <div className="text-[10px] text-gray-400 mt-0.5">{item.subsection}</div> : null)}
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                              <input type="number" min={0} step={0.01}
-                                value={item.cost ?? ""}
-                                onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
-                                className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                            </div>
-                            {showSize && (
-                              <input
-                                value={item.size ?? ""}
-                                onChange={e => updateUniformItem(item.key, { size: e.target.value })}
-                                placeholder="—"
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                            )}
-                            <input type="number" min={1} step={1}
-                              value={item.qty ?? 1}
-                              onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
-                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                            <input type="date" value={item.issued_date}
-                              onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
-                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                            <select value={item.issued_type ?? "company_issued"}
-                              onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
-                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                              <option value="company_issued">Company Issued</option>
-                              <option value="team_member_purchase">Team Member Purchase</option>
-                            </select>
-                            <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                              </svg>
-                            </button>
-                          </div>
-                        ); })}
                       </div>
                     </div>
                   ))}
@@ -977,16 +1030,48 @@ export default function EmployeeDetailPage() {
                     )}
                   </div>
                 </div>
-                <TwoCol>
-                  <div>
-                    <label className={labelCls}>Size</label>
-                    <input value={newItemSize} onChange={e => setNewItemSize(e.target.value)} className={inputCls} placeholder="e.g. L, XL, 32x30" />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Qty</label>
-                    <input type="number" min={1} step={1} value={newItemQty} onChange={e => setNewItemQty(e.target.value)} className={inputCls} />
-                  </div>
-                </TwoCol>
+                {(() => {
+                  const addOpt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === newItemName);
+                  const addSizeVars = uniformVariants[addOpt?.id ?? ""]?.sizes ?? [];
+                  const addColorVars = uniformVariants[addOpt?.id ?? ""]?.colors ?? [];
+                  const addShowSize = addOpt?.requires_size !== false;
+                  const addCols = (addShowSize ? 1 : 0) + (addColorVars.length > 0 ? 1 : 0) + 1;
+                  const addColClass = addCols === 3 ? "grid-cols-3" : addCols === 2 ? "grid-cols-2" : "grid-cols-1";
+                  return (
+                    <div className={`grid gap-3 ${addColClass}`}>
+                      {addShowSize && (
+                        <div>
+                          <label className={labelCls}>Size</label>
+                          {addSizeVars.length > 0 ? (
+                            <select value={newItemSize} onChange={e => {
+                              setNewItemSize(e.target.value);
+                              const sv = addSizeVars.find(v => v.label === e.target.value);
+                              if (sv?.cost != null) setNewItemCost(String(sv.cost));
+                            }} className={inputCls}>
+                              <option value="">— Select size —</option>
+                              {addSizeVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
+                            </select>
+                          ) : (
+                            <input value={newItemSize} onChange={e => setNewItemSize(e.target.value)} className={inputCls} placeholder="e.g. L, XL" />
+                          )}
+                        </div>
+                      )}
+                      {addColorVars.length > 0 && (
+                        <div>
+                          <label className={labelCls}>Color</label>
+                          <select value={newItemColor} onChange={e => setNewItemColor(e.target.value)} className={inputCls}>
+                            <option value="">— Select color —</option>
+                            {addColorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className={labelCls}>Qty</label>
+                        <input type="number" min={1} step={1} value={newItemQty} onChange={e => setNewItemQty(e.target.value)} className={inputCls} />
+                      </div>
+                    </div>
+                  );
+                })()}
                 <TwoCol>
                   <div>
                     <label className={labelCls}>Date Issued</label>
@@ -1003,7 +1088,7 @@ export default function EmployeeDetailPage() {
                 <div className="flex gap-2">
                   <button onClick={addUniformItem} disabled={!newItemName.trim()}
                     className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">Add Item</button>
-                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); }}
+                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor(""); }}
                     className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
                 </div>
               </div>
