@@ -441,18 +441,15 @@ export default function EmployeeDetailPage() {
                 </div>
               </TwoCol>
 
-              <TwoCol>
-                <div>
-                  <label className={labelCls}>Status</label>
-                  <select value={form.status ?? "active"} onChange={e => set("status", e.target.value)} className={inputCls}>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="on_leave">On Leave</option>
-                    <option value="terminated">Terminated</option>
-                  </select>
-                </div>
-                </div>
-              </TwoCol>
+              <div className="max-w-xs">
+                <label className={labelCls}>Status</label>
+                <select value={form.status ?? "active"} onChange={e => set("status", e.target.value)} className={inputCls}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="on_leave">On Leave</option>
+                  <option value="terminated">Terminated</option>
+                </select>
+              </div>
               {renderCustomFields("employment")}
             </Section>
 
