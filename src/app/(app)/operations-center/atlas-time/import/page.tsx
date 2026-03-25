@@ -210,7 +210,7 @@ export default function ImportPage() {
 
         {/* Preview table */}
         {!result && rows && rows.length > 1 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
             <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-gray-800">Step 2 — Preview</h2>
