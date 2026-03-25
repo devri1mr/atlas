@@ -123,7 +123,7 @@ export default function DepartmentsPage() {
       setDivSaving(true);
       const res = await fetch("/api/atlas-time/divisions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newDivName.trim(), time_clock_only: newDivTCO }),
+        body: JSON.stringify({ name: newDivName.trim() }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed");
