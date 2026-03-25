@@ -163,6 +163,11 @@ export default function EmployeeDetailPage() {
   const [newRateDate, setNewRateDate] = useState(new Date().toISOString().slice(0, 10));
   const [newRateDefault, setNewRateDefault] = useState(false);
   const [rateSaving, setRateSaving] = useState(false);
+  const [expandedRateGroup, setExpandedRateGroup] = useState<string | null>(null);
+  const [addingRaiseFor, setAddingRaiseFor] = useState<string | null>(null);
+  const [newRaiseAmount, setNewRaiseAmount] = useState("");
+  const [newRaiseDate, setNewRaiseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [raiseSaving, setRaiseSaving] = useState(false);
 
   const [showTerminate, setShowTerminate] = useState(false);
 
@@ -342,6 +347,25 @@ export default function EmployeeDetailPage() {
     const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates?rate_id=${rateId}`, { method: "DELETE" });
     if (res.ok) setPayRates(prev => prev.filter(r => r.id !== rateId));
     else { const j = await res.json().catch(() => null); setError(j?.error ?? "Failed"); }
+  }
+
+  async function addRaise(divisionId: string | null, divisionName: string | null, qbClass: string | null) {
+    if (!newRaiseAmount) return;
+    try {
+      setRaiseSaving(true);
+      setError("");
+      const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ division_id: divisionId, division_name: divisionName, qb_class: qbClass, rate: Number(newRaiseAmount), effective_date: newRaiseDate, is_default: false }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to add raise");
+      setPayRates(prev => [...prev, json.pay_rate]);
+      setAddingRaiseFor(null);
+      setNewRaiseAmount("");
+      setNewRaiseDate(new Date().toISOString().slice(0, 10));
+    } catch (e: any) { setError(e?.message ?? "Failed to add raise"); }
+    finally { setRaiseSaving(false); }
   }
 
   async function terminate() {
@@ -567,30 +591,99 @@ export default function EmployeeDetailPage() {
               {payRates.length === 0 && !addingRate && (
                 <p className="text-sm text-gray-400">No pay rates on file. The default rate above is used for payroll.</p>
               )}
-              {payRates.length > 0 && (
-                <div className="space-y-2">
-                  {payRates.map(r => (
-                    <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-gray-50 rounded-xl">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-gray-800">{r.division_name ?? "No Division"}</span>
-                          {r.qb_class && <span className="text-xs text-gray-500">{r.qb_class}</span>}
-                          {r.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Default</span>}
+              {payRates.length > 0 && (() => {
+                // Group by division_id (null = no division)
+                const groups = new Map<string, PayRate[]>();
+                for (const r of payRates) {
+                  const key = r.division_id ?? "__none__";
+                  if (!groups.has(key)) groups.set(key, []);
+                  groups.get(key)!.push(r);
+                }
+                // Sort each group newest first
+                for (const g of groups.values()) g.sort((a, b) => b.effective_date.localeCompare(a.effective_date));
+                return (
+                  <div className="space-y-2">
+                    {[...groups.entries()].map(([groupKey, rates]) => {
+                      const latest = rates[0];
+                      const isExpanded = expandedRateGroup === groupKey;
+                      return (
+                        <div key={groupKey} className="border border-gray-100 rounded-xl overflow-hidden">
+                          {/* Latest rate row */}
+                          <div className="flex items-center gap-3 px-3.5 py-2.5 bg-gray-50">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-gray-800">{latest.division_name ?? "No Division"}</span>
+                                {latest.qb_class && <span className="text-xs text-gray-500">{latest.qb_class}</span>}
+                                {latest.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Default</span>}
+                                {rates.length > 1 && <span className="text-[10px] text-gray-400">{rates.length} rates</span>}
+                              </div>
+                              <span className="text-xs text-gray-400">Effective {fmtDate(latest.effective_date)}{latest.end_date && ` → ${fmtDate(latest.end_date)}`}</span>
+                            </div>
+                            <span className="text-sm font-bold text-gray-800">${Number(latest.rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">/hr</span></span>
+                            <button onClick={() => setExpandedRateGroup(isExpanded ? null : groupKey)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors" title="View history / add raise">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                {isExpanded ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>}
+                              </svg>
+                            </button>
+                          </div>
+                          {/* Expanded: history + add raise */}
+                          {isExpanded && (
+                            <div className="px-3.5 py-2.5 space-y-2 bg-white border-t border-gray-100">
+                              <div className="space-y-1">
+                                {rates.map(r => (
+                                  <div key={r.id} className="flex items-center gap-3 text-xs py-1 border-b border-gray-50 last:border-0">
+                                    <span className="text-gray-400 w-20 shrink-0">{fmtDate(r.effective_date)}</span>
+                                    <span className="font-semibold text-gray-700">${Number(r.rate).toFixed(2)}/hr</span>
+                                    {r.end_date && <span className="text-gray-400">→ {fmtDate(r.end_date)}</span>}
+                                    <button onClick={() => deletePayRate(r.id)} className="ml-auto p-1 text-gray-300 hover:text-red-400 rounded transition-colors">
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              {addingRaiseFor === groupKey ? (
+                                <div className="border border-green-200 bg-green-50/40 rounded-lg p-3 space-y-2">
+                                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Add Raise</p>
+                                  <TwoCol>
+                                    <div>
+                                      <label className={labelCls}>New Rate</label>
+                                      <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">$</span>
+                                        <input autoFocus type="number" min={0} step={0.01} value={newRaiseAmount} onChange={e => setNewRaiseAmount(e.target.value)} className={inputCls + " pl-7"} placeholder="0.00" />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>Effective Date</label>
+                                      <input type="date" value={newRaiseDate} onChange={e => setNewRaiseDate(e.target.value)} className={inputCls} />
+                                    </div>
+                                  </TwoCol>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => addRaise(latest.division_id, latest.division_name, latest.qb_class)} disabled={!newRaiseAmount || raiseSaving}
+                                      className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                                      {raiseSaving ? "Saving…" : "Save Raise"}
+                                    </button>
+                                    <button onClick={() => { setAddingRaiseFor(null); setNewRaiseAmount(""); }} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button onClick={() => { setAddingRaiseFor(groupKey); setNewRaiseDate(new Date().toISOString().slice(0, 10)); }}
+                                  className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1 transition-colors">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                  Add Raise
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-400">
-                          Effective {fmtDate(r.effective_date)}{r.end_date && ` → ${fmtDate(r.end_date)}`}
-                        </span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-800">${Number(r.rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">/hr</span></span>
-                      <button onClick={() => deletePayRate(r.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {addingRate && (
                 <div className="border border-green-200 bg-green-50/40 rounded-xl p-4 space-y-3">
                   <TwoCol>
