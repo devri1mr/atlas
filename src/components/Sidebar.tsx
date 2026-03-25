@@ -76,6 +76,15 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
     ),
   },
   {
+    label: "Atlas Time",
+    href: "/operations-center/atlas-time",
+    icon: (
+      <div style={{ background: "rgba(255,255,255,0.9)", borderRadius: 5, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Image src="/atlas-time-logo.png" alt="Atlas Time" width={14} height={14} className="object-contain" />
+      </div>
+    ),
+  },
+  {
     label: "Time Clock",
     href: "/operations-center/atlas-time/clock",
     sub: true,
@@ -83,13 +92,6 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
-    ),
-  },
-  {
-    label: "Atlas Time",
-    href: "/operations-center/atlas-time",
-    icon: (
-      <Image src="/atlas-time-logo.png" alt="Atlas Time" width={18} height={18} className="object-contain" style={{ mixBlendMode: "multiply" }} />
     ),
   },
   {
