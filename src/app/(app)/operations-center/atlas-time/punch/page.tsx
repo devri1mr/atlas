@@ -319,8 +319,10 @@ export default function KioskPage() {
   return (
     <Wrap>
       {/* Logo + clock — top center */}
-      <div className="shrink-0 flex flex-col items-center pt-6 pb-2 gap-1">
-        <Image src="/garpiel-logo-transparent.png" alt="Garpiel Group" width={120} height={120} priority />
+      <div className="shrink-0 flex flex-col items-center pt-6 pb-2 gap-2">
+        <div className="rounded-2xl bg-white/95 px-5 py-3 shadow-lg shadow-black/20">
+          <Image src="/garpiel-logo.jpg" alt="Garpiel Group" width={110} height={110} priority />
+        </div>
         <span className="text-white/35 font-mono text-xs tabular-nums">
           {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
         </span>
