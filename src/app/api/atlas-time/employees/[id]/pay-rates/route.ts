@@ -8,8 +8,9 @@ async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
   return data?.id ?? null;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const companyId = await getCompanyId(sb);
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
@@ -21,15 +22,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!label) return NextResponse.json({ error: "Label is required" }, { status: 400 });
     if (!rate || rate <= 0) return NextResponse.json({ error: "Rate must be greater than 0" }, { status: 400 });
 
-    // If this is marked default, clear other defaults first
     if (body.is_default) {
-      await sb.from("at_pay_rates").update({ is_default: false }).eq("employee_id", params.id);
+      await sb.from("at_pay_rates").update({ is_default: false }).eq("employee_id", id);
     }
 
     const { data, error } = await sb
       .from("at_pay_rates")
       .insert({
-        employee_id: params.id,
+        employee_id: id,
         company_id: companyId,
         label,
         rate,
@@ -48,8 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const rateId = req.nextUrl.searchParams.get("rate_id");
     if (!rateId) return NextResponse.json({ error: "rate_id required" }, { status: 400 });
@@ -58,7 +59,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       .from("at_pay_rates")
       .delete()
       .eq("id", rateId)
-      .eq("employee_id", params.id);
+      .eq("employee_id", id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

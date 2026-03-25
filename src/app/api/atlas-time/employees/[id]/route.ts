@@ -3,8 +3,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
 
     const { data: employee, error } = await sb
@@ -14,16 +15,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         at_departments(id, name),
         at_divisions(id, name)
       `)
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (error || !employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-    // Load pay rates
     const { data: payRates } = await sb
       .from("at_pay_rates")
       .select("id, label, rate, effective_date, end_date, is_default")
-      .eq("employee_id", params.id)
+      .eq("employee_id", id)
       .order("effective_date", { ascending: false });
 
     return NextResponse.json({ employee, pay_rates: payRates ?? [] });
@@ -32,8 +32,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const body = await req.json().catch(() => ({}));
 
@@ -47,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       "emergency_contact_name","emergency_contact_phone","notes",
       "status","termination_date","termination_reason","termination_notes",
       "final_check_issued","final_check_date","equipment_returned",
-      "anniversary_note",
+      "access_revoked_at","anniversary_note",
     ];
 
     const patch: Record<string, any> = { updated_at: new Date().toISOString() };
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await sb
       .from("at_employees")
       .update(patch)
-      .eq("id", params.id)
+      .eq("id", id)
       .select("id, first_name, last_name, status, updated_at")
       .single();
 
