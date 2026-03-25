@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -39,9 +38,7 @@ function getPageTitle(pathname: string): string {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Close mobile sidebar on route change
@@ -50,29 +47,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const title = getPageTitle(pathname);
     const full = title === "Atlas" ? "Atlas" : `${title} | Atlas`;
-    // Delay slightly so Next.js metadata doesn't override after us
     const t = setTimeout(() => { document.title = full; }, 50);
     return () => clearTimeout(t);
-  }, [pathname, ready]);
+  }, [pathname]);
 
-  useEffect(() => {
-    const sb = getSupabaseClient();
-    sb.auth.getSession().then(({ data }) => {
-      if (!data.session?.user) {
-        router.replace("/");
-      } else {
-        setReady(true);
-      }
-    });
-  }, [router]);
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f6f8f6]">
-        <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // No auth check needed here — middleware handles redirect for unauthenticated users
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f6f8f6]">

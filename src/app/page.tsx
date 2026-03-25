@@ -5,52 +5,16 @@ import Image from "next/image";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function Home() {
-  const supabase = getSupabaseClient();
-
-  const [email, setEmail] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
 
   useEffect(() => {
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user ?? null;
-
-      if (user) {
-        // Check if user has an active profile in user_profiles
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("id, is_active")
-          .eq("id", user.id)
-          .single();
-
-        if (!profile || !profile.is_active) {
-          await supabase.auth.signOut();
-          setDenied(true);
-          setEmail(null);
-        } else {
-          window.location.replace("/dashboard");
-          return;
-        }
-      } else {
-        setEmail(null);
-      }
-
-      setLoading(false);
-    }
-
-    loadSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      loadSession();
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, [supabase]);
+    // Check for ?error=auth from the callback route (e.g. deactivated account)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "auth") setDenied(true);
+  }, []);
 
   async function signInWithGoogle() {
+    const supabase = getSupabaseClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -59,21 +23,8 @@ export default function Home() {
     });
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 100%)" }}>
-        <div className="w-8 h-8 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // LOGIN SCREEN
-  if (!email) {
-    return (
+  // Middleware redirects authenticated users before they ever reach here
+  return (
       <div className="min-h-screen flex" style={{ fontFamily: "var(--font-geist-sans)" }}>
 
         {/* Left panel — brand */}
@@ -208,11 +159,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-    );
-  }
-
-  // Authenticated — redirect handled in useEffect
-  return null;
+  );
 }
 
 
