@@ -49,21 +49,17 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    // Get divisions: company-wide + time-clock-only extras
-    const [companyDivs, extraDivs] = await Promise.all([
-      sb.from("divisions").select("id, name").eq("active", true).order("name"),
-      sb.from("at_divisions").select("id, name").eq("company_id", companyId).eq("active", true).eq("time_clock_only", true).order("name"),
-    ]);
-
-    const divisions = [
-      ...(companyDivs.data ?? []),
-      ...(extraDivs.data ?? []),
-    ];
+    // Get active company divisions (at_punches.division_id references divisions table)
+    const { data: divisions } = await sb
+      .from("divisions")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
 
     return NextResponse.json({
       employee,
       open_punch: openPunch ?? null,
-      divisions,
+      divisions: divisions ?? [],
       last_division_id: lastPunch?.division_id ?? null,
     });
   } catch (e: any) {
