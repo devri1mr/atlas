@@ -17,9 +17,9 @@ const descCls = "text-xs text-gray-400 mb-2";
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; qb_class_name: string | null };
 type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
-type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase" };
+type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
-type FieldOpt = { id: string; label: string; cost?: number | null };
+type FieldOpt = { id: string; label: string; cost?: number | null; is_default?: boolean; default_qty?: number | null; subsection?: string | null };
 type CustomFieldDef = { id: string; label: string; field_key: string; field_type: string; section: string; sort_order: number; active: boolean; options: string[] };
 
 
@@ -112,6 +112,9 @@ export default function EmployeeDetailPage() {
   const [newItemCost, setNewItemCost] = useState("");
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
   const [newItemType, setNewItemType] = useState<"company_issued" | "team_member_purchase">("company_issued");
+  const [newItemSubsection, setNewItemSubsection] = useState("");
+  const [newItemSize, setNewItemSize] = useState("");
+  const [newItemQty, setNewItemQty] = useState("1");
 
   const [addingRate, setAddingRate] = useState(false);
   const [newRateDivisionId, setNewRateDivisionId] = useState("");
@@ -160,14 +163,28 @@ export default function EmployeeDetailPage() {
       for (const opt of (foJson.options ?? [])) {
         if (!opt.active) continue;
         if (!grouped[opt.field_key]) grouped[opt.field_key] = [];
-        grouped[opt.field_key].push({ id: opt.id, label: opt.label, cost: opt.cost ?? null });
+        grouped[opt.field_key].push({ id: opt.id, label: opt.label, cost: opt.cost ?? null, is_default: opt.is_default ?? false, default_qty: opt.default_qty ?? 1, subsection: opt.subsection ?? null });
       }
       setFieldOpts(grouped);
       setCustomFieldDefs((cfJson.fields ?? []).filter((f: CustomFieldDef) => f.active));
       setCustomValues(cvJson.values ?? {});
 
       const raw = empJson.employee?.uniform_items;
-      setUniformItems(Array.isArray(raw) ? raw : []);
+      let items: UniformItem[] = Array.isArray(raw) ? raw : [];
+      if (items.length === 0) {
+        const defaults = (foJson.options ?? []).filter((o: any) => o.field_key === "uniform_items" && o.is_default && o.active);
+        items = defaults.map((o: any) => ({
+          key: `default_${o.id}_${Date.now()}_${Math.random()}`,
+          item: o.label,
+          cost: o.cost ?? null,
+          issued_date: new Date().toISOString().slice(0, 10),
+          issued_type: "company_issued" as const,
+          subsection: o.subsection ?? "",
+          size: "",
+          qty: o.default_qty ?? 1,
+        }));
+      }
+      setUniformItems(items);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
@@ -212,8 +229,12 @@ export default function EmployeeDetailPage() {
       cost: newItemCost !== "" ? Number(newItemCost) : null,
       issued_date: newItemDate,
       issued_type: newItemType,
+      subsection: newItemSubsection,
+      size: newItemSize,
+      qty: newItemQty !== "" ? Number(newItemQty) : 1,
     }]);
-    setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setAddingItem(false);
+    setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued");
+    setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setAddingItem(false);
   }
 
   function updateUniformItem(key: string, patch: Partial<UniformItem>) {
@@ -870,42 +891,70 @@ export default function EmployeeDetailPage() {
               </button>
             </div>
             {uniformItems.length === 0 && !addingItem && <p className="text-xs text-gray-400 py-1">No items issued yet.</p>}
-            {uniformItems.length > 0 && (
-              <div className="space-y-2 mb-3">
-                <div className="grid grid-cols-[1fr_80px_120px_140px_28px] gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                  <span>Item</span><span>Cost</span><span>Date Issued</span><span>Type</span><span />
-                </div>
-                {uniformItems.map(item => (
-                  <div key={item.key} className="grid grid-cols-[1fr_80px_120px_140px_28px] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2">
-                    <span className="text-sm font-medium text-gray-800">{item.item}</span>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                      <input type="number" min={0} step={0.01}
-                        value={item.cost ?? ""}
-                        onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
-                        className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+            {uniformItems.length > 0 && (() => {
+              // Group by subsection
+              const groups: { label: string; items: UniformItem[] }[] = [];
+              const seen = new Map<string, UniformItem[]>();
+              for (const item of uniformItems) {
+                const key = item.subsection || "";
+                if (!seen.has(key)) { seen.set(key, []); groups.push({ label: key, items: seen.get(key)! }); }
+                seen.get(key)!.push(item);
+              }
+              return (
+                <div className="space-y-3 mb-3">
+                  {groups.map(group => (
+                    <div key={group.label}>
+                      {group.label && (
+                        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1 mb-1">{group.label}</div>
+                      )}
+                      <div className="space-y-1">
+                        <div className="grid grid-cols-[1fr_68px_56px_48px_108px_110px_28px] gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                          <span>Item</span><span>Cost</span><span>Size</span><span>Qty</span><span>Date Issued</span><span>Type</span><span />
+                        </div>
+                        {group.items.map(item => (
+                          <div key={item.key} className="grid grid-cols-[1fr_68px_56px_48px_108px_110px_28px] gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2">
+                            <span className="text-sm font-medium text-gray-800 truncate">{item.item}</span>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                              <input type="number" min={0} step={0.01}
+                                value={item.cost ?? ""}
+                                onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
+                                className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                            </div>
+                            <input
+                              value={item.size ?? ""}
+                              onChange={e => updateUniformItem(item.key, { size: e.target.value })}
+                              placeholder="—"
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                            <input type="number" min={1} step={1}
+                              value={item.qty ?? 1}
+                              onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                            <input type="date" value={item.issued_date}
+                              onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                            <select value={item.issued_type ?? "company_issued"}
+                              onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                              <option value="company_issued">Co. Issued</option>
+                              <option value="team_member_purchase">TM Purchase</option>
+                            </select>
+                            <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <input type="date" value={item.issued_date}
-                      onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                    <select value={item.issued_type ?? "company_issued"}
-                      onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                      <option value="company_issued">Company Issued</option>
-                      <option value="team_member_purchase">TM Purchase</option>
-                    </select>
-                    <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
             {addingItem && (
               <div className="border border-green-200 bg-green-50/40 rounded-xl p-3 space-y-3">
-                <TwoCol>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className={labelCls}>Item</label>
                     {(fieldOpts["uniform_items"] ?? []).length > 0 ? (
@@ -914,6 +963,7 @@ export default function EmployeeDetailPage() {
                           const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === e.target.value);
                           setNewItemName(e.target.value);
                           if (opt?.cost != null) setNewItemCost(String(opt.cost));
+                          if (opt?.subsection) setNewItemSubsection(opt.subsection);
                         }}
                         className={inputCls}>
                         <option value="">— Select item —</option>
@@ -932,6 +982,27 @@ export default function EmployeeDetailPage() {
                         className={inputCls + " pl-7"} placeholder="0.00" />
                     </div>
                   </div>
+                  <div>
+                    <label className={labelCls}>Subsection</label>
+                    {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
+                      <select value={newItemSubsection} onChange={e => setNewItemSubsection(e.target.value)} className={inputCls}>
+                        <option value="">— None —</option>
+                        {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={newItemSubsection} onChange={e => setNewItemSubsection(e.target.value)} className={inputCls} placeholder="e.g. Miscellaneous" />
+                    )}
+                  </div>
+                </div>
+                <TwoCol>
+                  <div>
+                    <label className={labelCls}>Size</label>
+                    <input value={newItemSize} onChange={e => setNewItemSize(e.target.value)} className={inputCls} placeholder="e.g. L, XL, 32x30" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Qty</label>
+                    <input type="number" min={1} step={1} value={newItemQty} onChange={e => setNewItemQty(e.target.value)} className={inputCls} />
+                  </div>
                 </TwoCol>
                 <TwoCol>
                   <div>
@@ -949,7 +1020,7 @@ export default function EmployeeDetailPage() {
                 <div className="flex gap-2">
                   <button onClick={addUniformItem} disabled={!newItemName.trim()}
                     className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">Add Item</button>
-                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); }}
+                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); }}
                     className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
                 </div>
               </div>

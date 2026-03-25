@@ -39,6 +39,16 @@ export async function POST(req: NextRequest) {
       .is("clock_out_at", null)
       .maybeSingle();
 
+    // Last completed punch — for suggesting last-used division
+    const { data: lastPunch } = await sb
+      .from("at_punches")
+      .select("division_id")
+      .eq("employee_id", employee.id)
+      .not("clock_out_at", "is", null)
+      .order("clock_out_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     // Get divisions: company-wide + time-clock-only extras
     const [companyDivs, extraDivs] = await Promise.all([
       sb.from("divisions").select("id, name").eq("active", true).order("name"),
@@ -54,6 +64,7 @@ export async function POST(req: NextRequest) {
       employee,
       open_punch: openPunch ?? null,
       divisions,
+      last_division_id: lastPunch?.division_id ?? null,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

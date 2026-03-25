@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
-type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean };
+type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean; is_default?: boolean; default_qty?: number | null; subsection?: string | null };
 type CustomFieldDef = {
   id: string; label: string; field_key: string; field_type: string;
   section: string; sort_order: number; active: boolean; options: string[];
@@ -19,10 +19,11 @@ const FIELD_TYPES = [
   { value: "dropdown", label: "Dropdown" },
 ];
 
-const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean }[] = [
+const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean; hasDefault?: boolean; hasSubsection?: boolean }[] = [
   { key: "job_title", label: "Job Title" },
   { key: "qb_class", label: "QB Class" },
-  { key: "uniform_items", label: "Uniform Items", hasCost: true },
+  { key: "uniform_subsections", label: "Uniform Subsections" },
+  { key: "uniform_items", label: "Uniform Items", hasCost: true, hasDefault: true, hasSubsection: true },
   { key: "uniform_deadline", label: "Uniform Repayment Deadline" },
   { key: "license_type", label: "License Type" },
   { key: "pto_plan", label: "PTO Plan" },
@@ -75,6 +76,14 @@ export default function ProfileSettingsPage() {
   const [editingOptId, setEditingOptId] = useState<string | null>(null);
   const [editingOptLabel, setEditingOptLabel] = useState("");
   const [editingOptCost, setEditingOptCost] = useState("");
+  const [editingOptIsDefault, setEditingOptIsDefault] = useState(false);
+  const [editingOptDefaultQty, setEditingOptDefaultQty] = useState("1");
+  const [editingOptSubsection, setEditingOptSubsection] = useState("");
+
+  const [newOptionIsDefault, setNewOptionIsDefault] = useState(false);
+  const [newOptionDefaultQty, setNewOptionDefaultQty] = useState("1");
+  const [newOptionSubsection, setNewOptionSubsection] = useState("");
+  const [subsectionOpts, setSubsectionOpts] = useState<FieldOption[]>([]);
 
   const [error, setError] = useState("");
 
@@ -84,6 +93,13 @@ export default function ProfileSettingsPage() {
   }, []);
 
   useEffect(() => { loadBuiltInOptions(selectedBuiltIn); }, [selectedBuiltIn]);
+
+  useEffect(() => {
+    if (selectedBuiltIn === "uniform_items") {
+      fetch("/api/atlas-time/field-options?field_key=uniform_subsections")
+        .then(r => r.json()).then(j => setSubsectionOpts(j.options ?? []));
+    }
+  }, [selectedBuiltIn]);
 
   async function loadSections() {
     setSectionsLoading(true);
@@ -210,13 +226,23 @@ export default function ProfileSettingsPage() {
   async function addBuiltInOption() {
     if (!newOptionLabel.trim()) return;
     setAddingOption(true);
-    const hasCost = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost;
+    const fieldDef = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn);
     const r = await fetch("/api/atlas-time/field-options", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ field_key: selectedBuiltIn, label: newOptionLabel.trim(), cost: hasCost && newOptionCost !== "" ? Number(newOptionCost) : null }),
+      body: JSON.stringify({
+        field_key: selectedBuiltIn,
+        label: newOptionLabel.trim(),
+        cost: fieldDef?.hasCost && newOptionCost !== "" ? Number(newOptionCost) : null,
+        is_default: fieldDef?.hasDefault ? newOptionIsDefault : undefined,
+        default_qty: fieldDef?.hasDefault && newOptionIsDefault && newOptionDefaultQty !== "" ? Number(newOptionDefaultQty) : undefined,
+        subsection: fieldDef?.hasSubsection ? (newOptionSubsection || null) : undefined,
+      }),
     });
     const j = await r.json();
-    if (r.ok) { setOptions(prev => [...prev, j]); setNewOptionLabel(""); setNewOptionCost(""); }
+    if (r.ok) {
+      setOptions(prev => [...prev, j]);
+      setNewOptionLabel(""); setNewOptionCost(""); setNewOptionIsDefault(false); setNewOptionDefaultQty("1"); setNewOptionSubsection("");
+    }
     setAddingOption(false);
   }
 
@@ -235,17 +261,24 @@ export default function ProfileSettingsPage() {
 
   async function saveEditOption() {
     if (!editingOptId || !editingOptLabel.trim()) return;
-    const hasCost = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost;
-    const cost = hasCost && editingOptCost !== "" ? Number(editingOptCost) : null;
+    const fieldDef = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn);
+    const cost = fieldDef?.hasCost && editingOptCost !== "" ? Number(editingOptCost) : null;
+    const body: Record<string, any> = { label: editingOptLabel.trim(), cost };
+    if (fieldDef?.hasDefault) {
+      body.is_default = editingOptIsDefault;
+      body.default_qty = editingOptIsDefault && editingOptDefaultQty !== "" ? Number(editingOptDefaultQty) : 1;
+    }
+    if (fieldDef?.hasSubsection) body.subsection = editingOptSubsection || null;
     const r = await fetch(`/api/atlas-time/field-options/${editingOptId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: editingOptLabel.trim(), cost }),
+      body: JSON.stringify(body),
     });
     if (r.ok) {
-      setOptions(prev => prev.map(o => o.id === editingOptId ? { ...o, label: editingOptLabel.trim(), cost } : o));
-      setEditingOptId(null);
-      setEditingOptLabel("");
-      setEditingOptCost("");
+      setOptions(prev => prev.map(o => o.id === editingOptId
+        ? { ...o, label: editingOptLabel.trim(), cost, is_default: editingOptIsDefault, default_qty: editingOptIsDefault ? Number(editingOptDefaultQty) : 1, subsection: editingOptSubsection || null }
+        : o));
+      setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost("");
+      setEditingOptIsDefault(false); setEditingOptDefaultQty("1"); setEditingOptSubsection("");
     }
   }
 
@@ -566,10 +599,10 @@ export default function ProfileSettingsPage() {
                 ))}
               </div>
             </div>
-            <div className="px-5 py-3 border-b border-gray-50">
+            <div className="px-5 py-3 border-b border-gray-50 space-y-2">
               <div className="flex gap-2">
                 <input type="text" value={newOptionLabel} onChange={e => setNewOptionLabel(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addBuiltInOption()}
+                  onKeyDown={e => e.key === "Enter" && !BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasDefault && addBuiltInOption()}
                   placeholder={`Add ${BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.label ?? "option"}…`}
                   className={inputCls} />
                 {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost && (
@@ -579,11 +612,42 @@ export default function ProfileSettingsPage() {
                       placeholder="0.00" className={inputCls + " pl-7"} />
                   </div>
                 )}
-                <button onClick={addBuiltInOption} disabled={addingOption || !newOptionLabel.trim()}
-                  className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">
-                  {addingOption ? "Adding…" : "Add"}
-                </button>
+                {!BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasDefault && (
+                  <button onClick={addBuiltInOption} disabled={addingOption || !newOptionLabel.trim()}
+                    className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">
+                    {addingOption ? "Adding…" : "Add"}
+                  </button>
+                )}
               </div>
+              {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasDefault && (
+                <div className="flex flex-wrap items-center gap-3">
+                  {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasSubsection && (
+                    <div className="flex-1 min-w-[140px]">
+                      <select value={newOptionSubsection} onChange={e => setNewOptionSubsection(e.target.value)}
+                        className={inputCls}>
+                        <option value="">— No subsection —</option>
+                        {subsectionOpts.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none shrink-0">
+                    <input type="checkbox" checked={newOptionIsDefault} onChange={e => setNewOptionIsDefault(e.target.checked)}
+                      className="rounded border-gray-300 text-[#123b1f] focus:ring-[#123b1f]" />
+                    Default item
+                  </label>
+                  {newOptionIsDefault && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs text-gray-500">Qty:</span>
+                      <input type="number" min={1} step={1} value={newOptionDefaultQty} onChange={e => setNewOptionDefaultQty(e.target.value)}
+                        className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+                    </div>
+                  )}
+                  <button onClick={addBuiltInOption} disabled={addingOption || !newOptionLabel.trim()}
+                    className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">
+                    {addingOption ? "Adding…" : "Add"}
+                  </button>
+                </div>
+              )}
             </div>
             {optionsLoading ? (
               <div className="px-5 py-6 text-center text-sm text-gray-400">Loading…</div>
@@ -594,31 +658,63 @@ export default function ProfileSettingsPage() {
                 {options.map(opt => (
                   <div key={opt.id} className="flex items-center gap-3 px-5 py-2.5">
                     {editingOptId === opt.id ? (
-                      <>
-                        <input
-                          autoFocus
-                          value={editingOptLabel}
-                          onChange={e => setEditingOptLabel(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") saveEditOption(); if (e.key === "Escape") { setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost(""); } }}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]"
-                        />
-                        {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost && (
-                          <div className="relative w-24 shrink-0">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">$</span>
-                            <input type="number" min={0} step={0.01} value={editingOptCost} onChange={e => setEditingOptCost(e.target.value)}
-                              placeholder="0.00" className="w-full border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+                      <div className="flex-1 space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            autoFocus
+                            value={editingOptLabel}
+                            onChange={e => setEditingOptLabel(e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]"
+                          />
+                          {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost && (
+                            <div className="relative w-24 shrink-0">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">$</span>
+                              <input type="number" min={0} step={0.01} value={editingOptCost} onChange={e => setEditingOptCost(e.target.value)}
+                                placeholder="0.00" className="w-full border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+                            </div>
+                          )}
+                          <button onClick={saveEditOption} className="text-xs font-semibold text-white bg-[#123b1f] px-2.5 py-1 rounded-lg hover:bg-[#1a5c2e] shrink-0">Save</button>
+                          <button onClick={() => { setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost(""); setEditingOptIsDefault(false); setEditingOptDefaultQty("1"); setEditingOptSubsection(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1 shrink-0">Cancel</button>
+                        </div>
+                        {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasDefault && (
+                          <div className="flex flex-wrap items-center gap-3">
+                            {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasSubsection && (
+                              <div className="flex-1 min-w-[140px]">
+                                <select value={editingOptSubsection} onChange={e => setEditingOptSubsection(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]">
+                                  <option value="">— No subsection —</option>
+                                  {subsectionOpts.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none shrink-0">
+                              <input type="checkbox" checked={editingOptIsDefault} onChange={e => setEditingOptIsDefault(e.target.checked)}
+                                className="rounded border-gray-300 text-[#123b1f] focus:ring-[#123b1f]" />
+                              Default item
+                            </label>
+                            {editingOptIsDefault && (
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-xs text-gray-500">Qty:</span>
+                                <input type="number" min={1} step={1} value={editingOptDefaultQty} onChange={e => setEditingOptDefaultQty(e.target.value)}
+                                  className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+                              </div>
+                            )}
                           </div>
                         )}
-                        <button onClick={saveEditOption} className="text-xs font-semibold text-white bg-[#123b1f] px-2.5 py-1 rounded-lg hover:bg-[#1a5c2e]">Save</button>
-                        <button onClick={() => { setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
-                      </>
+                      </div>
                     ) : (
                       <>
-                        <span className={`flex-1 text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>
-                          {opt.label}
-                          {opt.cost != null && <span className="ml-2 text-xs text-gray-400">${Number(opt.cost).toFixed(2)}</span>}
-                        </span>
-                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); setEditingOptCost(opt.cost != null ? String(opt.cost) : ""); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>
+                            {opt.label}
+                            {opt.cost != null && <span className="ml-2 text-xs text-gray-400">${Number(opt.cost).toFixed(2)}</span>}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {opt.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Default{opt.default_qty && opt.default_qty !== 1 ? ` ×${opt.default_qty}` : ""}</span>}
+                            {opt.subsection && <span className="text-[10px] text-gray-400">{opt.subsection}</span>}
+                          </div>
+                        </div>
+                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); setEditingOptCost(opt.cost != null ? String(opt.cost) : ""); setEditingOptIsDefault(!!opt.is_default); setEditingOptDefaultQty(opt.default_qty != null ? String(opt.default_qty) : "1"); setEditingOptSubsection(opt.subsection ?? ""); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>

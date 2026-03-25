@@ -21,13 +21,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.active !== undefined) patch.active = body.active;
     if (body.sort_order !== undefined) patch.sort_order = body.sort_order;
     if (body.cost !== undefined) patch.cost = body.cost != null ? Number(body.cost) : null;
+    if (body.is_default !== undefined) patch.is_default = !!body.is_default;
+    if (body.default_qty !== undefined) patch.default_qty = body.default_qty != null ? Number(body.default_qty) : 1;
+    if (body.subsection !== undefined) patch.subsection = body.subsection || null;
 
     const { data, error } = await sb
       .from("at_field_options")
       .update(patch)
       .eq("id", id)
       .eq("company_id", companyId)
-      .select("id, field_key, label, cost, sort_order, active")
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

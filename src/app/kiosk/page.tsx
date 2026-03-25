@@ -113,7 +113,7 @@ export default function KioskPage() {
       setEmployee(json.employee);
       setOpenPunch(json.open_punch ?? null);
       setDivisions(json.divisions ?? []);
-      setSelectedDivision(json.open_punch?.division_id ?? json.divisions?.[0]?.id ?? "");
+      setSelectedDivision(json.open_punch?.division_id ?? json.last_division_id ?? json.divisions?.[0]?.id ?? "");
       navigator.vibrate?.(30);
       getGps();
       setView("confirm");
@@ -234,8 +234,8 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-4" onPointerDown={armIdle}>
-          <div className="flex flex-col items-center gap-4 pt-2">
+        <div className="flex-1 flex flex-col justify-center px-6 pb-4" onPointerDown={armIdle}>
+          <div className="flex flex-col items-center gap-4">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
             )}
@@ -263,21 +263,17 @@ export default function KioskPage() {
             {!isClockedIn && divisions.length > 0 && (
               <div className="w-full max-w-sm">
                 <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest text-center mb-2">Division</p>
-                <div className="grid grid-cols-1 gap-2">
+                <select
+                  value={selectedDivision}
+                  onChange={e => { setSelectedDivision(e.target.value); armIdle(); }}
+                  className="w-full bg-white/10 border border-white/15 text-white rounded-xl px-4 py-3 text-sm font-semibold appearance-none focus:outline-none focus:ring-2 focus:ring-white/30"
+                  style={{ colorScheme: "dark" }}
+                >
+                  <option value="" className="bg-[#0d2616]">— Select division —</option>
                   {divisions.map(div => (
-                    <button
-                      key={div.id}
-                      onClick={() => { setSelectedDivision(div.id); armIdle(); }}
-                      className={`w-full py-3 px-4 rounded-xl text-sm font-semibold border transition-all active:scale-98 ${
-                        selectedDivision === div.id
-                          ? "bg-white text-[#0d2616] border-white"
-                          : "bg-white/5 text-white/60 border-white/10"
-                      }`}
-                    >
-                      {div.name}
-                    </button>
+                    <option key={div.id} value={div.id} className="bg-[#0d2616] font-semibold">{div.name}</option>
                   ))}
-                </div>
+                </select>
               </div>
             )}
             <div className="w-full max-w-sm">

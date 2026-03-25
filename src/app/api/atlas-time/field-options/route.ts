@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     let query = sb
       .from("at_field_options")
-      .select("id, field_key, label, cost, sort_order, active")
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
       .eq("company_id", companyId)
       .order("sort_order", { ascending: true })
       .order("label", { ascending: true });
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const body = await req.json();
-    const { field_key, label, cost } = body;
+    const { field_key, label, cost, is_default, default_qty, subsection } = body;
     if (!field_key || !label?.trim()) {
       return NextResponse.json({ error: "field_key and label are required" }, { status: 400 });
     }
@@ -60,8 +60,15 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await sb
       .from("at_field_options")
-      .insert({ company_id: companyId, field_key, label: label.trim(), cost: cost != null ? Number(cost) : null, sort_order: nextSort, active: true })
-      .select("id, field_key, label, cost, sort_order, active")
+      .insert({
+        company_id: companyId, field_key, label: label.trim(),
+        cost: cost != null ? Number(cost) : null,
+        sort_order: nextSort, active: true,
+        is_default: is_default ?? false,
+        default_qty: default_qty != null ? Number(default_qty) : 1,
+        subsection: subsection || null,
+      })
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
