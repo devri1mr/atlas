@@ -55,6 +55,21 @@ export default function KioskPage() {
   const resetRef = useRef<any>(null);
   const idleRef = useRef<any>(null);
 
+  // Lock body scroll for kiosk (prevents iOS Safari rubber-band scroll)
+  useEffect(() => {
+    const prev = { overflow: document.body.style.overflow, position: document.body.style.position };
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+    return () => {
+      document.body.style.overflow = prev.overflow;
+      document.body.style.position = prev.position;
+      document.body.style.width = "";
+      document.body.style.height = "";
+    };
+  }, []);
+
   useEffect(() => {
     clockRef.current = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clockRef.current);
@@ -170,8 +185,9 @@ export default function KioskPage() {
   const Wrap = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <div
       onClick={onClick}
+      onTouchMove={e => e.preventDefault()}
       className="fixed inset-0 flex flex-col select-none overflow-hidden"
-      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}
     >
       {children}
     </div>
@@ -234,8 +250,8 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center px-6 pb-4" onPointerDown={armIdle}>
-          <div className="flex flex-col items-center gap-4">
+        <div className="flex-1 flex flex-col justify-center px-6 pb-4">
+          <div className="flex flex-col items-center gap-3">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
             )}
@@ -263,22 +279,26 @@ export default function KioskPage() {
             {!isClockedIn && divisions.length > 0 && (
               <div className="w-full max-w-sm">
                 <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest text-center mb-2">Division</p>
-                <select
-                  value={selectedDivision}
-                  onChange={e => { setSelectedDivision(e.target.value); armIdle(); }}
-                  className="w-full bg-white/10 border border-white/15 text-white rounded-xl px-4 py-3 text-sm font-semibold appearance-none focus:outline-none focus:ring-2 focus:ring-white/30"
-                  style={{ colorScheme: "dark" }}
-                >
-                  <option value="" className="bg-[#0d2616]">— Select division —</option>
+                <div className={`grid gap-1.5 ${divisions.length > 4 ? "grid-cols-2" : "grid-cols-1"}`}>
                   {divisions.map(div => (
-                    <option key={div.id} value={div.id} className="bg-[#0d2616] font-semibold">{div.name}</option>
+                    <button
+                      key={div.id}
+                      onPointerDown={e => { e.stopPropagation(); setSelectedDivision(div.id); armIdle(); }}
+                      className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all ${
+                        selectedDivision === div.id
+                          ? "bg-white text-[#0d2616] border-white"
+                          : "bg-white/5 text-white/60 border-white/10 active:bg-white/12"
+                      }`}
+                    >
+                      {div.name}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             )}
             <div className="w-full max-w-sm">
               <button
-                onClick={confirmPunch}
+                onPointerDown={e => { e.stopPropagation(); if (!acting && !(!isClockedIn && divisions.length > 0 && !selectedDivision)) confirmPunch(); armIdle(); }}
                 disabled={acting || (!isClockedIn && divisions.length > 0 && !selectedDivision)}
                 className={`w-full py-4 rounded-2xl text-lg font-bold text-white transition-all active:scale-95 disabled:opacity-40 ${
                   isClockedIn ? "bg-red-500" : "bg-green-600"
@@ -292,7 +312,7 @@ export default function KioskPage() {
                   </div>
                 ) : isClockedIn ? "Clock Out" : "Clock In"}
               </button>
-              <button onClick={reset} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
+              <button onPointerDown={e => { e.stopPropagation(); reset(); }} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
                 Not me
               </button>
             </div>
