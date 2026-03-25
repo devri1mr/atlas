@@ -913,7 +913,16 @@ export default function EmployeeDetailPage() {
                         </div>
                         {group.items.map(item => (
                           <div key={item.key} className="grid grid-cols-[1fr_68px_56px_48px_108px_110px_28px] gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2">
-                            <span className="text-sm font-medium text-gray-800 truncate">{item.item}</span>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
+                              {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
+                                <select value={item.subsection ?? ""} onChange={e => updateUniformItem(item.key, { subsection: e.target.value })}
+                                  className="mt-0.5 w-full border border-gray-100 rounded-md px-1.5 py-0.5 text-[10px] bg-white text-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500">
+                                  <option value="">— section —</option>
+                                  {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
+                                </select>
+                              ) : (item.subsection ? <div className="text-[10px] text-gray-400 mt-0.5">{item.subsection}</div> : null)}
+                            </div>
                             <div className="relative">
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
                               <input type="number" min={0} step={0.01}
