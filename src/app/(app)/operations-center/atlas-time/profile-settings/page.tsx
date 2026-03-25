@@ -29,6 +29,10 @@ const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean }[] = [
   { key: "electronic_devices", label: "Electronic Devices" },
   { key: "health_care_plan", label: "Health Care Plan" },
   { key: "t_shirt_size", label: "Shirt Size" },
+  { key: "jacket_size", label: "Jacket / Hoodie Size" },
+  { key: "pants_size", label: "Pants / Shorts Size" },
+  { key: "hat_size", label: "Hat / Cap Size" },
+  { key: "boot_size", label: "Boot / Shoe Size" },
   { key: "termination_reason", label: "Termination Reason" },
 ];
 

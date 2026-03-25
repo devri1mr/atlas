@@ -810,6 +810,29 @@ export default function EmployeeDetailPage() {
 
         {/* Uniforms & Gear — always visible */}
         <Section title="Uniforms & Gear" desc="Initial issue tracking. Costs wire to inventory management.">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Sizes</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                { key: "t_shirt_size", label: "T-Shirt" },
+                { key: "jacket_size", label: "Jacket / Hoodie" },
+                { key: "pants_size", label: "Pants / Shorts" },
+                { key: "hat_size", label: "Hat / Cap" },
+                { key: "boot_size", label: "Boot / Shoe" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className={labelCls}>{label}</label>
+                  <FieldSelect
+                    value={form[key] ?? ""}
+                    onChange={v => set(key, v)}
+                    options={fieldOpts[key] ?? []}
+                    placeholder={label}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
           <TwoCol>
             <div>
               <label className={labelCls}>Repayment Deadline</label>
