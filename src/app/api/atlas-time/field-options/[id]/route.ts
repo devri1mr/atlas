@@ -20,13 +20,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.label !== undefined) patch.label = body.label;
     if (body.active !== undefined) patch.active = body.active;
     if (body.sort_order !== undefined) patch.sort_order = body.sort_order;
+    if (body.cost !== undefined) patch.cost = body.cost != null ? Number(body.cost) : null;
 
     const { data, error } = await sb
       .from("at_field_options")
       .update(patch)
       .eq("id", id)
       .eq("company_id", companyId)
-      .select("id, field_key, label, sort_order, active")
+      .select("id, field_key, label, cost, sort_order, active")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

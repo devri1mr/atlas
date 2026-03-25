@@ -17,14 +17,11 @@ const descCls = "text-xs text-gray-400 mb-2";
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; qb_class_name: string | null };
 type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
-type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
+type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase" };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
-type FieldOpt = { id: string; label: string };
+type FieldOpt = { id: string; label: string; cost?: number | null };
 type CustomFieldDef = { id: string; label: string; field_key: string; field_type: string; section: string; sort_order: number; active: boolean; options: string[] };
 
-const T_SHIRT_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
-const JACKET_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
-const COMMON_ITEMS = ["T-Shirt","Polo","Work Pants","Shorts","Hoodie","Work Jacket","Rain Jacket","Rain Pants","Safety Vest","Baseball Cap","Hi-Vis Vest","Gloves","Work Boots"];
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-50 text-green-700",
@@ -112,8 +109,9 @@ export default function EmployeeDetailPage() {
   const [uniformItems, setUniformItems] = useState<UniformItem[]>([]);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState("");
-  const [newItemQty, setNewItemQty] = useState("1");
+  const [newItemCost, setNewItemCost] = useState("");
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newItemType, setNewItemType] = useState<"company_issued" | "team_member_purchase">("company_issued");
 
   const [addingRate, setAddingRate] = useState(false);
   const [newRateDivisionId, setNewRateDivisionId] = useState("");
@@ -158,7 +156,7 @@ export default function EmployeeDetailPage() {
       for (const opt of (foJson.options ?? [])) {
         if (!opt.active) continue;
         if (!grouped[opt.field_key]) grouped[opt.field_key] = [];
-        grouped[opt.field_key].push({ id: opt.id, label: opt.label });
+        grouped[opt.field_key].push({ id: opt.id, label: opt.label, cost: opt.cost ?? null });
       }
       setFieldOpts(grouped);
       setCustomFieldDefs((cfJson.fields ?? []).filter((f: CustomFieldDef) => f.active));
@@ -206,11 +204,11 @@ export default function EmployeeDetailPage() {
     setUniformItems(prev => [...prev, {
       key: `${Date.now()}`,
       item: newItemName.trim(),
-      qty: Math.max(1, parseInt(newItemQty) || 1),
+      cost: newItemCost !== "" ? Number(newItemCost) : null,
       issued_date: newItemDate,
-      returned: false,
+      issued_type: newItemType,
     }]);
-    setNewItemName(""); setNewItemQty("1"); setAddingItem(false);
+    setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setAddingItem(false);
   }
 
   function updateUniformItem(key: string, patch: Partial<UniformItem>) {
@@ -794,39 +792,20 @@ export default function EmployeeDetailPage() {
           <Fragment key={sk}>{renderSection(sk)}</Fragment>
         ))}
 
-        {/* Uniform & Gear — always visible */}
-        <Section title="Uniform & Gear" desc="Sizes, issued items, and return tracking.">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Sizes</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
-                <label className={labelCls}>T-Shirt</label>
-                <select value={form.t_shirt_size ?? ""} onChange={e => set("t_shirt_size", e.target.value)} className={inputCls}>
-                  <option value="">—</option>
-                  {(fieldOpts["t_shirt_size"]?.length ? fieldOpts["t_shirt_size"].map(o => o.label) : T_SHIRT_SIZES).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Jacket / Hoodie</label>
-                <select value={form.jacket_size ?? ""} onChange={e => set("jacket_size", e.target.value)} className={inputCls}>
-                  <option value="">—</option>
-                  {JACKET_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Pants / Shorts</label>
-                <input value={form.pants_size ?? ""} onChange={e => set("pants_size", e.target.value)} className={inputCls} placeholder="e.g. 32×30" />
-              </div>
-              <div>
-                <label className={labelCls}>Hat / Cap</label>
-                <input value={form.hat_size ?? ""} onChange={e => set("hat_size", e.target.value)} className={inputCls} placeholder="e.g. S/M or 7¼" />
-              </div>
-              <div>
-                <label className={labelCls}>Boot / Shoe</label>
-                <input value={form.boot_size ?? ""} onChange={e => set("boot_size", e.target.value)} className={inputCls} placeholder="e.g. 10.5W" />
-              </div>
+        {/* Uniforms & Gear — always visible */}
+        <Section title="Uniforms & Gear" desc="Initial issue tracking. Costs wire to inventory management.">
+          <TwoCol>
+            <div>
+              <label className={labelCls}>Repayment Deadline</label>
+              <FieldSelect
+                value={form.uniform_repayment_deadline ?? ""}
+                onChange={v => set("uniform_repayment_deadline", v)}
+                options={fieldOpts["uniform_deadline"] ?? []}
+                placeholder="Select deadline"
+              />
+              <p className="text-xs text-gray-400 mt-1">Configure options in Profile Settings → Dropdown Options.</p>
             </div>
-          </div>
+          </TwoCol>
 
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -841,24 +820,28 @@ export default function EmployeeDetailPage() {
             {uniformItems.length === 0 && !addingItem && <p className="text-xs text-gray-400 py-1">No items issued yet.</p>}
             {uniformItems.length > 0 && (
               <div className="space-y-2 mb-3">
-                <div className="grid grid-cols-[1fr_56px_130px_80px_32px] gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                  <span>Item</span><span className="text-center">Qty</span><span>Issued</span><span className="text-center">Returned</span><span />
+                <div className="grid grid-cols-[1fr_80px_120px_140px_28px] gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                  <span>Item</span><span>Cost</span><span>Date Issued</span><span>Type</span><span />
                 </div>
                 {uniformItems.map(item => (
-                  <div key={item.key} className="grid grid-cols-[1fr_56px_130px_80px_32px] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2">
-                    <span className={`text-sm font-medium ${item.returned ? "line-through text-gray-400" : "text-gray-800"}`}>{item.item}</span>
-                    <input type="number" min={1} value={item.qty}
-                      onChange={e => updateUniformItem(item.key, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <div key={item.key} className="grid grid-cols-[1fr_80px_120px_140px_28px] gap-2 items-center bg-gray-50 rounded-xl px-3 py-2">
+                    <span className="text-sm font-medium text-gray-800">{item.item}</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                      <input type="number" min={0} step={0.01}
+                        value={item.cost ?? ""}
+                        onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
+                        className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
                     <input type="date" value={item.issued_date}
                       onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                    <div className="flex justify-center">
-                      <button onClick={() => updateUniformItem(item.key, { returned: !item.returned })}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.returned ? "bg-green-500 border-green-500" : "border-gray-300 hover:border-green-400"}`}>
-                        {item.returned && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                      </button>
-                    </div>
+                    <select value={item.issued_type ?? "company_issued"}
+                      onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                      <option value="company_issued">Company Issued</option>
+                      <option value="team_member_purchase">TM Purchase</option>
+                    </select>
                     <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -870,45 +853,61 @@ export default function EmployeeDetailPage() {
             )}
             {addingItem && (
               <div className="border border-green-200 bg-green-50/40 rounded-xl p-3 space-y-3">
-                <div>
-                  <label className={labelCls}>Item</label>
-                  <input autoFocus value={newItemName} onChange={e => setNewItemName(e.target.value)}
-                    list="uniform-item-suggestions" className={inputCls} placeholder="e.g. T-Shirt, Rain Jacket…" />
-                  <datalist id="uniform-item-suggestions">
-                    {COMMON_ITEMS.map(i => <option key={i} value={i} />)}
-                  </datalist>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+                <TwoCol>
                   <div>
-                    <label className={labelCls}>Qty Issued</label>
-                    <input type="number" min={1} value={newItemQty} onChange={e => setNewItemQty(e.target.value)} className={inputCls} />
+                    <label className={labelCls}>Item</label>
+                    {(fieldOpts["uniform_items"] ?? []).length > 0 ? (
+                      <select autoFocus value={newItemName}
+                        onChange={e => {
+                          const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === e.target.value);
+                          setNewItemName(e.target.value);
+                          if (opt?.cost != null) setNewItemCost(String(opt.cost));
+                        }}
+                        className={inputCls}>
+                        <option value="">— Select item —</option>
+                        {(fieldOpts["uniform_items"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
+                      </select>
+                    ) : (
+                      <input autoFocus value={newItemName} onChange={e => setNewItemName(e.target.value)}
+                        className={inputCls} placeholder="Add items in Profile Settings" />
+                    )}
                   </div>
                   <div>
-                    <label className={labelCls}>Issue Date</label>
+                    <label className={labelCls}>Cost</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">$</span>
+                      <input type="number" min={0} step={0.01} value={newItemCost} onChange={e => setNewItemCost(e.target.value)}
+                        className={inputCls + " pl-7"} placeholder="0.00" />
+                    </div>
+                  </div>
+                </TwoCol>
+                <TwoCol>
+                  <div>
+                    <label className={labelCls}>Date Issued</label>
                     <input type="date" value={newItemDate} onChange={e => setNewItemDate(e.target.value)} className={inputCls} />
                   </div>
-                </div>
+                  <div>
+                    <label className={labelCls}>Type</label>
+                    <select value={newItemType} onChange={e => setNewItemType(e.target.value as "company_issued" | "team_member_purchase")} className={inputCls}>
+                      <option value="company_issued">Company Issued</option>
+                      <option value="team_member_purchase">Team Member Purchase</option>
+                    </select>
+                  </div>
+                </TwoCol>
                 <div className="flex gap-2">
                   <button onClick={addUniformItem} disabled={!newItemName.trim()}
                     className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">Add Item</button>
-                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemQty("1"); }}
+                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); }}
                     className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
                 </div>
               </div>
             )}
           </div>
 
-          <TwoCol>
-            <div>
-              <label className={labelCls}>Uniform Kit Issued Date</label>
-              <p className={descCls}>Date the full uniform kit was first issued.</p>
-              <input type="date" value={form.uniform_issued_date ?? ""} onChange={e => set("uniform_issued_date", e.target.value)} className={inputCls} />
-            </div>
-          </TwoCol>
           <div>
-            <label className={labelCls}>Uniform Notes</label>
+            <label className={labelCls}>Notes</label>
             <textarea value={form.uniform_notes ?? ""} onChange={e => set("uniform_notes", e.target.value)}
-              rows={2} className={inputCls + " resize-none"} placeholder="Special fit notes, alterations, missing items…" />
+              rows={2} className={inputCls + " resize-none"} placeholder="Notes on issued items, fit, missing items…" />
           </div>
         </Section>
 

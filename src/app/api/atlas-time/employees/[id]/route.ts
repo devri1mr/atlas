@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       "department_id","division_id","job_title","kiosk_pin",
       "pay_type","default_pay_rate",
       "t_shirt_size","pants_size","jacket_size","hat_size","boot_size",
-      "uniform_issued_date","uniform_notes","uniform_items",
+      "uniform_issued_date","uniform_notes","uniform_items","uniform_repayment_deadline",
       "emergency_contact_name","emergency_contact_phone","notes",
       "status","termination_date","termination_reason","termination_notes",
       "eligible_for_rehire",

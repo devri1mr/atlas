@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
-type FieldOption = { id: string; field_key: string; label: string; sort_order: number; active: boolean };
+type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean };
 type CustomFieldDef = {
   id: string; label: string; field_key: string; field_type: string;
   section: string; sort_order: number; active: boolean; options: string[];
@@ -19,9 +19,11 @@ const FIELD_TYPES = [
   { value: "dropdown", label: "Dropdown" },
 ];
 
-const BUILT_IN_FIELDS: { key: string; label: string }[] = [
+const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean }[] = [
   { key: "job_title", label: "Job Title" },
   { key: "qb_class", label: "QB Class" },
+  { key: "uniform_items", label: "Uniform Items", hasCost: true },
+  { key: "uniform_deadline", label: "Uniform Repayment Deadline" },
   { key: "license_type", label: "License Type" },
   { key: "pto_plan", label: "PTO Plan" },
   { key: "electronic_devices", label: "Electronic Devices" },
@@ -62,9 +64,11 @@ export default function ProfileSettingsPage() {
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [newOptionLabel, setNewOptionLabel] = useState("");
+  const [newOptionCost, setNewOptionCost] = useState("");
   const [addingOption, setAddingOption] = useState(false);
   const [editingOptId, setEditingOptId] = useState<string | null>(null);
   const [editingOptLabel, setEditingOptLabel] = useState("");
+  const [editingOptCost, setEditingOptCost] = useState("");
 
   const [error, setError] = useState("");
 
@@ -187,12 +191,13 @@ export default function ProfileSettingsPage() {
   async function addBuiltInOption() {
     if (!newOptionLabel.trim()) return;
     setAddingOption(true);
+    const hasCost = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost;
     const r = await fetch("/api/atlas-time/field-options", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ field_key: selectedBuiltIn, label: newOptionLabel.trim() }),
+      body: JSON.stringify({ field_key: selectedBuiltIn, label: newOptionLabel.trim(), cost: hasCost && newOptionCost !== "" ? Number(newOptionCost) : null }),
     });
     const j = await r.json();
-    if (r.ok) { setOptions(prev => [...prev, j]); setNewOptionLabel(""); }
+    if (r.ok) { setOptions(prev => [...prev, j]); setNewOptionLabel(""); setNewOptionCost(""); }
     setAddingOption(false);
   }
 
@@ -211,14 +216,17 @@ export default function ProfileSettingsPage() {
 
   async function saveEditOption() {
     if (!editingOptId || !editingOptLabel.trim()) return;
+    const hasCost = BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost;
+    const cost = hasCost && editingOptCost !== "" ? Number(editingOptCost) : null;
     const r = await fetch(`/api/atlas-time/field-options/${editingOptId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: editingOptLabel.trim() }),
+      body: JSON.stringify({ label: editingOptLabel.trim(), cost }),
     });
     if (r.ok) {
-      setOptions(prev => prev.map(o => o.id === editingOptId ? { ...o, label: editingOptLabel.trim() } : o));
+      setOptions(prev => prev.map(o => o.id === editingOptId ? { ...o, label: editingOptLabel.trim(), cost } : o));
       setEditingOptId(null);
       setEditingOptLabel("");
+      setEditingOptCost("");
     }
   }
 
@@ -523,6 +531,13 @@ export default function ProfileSettingsPage() {
                   onKeyDown={e => e.key === "Enter" && addBuiltInOption()}
                   placeholder={`Add ${BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.label ?? "option"}…`}
                   className={inputCls} />
+                {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost && (
+                  <div className="relative w-28 shrink-0">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">$</span>
+                    <input type="number" min={0} step={0.01} value={newOptionCost} onChange={e => setNewOptionCost(e.target.value)}
+                      placeholder="0.00" className={inputCls + " pl-7"} />
+                  </div>
+                )}
                 <button onClick={addBuiltInOption} disabled={addingOption || !newOptionLabel.trim()}
                   className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">
                   {addingOption ? "Adding…" : "Add"}
@@ -543,16 +558,26 @@ export default function ProfileSettingsPage() {
                           autoFocus
                           value={editingOptLabel}
                           onChange={e => setEditingOptLabel(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") saveEditOption(); if (e.key === "Escape") { setEditingOptId(null); setEditingOptLabel(""); } }}
+                          onKeyDown={e => { if (e.key === "Enter") saveEditOption(); if (e.key === "Escape") { setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost(""); } }}
                           className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]"
                         />
+                        {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasCost && (
+                          <div className="relative w-24 shrink-0">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">$</span>
+                            <input type="number" min={0} step={0.01} value={editingOptCost} onChange={e => setEditingOptCost(e.target.value)}
+                              placeholder="0.00" className="w-full border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+                          </div>
+                        )}
                         <button onClick={saveEditOption} className="text-xs font-semibold text-white bg-[#123b1f] px-2.5 py-1 rounded-lg hover:bg-[#1a5c2e]">Save</button>
-                        <button onClick={() => { setEditingOptId(null); setEditingOptLabel(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
+                        <button onClick={() => { setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
                       </>
                     ) : (
                       <>
-                        <span className={`flex-1 text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>{opt.label}</span>
-                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
+                        <span className={`flex-1 text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>
+                          {opt.label}
+                          {opt.cost != null && <span className="ml-2 text-xs text-gray-400">${Number(opt.cost).toFixed(2)}</span>}
+                        </span>
+                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); setEditingOptCost(opt.cost != null ? String(opt.cost) : ""); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
