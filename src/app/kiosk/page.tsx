@@ -185,9 +185,8 @@ export default function KioskPage() {
   const Wrap = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <div
       onClick={onClick}
-      onTouchMove={e => e.preventDefault()}
       className="fixed inset-0 flex flex-col select-none overflow-hidden"
-      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)", touchAction: "none" }}
+      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {children}
     </div>
@@ -250,8 +249,8 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center px-6 pb-4">
-          <div className="flex flex-col items-center gap-3">
+        <div className="flex-1 overflow-y-auto px-6" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+          <div className="flex flex-col items-center gap-3 py-4">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
             )}
