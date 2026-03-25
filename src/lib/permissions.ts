@@ -1,22 +1,16 @@
-// Shared permission definitions used by both the Users management page
-// and the runtime enforcement (sidebar, pages, API routes).
+// Shared permission definitions used throughout the app.
 
-export type Role = "admin" | "sales" | "sales_coordinator" | "production";
 export type Permissions = Record<string, boolean>;
-
 export type PermDef = { key: string; label: string; sub?: string };
 export type Section = { id: string; label: string; tag?: string; perms: PermDef[] };
 
 export const SECTIONS: Section[] = [
   {
-    id: "dashboard",
-    label: "Dashboard",
+    id: "dashboard", label: "Dashboard",
     perms: [{ key: "dashboard", label: "Access dashboard" }],
   },
   {
-    id: "bids",
-    label: "Bids",
-    tag: "AtlasBid",
+    id: "bids", label: "Bids", tag: "AtlasBid",
     perms: [
       { key: "bids_view",     label: "View bids" },
       { key: "bids_create",   label: "Create bids" },
@@ -27,9 +21,7 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "takeoff",
-    label: "Takeoff",
-    tag: "AtlasTakeoff",
+    id: "takeoff", label: "Takeoff", tag: "AtlasTakeoff",
     perms: [
       { key: "takeoff_view",   label: "View takeoffs" },
       { key: "takeoff_create", label: "Create takeoffs" },
@@ -37,8 +29,7 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "materials",
-    label: "Materials",
+    id: "materials", label: "Materials",
     perms: [
       { key: "mat_catalog_view",   label: "View catalog",                sub: "Catalog" },
       { key: "mat_catalog_create", label: "Add catalog items" },
@@ -51,8 +42,7 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "atlas_hr",
-    label: "Atlas HR",
+    id: "atlas_hr", label: "Atlas HR",
     perms: [
       { key: "hr_team_view",          label: "View team members",          sub: "Team Members" },
       { key: "hr_team_create",        label: "Add team members" },
@@ -76,17 +66,14 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "performance",
-    label: "Performance",
-    tag: "AtlasPerformance",
+    id: "performance", label: "Performance", tag: "AtlasPerformance",
     perms: [
       { key: "perf_view",   label: "View performance data" },
       { key: "perf_manage", label: "Manage performance settings" },
     ],
   },
   {
-    id: "users",
-    label: "Users",
+    id: "users", label: "Users",
     perms: [
       { key: "users_view",        label: "View user list" },
       { key: "users_create",      label: "Create & invite users" },
@@ -96,8 +83,7 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
-    id: "settings",
-    label: "Settings",
+    id: "settings", label: "Settings",
     perms: [
       { key: "settings_view",   label: "View settings" },
       { key: "settings_manage", label: "Manage system settings" },
@@ -107,48 +93,18 @@ export const SECTIONS: Section[] = [
 
 export const ALL_KEYS = SECTIONS.flatMap(s => s.perms.map(p => p.key));
 
-function makePerms(enabled: string[]): Permissions {
-  return Object.fromEntries(ALL_KEYS.map(k => [k, enabled.includes(k)]));
+/** Resolve a single permission key. isAdmin always returns true. rolePerms = role defaults, userOverrides = per-user overrides. */
+export function can(isAdmin: boolean, rolePerms: Permissions, userOverrides: Permissions, key: string): boolean {
+  if (isAdmin) return true;
+  if (userOverrides[key] !== undefined) return !!userOverrides[key];
+  return !!(rolePerms[key] ?? false);
 }
 
-export const ROLE_DEFAULTS: Record<Role, Permissions> = {
-  admin: makePerms(ALL_KEYS),
-  sales: makePerms([
-    "dashboard",
-    "bids_view", "bids_create", "bids_edit", "bids_share",
-    "takeoff_view", "takeoff_create", "takeoff_edit",
-    "mat_catalog_view", "mat_inventory_view", "mat_pricing_view",
-    "perf_view",
-  ]),
-  sales_coordinator: makePerms([
-    "dashboard",
-    "bids_view", "bids_edit",
-    "takeoff_view", "takeoff_edit",
-    "mat_catalog_view", "mat_inventory_view", "mat_pricing_view",
-    "perf_view",
-  ]),
-  production: makePerms([
-    "dashboard",
-    "bids_view",
-    "takeoff_view",
-    "mat_catalog_view", "mat_inventory_view", "mat_inventory_edit",
-    "hr_team_view", "hr_kiosk", "hr_dept_view",
-    "hr_timesheets_view", "hr_pto_view",
-  ]),
-};
-
-/** Resolve a single permission key for a given role + overrides. Admins always return true. */
-export function can(role: Role, overrides: Permissions, key: string): boolean {
-  if (role === "admin") return true;
-  if (overrides[key] !== undefined) return !!overrides[key];
-  return !!(ROLE_DEFAULTS[role]?.[key] ?? false);
-}
-
-/** Return only the overrides that differ from role defaults (for clean storage). */
-export function cleanOverrides(role: Role, overrides: Permissions): Permissions {
+/** Return only the user overrides that differ from role permissions (for clean storage). */
+export function cleanOverrides(rolePerms: Permissions, userOverrides: Permissions): Permissions {
   const result: Permissions = {};
-  for (const [k, v] of Object.entries(overrides)) {
-    if ((ROLE_DEFAULTS[role]?.[k] ?? false) !== v) result[k] = v;
+  for (const [k, v] of Object.entries(userOverrides)) {
+    if ((rolePerms[k] ?? false) !== v) result[k] = v;
   }
   return result;
 }

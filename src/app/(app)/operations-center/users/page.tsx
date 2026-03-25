@@ -3,183 +3,44 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import AccessGate from "@/components/AccessGate";
+import { SECTIONS, cleanOverrides as _cleanOverrides, type Permissions } from "@/lib/permissions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-type Role = "admin" | "sales" | "sales_coordinator" | "production";
-type Permissions = Record<string, boolean>;
 
 type UserProfile = {
   id: string;
   email: string;
   full_name: string | null;
-  role: Role;
+  role: string;
+  role_id: string | null;
   is_active: boolean;
   invite_sent: boolean | null;
   created_at: string;
   permissions: Permissions;
 };
 
-// ── Permission sections ───────────────────────────────────────────────────────
-
-type PermDef = { key: string; label: string; sub?: string };
-type Section = { id: string; label: string; tag?: string; perms: PermDef[] };
-
-const SECTIONS: Section[] = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    perms: [{ key: "dashboard", label: "Access dashboard" }],
-  },
-  {
-    id: "bids",
-    label: "Bids",
-    tag: "AtlasBid",
-    perms: [
-      { key: "bids_view",     label: "View bids" },
-      { key: "bids_create",   label: "Create bids" },
-      { key: "bids_edit",     label: "Edit bids" },
-      { key: "bids_delete",   label: "Delete bids" },
-      { key: "bids_share",    label: "Share & send to clients" },
-      { key: "bids_settings", label: "Bid settings & config" },
-    ],
-  },
-  {
-    id: "takeoff",
-    label: "Takeoff",
-    tag: "AtlasTakeoff",
-    perms: [
-      { key: "takeoff_view",   label: "View takeoffs" },
-      { key: "takeoff_create", label: "Create takeoffs" },
-      { key: "takeoff_edit",   label: "Edit takeoffs" },
-    ],
-  },
-  {
-    id: "materials",
-    label: "Materials",
-    perms: [
-      { key: "mat_catalog_view",   label: "View catalog",                sub: "Catalog" },
-      { key: "mat_catalog_create", label: "Add catalog items" },
-      { key: "mat_catalog_edit",   label: "Edit catalog items" },
-      { key: "mat_catalog_delete", label: "Delete catalog items" },
-      { key: "mat_inventory_view", label: "View inventory",              sub: "Inventory" },
-      { key: "mat_inventory_edit", label: "Log receipts & manage stock" },
-      { key: "mat_pricing_view",   label: "View pricing books",          sub: "Pricing Books" },
-      { key: "mat_pricing_manage", label: "Manage pricing books" },
-    ],
-  },
-  {
-    id: "atlas_hr",
-    label: "Atlas HR",
-    perms: [
-      { key: "hr_team_view",          label: "View team members",          sub: "Team Members" },
-      { key: "hr_team_create",        label: "Add team members" },
-      { key: "hr_team_edit",          label: "Edit team member profiles" },
-      { key: "hr_team_delete",        label: "Delete team members" },
-      { key: "hr_team_export",        label: "Export team data" },
-      { key: "hr_kiosk",              label: "Time Clock Kiosk access",    sub: "Time Clock" },
-      { key: "hr_manager",            label: "Manager time clock view" },
-      { key: "hr_dept_view",          label: "View departments",           sub: "Departments" },
-      { key: "hr_dept_manage",        label: "Manage departments" },
-      { key: "hr_timesheets_view",    label: "View timesheets",            sub: "Timesheets" },
-      { key: "hr_timesheets_approve", label: "Approve timesheets" },
-      { key: "hr_pto_view",           label: "View PTO & time off",        sub: "PTO & Time Off" },
-      { key: "hr_pto_approve",        label: "Approve PTO requests" },
-      { key: "hr_pto_manage",         label: "Manage PTO policies" },
-      { key: "hr_payroll_view",       label: "View payroll",               sub: "Payroll" },
-      { key: "hr_payroll_export",     label: "Export payroll" },
-      { key: "hr_reports",            label: "View HR reports",            sub: "Reports & Other" },
-      { key: "hr_import",             label: "Import HR data" },
-      { key: "hr_settings",           label: "HR profile settings" },
-    ],
-  },
-  {
-    id: "performance",
-    label: "Performance",
-    tag: "AtlasPerformance",
-    perms: [
-      { key: "perf_view",   label: "View performance data" },
-      { key: "perf_manage", label: "Manage performance settings" },
-    ],
-  },
-  {
-    id: "users",
-    label: "Users",
-    perms: [
-      { key: "users_view",        label: "View user list" },
-      { key: "users_create",      label: "Create & invite users" },
-      { key: "users_edit",        label: "Edit user profiles" },
-      { key: "users_delete",      label: "Delete users" },
-      { key: "users_permissions", label: "Manage user permissions" },
-    ],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    perms: [
-      { key: "settings_view",   label: "View settings" },
-      { key: "settings_manage", label: "Manage system settings" },
-    ],
-  },
-];
-
-const ALL_KEYS = SECTIONS.flatMap(s => s.perms.map(p => p.key));
-
-// ── Role defaults ─────────────────────────────────────────────────────────────
-
-function makePerms(enabled: string[]): Permissions {
-  return Object.fromEntries(ALL_KEYS.map(k => [k, enabled.includes(k)]));
-}
-
-const ROLE_DEFAULTS: Record<Role, Permissions> = {
-  admin: makePerms(ALL_KEYS),
-  sales: makePerms([
-    "dashboard",
-    "bids_view", "bids_create", "bids_edit", "bids_share",
-    "takeoff_view", "takeoff_create", "takeoff_edit",
-    "mat_catalog_view", "mat_inventory_view", "mat_pricing_view",
-    "perf_view",
-  ]),
-  sales_coordinator: makePerms([
-    "dashboard",
-    "bids_view", "bids_edit",
-    "takeoff_view", "takeoff_edit",
-    "mat_catalog_view", "mat_inventory_view", "mat_pricing_view",
-    "perf_view",
-  ]),
-  production: makePerms([
-    "dashboard",
-    "bids_view",
-    "takeoff_view",
-    "mat_catalog_view", "mat_inventory_view", "mat_inventory_edit",
-    "hr_team_view", "hr_kiosk", "hr_dept_view",
-    "hr_timesheets_view", "hr_pto_view",
-  ]),
-};
+type RoleOption = { id: string; name: string; description: string | null; is_admin: boolean; is_system: boolean; permissions: Permissions };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getResolved(role: Role, overrides: Permissions, key: string): boolean {
-  return overrides[key] !== undefined ? !!overrides[key] : !!(ROLE_DEFAULTS[role]?.[key] ?? false);
+function getResolved(rolePerms: Permissions, overrides: Permissions, key: string): boolean {
+  return overrides[key] !== undefined ? !!overrides[key] : !!(rolePerms[key] ?? false);
 }
 
-function cleanOverrides(role: Role, overrides: Permissions): Permissions {
-  const result: Permissions = {};
-  for (const [k, v] of Object.entries(overrides)) {
-    if ((ROLE_DEFAULTS[role]?.[k] ?? false) !== v) result[k] = v;
-  }
-  return result;
+function cleanOverrides(rolePerms: Permissions, overrides: Permissions): Permissions {
+  return _cleanOverrides(rolePerms, overrides);
 }
 
-const ROLES: { value: Role; label: string; color: string }[] = [
-  { value: "admin",             label: "Admin",             color: "bg-purple-50 text-purple-700 border-purple-200" },
-  { value: "sales",             label: "Sales",             color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { value: "sales_coordinator", label: "Sales Coordinator", color: "bg-sky-50 text-sky-700 border-sky-200" },
-  { value: "production",        label: "Production",        color: "bg-amber-50 text-amber-700 border-amber-200" },
-];
-
-function roleStyle(role: Role) { return ROLES.find(r => r.value === role)?.color ?? "bg-gray-50 text-gray-700 border-gray-200"; }
-function roleLabel(role: Role) { return ROLES.find(r => r.value === role)?.label ?? role; }
+function roleStyle(roleName: string) {
+  const map: Record<string, string> = {
+    "Admin": "bg-purple-50 text-purple-700 border-purple-200",
+    "Sales": "bg-blue-50 text-blue-700 border-blue-200",
+    "Sales Coordinator": "bg-sky-50 text-sky-700 border-sky-200",
+    "Production": "bg-amber-50 text-amber-700 border-amber-200",
+  };
+  return map[roleName] ?? "bg-gray-50 text-gray-700 border-gray-200";
+}
+function roleLabel(roleName: string) { return roleName; }
 function userInitials(u: UserProfile) {
   if (u.full_name) return u.full_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   return u.email.slice(0, 2).toUpperCase();
@@ -191,21 +52,21 @@ function fmtDate(iso: string) {
 // ── PermissionsPanel ──────────────────────────────────────────────────────────
 
 function PermissionsPanel({
-  role, overrides, onChange,
+  rolePerms, overrides, onChange,
 }: {
-  role: Role;
+  rolePerms: Permissions;
   overrides: Permissions;
   onChange: (next: Permissions) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   function togglePerm(key: string) {
-    const cur = getResolved(role, overrides, key);
+    const cur = getResolved(rolePerms, overrides, key);
     onChange({ ...overrides, [key]: !cur });
   }
 
-  function toggleSection(section: Section) {
-    const allOn = section.perms.every(p => getResolved(role, overrides, p.key));
+  function toggleSection(section: { perms: { key: string }[] }) {
+    const allOn = section.perms.every(p => getResolved(rolePerms, overrides, p.key));
     const next = { ...overrides };
     section.perms.forEach(p => { next[p.key] = !allOn; });
     onChange(next);
@@ -222,7 +83,7 @@ function PermissionsPanel({
   return (
     <div className="space-y-1.5">
       {SECTIONS.map(section => {
-        const enabledCount = section.perms.filter(p => getResolved(role, overrides, p.key)).length;
+        const enabledCount = section.perms.filter(p => getResolved(rolePerms, overrides, p.key)).length;
         const total = section.perms.length;
         const allOn = enabledCount === total;
         const someOn = enabledCount > 0 && !allOn;
@@ -266,9 +127,9 @@ function PermissionsPanel({
             {isOpen && (
               <div>
                 {section.perms.map((perm, i) => {
-                  const val = getResolved(role, overrides, perm.key);
+                  const val = getResolved(rolePerms, overrides, perm.key);
                   const isOverride = overrides[perm.key] !== undefined &&
-                    overrides[perm.key] !== (ROLE_DEFAULTS[role]?.[perm.key] ?? false);
+                    overrides[perm.key] !== (rolePerms[perm.key] ?? false);
                   const showSub = perm.sub && perm.sub !== section.perms[i - 1]?.sub;
 
                   return (
@@ -323,13 +184,14 @@ function Drawer({ open, onClose, children }: { open: boolean; onClose: () => voi
 export default function UsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
 
   // Add flow
   const [addOpen, setAddOpen] = useState(false);
   const [addStep, setAddStep] = useState<1 | 2>(1);
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
-  const [newRole, setNewRole] = useState<Role>("sales");
+  const [newRoleId, setNewRoleId] = useState<string>("");
   const [newPerms, setNewPerms] = useState<Permissions>({});
   const [addSaving, setAddSaving] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
@@ -337,7 +199,7 @@ export default function UsersPage() {
   // Edit flow
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState<Role>("sales");
+  const [editRoleId, setEditRoleId] = useState<string>("");
   const [editActive, setEditActive] = useState(true);
   const [editPerms, setEditPerms] = useState<Permissions>({});
   const [editSaving, setEditSaving] = useState(false);
@@ -353,13 +215,25 @@ export default function UsersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    fetch("/api/roles").then(r => r.json()).then(j => {
+      const opts: RoleOption[] = j.data ?? [];
+      setRoleOptions(opts);
+      // Set default newRoleId to first non-admin role
+      const firstNonAdmin = opts.find(r => !r.is_admin);
+      if (firstNonAdmin) setNewRoleId(firstNonAdmin.id);
+    }).catch(() => {});
+  }, []);
 
   // ── Add ───────────────────────────────────────────────────────────────────
 
   function openAdd() {
     setAddOpen(true); setAddStep(1);
-    setNewEmail(""); setNewName(""); setNewRole("sales"); setNewPerms({});
+    setNewEmail(""); setNewName("");
+    const firstNonAdmin = roleOptions.find(r => !r.is_admin);
+    setNewRoleId(firstNonAdmin?.id ?? roleOptions[0]?.id ?? "");
+    setNewPerms({});
     setAddErr(null);
   }
 
@@ -371,14 +245,17 @@ export default function UsersPage() {
 
   async function createUser(sendInvite: boolean) {
     setAddSaving(true); setAddErr(null);
+    const selectedRole = roleOptions.find(r => r.id === newRoleId);
+    const rolePerms = selectedRole?.permissions ?? {};
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: newEmail.trim(),
         full_name: newName.trim() || null,
-        role: newRole,
-        permissions: cleanOverrides(newRole, newPerms),
+        role: selectedRole?.name ?? "",
+        role_id: newRoleId || null,
+        permissions: cleanOverrides(rolePerms, newPerms),
         send_invite: sendInvite,
       }),
     });
@@ -395,7 +272,7 @@ export default function UsersPage() {
   function openEdit(user: UserProfile) {
     setEditing(user);
     setEditName(user.full_name ?? "");
-    setEditRole(user.role);
+    setEditRoleId(user.role_id ?? "");
     setEditActive(user.is_active);
     setEditPerms(user.permissions ?? {});
     setEditErr(null);
@@ -405,13 +282,16 @@ export default function UsersPage() {
   async function saveEdit() {
     if (!editing) return;
     setEditSaving(true); setEditErr(null);
+    const selectedRole = roleOptions.find(r => r.id === editRoleId);
+    const rolePerms = selectedRole?.permissions ?? {};
     const res = await fetch(`/api/users/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        role: editRole,
+        role: selectedRole?.name ?? editing.role,
+        role_id: editRoleId || null,
         is_active: editActive,
-        permissions: cleanOverrides(editRole, editPerms),
+        permissions: cleanOverrides(rolePerms, editPerms),
         full_name: editName.trim() || null,
       }),
     });
@@ -660,35 +540,45 @@ export default function UsersPage() {
               </div>
               <div>
                 <label className={labelCls}>Role</label>
-                <select value={newRole} onChange={e => { setNewRole(e.target.value as Role); setNewPerms({}); }}
+                <select value={newRoleId} onChange={e => { setNewRoleId(e.target.value); setNewPerms({}); }}
                   className={inputCls}>
-                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {roleOptions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
                 <p className="mt-1.5 text-xs text-gray-400">Role sets default permissions. Customize them in the next step.</p>
               </div>
 
               {/* Role permission summary */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{roleLabel(newRole)} — default access</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {SECTIONS.map(section => {
-                    const count = section.perms.filter(p => ROLE_DEFAULTS[newRole][p.key]).length;
-                    return (
-                      <span key={section.id} className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${
-                        count > 0
-                          ? "bg-white border-gray-200 text-gray-700"
-                          : "bg-white border-gray-100 text-gray-300"
-                      }`}>
-                        {section.label}
-                        {count > 0
-                          ? <span className="text-green-600 ml-1">{count}/{section.perms.length}</span>
-                          : <span className="ml-1">—</span>
-                        }
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
+              {(() => {
+                const selectedRole = roleOptions.find(r => r.id === newRoleId);
+                const rolePerms = selectedRole?.permissions ?? {};
+                return (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{selectedRole?.name ?? ""} — default access</p>
+                    {selectedRole?.is_admin ? (
+                      <p className="text-xs text-purple-600 font-medium">Admin has full access to everything.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {SECTIONS.map(section => {
+                          const count = section.perms.filter(p => rolePerms[p.key]).length;
+                          return (
+                            <span key={section.id} className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+                              count > 0
+                                ? "bg-white border-gray-200 text-gray-700"
+                                : "bg-white border-gray-100 text-gray-300"
+                            }`}>
+                              {section.label}
+                              {count > 0
+                                ? <span className="text-green-600 ml-1">{count}/{section.perms.length}</span>
+                                : <span className="ml-1">—</span>
+                              }
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <>
@@ -700,7 +590,7 @@ export default function UsersPage() {
                   Reset to defaults
                 </button>
               </div>
-              <PermissionsPanel role={newRole} overrides={newPerms} onChange={setNewPerms} />
+              <PermissionsPanel rolePerms={roleOptions.find(r => r.id === newRoleId)?.permissions ?? {}} overrides={newPerms} onChange={setNewPerms} />
             </>
           )}
         </div>
@@ -770,9 +660,9 @@ export default function UsersPage() {
 
               <div>
                 <label className={labelCls}>Role</label>
-                <select value={editRole} onChange={e => { setEditRole(e.target.value as Role); setEditPerms({}); }}
+                <select value={editRoleId} onChange={e => { setEditRoleId(e.target.value); setEditPerms({}); }}
                   className={inputCls}>
-                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {roleOptions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
                 <p className="mt-1.5 text-xs text-gray-400">Changing role resets permissions to that role&apos;s defaults.</p>
               </div>
@@ -792,7 +682,7 @@ export default function UsersPage() {
                     Reset to role defaults
                   </button>
                 </div>
-                <PermissionsPanel role={editRole} overrides={editPerms} onChange={setEditPerms} />
+                <PermissionsPanel rolePerms={roleOptions.find(r => r.id === editRoleId)?.permissions ?? {}} overrides={editPerms} onChange={setEditPerms} />
               </div>
             </div>
 

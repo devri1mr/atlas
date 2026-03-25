@@ -3,20 +3,23 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type React from "react";
 import { getSupabaseClient } from "./supabaseClient";
-import { can as _can, type Role, type Permissions } from "./permissions";
+import { can as _can, type Permissions } from "./permissions";
 
 export type UserProfile = {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: Role;
-  permissions: Permissions;
+  role: string | null; // legacy text role
+  role_id: string | null;
+  role_name: string | null;
+  role_is_admin: boolean;
+  role_permissions: Permissions;
+  permissions: Permissions; // per-user overrides
 };
 
 type UserContextValue = {
   user: UserProfile | null;
   loading: boolean;
-  /** Returns true if the current user has the given permission key. Always true while loading (avoid false flashes). */
   can: (key: string) => boolean;
 };
 
@@ -49,11 +52,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     load();
 
-    // Re-fetch when tab becomes visible again (picks up permission changes made elsewhere)
     function onVisible() { if (document.visibilityState === "visible") load(); }
     document.addEventListener("visibilitychange", onVisible);
 
-    // Reload if auth state changes (e.g. token refresh)
     const { data: { subscription } } = sb.auth.onAuthStateChange((event) => {
       if (event === "TOKEN_REFRESHED") load();
       if (event === "SIGNED_OUT") { setUser(null); setLoading(false); }
@@ -66,9 +67,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   function can(key: string): boolean {
-    if (loading) return true; // don't flash "access denied" while loading
+    if (loading) return true;
     if (!user) return false;
-    return _can(user.role, user.permissions ?? {}, key);
+    // Fall back to legacy role check if role_id not yet migrated
+    if (!user.role_id && user.role === "admin") return true;
+    return _can(user.role_is_admin, user.role_permissions ?? {}, user.permissions ?? {}, key);
   }
 
   return (
