@@ -20,6 +20,8 @@ const FIELD_TYPES = [
 ];
 
 const BUILT_IN_FIELDS: { key: string; label: string }[] = [
+  { key: "job_title", label: "Job Title" },
+  { key: "qb_class", label: "QB Class" },
   { key: "license_type", label: "License Type" },
   { key: "pto_plan", label: "PTO Plan" },
   { key: "electronic_devices", label: "Electronic Devices" },
