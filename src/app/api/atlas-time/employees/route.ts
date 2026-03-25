@@ -21,7 +21,8 @@ export async function GET() {
         id, first_name, last_name, middle_initial, preferred_name, hire_date, job_title,
         pay_type, default_pay_rate, status, department_id, division_id,
         t_shirt_size, date_of_birth, phone, work_email,
-        at_departments(id, name)
+        at_departments(id, name),
+        at_divisions(id, name)
       `)
       .eq("company_id", companyId)
       .order("last_name", { ascending: true })
