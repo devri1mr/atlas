@@ -53,7 +53,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { email, full_name, role, invited_by, permissions, send_invite = true } = body;
+  const { email, full_name, role, role_id, invited_by, permissions, send_invite = true } = body;
 
   if (!email || !role) {
     return NextResponse.json({ error: "email and role required" }, { status: 400 });
@@ -75,6 +75,7 @@ export async function POST(req: Request) {
       .from("user_profiles")
       .upsert({
         id: userId, email, full_name, role,
+        role_id: role_id ?? null,
         invited_by: invited_by ?? null,
         permissions: permissions ?? {},
         invite_sent: false,
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
     .from("user_profiles")
     .upsert({
       id: userId, email, full_name, role,
+      role_id: role_id ?? null,
       invited_by: invited_by ?? null,
       permissions: permissions ?? {},
       invite_sent: true,
