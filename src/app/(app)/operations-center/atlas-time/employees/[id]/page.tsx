@@ -1017,14 +1017,15 @@ export default function EmployeeDetailPage() {
                 return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
               });
               const colClass = anySize && anyColor
-                ? "grid-cols-[minmax(0,1fr)_68px_60px_60px_48px_108px_160px_28px]"
+                ? "grid-cols-[160px_72px_64px_64px_52px_112px_172px_32px]"
                 : anySize || anyColor
-                ? "grid-cols-[minmax(0,1fr)_68px_60px_48px_108px_160px_28px]"
-                : "grid-cols-[minmax(0,1fr)_68px_48px_108px_160px_28px]";
+                ? "grid-cols-[160px_72px_64px_52px_112px_172px_32px]"
+                : "grid-cols-[160px_72px_52px_112px_172px_32px]";
               return (
-                <div className="space-y-3 mb-3">
+                <div className="overflow-x-auto -mx-5 px-5">
+                <div className="space-y-3 mb-3 min-w-max">
                   {/* Shared column header across all groups */}
-                  <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
+                  <div className={`grid gap-x-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
                     <span>Item</span>
                     <span className="text-center">Cost</span>
                     {anySize && <span className="text-center">Size</span>}
@@ -1046,9 +1047,9 @@ export default function EmployeeDetailPage() {
                           const sizeVars = uniformVariants[itemOpt?.id ?? ""]?.sizes ?? [];
                           const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
                           return (
-                            <div key={item.key} className={`grid gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
+                            <div key={item.key} className={`grid gap-x-2 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
                               <div className="min-w-0">
-                                <div className="text-sm font-medium text-gray-800 leading-snug">{item.item}</div>
+                                <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
                               </div>
                               <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
@@ -1109,7 +1110,7 @@ export default function EmployeeDetailPage() {
                           const subtotal = group.items.reduce((sum, i) => sum + (i.cost ?? 0) * (i.qty ?? 1), 0);
                           if (subtotal === 0) return null;
                           return (
-                            <div className={`grid gap-1.5 px-3 pt-1 border-t border-gray-100 mt-1 ${colClass}`}>
+                            <div className={`grid gap-x-2 px-3 pt-1 border-t border-gray-100 mt-1 ${colClass}`}>
                               <span className="text-[10px] text-gray-400 italic">Subtotal</span>
                               <span className="text-[10px] font-semibold text-gray-600 text-center">${subtotal.toFixed(2)}</span>
                               {anySize && <span />}{anyColor && <span />}<span /><span /><span /><span />
@@ -1119,6 +1120,7 @@ export default function EmployeeDetailPage() {
                       </div>
                     </div>
                   ))}
+                </div>
                 </div>
               );
             })()}

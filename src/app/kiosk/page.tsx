@@ -38,8 +38,50 @@ const PAD = [["1","2","3"],["4","5","6"],["7","8","9"],["","0","⌫"]];
 const BG = "linear-gradient(160deg,#071a0d 0%,#0d2616 50%,#0f3019 100%)";
 
 function Wrap({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function canScroll(target: EventTarget | null, dy: number): boolean {
+      let node = target as HTMLElement | null;
+      while (node && node !== el) {
+        const oy = getComputedStyle(node).overflowY;
+        if (oy === "auto" || oy === "scroll") {
+          if (dy < 0 && node.scrollTop > 0) return true;
+          if (dy > 0 && node.scrollTop < node.scrollHeight - node.clientHeight - 1) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (!canScroll(e.target, e.deltaY)) e.preventDefault();
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      let node = e.target as HTMLElement | null;
+      while (node && node !== el) {
+        const oy = getComputedStyle(node).overflowY;
+        if ((oy === "auto" || oy === "scroll") && node.scrollHeight > node.clientHeight) return;
+        node = node.parentElement;
+      }
+      e.preventDefault();
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
   return (
     <div
+      ref={ref}
       onClick={onClick}
       className="fixed inset-0 flex flex-col select-none overflow-hidden"
       style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
