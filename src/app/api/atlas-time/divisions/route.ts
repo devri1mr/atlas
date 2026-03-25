@@ -9,26 +9,33 @@ async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
   return data?.id ?? null;
 }
 
+// GET — returns company divisions (read-only, from `divisions`) merged with
+//        time-clock-only extras (from `at_divisions`)
 export async function GET() {
   try {
     const sb = supabaseAdmin();
     const companyId = await getCompanyId(sb);
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-    const { data, error } = await sb
-      .from("at_divisions")
-      .select("id, name, active, time_clock_only")
-      .eq("company_id", companyId)
-      .order("name", { ascending: true });
+    const [companyRes, extrasRes] = await Promise.all([
+      sb.from("divisions").select("id, name, active").order("name", { ascending: true }),
+      sb.from("at_divisions")
+        .select("id, name, active, time_clock_only")
+        .eq("company_id", companyId)
+        .eq("time_clock_only", true)
+        .order("name", { ascending: true }),
+    ]);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const company = (companyRes.data ?? []).map(d => ({ ...d, source: "company" as const, time_clock_only: false }));
+    const extras = (extrasRes.data ?? []).map(d => ({ ...d, source: "time_clock" as const }));
 
-    return NextResponse.json({ divisions: data ?? [] });
+    return NextResponse.json({ divisions: [...company, ...extras] });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }
 
+// POST — only creates time-clock-only extras in at_divisions
 export async function POST(req: NextRequest) {
   try {
     const sb = supabaseAdmin();
@@ -41,18 +48,13 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await sb
       .from("at_divisions")
-      .insert({
-        company_id: companyId,
-        name,
-        active: body.active ?? true,
-        time_clock_only: body.time_clock_only ?? false,
-      })
+      .insert({ company_id: companyId, name, active: true, time_clock_only: true })
       .select("id, name, active, time_clock_only")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ division: data }, { status: 201 });
+    return NextResponse.json({ division: { ...data, source: "time_clock" } }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }

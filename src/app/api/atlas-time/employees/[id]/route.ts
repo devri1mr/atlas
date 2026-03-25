@@ -12,8 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .from("at_employees")
       .select(`
         *,
-        at_departments(id, name),
-        at_divisions(id, name)
+        at_departments(id, name)
       `)
       .eq("id", id)
       .single();

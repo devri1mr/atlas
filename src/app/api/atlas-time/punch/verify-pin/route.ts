@@ -39,18 +39,21 @@ export async function POST(req: NextRequest) {
       .is("clock_out_at", null)
       .maybeSingle();
 
-    // Get their divisions for selection
-    const { data: divisions } = await sb
-      .from("at_divisions")
-      .select("id, name")
-      .eq("company_id", companyId)
-      .eq("active", true)
-      .order("name");
+    // Get divisions: company-wide + time-clock-only extras
+    const [companyDivs, extraDivs] = await Promise.all([
+      sb.from("divisions").select("id, name").eq("active", true).order("name"),
+      sb.from("at_divisions").select("id, name").eq("company_id", companyId).eq("active", true).eq("time_clock_only", true).order("name"),
+    ]);
+
+    const divisions = [
+      ...(companyDivs.data ?? []),
+      ...(extraDivs.data ?? []),
+    ];
 
     return NextResponse.json({
       employee,
       open_punch: openPunch ?? null,
-      divisions: divisions ?? [],
+      divisions,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

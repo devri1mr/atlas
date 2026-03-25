@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+// Company divisions auto-populate from Operations Center `divisions` table.
+// Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock" };
 
 const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
 
@@ -35,7 +37,7 @@ export default function DepartmentsPage() {
   // Division form
   const [addingDiv, setAddingDiv] = useState(false);
   const [newDivName, setNewDivName] = useState("");
-  const [newDivTCO, setNewDivTCO] = useState(false);
+  // All new divisions added here are time-clock-only (company divisions come from ops center)
   const [divSaving, setDivSaving] = useState(false);
   const [editDivId, setEditDivId] = useState<string | null>(null);
   const [editDivName, setEditDivName] = useState("");
@@ -126,7 +128,7 @@ export default function DepartmentsPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed");
       setDivisions(p => [...p, json.division].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewDivName(""); setNewDivTCO(false); setAddingDiv(false);
+      setNewDivName(""); setAddingDiv(false);
     } catch (e: any) { setError(e?.message ?? "Failed"); }
     finally { setDivSaving(false); }
   }
@@ -137,7 +139,7 @@ export default function DepartmentsPage() {
       setEditDivSaving(true);
       const res = await fetch(`/api/atlas-time/divisions/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editDivName.trim(), time_clock_only: editDivTCO }),
+        body: JSON.stringify({ name: editDivName.trim() }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed");
@@ -167,7 +169,7 @@ export default function DepartmentsPage() {
   }
 
   function startEditDiv(div: Division) {
-    setEditDivId(div.id); setEditDivName(div.name); setEditDivTCO(div.time_clock_only);
+    setEditDivId(div.id); setEditDivName(div.name);
   }
 
   useEffect(() => { load(); }, []);
@@ -313,14 +315,14 @@ export default function DepartmentsPage() {
           <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-gray-800">Divisions</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Used for crew assignment and kiosk punch selection.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Company divisions auto-populate from Operations Center. Add extras for Time Clock only.</p>
             </div>
             <button onClick={() => { setAddingDiv(true); setEditDivId(null); }}
               className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1 shrink-0">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Add
+              Add Time Clock Extra
             </button>
           </div>
 
@@ -328,36 +330,46 @@ export default function DepartmentsPage() {
             <div className="divide-y divide-gray-50">
               {divisions.length === 0 && !addingDiv && (
                 <div className="px-5 py-8 text-center">
-                  <p className="text-sm text-gray-400">No divisions yet.</p>
+                  <p className="text-sm text-gray-400">No divisions found. Add divisions in <Link href="/operations-center/divisions" className="underline hover:text-gray-700">Operations Center → Divisions</Link>.</p>
                 </div>
               )}
-              {divisions.map(div => (
+
+              {/* Company divisions — read-only */}
+              {divisions.filter(d => d.source === "company").map(div => (
+                <div key={div.id} className="px-5 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <span className={`text-sm font-medium ${div.active ? "text-gray-800" : "text-gray-400"}`}>{div.name}</span>
+                    {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0">Operations Center</span>
+                </div>
+              ))}
+
+              {/* Separator if both types exist */}
+              {divisions.some(d => d.source === "company") && (divisions.some(d => d.source === "time_clock") || addingDiv) && (
+                <div className="px-5 py-2 bg-gray-50/60 flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Time Clock Only Extras</span>
+                </div>
+              )}
+
+              {/* Time-clock-only extras — editable */}
+              {divisions.filter(d => d.source === "time_clock").map(div => (
                 <div key={div.id} className="px-5 py-3.5">
                   {editDivId === div.id ? (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <input autoFocus value={editDivName} onChange={e => setEditDivName(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") saveDivEdit(div.id); if (e.key === "Escape") setEditDivId(null); }}
-                          placeholder="Division name"
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                        <EditButtons onSave={() => saveDivEdit(div.id)} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="checkbox" checked={editDivTCO} onChange={e => setEditDivTCO(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded border-gray-300 text-[#123b1f] focus:ring-green-500" />
-                        <span className="text-xs text-gray-600 font-medium">Time Clock only</span>
-                        <span className="text-[10px] text-gray-400">(hidden from bids and other modules)</span>
-                      </label>
+                    <div className="flex items-center gap-2">
+                      <input autoFocus value={editDivName} onChange={e => setEditDivName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveDivEdit(div.id); if (e.key === "Escape") setEditDivId(null); }}
+                        placeholder="Division name"
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                      <EditButtons onSave={() => saveDivEdit(div.id)} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                         <span className={`text-sm font-medium ${div.active ? "text-gray-900" : "text-gray-400"}`}>{div.name}</span>
-                        {div.time_clock_only && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
-                            <ClockIcon /> Time Clock
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
+                          <ClockIcon /> Time Clock
+                        </span>
                         {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
                       </div>
                       <RowActions
@@ -370,26 +382,22 @@ export default function DepartmentsPage() {
                   )}
                 </div>
               ))}
+
               {addingDiv && (
-                <div className="px-5 py-4 bg-green-50/50 space-y-2.5">
+                <div className="px-5 py-3.5 bg-sky-50/40 border-t border-sky-100">
                   <div className="flex items-center gap-2">
                     <input autoFocus value={newDivName} onChange={e => setNewDivName(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") addDivision(); if (e.key === "Escape") { setAddingDiv(false); setNewDivName(""); setNewDivTCO(false); } }}
-                      placeholder="Division name (e.g. Lawn Care, Snow Removal)"
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                      onKeyDown={e => { if (e.key === "Enter") addDivision(); if (e.key === "Escape") { setAddingDiv(false); setNewDivName(""); } }}
+                      placeholder="e.g. Night Crew, Snow Removal"
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                     <button onClick={addDivision} disabled={divSaving || !newDivName.trim()}
-                      className="bg-[#123b1f] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                      className="bg-sky-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-sky-700 disabled:opacity-60 transition-colors">
                       {divSaving ? "…" : "Add"}
                     </button>
-                    <button onClick={() => { setAddingDiv(false); setNewDivName(""); setNewDivTCO(false); }}
+                    <button onClick={() => { setAddingDiv(false); setNewDivName(""); }}
                       className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5">Cancel</button>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={newDivTCO} onChange={e => setNewDivTCO(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-[#123b1f] focus:ring-green-500" />
-                    <span className="text-xs text-gray-600 font-medium">Time Clock only</span>
-                    <span className="text-[10px] text-gray-400">(hidden from bids and other modules)</span>
-                  </label>
+                  <p className="text-[10px] text-gray-400 mt-2">This division will only appear in the Time Clock, not in bids or other modules.</p>
                 </div>
               )}
             </div>
