@@ -35,7 +35,7 @@ const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean; hasDefau
 const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f] transition-all";
 
 export default function ProfileSettingsPage() {
-  const [tab, setTab] = useState<"sections" | "custom" | "dropdowns">("sections");
+  const [tab, setTab] = useState<"sections" | "custom" | "dropdowns" | "columns">("sections");
 
   // ── Sections ──
   const [sections, setSections] = useState<SectionCfg[]>([]);
@@ -94,6 +94,54 @@ export default function ProfileSettingsPage() {
   const [editingVariantCost, setEditingVariantCost] = useState("");
 
   const [error, setError] = useState("");
+
+  // ── Column visibility ──
+  const TEAM_COLS = [
+    { key: "status", label: "Status" },
+    { key: "job_title", label: "Job Title" },
+    { key: "department", label: "Department" },
+    { key: "division", label: "Division" },
+    { key: "hire_date", label: "Hire Date" },
+    { key: "pay_rate", label: "Pay Rate" },
+    { key: "phone", label: "Phone" },
+    { key: "email", label: "Email" },
+  ] as const;
+  const CLOCK_COLS = [
+    { key: "job_title", label: "Job Title" },
+    { key: "division", label: "Division" },
+    { key: "department", label: "Department" },
+    { key: "clock_in_time", label: "Clock In Time" },
+    { key: "elapsed", label: "Elapsed" },
+    { key: "punch_method", label: "Method" },
+  ] as const;
+  type TeamColKey = typeof TEAM_COLS[number]["key"];
+  type ClockColKey = typeof CLOCK_COLS[number]["key"];
+
+  const defaultTeamCols: Record<TeamColKey, boolean> = { status: true, job_title: true, department: true, division: false, hire_date: true, pay_rate: true, phone: false, email: false };
+  const defaultClockCols: Record<ClockColKey, boolean> = { job_title: true, division: true, department: true, clock_in_time: true, elapsed: true, punch_method: false };
+
+  const [teamCols, setTeamCols] = useState<Record<TeamColKey, boolean>>(defaultTeamCols);
+  const [clockCols, setClockCols] = useState<Record<ClockColKey, boolean>>(defaultClockCols);
+
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem("tm-list-cols");
+      const c = localStorage.getItem("tm-clock-cols");
+      if (t) setTeamCols({ ...defaultTeamCols, ...JSON.parse(t) });
+      if (c) setClockCols({ ...defaultClockCols, ...JSON.parse(c) });
+    } catch {}
+  }, []);
+
+  function saveTeamCol(key: TeamColKey, val: boolean) {
+    const next = { ...teamCols, [key]: val };
+    setTeamCols(next);
+    try { localStorage.setItem("tm-list-cols", JSON.stringify(next)); } catch {}
+  }
+  function saveClockCol(key: ClockColKey, val: boolean) {
+    const next = { ...clockCols, [key]: val };
+    setClockCols(next);
+    try { localStorage.setItem("tm-clock-cols", JSON.stringify(next)); } catch {}
+  }
 
   useEffect(() => {
     loadSections();
@@ -390,7 +438,7 @@ export default function ProfileSettingsPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit">
-          {([["sections", "Sections"], ["custom", "Custom Fields"], ["dropdowns", "Dropdown Options"]] as const).map(([t, label]) => (
+          {([["sections", "Sections"], ["custom", "Custom Fields"], ["dropdowns", "Dropdown Options"], ["columns", "Column Display"]] as const).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === t ? "bg-[#123b1f] text-white" : "text-gray-500 hover:text-gray-800"}`}>
               {label}
@@ -923,6 +971,54 @@ export default function ProfileSettingsPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {/* ── COLUMNS TAB ── */}
+        {tab === "columns" && (
+          <div className="space-y-4">
+            {/* Team Members list */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h2 className="text-sm font-semibold text-gray-800">Team Members List Columns</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Name is always shown. Toggle additional columns on or off.</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {TEAM_COLS.map(col => (
+                  <div key={col.key} className="flex items-center justify-between px-5 py-3.5">
+                    <span className="text-sm text-gray-700 font-medium">{col.label}</span>
+                    <button
+                      onClick={() => saveTeamCol(col.key, !teamCols[col.key])}
+                      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${teamCols[col.key] ? "bg-[#123b1f]" : "bg-gray-200"}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${teamCols[col.key] ? "translate-x-5" : ""}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Time Clock view */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h2 className="text-sm font-semibold text-gray-800">Time Clock View Columns</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Name is always shown. Clock Out button is always present.</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {CLOCK_COLS.map(col => (
+                  <div key={col.key} className="flex items-center justify-between px-5 py-3.5">
+                    <span className="text-sm text-gray-700 font-medium">{col.label}</span>
+                    <button
+                      onClick={() => saveClockCol(col.key, !clockCols[col.key])}
+                      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${clockCols[col.key] ? "bg-[#123b1f]" : "bg-gray-200"}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${clockCols[col.key] ? "translate-x-5" : ""}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center pb-2">Column preferences are saved per browser. Changes take effect immediately on list and clock pages.</p>
           </div>
         )}
       </div>

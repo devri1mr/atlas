@@ -50,6 +50,29 @@ function fmtDate(iso: string | null | undefined): string {
   return `${m}/${d}/${y}`;
 }
 
+const DEFAULT_COLS = { status: true, job_title: true, department: true, division: false, hire_date: true, pay_rate: true, phone: false, email: false };
+type ColKey = keyof typeof DEFAULT_COLS;
+
+function useTeamCols() {
+  const [cols, setCols] = useState(DEFAULT_COLS);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tm-list-cols");
+      if (saved) setCols({ ...DEFAULT_COLS, ...JSON.parse(saved) });
+    } catch {}
+    // re-read on focus so changes from Profile Settings take effect
+    function onFocus() {
+      try {
+        const saved = localStorage.getItem("tm-list-cols");
+        if (saved) setCols({ ...DEFAULT_COLS, ...JSON.parse(saved) });
+      } catch {}
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+  return cols;
+}
+
 export default function EmployeesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -57,6 +80,7 @@ export default function EmployeesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("active");
+  const cols = useTeamCols();
 
   async function load() {
     try {
@@ -201,35 +225,38 @@ export default function EmployeesPage() {
                     {initials(emp)}
                   </div>
 
-                  {/* Info */}
+                  {/* Name + status */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm text-gray-900 group-hover:text-[#123b1f] transition-colors">
                         {displayName(emp)}
                       </span>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-500"}`}>
-                        {STATUS_LABELS[emp.status] ?? emp.status}
-                      </span>
+                      {cols.status && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABELS[emp.status] ?? emp.status}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      {emp.job_title && <span className="text-xs text-gray-500">{emp.job_title}</span>}
-                      {emp.at_departments && (
-                        <span className="text-xs text-gray-400">{emp.at_departments.name}{emp.at_divisions ? ` · ${emp.at_divisions.name}` : ""}</span>
-                      )}
+                      {cols.job_title && emp.job_title && <span className="text-xs text-gray-500">{emp.job_title}</span>}
+                      {cols.department && emp.at_departments && <span className="text-xs text-gray-400">{emp.at_departments.name}</span>}
+                      {cols.division && emp.at_divisions && <span className="text-xs text-gray-400">{emp.at_divisions.name}</span>}
+                      {cols.phone && emp.phone && <span className="text-xs text-gray-400">{emp.phone}</span>}
+                      {cols.email && emp.work_email && <span className="text-xs text-gray-400">{emp.work_email}</span>}
                     </div>
                   </div>
 
-                  {/* Rate + hire */}
-                  <div className="hidden sm:flex flex-col items-end shrink-0 text-right">
-                    {emp.default_pay_rate != null && (
-                      <span className="text-sm font-semibold text-gray-700">
-                        ${Number(emp.default_pay_rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">{emp.pay_type === "hourly" ? "/hr" : "/yr"}</span>
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400">
-                      Hired {fmtDate(emp.hire_date)}
-                    </span>
-                  </div>
+                  {/* Right-side columns */}
+                  {(cols.pay_rate || cols.hire_date) && (
+                    <div className="hidden sm:flex flex-col items-end shrink-0 text-right">
+                      {cols.pay_rate && emp.default_pay_rate != null && (
+                        <span className="text-sm font-semibold text-gray-700">
+                          ${Number(emp.default_pay_rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">{emp.pay_type === "hourly" ? "/hr" : "/yr"}</span>
+                        </span>
+                      )}
+                      {cols.hire_date && <span className="text-xs text-gray-400">Hired {fmtDate(emp.hire_date)}</span>}
+                    </div>
+                  )}
 
                   <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors">
                     <path d="M3 9L9 3M9 3H5M9 3v4"/>

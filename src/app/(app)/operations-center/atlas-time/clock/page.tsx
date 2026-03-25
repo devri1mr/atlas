@@ -51,6 +51,28 @@ function displayName(e: Employee) {
   return e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`;
 }
 
+const DEFAULT_CLOCK_COLS = { job_title: true, division: true, department: true, clock_in_time: true, elapsed: true, punch_method: false };
+type ClockColKey = keyof typeof DEFAULT_CLOCK_COLS;
+
+function useClockCols() {
+  const [cols, setCols] = useState(DEFAULT_CLOCK_COLS);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tm-clock-cols");
+      if (saved) setCols({ ...DEFAULT_CLOCK_COLS, ...JSON.parse(saved) });
+    } catch {}
+    function onFocus() {
+      try {
+        const saved = localStorage.getItem("tm-clock-cols");
+        if (saved) setCols({ ...DEFAULT_CLOCK_COLS, ...JSON.parse(saved) });
+      } catch {}
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+  return cols;
+}
+
 export default function ClockPage() {
   const [now, setNow] = useState(new Date());
   const [punches, setPunches] = useState<Punch[]>([]);
@@ -59,6 +81,7 @@ export default function ClockPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [acting, setActing] = useState<string | null>(null);
+  const cols = useClockCols();
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -279,53 +302,49 @@ export default function ClockPage() {
             </div>
           ) : (
             <>
-              {/* Column headers */}
-              <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_80px_100px] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                <span>Name</span>
-                <span>Job Title</span>
-                <span>Division</span>
-                <span>Clock In</span>
-                <span className="text-right">Elapsed</span>
-                <span className="text-right">Action</span>
+              {/* Column headers — built dynamically from col prefs */}
+              <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <span className="flex-1 min-w-[160px]">Name</span>
+                {cols.job_title && <span className="w-32 shrink-0">Job Title</span>}
+                {cols.division && <span className="w-32 shrink-0">Division</span>}
+                {cols.department && <span className="w-28 shrink-0">Department</span>}
+                {cols.clock_in_time && <span className="w-20 shrink-0">Clock In</span>}
+                {cols.elapsed && <span className="w-16 shrink-0 text-right">Elapsed</span>}
+                {cols.punch_method && <span className="w-16 shrink-0">Method</span>}
+                <span className="w-24 shrink-0 text-right">Action</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {openPunches.map((p) => {
                   const emp = p.at_employees;
                   if (!emp) return null;
                   return (
-                    <div key={p.id} className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_80px_100px] gap-3 items-center px-5 py-3.5">
-                      {/* Name + avatar */}
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div key={p.id} className="flex items-center gap-3 px-5 py-3.5">
+                      <div className="flex items-center gap-3 flex-1 min-w-[160px]">
                         <div className="shrink-0 w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center text-green-700 font-bold text-xs">
                           {initials(emp)}
                         </div>
                         <div className="min-w-0">
                           <div className="font-semibold text-sm text-gray-900 truncate">{displayName(emp)}</div>
-                          {emp.at_departments && <div className="text-[11px] text-gray-400 truncate">{emp.at_departments.name}</div>}
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">● Live</span>
                         </div>
                       </div>
-                      {/* Job title */}
-                      <div className="text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>
-                      {/* Division */}
-                      <div className="min-w-0">
-                        {p.divisions ? (
-                          <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full truncate block w-fit max-w-full">{p.divisions.name}</span>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                      </div>
-                      {/* Clock in time */}
-                      <div className="text-xs text-gray-500">{fmtTime(p.clock_in_at)}</div>
-                      {/* Elapsed */}
-                      <div className="text-sm font-bold text-gray-800 tabular-nums text-right">{elapsed(p.clock_in_at)}</div>
-                      {/* Clock out */}
-                      <div className="flex justify-end">
+                      {cols.job_title && <div className="w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
+                      {cols.division && (
+                        <div className="w-32 shrink-0">
+                          {p.divisions ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                        </div>
+                      )}
+                      {cols.department && <div className="w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
+                      {cols.clock_in_time && <div className="w-20 shrink-0 text-xs text-gray-500">{fmtTime(p.clock_in_at)}</div>}
+                      {cols.elapsed && <div className="w-16 shrink-0 text-sm font-bold text-gray-800 tabular-nums text-right">{elapsed(p.clock_in_at)}</div>}
+                      {cols.punch_method && <div className="w-16 shrink-0 text-xs text-gray-400">{p.punch_method}</div>}
+                      <div className="w-24 shrink-0 flex justify-end">
                         <button
                           onClick={() => clockOut(p.id, emp.id)}
                           disabled={acting === emp.id}
                           className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 transition-colors disabled:opacity-60"
                         >
-                          {acting === emp.id ? (
-                            <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                          ) : "Clock Out"}
+                          {acting === emp.id ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : "Clock Out"}
                         </button>
                       </div>
                     </div>
@@ -342,38 +361,33 @@ export default function ClockPage() {
             <div className="px-5 py-4 border-b border-gray-50">
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
             </div>
-            {/* Column headers */}
-            <div className="grid grid-cols-[2fr_1.5fr_1.5fr_2fr_90px] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-              <span>Name</span>
-              <span>Job Title</span>
-              <span>Division</span>
-              <span>In → Out</span>
-              <span className="text-right">Hours</span>
+            <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              <span className="flex-1 min-w-[160px]">Name</span>
+              {cols.job_title && <span className="w-32 shrink-0">Job Title</span>}
+              {cols.division && <span className="w-32 shrink-0">Division</span>}
+              {cols.department && <span className="w-28 shrink-0">Department</span>}
+              <span className="w-36 shrink-0">In → Out</span>
+              <span className="w-20 shrink-0 text-right">Hours</span>
             </div>
             <div className="divide-y divide-gray-50">
               {closedPunches.map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
                 return (
-                  <div key={p.id} className="grid grid-cols-[2fr_1.5fr_1.5fr_2fr_90px] gap-3 items-center px-5 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">
-                        {initials(emp)}
-                      </div>
+                  <div key={p.id} className="flex items-center gap-3 px-5 py-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-[160px]">
+                      <div className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">{initials(emp)}</div>
                       <span className="text-sm font-medium text-gray-700 truncate">{displayName(emp)}</span>
                     </div>
-                    <div className="text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>
-                    <div>
-                      {p.divisions ? (
-                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.divisions.name}</span>
-                      ) : <span className="text-gray-300 text-xs">—</span>}
-                    </div>
-                    <div className="text-xs text-gray-400 tabular-nums">
-                      {fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}
-                    </div>
-                    <div className="text-sm font-semibold text-gray-600 tabular-nums text-right">
-                      {fmtHours(p.clock_in_at, p.clock_out_at!)}
-                    </div>
+                    {cols.job_title && <div className="w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
+                    {cols.division && (
+                      <div className="w-32 shrink-0">
+                        {p.divisions ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                    )}
+                    {cols.department && <div className="w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
+                    <div className="w-36 shrink-0 text-xs text-gray-400 tabular-nums">{fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}</div>
+                    <div className="w-20 shrink-0 text-sm font-semibold text-gray-600 tabular-nums text-right">{fmtHours(p.clock_in_at, p.clock_out_at!)}</div>
                   </div>
                 );
               })}
