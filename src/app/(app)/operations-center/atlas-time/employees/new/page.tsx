@@ -114,11 +114,11 @@ export default function NewEmployeePage() {
             <span>/</span>
             <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Employees</Link>
+            <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Team Members</Link>
             <span>/</span>
-            <span className="text-white/80">New Employee</span>
+            <span className="text-white/80">New Team Member</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">New Employee</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">New Team Member</h1>
           <p className="text-white/50 text-sm mt-1">Add a new team member to Atlas Time.</p>
         </div>
       </div>
@@ -265,7 +265,7 @@ export default function NewEmployeePage() {
               onChange={(e) => set("notes", e.target.value)}
               rows={3}
               className={inputCls + " resize-none"}
-              placeholder="Internal notes about this employee…"
+              placeholder="Internal notes about this team member…"
             />
           </div>
         </Section>
@@ -277,7 +277,7 @@ export default function NewEmployeePage() {
             disabled={saving}
             className="bg-[#123b1f] text-white font-semibold py-2.5 px-6 rounded-xl hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors text-sm"
           >
-            {saving ? "Saving…" : "Add Employee"}
+            {saving ? "Saving…" : "Add Team Member"}
           </button>
           <Link
             href="/operations-center/atlas-time/employees"

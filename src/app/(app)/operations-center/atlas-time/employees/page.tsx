@@ -101,11 +101,11 @@ export default function EmployeesPage() {
             <span>/</span>
             <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
             <span>/</span>
-            <span className="text-white/80">Employees</span>
+            <span className="text-white/80">Team Members</span>
           </div>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Employees</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Team Members</h1>
               <p className="text-white/50 text-sm mt-1">{counts.active} active · {employees.length} total</p>
             </div>
             <Link
@@ -115,7 +115,7 @@ export default function EmployeesPage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Add Employee
+              Add Team Member
             </Link>
           </div>
         </div>
@@ -168,14 +168,14 @@ export default function EmployeesPage() {
         ) : filtered.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-12 text-center">
             <p className="text-sm text-gray-400">
-              {search ? "No employees match your search." : "No employees yet."}
+              {search ? "No team members match your search." : "No team members yet."}
             </p>
             {!search && (
               <Link
                 href="/operations-center/atlas-time/employees/new"
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#123b1f] hover:underline"
               >
-                Add your first employee
+                Add your first team member
               </Link>
             )}
           </div>

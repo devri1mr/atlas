@@ -185,7 +185,7 @@ export default function EmployeeDetailPage() {
       if (!res.ok) throw new Error(json?.error ?? "Failed to terminate");
       setForm((prev: Employee) => ({ ...prev, status: "terminated" }));
       setShowTerminate(false);
-      setSuccess("Employee terminated.");
+      setSuccess("Team member terminated.");
     } catch (e: any) {
       setError(e?.message ?? "Failed to terminate");
     } finally {
@@ -197,7 +197,7 @@ export default function EmployeeDetailPage() {
 
   const fullName = form.first_name
     ? `${form.first_name}${form.preferred_name ? ` "${form.preferred_name}"` : ""} ${form.last_name}`
-    : "Employee";
+    : "Team Member";
 
   if (loading) {
     return (
@@ -219,7 +219,7 @@ export default function EmployeeDetailPage() {
             <span>/</span>
             <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Employees</Link>
+            <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Team Members</Link>
             <span>/</span>
             <span className="text-white/80 truncate">{fullName}</span>
           </div>
@@ -436,7 +436,7 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
           )}
-          <p className={descCls + " !mb-0"}>Multiple rates support weighted OT calculation (FLSA) for employees who work across different pay grades in the same week.</p>
+          <p className={descCls + " !mb-0"}>Multiple rates support weighted OT calculation (FLSA) for team members who work across different pay grades in the same week.</p>
         </Section>
 
         {/* Contact */}
@@ -522,7 +522,7 @@ export default function EmployeeDetailPage() {
                 onClick={() => setShowTerminate(!showTerminate)}
                 className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors"
               >
-                {showTerminate ? "Hide" : "Terminate Employee"}
+                {showTerminate ? "Hide" : "Terminate Team Member"}
               </button>
             </div>
             {showTerminate && (
@@ -602,7 +602,7 @@ export default function EmployeeDetailPage() {
             href="/operations-center/atlas-time/employees"
             className="border border-gray-200 bg-white text-gray-600 font-medium py-2.5 px-4 rounded-xl hover:bg-gray-50 transition-colors text-sm"
           >
-            Back to Employees
+            Back to Team Members
           </Link>
         </div>
       </div>

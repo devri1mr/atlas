@@ -207,7 +207,7 @@ export default function ClockPage() {
         {/* Clock-in search */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
           <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Clock In an Employee</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Clock In a Team Member</h2>
           </div>
           <div className="px-5 py-4 relative">
             <div className="relative">
@@ -216,7 +216,7 @@ export default function ClockPage() {
               </svg>
               <input
                 type="text"
-                placeholder="Search employee name…"
+                placeholder="Search team member name…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -361,7 +361,7 @@ export default function ClockPage() {
 
         <p className="text-xs text-gray-400 pb-4 text-center">
           Kiosk (PIN) mode and mobile punch coming in Phase 2.{" "}
-          <Link href="/operations-center/atlas-time/employees" className="underline hover:text-gray-600">Manage employees →</Link>
+          <Link href="/operations-center/atlas-time/employees" className="underline hover:text-gray-600">Manage team members →</Link>
         </p>
       </div>
     </div>

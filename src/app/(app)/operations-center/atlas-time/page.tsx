@@ -4,8 +4,8 @@ import Link from "next/link";
 
 const sections = [
   {
-    title: "Kiosk — Employee Punch",
-    description: "iPad kiosk screen. Employees tap their name to clock in or out. Bookmark this page on the kiosk iPad.",
+    title: "Kiosk — Team Member Punch",
+    description: "iPad kiosk screen. Team members tap their name to clock in or out. Bookmark this page on the kiosk iPad.",
     href: "/operations-center/atlas-time/punch",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -16,7 +16,7 @@ const sections = [
   },
   {
     title: "Manager Clock View",
-    description: "Clock employees in and out, see who's live right now, and view today's completed punches.",
+    description: "Clock team members in and out, see who's live right now, and view today's completed punches.",
     href: "/operations-center/atlas-time/clock",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -48,8 +48,8 @@ const sections = [
     color: "text-emerald-600 bg-emerald-50",
   },
   {
-    title: "Employees",
-    description: "Employee profiles, pay rates, hire dates, uniform info, and termination workflow.",
+    title: "Team Members",
+    description: "Team member profiles, pay rates, hire dates, uniform info, and termination workflow.",
     href: "/operations-center/atlas-time/employees",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
