@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     let query = sb
       .from("at_field_options")
-      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection, requires_size")
       .eq("company_id", companyId)
       .order("sort_order", { ascending: true })
       .order("label", { ascending: true });
@@ -67,8 +67,9 @@ export async function POST(req: NextRequest) {
         is_default: is_default ?? false,
         default_qty: default_qty != null ? Number(default_qty) : 1,
         subsection: subsection || null,
+        requires_size: body.requires_size !== false,
       })
-      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection, requires_size")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

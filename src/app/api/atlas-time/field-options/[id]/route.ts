@@ -24,13 +24,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.is_default !== undefined) patch.is_default = !!body.is_default;
     if (body.default_qty !== undefined) patch.default_qty = body.default_qty != null ? Number(body.default_qty) : 1;
     if (body.subsection !== undefined) patch.subsection = body.subsection || null;
+    if (body.requires_size !== undefined) patch.requires_size = body.requires_size !== false;
 
     const { data, error } = await sb
       .from("at_field_options")
       .update(patch)
       .eq("id", id)
       .eq("company_id", companyId)
-      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection")
+      .select("id, field_key, label, cost, sort_order, active, is_default, default_qty, subsection, requires_size")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

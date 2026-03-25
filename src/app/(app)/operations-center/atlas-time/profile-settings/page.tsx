@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
-type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean; is_default?: boolean; default_qty?: number | null; subsection?: string | null };
+type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean; is_default?: boolean; default_qty?: number | null; subsection?: string | null; requires_size?: boolean };
 type CustomFieldDef = {
   id: string; label: string; field_key: string; field_type: string;
   section: string; sort_order: number; active: boolean; options: string[];
@@ -19,11 +19,11 @@ const FIELD_TYPES = [
   { value: "dropdown", label: "Dropdown" },
 ];
 
-const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean; hasDefault?: boolean; hasSubsection?: boolean }[] = [
+const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean; hasDefault?: boolean; hasSubsection?: boolean; hasRequiresSize?: boolean }[] = [
   { key: "job_title", label: "Job Title" },
   { key: "qb_class", label: "QB Class" },
   { key: "uniform_subsections", label: "Uniform Subsections" },
-  { key: "uniform_items", label: "Uniform Items", hasCost: true, hasDefault: true, hasSubsection: true },
+  { key: "uniform_items", label: "Uniform Items", hasCost: true, hasDefault: true, hasSubsection: true, hasRequiresSize: true },
   { key: "license_type", label: "License Type" },
   { key: "pto_plan", label: "PTO Plan" },
   { key: "electronic_devices", label: "Electronic Devices" },
@@ -73,10 +73,12 @@ export default function ProfileSettingsPage() {
   const [editingOptIsDefault, setEditingOptIsDefault] = useState(false);
   const [editingOptDefaultQty, setEditingOptDefaultQty] = useState("1");
   const [editingOptSubsection, setEditingOptSubsection] = useState("");
+  const [editingOptRequiresSize, setEditingOptRequiresSize] = useState(true);
 
   const [newOptionIsDefault, setNewOptionIsDefault] = useState(false);
   const [newOptionDefaultQty, setNewOptionDefaultQty] = useState("1");
   const [newOptionSubsection, setNewOptionSubsection] = useState("");
+  const [newOptionRequiresSize, setNewOptionRequiresSize] = useState(true);
   const [subsectionOpts, setSubsectionOpts] = useState<FieldOption[]>([]);
 
   const [error, setError] = useState("");
@@ -230,12 +232,13 @@ export default function ProfileSettingsPage() {
         is_default: fieldDef?.hasDefault ? newOptionIsDefault : undefined,
         default_qty: fieldDef?.hasDefault && newOptionIsDefault && newOptionDefaultQty !== "" ? Number(newOptionDefaultQty) : undefined,
         subsection: fieldDef?.hasSubsection ? (newOptionSubsection || null) : undefined,
+        requires_size: fieldDef?.hasRequiresSize ? newOptionRequiresSize : undefined,
       }),
     });
     const j = await r.json();
     if (r.ok) {
       setOptions(prev => [...prev, j]);
-      setNewOptionLabel(""); setNewOptionCost(""); setNewOptionIsDefault(false); setNewOptionDefaultQty("1"); setNewOptionSubsection("");
+      setNewOptionLabel(""); setNewOptionCost(""); setNewOptionIsDefault(false); setNewOptionDefaultQty("1"); setNewOptionSubsection(""); setNewOptionRequiresSize(true);
     }
     setAddingOption(false);
   }
@@ -263,16 +266,17 @@ export default function ProfileSettingsPage() {
       body.default_qty = editingOptIsDefault && editingOptDefaultQty !== "" ? Number(editingOptDefaultQty) : 1;
     }
     if (fieldDef?.hasSubsection) body.subsection = editingOptSubsection || null;
+    if (fieldDef?.hasRequiresSize) body.requires_size = editingOptRequiresSize;
     const r = await fetch(`/api/atlas-time/field-options/${editingOptId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (r.ok) {
       setOptions(prev => prev.map(o => o.id === editingOptId
-        ? { ...o, label: editingOptLabel.trim(), cost, is_default: editingOptIsDefault, default_qty: editingOptIsDefault ? Number(editingOptDefaultQty) : 1, subsection: editingOptSubsection || null }
+        ? { ...o, label: editingOptLabel.trim(), cost, is_default: editingOptIsDefault, default_qty: editingOptIsDefault ? Number(editingOptDefaultQty) : 1, subsection: editingOptSubsection || null, requires_size: editingOptRequiresSize }
         : o));
       setEditingOptId(null); setEditingOptLabel(""); setEditingOptCost("");
-      setEditingOptIsDefault(false); setEditingOptDefaultQty("1"); setEditingOptSubsection("");
+      setEditingOptIsDefault(false); setEditingOptDefaultQty("1"); setEditingOptSubsection(""); setEditingOptRequiresSize(true);
     }
   }
 
@@ -636,6 +640,13 @@ export default function ProfileSettingsPage() {
                         className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
                     </div>
                   )}
+                  {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasRequiresSize && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none shrink-0">
+                      <input type="checkbox" checked={newOptionRequiresSize} onChange={e => setNewOptionRequiresSize(e.target.checked)}
+                        className="rounded border-gray-300 text-[#123b1f] focus:ring-[#123b1f]" />
+                      Size required
+                    </label>
+                  )}
                   <button onClick={addBuiltInOption} disabled={addingOption || !newOptionLabel.trim()}
                     className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 shrink-0">
                     {addingOption ? "Adding…" : "Add"}
@@ -693,6 +704,13 @@ export default function ProfileSettingsPage() {
                                   className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
                               </div>
                             )}
+                            {BUILT_IN_FIELDS.find(f => f.key === selectedBuiltIn)?.hasRequiresSize && (
+                              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none shrink-0">
+                                <input type="checkbox" checked={editingOptRequiresSize} onChange={e => setEditingOptRequiresSize(e.target.checked)}
+                                  className="rounded border-gray-300 text-[#123b1f] focus:ring-[#123b1f]" />
+                                Size required
+                              </label>
+                            )}
                           </div>
                         )}
                       </div>
@@ -705,10 +723,11 @@ export default function ProfileSettingsPage() {
                           </span>
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             {opt.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Default{opt.default_qty && opt.default_qty !== 1 ? ` ×${opt.default_qty}` : ""}</span>}
+                            {opt.requires_size === false && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">No size</span>}
                             {opt.subsection && <span className="text-[10px] text-gray-400">{opt.subsection}</span>}
                           </div>
                         </div>
-                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); setEditingOptCost(opt.cost != null ? String(opt.cost) : ""); setEditingOptIsDefault(!!opt.is_default); setEditingOptDefaultQty(opt.default_qty != null ? String(opt.default_qty) : "1"); setEditingOptSubsection(opt.subsection ?? ""); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
+                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); setEditingOptCost(opt.cost != null ? String(opt.cost) : ""); setEditingOptIsDefault(!!opt.is_default); setEditingOptDefaultQty(opt.default_qty != null ? String(opt.default_qty) : "1"); setEditingOptSubsection(opt.subsection ?? ""); setEditingOptRequiresSize(opt.requires_size !== false); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
