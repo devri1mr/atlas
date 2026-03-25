@@ -895,10 +895,14 @@ export default function EmployeeDetailPage() {
                 <div className="space-y-3 mb-3">
                   {/* Shared column header across all groups */}
                   <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
-                    <span>Item</span><span>Cost</span>
-                    {anySize && <span>Size</span>}
-                    {anyColor && <span>Color</span>}
-                    <span>Qty</span><span>Date Issued</span><span>Type</span><span />
+                    <span>Item</span>
+                    <span className="text-center">Cost</span>
+                    {anySize && <span className="text-center">Size</span>}
+                    {anyColor && <span className="text-center">Color</span>}
+                    <span className="text-center">Qty</span>
+                    <span className="text-center">Date Issued</span>
+                    <span className="text-center">Type</span>
+                    <span />
                   </div>
                   {groups.map(group => (
                     <div key={group.label}>
@@ -928,7 +932,7 @@ export default function EmployeeDetailPage() {
                                 <input type="number" min={0} step={0.01}
                                   value={item.cost ?? ""}
                                   onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
-                                  className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                  className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                               </div>
                               {anySize && (
                                 showSize ? (
@@ -938,20 +942,20 @@ export default function EmployeeDetailPage() {
                                       const patch: Partial<UniformItem> = { size: e.target.value };
                                       if (sv?.cost != null) patch.cost = sv.cost;
                                       updateUniformItem(item.key, patch);
-                                    }} className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                    }} className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                                       <option value="">—</option>
                                       {sizeVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
                                     </select>
                                   ) : (
                                     <input value={item.size ?? ""} onChange={e => updateUniformItem(item.key, { size: e.target.value })}
-                                      placeholder="—" className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                      placeholder="—" className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                                   )
                                 ) : <div />
                               )}
                               {anyColor && (
                                 colorVars.length > 0 ? (
                                   <select value={item.color ?? ""} onChange={e => updateUniformItem(item.key, { color: e.target.value })}
-                                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                                     <option value="">—</option>
                                     {colorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
                                   </select>
@@ -960,13 +964,13 @@ export default function EmployeeDetailPage() {
                               <input type="number" min={1} step={1}
                                 value={item.qty ?? 1}
                                 onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                               <input type="date" value={item.issued_date}
                                 onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
                               <select value={item.issued_type ?? "company_issued"}
                                 onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                                 <option value="company_issued">Company Issued</option>
                                 <option value="team_member_purchase">Team Member Purchase</option>
                               </select>
