@@ -6,7 +6,7 @@ import Link from "next/link";
 // Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock" };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null };
 type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
 
 const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
@@ -64,9 +64,11 @@ export default function DepartmentsPage() {
   // Division form
   const [addingDiv, setAddingDiv] = useState(false);
   const [newDivName, setNewDivName] = useState("");
+  const [newDivDeptId, setNewDivDeptId] = useState("");
   const [divSaving, setDivSaving] = useState(false);
   const [editDivId, setEditDivId] = useState<string | null>(null);
   const [editDivName, setEditDivName] = useState("");
+  const [editDivDeptId, setEditDivDeptId] = useState("");
   const [editDivSaving, setEditDivSaving] = useState(false);
 
   // Payroll items — expanded dept + add form
@@ -160,27 +162,35 @@ export default function DepartmentsPage() {
       setDivSaving(true);
       const res = await fetch("/api/atlas-time/divisions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newDivName.trim() }),
+        body: JSON.stringify({ name: newDivName.trim(), department_id: newDivDeptId || null }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed");
       setDivisions(p => [...p, json.division].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewDivName(""); setAddingDiv(false);
+      setNewDivName(""); setNewDivDeptId(""); setAddingDiv(false);
     } catch (e: any) { setError(e?.message ?? "Failed"); }
     finally { setDivSaving(false); }
   }
 
-  async function saveDivEdit(id: string) {
+  async function saveDivEdit(id: string, source: "company" | "time_clock") {
     if (!editDivName.trim()) return;
     try {
       setEditDivSaving(true);
-      const res = await fetch(`/api/atlas-time/divisions/${id}`, {
+      // time_clock extras use AT divisions API; company divisions use Ops Center API
+      const url = source === "time_clock"
+        ? `/api/atlas-time/divisions/${id}`
+        : `/api/operations-center/divisions`;
+      const body = source === "time_clock"
+        ? { name: editDivName.trim(), department_id: editDivDeptId || null }
+        : { id, department_id: editDivDeptId || null };
+      const res = await fetch(url, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editDivName.trim() }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed");
-      setDivisions(p => p.map(d => d.id === id ? json.division : d));
+      const updated = source === "time_clock" ? json.division : json.data;
+      setDivisions(p => p.map(d => d.id === id ? { ...d, ...updated, source, time_clock_only: d.time_clock_only } : d));
       setEditDivId(null);
     } catch (e: any) { setError(e?.message ?? "Failed"); }
     finally { setEditDivSaving(false); }
@@ -206,7 +216,9 @@ export default function DepartmentsPage() {
   }
 
   function startEditDiv(div: Division) {
-    setEditDivId(div.id); setEditDivName(div.name);
+    setEditDivId(div.id);
+    setEditDivName(div.name);
+    setEditDivDeptId(div.department_id ?? "");
   }
 
   // ── Payroll Items ─────────────────────────────────────────
@@ -491,16 +503,54 @@ export default function DepartmentsPage() {
                 </div>
               )}
 
-              {/* Company divisions — read-only */}
-              {divisions.filter(d => d.source === "company").map(div => (
-                <div key={div.id} className="px-5 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-medium ${div.active ? "text-gray-800" : "text-gray-400"}`}>{div.name}</span>
-                    {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+              {/* Company divisions */}
+              {divisions.filter(d => d.source === "company").map(div => {
+                const linkedDept = departments.find(d => d.id === div.department_id);
+                return (
+                  <div key={div.id} className="px-5 py-3">
+                    {editDivId === div.id ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700 flex-1">{div.name}</span>
+                          <span className="text-[10px] text-gray-400">Operations Center</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={editDivDeptId}
+                            onChange={e => setEditDivDeptId(e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="">— No department —</option>
+                            {departments.filter(d => d.active).map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                          <EditButtons onSave={() => saveDivEdit(div.id, "company")} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${div.active ? "text-gray-800" : "text-gray-400"}`}>{div.name}</span>
+                          {linkedDept
+                            ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{linkedDept.name}</span>
+                            : <span className="text-[10px] text-amber-600 font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-100">No department</span>
+                          }
+                          {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => startEditDiv(div)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" title="Set department">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <span className="text-[10px] text-gray-400 ml-1">Operations Center</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-[10px] text-gray-400 shrink-0">Operations Center</span>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Separator if both types exist */}
               {divisions.some(d => d.source === "company") && (divisions.some(d => d.source === "time_clock") || addingDiv) && (
@@ -510,51 +560,84 @@ export default function DepartmentsPage() {
               )}
 
               {/* Time-clock-only extras — editable */}
-              {divisions.filter(d => d.source === "time_clock").map(div => (
-                <div key={div.id} className="px-5 py-3.5">
-                  {editDivId === div.id ? (
-                    <div className="flex items-center gap-2">
-                      <input autoFocus value={editDivName} onChange={e => setEditDivName(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") saveDivEdit(div.id); if (e.key === "Escape") setEditDivId(null); }}
-                        placeholder="Division name"
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                      <EditButtons onSave={() => saveDivEdit(div.id)} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                        <span className={`text-sm font-medium ${div.active ? "text-gray-900" : "text-gray-400"}`}>{div.name}</span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
-                          <ClockIcon /> Time Clock
-                        </span>
-                        {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+              {divisions.filter(d => d.source === "time_clock").map(div => {
+                const linkedDept = departments.find(d => d.id === div.department_id);
+                return (
+                  <div key={div.id} className="px-5 py-3.5">
+                    {editDivId === div.id ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input autoFocus value={editDivName} onChange={e => setEditDivName(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") saveDivEdit(div.id, "time_clock"); if (e.key === "Escape") setEditDivId(null); }}
+                            placeholder="Division name"
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={editDivDeptId}
+                            onChange={e => setEditDivDeptId(e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="">— No department —</option>
+                            {departments.filter(d => d.active).map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                          <EditButtons onSave={() => saveDivEdit(div.id, "time_clock")} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
+                        </div>
                       </div>
-                      <RowActions
-                        onEdit={() => startEditDiv(div)}
-                        onToggle={() => toggleDiv(div)}
-                        onDelete={() => deleteDiv(div.id)}
-                        active={div.active}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${div.active ? "text-gray-900" : "text-gray-400"}`}>{div.name}</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
+                            <ClockIcon /> Time Clock
+                          </span>
+                          {linkedDept
+                            ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{linkedDept.name}</span>
+                            : <span className="text-[10px] text-amber-600 font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-100">No department</span>
+                          }
+                          {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+                        </div>
+                        <RowActions
+                          onEdit={() => startEditDiv(div)}
+                          onToggle={() => toggleDiv(div)}
+                          onDelete={() => deleteDiv(div.id)}
+                          active={div.active}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {addingDiv && (
-                <div className="px-5 py-3.5 bg-sky-50/40 border-t border-sky-100">
+                <div className="px-5 py-3.5 bg-sky-50/40 border-t border-sky-100 space-y-2">
                   <div className="flex items-center gap-2">
                     <input autoFocus value={newDivName} onChange={e => setNewDivName(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") addDivision(); if (e.key === "Escape") { setAddingDiv(false); setNewDivName(""); } }}
+                      onKeyDown={e => { if (e.key === "Enter") addDivision(); if (e.key === "Escape") { setAddingDiv(false); setNewDivName(""); setNewDivDeptId(""); } }}
                       placeholder="e.g. Night Crew, Snow Removal"
                       className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={newDivDeptId}
+                      onChange={e => setNewDivDeptId(e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    >
+                      <option value="">— Department (optional) —</option>
+                      {departments.filter(d => d.active).map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
                     <button onClick={addDivision} disabled={divSaving || !newDivName.trim()}
                       className="bg-sky-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-sky-700 disabled:opacity-60 transition-colors">
                       {divSaving ? "…" : "Add"}
                     </button>
-                    <button onClick={() => { setAddingDiv(false); setNewDivName(""); }}
+                    <button onClick={() => { setAddingDiv(false); setNewDivName(""); setNewDivDeptId(""); }}
                       className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5">Cancel</button>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-2">This division will only appear in the Time Clock, not in bids or other modules.</p>
+                  <p className="text-[10px] text-gray-400">This division will only appear in the Time Clock, not in bids or other modules.</p>
                 </div>
               )}
             </div>

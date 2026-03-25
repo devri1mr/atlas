@@ -18,9 +18,9 @@ export async function GET() {
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const [companyRes, extrasRes] = await Promise.all([
-      sb.from("divisions").select("id, name, active").order("name", { ascending: true }),
+      sb.from("divisions").select("id, name, active, department_id").order("name", { ascending: true }),
       sb.from("at_divisions")
-        .select("id, name, active, time_clock_only")
+        .select("id, name, active, time_clock_only, department_id")
         .eq("company_id", companyId)
         .eq("time_clock_only", true)
         .order("name", { ascending: true }),
@@ -46,10 +46,12 @@ export async function POST(req: NextRequest) {
     const name = String(body.name ?? "").trim();
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
+    const department_id = body.department_id ? String(body.department_id) : null;
+
     const { data, error } = await sb
       .from("at_divisions")
-      .insert({ company_id: companyId, name, active: true, time_clock_only: true })
-      .select("id, name, active, time_clock_only")
+      .insert({ company_id: companyId, name, active: true, time_clock_only: true, department_id })
+      .select("id, name, active, time_clock_only, department_id")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
