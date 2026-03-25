@@ -880,108 +880,104 @@ export default function EmployeeDetailPage() {
                 if (!seen.has(key)) { seen.set(key, []); groups.push({ label: key, items: seen.get(key)! }); }
                 seen.get(key)!.push(item);
               }
+              // Compute anySize/anyColor across ALL items so every group uses the same columns
+              const anySize = uniformItems.some(i => (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item)?.requires_size !== false);
+              const anyColor = uniformItems.some(i => {
+                const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item);
+                return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
+              });
+              const colClass = anySize && anyColor
+                ? "grid-cols-[1fr_68px_60px_60px_48px_108px_1fr_28px]"
+                : anySize || anyColor
+                ? "grid-cols-[1fr_68px_60px_48px_108px_1fr_28px]"
+                : "grid-cols-[1fr_68px_48px_108px_1fr_28px]";
               return (
                 <div className="space-y-3 mb-3">
+                  {/* Shared column header across all groups */}
+                  <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
+                    <span>Item</span><span>Cost</span>
+                    {anySize && <span>Size</span>}
+                    {anyColor && <span>Color</span>}
+                    <span>Qty</span><span>Date Issued</span><span>Type</span><span />
+                  </div>
                   {groups.map(group => (
                     <div key={group.label}>
                       {group.label && (
                         <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1 mb-1">{group.label}</div>
                       )}
                       <div className="space-y-1">
-                        {(() => {
-                          const anySize = group.items.some(i => (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item)?.requires_size !== false);
-                          const anyColor = group.items.some(i => {
-                            const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === i.item);
-                            return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
-                          });
-                          const colClass = anySize && anyColor
-                            ? "grid-cols-[1fr_68px_60px_60px_48px_108px_1fr_28px]"
-                            : anySize || anyColor
-                            ? "grid-cols-[1fr_68px_60px_48px_108px_1fr_28px]"
-                            : "grid-cols-[1fr_68px_48px_108px_1fr_28px]";
+                        {group.items.map(item => {
+                          const itemOpt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === item.item);
+                          const showSize = itemOpt?.requires_size !== false;
+                          const sizeVars = uniformVariants[itemOpt?.id ?? ""]?.sizes ?? [];
+                          const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
                           return (
-                            <>
-                              <div className={`grid gap-1.5 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
-                                <span>Item</span><span>Cost</span>
-                                {anySize && <span>Size</span>}
-                                {anyColor && <span>Color</span>}
-                                <span>Qty</span><span>Date Issued</span><span>Type</span><span />
+                            <div key={item.key} className={`grid gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
+                                {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
+                                  <select value={item.subsection ?? ""} onChange={e => updateUniformItem(item.key, { subsection: e.target.value })}
+                                    className="mt-0.5 w-full border border-gray-100 rounded-md px-1.5 py-0.5 text-[10px] bg-white text-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500">
+                                    <option value="">— section —</option>
+                                    {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
+                                  </select>
+                                ) : (item.subsection ? <div className="text-[10px] text-gray-400 mt-0.5">{item.subsection}</div> : null)}
                               </div>
-                              {group.items.map(item => {
-                                const itemOpt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === item.item);
-                                const showSize = itemOpt?.requires_size !== false;
-                                const sizeVars = uniformVariants[itemOpt?.id ?? ""]?.sizes ?? [];
-                                const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
-                                return (
-                                  <div key={item.key} className={`grid gap-1.5 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
-                                    <div className="min-w-0">
-                                      <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
-                                      {(fieldOpts["uniform_subsections"] ?? []).length > 0 ? (
-                                        <select value={item.subsection ?? ""} onChange={e => updateUniformItem(item.key, { subsection: e.target.value })}
-                                          className="mt-0.5 w-full border border-gray-100 rounded-md px-1.5 py-0.5 text-[10px] bg-white text-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500">
-                                          <option value="">— section —</option>
-                                          {(fieldOpts["uniform_subsections"] ?? []).map(o => <option key={o.id} value={o.label}>{o.label}</option>)}
-                                        </select>
-                                      ) : (item.subsection ? <div className="text-[10px] text-gray-400 mt-0.5">{item.subsection}</div> : null)}
-                                    </div>
-                                    <div className="relative">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                                      <input type="number" min={0} step={0.01}
-                                        value={item.cost ?? ""}
-                                        onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
-                                        className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                                    </div>
-                                    {anySize && (
-                                      showSize ? (
-                                        sizeVars.length > 0 ? (
-                                          <select value={item.size ?? ""} onChange={e => {
-                                            const sv = sizeVars.find(v => v.label === e.target.value);
-                                            const patch: Partial<UniformItem> = { size: e.target.value };
-                                            if (sv?.cost != null) patch.cost = sv.cost;
-                                            updateUniformItem(item.key, patch);
-                                          }} className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                                            <option value="">—</option>
-                                            {sizeVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
-                                          </select>
-                                        ) : (
-                                          <input value={item.size ?? ""} onChange={e => updateUniformItem(item.key, { size: e.target.value })}
-                                            placeholder="—" className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                                        )
-                                      ) : <div />
-                                    )}
-                                    {anyColor && (
-                                      colorVars.length > 0 ? (
-                                        <select value={item.color ?? ""} onChange={e => updateUniformItem(item.key, { color: e.target.value })}
-                                          className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                                          <option value="">—</option>
-                                          {colorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
-                                        </select>
-                                      ) : <div />
-                                    )}
-                                    <input type="number" min={1} step={1}
-                                      value={item.qty ?? 1}
-                                      onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
-                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                                    <input type="date" value={item.issued_date}
-                                      onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
-                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                                    <select value={item.issued_type ?? "company_issued"}
-                                      onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
-                                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                                      <option value="company_issued">Company Issued</option>
-                                      <option value="team_member_purchase">Team Member Purchase</option>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                                <input type="number" min={0} step={0.01}
+                                  value={item.cost ?? ""}
+                                  onChange={e => updateUniformItem(item.key, { cost: e.target.value === "" ? null : Number(e.target.value) })}
+                                  className="w-full border border-gray-200 rounded-lg pl-5 pr-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              </div>
+                              {anySize && (
+                                showSize ? (
+                                  sizeVars.length > 0 ? (
+                                    <select value={item.size ?? ""} onChange={e => {
+                                      const sv = sizeVars.find(v => v.label === e.target.value);
+                                      const patch: Partial<UniformItem> = { size: e.target.value };
+                                      if (sv?.cost != null) patch.cost = sv.cost;
+                                      updateUniformItem(item.key, patch);
+                                    }} className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                      <option value="">—</option>
+                                      {sizeVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
                                     </select>
-                                    <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
-                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </>
+                                  ) : (
+                                    <input value={item.size ?? ""} onChange={e => updateUniformItem(item.key, { size: e.target.value })}
+                                      placeholder="—" className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                                  )
+                                ) : <div />
+                              )}
+                              {anyColor && (
+                                colorVars.length > 0 ? (
+                                  <select value={item.color ?? ""} onChange={e => updateUniformItem(item.key, { color: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                    <option value="">—</option>
+                                    {colorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
+                                  </select>
+                                ) : <div />
+                              )}
+                              <input type="number" min={1} step={1}
+                                value={item.qty ?? 1}
+                                onChange={e => updateUniformItem(item.key, { qty: Number(e.target.value) })}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              <input type="date" value={item.issued_date}
+                                onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              <select value={item.issued_type ?? "company_issued"}
+                                onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                <option value="company_issued">Company Issued</option>
+                                <option value="team_member_purchase">Team Member Purchase</option>
+                              </select>
+                              <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                              </button>
+                            </div>
                           );
-                        })()}
+                        })}
                       </div>
                     </div>
                   ))}
