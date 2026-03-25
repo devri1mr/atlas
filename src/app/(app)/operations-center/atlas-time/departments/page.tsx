@@ -6,7 +6,7 @@ import Link from "next/link";
 // Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null };
 type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
 
 const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
@@ -69,6 +69,7 @@ export default function DepartmentsPage() {
   const [editDivId, setEditDivId] = useState<string | null>(null);
   const [editDivName, setEditDivName] = useState("");
   const [editDivDeptId, setEditDivDeptId] = useState("");
+  const [editDivQbClass, setEditDivQbClass] = useState("");
   const [editDivSaving, setEditDivSaving] = useState(false);
 
   // Payroll items — expanded dept + add form
@@ -181,8 +182,8 @@ export default function DepartmentsPage() {
         ? `/api/atlas-time/divisions/${id}`
         : `/api/operations-center/divisions`;
       const body = source === "time_clock"
-        ? { name: editDivName.trim(), department_id: editDivDeptId || null }
-        : { id, department_id: editDivDeptId || null };
+        ? { name: editDivName.trim(), department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null }
+        : { id, department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null };
       const res = await fetch(url, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -219,6 +220,7 @@ export default function DepartmentsPage() {
     setEditDivId(div.id);
     setEditDivName(div.name);
     setEditDivDeptId(div.department_id ?? "");
+    setEditDivQbClass(div.qb_class_name ?? "");
   }
 
   // ── Payroll Items ─────────────────────────────────────────
@@ -527,6 +529,12 @@ export default function DepartmentsPage() {
                           </select>
                           <EditButtons onSave={() => saveDivEdit(div.id, "company")} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
                         </div>
+                        <input
+                          value={editDivQbClass}
+                          onChange={e => setEditDivQbClass(e.target.value)}
+                          placeholder="QB Class name (leave blank to use division name)"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
@@ -585,6 +593,12 @@ export default function DepartmentsPage() {
                           </select>
                           <EditButtons onSave={() => saveDivEdit(div.id, "time_clock")} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
                         </div>
+                        <input
+                          value={editDivQbClass}
+                          onChange={e => setEditDivQbClass(e.target.value)}
+                          placeholder="QB Class name (leave blank to use division name)"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">

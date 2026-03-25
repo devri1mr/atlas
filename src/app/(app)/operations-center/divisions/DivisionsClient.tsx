@@ -12,6 +12,7 @@ type Division = {
   created_at?: string;
   performance_sheet_url?: string | null;
   department_id?: string | null;
+  qb_class_name?: string | null;
 };
 
 type Department = { id: string; name: string; code: string | null; active: boolean };
@@ -54,6 +55,7 @@ export default function DivisionsClient() {
   const [allowOt, setAllowOt] = useState(true);
   const [active, setActive] = useState(true);
   const [deptId, setDeptId] = useState<string>("");
+  const [qbClassName, setQbClassName] = useState<string>("");
 
   // Edit modal
   const [showEdit, setShowEdit] = useState(false);
@@ -65,6 +67,7 @@ export default function DivisionsClient() {
   const [editActive, setEditActive] = useState(true);
   const [editSheetUrl, setEditSheetUrl] = useState<string>("");
   const [editDeptId, setEditDeptId] = useState<string>("");
+  const [editQbClassName, setEditQbClassName] = useState<string>("");
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
@@ -97,6 +100,7 @@ export default function DivisionsClient() {
     setAllowOt(true);
     setActive(true);
     setDeptId("");
+    setQbClassName("");
   }
 
   function openEdit(row: Division) {
@@ -109,6 +113,7 @@ export default function DivisionsClient() {
     setEditActive(Boolean(row.active));
     setEditSheetUrl(row.performance_sheet_url ?? "");
     setEditDeptId(row.department_id ?? "");
+    setEditQbClassName(row.qb_class_name ?? "");
     setShowEdit(true);
   }
 
@@ -134,6 +139,7 @@ export default function DivisionsClient() {
           allow_overtime: allowOt,
           active,
           department_id: deptId || null,
+          qb_class_name: qbClassName.trim() || null,
         }),
       });
 
@@ -174,6 +180,7 @@ export default function DivisionsClient() {
           active: editActive,
           performance_sheet_url: editSheetUrl.trim() || null,
           department_id: editDeptId || null,
+          qb_class_name: editQbClassName.trim() || null,
         }),
       });
 
@@ -419,6 +426,19 @@ export default function DivisionsClient() {
                   <p className="mt-1 text-xs text-emerald-900/40">Determines payroll items for QB export.</p>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">
+                    QB Class Name
+                    <span className="ml-1 font-normal text-emerald-900/40">(leave blank to use division name)</span>
+                  </label>
+                  <input
+                    value={qbClassName}
+                    onChange={(e) => setQbClassName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                    placeholder="e.g. Landscaping"
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
@@ -520,6 +540,19 @@ export default function DivisionsClient() {
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-emerald-900/40">Determines payroll items for QB export.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">
+                    QB Class Name
+                    <span className="ml-1 font-normal text-emerald-900/40">(leave blank to use division name)</span>
+                  </label>
+                  <input
+                    value={editQbClassName}
+                    onChange={(e) => setEditQbClassName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                    placeholder="e.g. Landscaping"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

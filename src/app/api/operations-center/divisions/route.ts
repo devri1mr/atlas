@@ -22,6 +22,7 @@ type DivisionRow = {
   created_at?: string;
   performance_sheet_url?: string | null;
   department_id?: string | null;
+  qb_class_name?: string | null;
 };
 
 function json(data: unknown, init?: ResponseInit) {
@@ -34,7 +35,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("divisions")
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id,qb_class_name")
       .order("name", { ascending: true });
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
 
     const performance_sheet_url = body.performance_sheet_url ? String(body.performance_sheet_url).trim() : null;
     const department_id = body.department_id ? String(body.department_id) : null;
+    const qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
 
     const insertPayload = {
       name,
@@ -73,12 +75,13 @@ export async function POST(req: NextRequest) {
       active,
       performance_sheet_url,
       department_id,
+      qb_class_name,
     };
 
     const { data, error } = await supabase
       .from("divisions")
       .insert(insertPayload)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id,qb_class_name")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -110,6 +113,8 @@ export async function PATCH(req: NextRequest) {
       patch.performance_sheet_url = body.performance_sheet_url ? String(body.performance_sheet_url).trim() : null;
     if (body.department_id !== undefined)
       patch.department_id = body.department_id ? String(body.department_id) : null;
+    if (body.qb_class_name !== undefined)
+      patch.qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
 
     if (patch.name !== undefined && !patch.name) return json({ error: "name cannot be blank" }, { status: 400 });
     if (patch.labor_rate !== undefined && !Number.isFinite(patch.labor_rate))
@@ -124,7 +129,7 @@ export async function PATCH(req: NextRequest) {
       .from("divisions")
       .update(patch)
       .eq("id", id)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id")
+      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,created_at,performance_sheet_url,department_id,qb_class_name")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });
