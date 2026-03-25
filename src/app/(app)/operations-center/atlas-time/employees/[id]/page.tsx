@@ -947,7 +947,7 @@ export default function EmployeeDetailPage() {
     <div className="min-h-screen bg-[#f0f4f0]">
       <div className="px-4 md:px-8 py-6 md:py-8"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
@@ -973,7 +973,7 @@ export default function EmployeeDetailPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-8 py-6 max-w-3xl mx-auto space-y-4">
+      <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto space-y-4">
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
