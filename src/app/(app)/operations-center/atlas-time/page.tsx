@@ -4,7 +4,18 @@ import Link from "next/link";
 
 const sections = [
   {
-    title: "Time Clock",
+    title: "Kiosk — Employee Punch",
+    description: "iPad kiosk screen. Employees tap their name to clock in or out. Bookmark this page on the kiosk iPad.",
+    href: "/operations-center/atlas-time/punch",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+      </svg>
+    ),
+    color: "text-green-600 bg-green-50",
+  },
+  {
+    title: "Manager Clock View",
     description: "Clock employees in and out, see who's live right now, and view today's completed punches.",
     href: "/operations-center/atlas-time/clock",
     icon: (

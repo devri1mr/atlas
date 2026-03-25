@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         clock_in_at: now.toISOString(),
         date_for_payroll: today,
         punch_method: body.punch_method ?? "admin",
+        division_id: body.division_id ?? null,
         clock_in_lat: body.lat ?? null,
         clock_in_lng: body.lng ?? null,
         employee_note: body.note ?? null,
