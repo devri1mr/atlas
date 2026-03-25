@@ -109,19 +109,11 @@ export default function KioskPage() {
   const resetRef = useRef<any>(null);
   const idleRef = useRef<any>(null);
 
-  // Lock body scroll for kiosk (prevents iOS Safari rubber-band scroll)
+  // Lock body scroll for kiosk
   useEffect(() => {
-    const prev = { overflow: document.body.style.overflow, position: document.body.style.position };
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.width = "100%";
-    document.body.style.height = "100%";
-    return () => {
-      document.body.style.overflow = prev.overflow;
-      document.body.style.position = prev.position;
-      document.body.style.width = "";
-      document.body.style.height = "";
-    };
+    return () => { document.body.style.overflow = prev; };
   }, []);
 
   useEffect(() => {
@@ -294,54 +286,52 @@ export default function KioskPage() {
           </span>
         </div>
 
-        {/* Scrollable info area — name, status, divisions */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6">
-          <div className="flex flex-col items-center gap-3 pt-4 pb-2">
-            {error && (
-              <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
-            )}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">{displayName(employee)}</div>
-              {employee.job_title && <div className="text-xs text-white/35 mt-0.5">{employee.job_title}</div>}
-            </div>
-            {isClockedIn ? (
-              <div className="bg-green-500/12 border border-green-400/20 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
-                <div className="text-[10px] font-semibold text-green-400/70 uppercase tracking-widest mb-1">Clocked In</div>
-                <div className="text-3xl font-bold text-green-300">{elapsed(openPunch!.clock_in_at)}</div>
-                <div className="text-xs text-green-400/50 mt-1">
-                  since {fmtTime(openPunch!.clock_in_at)}
-                  {openPunch!.at_divisions && ` · ${openPunch!.at_divisions.name}`}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white/5 border border-white/8 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
-                <div className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Not Clocked In</div>
-                <div className="text-3xl font-bold text-white/70">
-                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                </div>
-              </div>
-            )}
-            {!isClockedIn && divisions.length > 0 && (
-              <div className="w-full max-w-sm">
-                <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest text-center mb-2">Division</p>
-                <div className={`grid gap-1.5 ${divisions.length > 4 ? "grid-cols-2" : "grid-cols-1"}`}>
-                  {divisions.map(div => (
-                    <button
-                      key={div.id}
-                      onPointerDown={e => { e.stopPropagation(); setSelectedDivision(div.id); armIdle(); }}
-                      className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all ${
-                        selectedDivision === div.id
-                          ? "bg-white text-[#0d2616] border-white"
-                          : "bg-white/5 text-white/60 border-white/10 active:bg-white/12"
-                      }`}
-                    >
-                      {div.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Info area — fits on screen, no scroll */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 overflow-hidden">
+          {error && (
+            <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
+          )}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-white">{displayName(employee)}</div>
+            {employee.job_title && <div className="text-xs text-white/35 mt-0.5">{employee.job_title}</div>}
           </div>
+          {isClockedIn ? (
+            <div className="bg-green-500/12 border border-green-400/20 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
+              <div className="text-[10px] font-semibold text-green-400/70 uppercase tracking-widest mb-1">Clocked In</div>
+              <div className="text-3xl font-bold text-green-300">{elapsed(openPunch!.clock_in_at)}</div>
+              <div className="text-xs text-green-400/50 mt-1">
+                since {fmtTime(openPunch!.clock_in_at)}
+                {openPunch!.at_divisions && ` · ${openPunch!.at_divisions.name}`}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white/5 border border-white/8 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
+              <div className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Not Clocked In</div>
+              <div className="text-3xl font-bold text-white/70">
+                {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+              </div>
+            </div>
+          )}
+          {!isClockedIn && divisions.length > 0 && (
+            <div className="w-full max-w-sm">
+              <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest text-center mb-2">Division</p>
+              <div className={`grid gap-1.5 ${divisions.length > 4 ? "grid-cols-2" : "grid-cols-1"}`}>
+                {divisions.map(div => (
+                  <button
+                    key={div.id}
+                    onPointerDown={e => { e.stopPropagation(); setSelectedDivision(div.id); armIdle(); }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all ${
+                      selectedDivision === div.id
+                        ? "bg-white text-[#0d2616] border-white"
+                        : "bg-white/5 text-white/60 border-white/10 active:bg-white/12"
+                    }`}
+                  >
+                    {div.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Clock In/Out always pinned to bottom — never needs scrolling */}
