@@ -48,8 +48,19 @@ const sections = [
     color: "text-emerald-600 bg-emerald-50",
   },
   {
+    title: "Profile Settings",
+    description: "Control section visibility and order on team member profiles. Manage dropdown options for License Type, PTO Plan, and more.",
+    href: "/operations-center/atlas-time/profile-settings",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+      </svg>
+    ),
+    color: "text-slate-600 bg-slate-50",
+  },
+  {
     title: "Import Team Members",
-    description: "One-time bulk import from QuickBooks HR export. Maps departments, divisions, and all employee fields.",
+    description: "Import new hires from a QuickBooks HR export. Run anytime — existing team members are skipped automatically.",
     href: "/operations-center/atlas-time/import",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -154,9 +165,9 @@ export default function AtlasTimePage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <span>Operations Center</span>
             <span>/</span>
-            <span className="text-white/80">Atlas Time</span>
+            <span className="text-white/80">Atlas HR</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Atlas Time</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Atlas HR</h1>
           <p className="text-white/50 text-sm mt-1">Workforce time tracking, payroll, PTO, and QuickBooks export.</p>
         </div>
       </div>

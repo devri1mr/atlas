@@ -76,11 +76,11 @@ const NAV: { label: string; href: string; icon: React.ReactNode; sub?: boolean }
     ),
   },
   {
-    label: "Atlas Time",
+    label: "Atlas HR",
     href: "/operations-center/atlas-time",
     icon: (
       <div style={{ background: "rgba(255,255,255,0.9)", borderRadius: 5, padding: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Image src="/atlas-time-logo.png" alt="Atlas Time" width={14} height={14} className="object-contain" />
+        <Image src="/atlas-time-logo.png" alt="Atlas HR" width={14} height={14} className="object-contain" />
       </div>
     ),
   },

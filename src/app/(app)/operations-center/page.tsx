@@ -125,7 +125,7 @@ const sections = [
     color: "text-violet-600 bg-violet-50",
   },
   {
-    title: "Atlas Time",
+    title: "Atlas HR",
     description: "Time clock, payroll, overtime, PTO, bonuses, and QuickBooks Desktop export.",
     href: "/operations-center/atlas-time",
     icon: (

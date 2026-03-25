@@ -18,7 +18,7 @@ export async function GET() {
     const { data, error } = await sb
       .from("at_employees")
       .select(`
-        id, first_name, last_name, preferred_name, hire_date, job_title,
+        id, first_name, last_name, middle_initial, preferred_name, hire_date, job_title,
         pay_type, default_pay_rate, status, department_id, division_id,
         t_shirt_size, date_of_birth, phone, work_email,
         at_departments(id, name)

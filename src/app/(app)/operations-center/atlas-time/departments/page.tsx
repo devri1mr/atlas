@@ -296,7 +296,7 @@ export default function DepartmentsPage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
             <span className="text-white/80">Departments & Divisions</span>
           </div>

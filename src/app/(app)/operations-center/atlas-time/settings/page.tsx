@@ -149,7 +149,7 @@ export default function AtlasTimeSettingsPage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
             <span className="text-white/80">Settings</span>
           </div>
@@ -213,7 +213,7 @@ export default function AtlasTimeSettingsPage() {
               )}
               <Row>
                 <label className={labelCls}>Last Pay Period Close Date</label>
-                <p className={descCls}>The end date of the most recently completed pay period. Used to align Atlas Time to your existing payroll schedule.</p>
+                <p className={descCls}>The end date of the most recently completed pay period. Used to align Atlas HR to your existing payroll schedule.</p>
                 <input
                   type="date"
                   value={s.pay_period_anchor_date ?? ""}

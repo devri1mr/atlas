@@ -128,14 +128,14 @@ export default function NewEmployeePage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
             <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Team Members</Link>
             <span>/</span>
             <span className="text-white/80">New Team Member</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">New Team Member</h1>
-          <p className="text-white/50 text-sm mt-1">Add a new team member to Atlas Time.</p>
+          <p className="text-white/50 text-sm mt-1">Add a new team member to Atlas HR.</p>
         </div>
       </div>
 

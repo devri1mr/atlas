@@ -10,6 +10,7 @@ const descCls = "text-xs text-gray-400 mb-2";
 
 type Department = { id: string; name: string };
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean };
+type DivisionLink = { id: string; division_id: string; is_primary: boolean; at_divisions: { id: string; name: string } | null };
 type PayRate = { id: string; label: string; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
 type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
@@ -64,8 +65,11 @@ export default function EmployeeDetailPage() {
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [divisionLinks, setDivisionLinks] = useState<DivisionLink[]>([]);
   const [payRates, setPayRates] = useState<PayRate[]>([]);
   const [form, setForm] = useState<Employee>({});
+  const [addingDivision, setAddingDivision] = useState(false);
+  const [newDivisionId, setNewDivisionId] = useState("");
 
   // Uniform items state
   const [uniformItems, setUniformItems] = useState<UniformItem[]>([]);
@@ -104,6 +108,7 @@ export default function EmployeeDetailPage() {
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
       setPayRates(empJson.pay_rates ?? []);
+      setDivisionLinks(empJson.division_links ?? []);
       setDepartments(deptJson?.departments ?? []);
       setDivisions((divJson?.divisions ?? []).filter((d: Division) => d.active));
 
@@ -218,8 +223,9 @@ export default function EmployeeDetailPage() {
 
   useEffect(() => { load(); }, [id]);
 
+  const mi = form.middle_initial ? ` ${form.middle_initial}.` : "";
   const fullName = form.first_name
-    ? `${form.first_name}${form.preferred_name ? ` "${form.preferred_name}"` : ""} ${form.last_name}`
+    ? `${form.last_name}, ${form.first_name}${mi}`
     : "Team Member";
 
   if (loading) {
@@ -238,7 +244,7 @@ export default function EmployeeDetailPage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
             <Link href="/operations-center/atlas-time/employees" className="hover:text-white/80 transition-colors">Team Members</Link>
             <span>/</span>
@@ -274,16 +280,20 @@ export default function EmployeeDetailPage() {
 
         {/* Name */}
         <Section title="Name & Identity">
-          <TwoCol>
+          <div className="grid grid-cols-[1fr_80px_1fr] gap-3">
             <div>
               <label className={labelCls}>First Name</label>
               <input value={form.first_name ?? ""} onChange={e => set("first_name", e.target.value)} className={inputCls} />
             </div>
             <div>
+              <label className={labelCls}>M.I.</label>
+              <input value={form.middle_initial ?? ""} onChange={e => set("middle_initial", e.target.value)} className={inputCls} maxLength={3} placeholder="A" />
+            </div>
+            <div>
               <label className={labelCls}>Last Name</label>
               <input value={form.last_name ?? ""} onChange={e => set("last_name", e.target.value)} className={inputCls} />
             </div>
-          </TwoCol>
+          </div>
           <TwoCol>
             <div>
               <label className={labelCls}>Preferred / Nickname</label>
@@ -304,11 +314,15 @@ export default function EmployeeDetailPage() {
               <input type="date" value={form.hire_date ?? ""} onChange={e => set("hire_date", e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Job Title</label>
-              <input value={form.job_title ?? ""} onChange={e => set("job_title", e.target.value)} className={inputCls} placeholder="e.g. Crew Leader" />
+              <label className={labelCls}>1st Working Day</label>
+              <input type="date" value={form.first_working_day ?? ""} onChange={e => set("first_working_day", e.target.value)} className={inputCls} />
             </div>
           </TwoCol>
           <TwoCol>
+            <div>
+              <label className={labelCls}>Job Title</label>
+              <input value={form.job_title ?? ""} onChange={e => set("job_title", e.target.value)} className={inputCls} placeholder="e.g. Crew Leader" />
+            </div>
             <div>
               <label className={labelCls}>Department</label>
               <select value={form.department_id ?? ""} onChange={e => set("department_id", e.target.value)} className={inputCls}>
@@ -316,18 +330,92 @@ export default function EmployeeDetailPage() {
                 {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className={labelCls}>Division</label>
-              <select value={form.division_id ?? ""} onChange={e => set("division_id", e.target.value)} className={inputCls}>
-                <option value="">— None —</option>
-                {divisions.map(d => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}{d.time_clock_only ? " (Time Clock)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
           </TwoCol>
+
+          {/* Multiple divisions */}
+          <div>
+            <label className={labelCls}>Divisions</label>
+            {divisionLinks.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {divisionLinks.map(link => (
+                  <div key={link.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl">
+                    <span className="flex-1 text-sm text-gray-800">{link.at_divisions?.name ?? "Unknown"}</span>
+                    {link.is_primary && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Primary</span>
+                    )}
+                    {!link.is_primary && (
+                      <button
+                        onClick={async () => {
+                          const r = await fetch(`/api/atlas-time/employees/${id}/divisions`, {
+                            method: "PATCH", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ link_id: link.id }),
+                          });
+                          if (r.ok) setDivisionLinks(prev => prev.map(l => ({ ...l, is_primary: l.id === link.id })));
+                        }}
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                      >
+                        Set Primary
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        const r = await fetch(`/api/atlas-time/employees/${id}/divisions?link_id=${link.id}`, { method: "DELETE" });
+                        if (r.ok) setDivisionLinks(prev => prev.filter(l => l.id !== link.id));
+                      }}
+                      className="text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {addingDivision ? (
+              <div className="flex gap-2">
+                <select
+                  autoFocus
+                  value={newDivisionId}
+                  onChange={e => setNewDivisionId(e.target.value)}
+                  className={inputCls + " flex-1"}
+                >
+                  <option value="">— Select division —</option>
+                  {divisions
+                    .filter(d => !divisionLinks.some(l => l.division_id === d.id))
+                    .map(d => (
+                      <option key={d.id} value={d.id}>{d.name}{d.time_clock_only ? " (Time Clock)" : ""}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={async () => {
+                    if (!newDivisionId) return;
+                    const isPrimary = divisionLinks.length === 0;
+                    const r = await fetch(`/api/atlas-time/employees/${id}/divisions`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ division_id: newDivisionId, is_primary: isPrimary }),
+                    });
+                    const j = await r.json();
+                    if (r.ok) { setDivisionLinks(prev => isPrimary ? [...prev.map(l => ({ ...l, is_primary: false })), j] : [...prev, j]); }
+                    else setError(j?.error ?? "Failed to add division");
+                    setAddingDivision(false); setNewDivisionId("");
+                  }}
+                  className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-xl hover:bg-[#1a5c2e]"
+                >Add</button>
+                <button onClick={() => { setAddingDivision(false); setNewDivisionId(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-2">Cancel</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingDivision(true)}
+                className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1 transition-colors mt-1"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add Division
+              </button>
+            )}
+          </div>
           <TwoCol>
             <div>
               <label className={labelCls}>Status</label>
@@ -485,6 +573,94 @@ export default function EmployeeDetailPage() {
             <div>
               <label className={labelCls}>Contact Phone</label>
               <input value={form.emergency_contact_phone ?? ""} onChange={e => set("emergency_contact_phone", e.target.value)} className={inputCls} />
+            </div>
+          </TwoCol>
+        </Section>
+
+        {/* Certifications & Licensing */}
+        <Section title="Certifications & Licensing">
+          <TwoCol>
+            <div>
+              <label className={labelCls}>CPR Expiration</label>
+              <input type="date" value={form.cpr_expiration ?? ""} onChange={e => set("cpr_expiration", e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>First Aid Expiration</label>
+              <input type="date" value={form.first_aid_expiration ?? ""} onChange={e => set("first_aid_expiration", e.target.value)} className={inputCls} />
+            </div>
+          </TwoCol>
+          <TwoCol>
+            <div>
+              <label className={labelCls}>DOT Card Expiration</label>
+              <input type="date" value={form.dot_card_expiration ?? ""} onChange={e => set("dot_card_expiration", e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Fert License Expiration</label>
+              <input type="date" value={form.fert_license_expiration ?? ""} onChange={e => set("fert_license_expiration", e.target.value)} className={inputCls} />
+            </div>
+          </TwoCol>
+          <div className="flex items-center gap-3 pt-1">
+            <Toggle checked={!!form.is_driver} onChange={v => set("is_driver", v)} />
+            <span className="text-sm text-gray-700 font-medium">Licensed Driver</span>
+          </div>
+          {form.is_driver && (
+            <TwoCol>
+              <div>
+                <label className={labelCls}>License Type</label>
+                <input value={form.license_type ?? ""} onChange={e => set("license_type", e.target.value)} className={inputCls} placeholder="e.g. CDL-A, Standard" />
+              </div>
+              <div>
+                <label className={labelCls}>License #</label>
+                <input value={form.drivers_license_number ?? ""} onChange={e => set("drivers_license_number", e.target.value)} className={inputCls} />
+              </div>
+            </TwoCol>
+          )}
+          {form.is_driver && (
+            <TwoCol>
+              <div>
+                <label className={labelCls}>License Expiration</label>
+                <input type="date" value={form.drivers_license_expiration ?? ""} onChange={e => set("drivers_license_expiration", e.target.value)} className={inputCls} />
+              </div>
+            </TwoCol>
+          )}
+        </Section>
+
+        {/* Benefits & HR Records */}
+        <Section title="Benefits & HR Records">
+          <TwoCol>
+            <div>
+              <label className={labelCls}>Health Care Plan</label>
+              <input value={form.health_care_plan ?? ""} onChange={e => set("health_care_plan", e.target.value)} className={inputCls} placeholder="e.g. Blue Cross PPO" />
+            </div>
+            <div>
+              <label className={labelCls}>PTO Plan</label>
+              <input value={form.pto_plan ?? ""} onChange={e => set("pto_plan", e.target.value)} className={inputCls} placeholder="e.g. Standard, Senior" />
+            </div>
+          </TwoCol>
+          <div>
+            <label className={labelCls}>Electronic Devices</label>
+            <input
+              value={Array.isArray(form.electronic_devices) ? form.electronic_devices.join(", ") : (form.electronic_devices ?? "")}
+              onChange={e => set("electronic_devices", e.target.value ? e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) : [])}
+              className={inputCls}
+              placeholder="e.g. iPhone, iPad (comma separated)"
+            />
+            <p className="text-xs text-gray-400 mt-1">Comma-separated list of company devices assigned to this team member.</p>
+          </div>
+          <TwoCol>
+            <div className="flex items-center gap-3">
+              <Toggle checked={form.i9_on_file === true} onChange={v => set("i9_on_file", v)} />
+              <span className="text-sm text-gray-700 font-medium">I-9 On File</span>
+            </div>
+            <div>
+              <label className={labelCls}>Eligible for Rehire</label>
+              <select value={form.eligible_for_rehire === true ? "yes" : form.eligible_for_rehire === false ? "no" : ""}
+                onChange={e => set("eligible_for_rehire", e.target.value === "yes" ? true : e.target.value === "no" ? false : null)}
+                className={inputCls}>
+                <option value="">— Not set —</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
             </div>
           </TwoCol>
         </Section>

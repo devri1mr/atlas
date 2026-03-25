@@ -8,6 +8,7 @@ type Employee = {
   id: string;
   first_name: string;
   last_name: string;
+  middle_initial: string | null;
   preferred_name: string | null;
   hire_date: string;
   job_title: string | null;
@@ -39,7 +40,8 @@ function initials(emp: Employee) {
 }
 
 function displayName(emp: Employee) {
-  return `${emp.first_name}${emp.preferred_name ? ` "${emp.preferred_name}"` : ""} ${emp.last_name}`;
+  const mi = emp.middle_initial ? ` ${emp.middle_initial}.` : "";
+  return `${emp.last_name}, ${emp.first_name}${mi}`;
 }
 
 export default function EmployeesPage() {
@@ -99,7 +101,7 @@ export default function EmployeesPage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
             <span>/</span>
             <span className="text-white/80">Team Members</span>
           </div>

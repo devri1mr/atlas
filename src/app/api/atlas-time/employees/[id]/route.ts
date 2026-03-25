@@ -19,13 +19,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     if (error || !employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-    const { data: payRates } = await sb
-      .from("at_pay_rates")
-      .select("id, label, rate, effective_date, end_date, is_default")
-      .eq("employee_id", id)
-      .order("effective_date", { ascending: false });
+    const [payRatesRes, divLinksRes] = await Promise.all([
+      sb.from("at_pay_rates")
+        .select("id, label, rate, effective_date, end_date, is_default")
+        .eq("employee_id", id)
+        .order("effective_date", { ascending: false }),
+      sb.from("at_employee_divisions")
+        .select("id, division_id, is_primary, at_divisions(id, name)")
+        .eq("employee_id", id)
+        .order("is_primary", { ascending: false }),
+    ]);
 
-    return NextResponse.json({ employee, pay_rates: payRates ?? [] });
+    return NextResponse.json({
+      employee,
+      pay_rates: payRatesRes.data ?? [],
+      division_links: divLinksRes.data ?? [],
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
@@ -38,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json().catch(() => ({}));
 
     const allowed = [
-      "first_name","last_name","preferred_name","date_of_birth","hire_date",
+      "first_name","last_name","middle_initial","preferred_name","date_of_birth","hire_date","first_working_day",
       "personal_email","work_email","phone",
       "address_line1","address_line2","city","state","zip",
       "department_id","division_id","job_title",
@@ -47,8 +56,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       "uniform_issued_date","uniform_notes","uniform_items",
       "emergency_contact_name","emergency_contact_phone","notes",
       "status","termination_date","termination_reason","termination_notes",
+      "eligible_for_rehire",
       "final_check_issued","final_check_date","equipment_returned",
       "access_revoked_at","anniversary_note",
+      "i9_on_file","is_driver","license_type","drivers_license_number",
+      "drivers_license_expiration","dot_card_expiration","fert_license_expiration",
+      "cpr_expiration","first_aid_expiration",
+      "health_care_plan","electronic_devices","pto_plan",
     ];
 
     const patch: Record<string, any> = { updated_at: new Date().toISOString() };

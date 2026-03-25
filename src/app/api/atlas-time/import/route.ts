@@ -22,13 +22,6 @@ function fuzzyMatchDept(name: string, depts: { id: string; name: string }[]) {
   return m ?? null;
 }
 
-function fuzzyMatchDiv(name: string, divs: { id: string; name: string }[]) {
-  const n = normalize(name);
-  let m = divs.find(d => normalize(d.name) === n);
-  if (m) return m;
-  m = divs.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
-  return m ?? null;
-}
 
 function excelDate(v: any): string | null {
   if (!v || typeof v !== "number") return null;
@@ -66,17 +59,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Load existing departments and divisions
-    const [deptRes, companyDivRes, atDivRes] = await Promise.all([
+    const [deptRes] = await Promise.all([
       sb.from("at_departments").select("id, name").eq("company_id", companyId),
-      sb.from("divisions").select("id, name").eq("active", true),
-      sb.from("at_divisions").select("id, name").eq("company_id", companyId).eq("active", true),
     ]);
 
     const departments = deptRes.data ?? [];
-    const allDivisions = [
-      ...(companyDivRes.data ?? []),
-      ...(atDivRes.data ?? []),
-    ];
 
     // Load existing employees to avoid duplicates
     const { data: existingEmps } = await sb
@@ -90,13 +77,9 @@ export async function POST(req: NextRequest) {
 
     const results: { row: number; name: string; status: "imported" | "skipped" | "error"; reason?: string }[] = [];
     const toInsert: any[] = [];
-    const divisionLinks: { employeeIndex: number; divisionId: string }[] = [];
 
-    // Map dept/div name → missing sets for preview
     const unmatchedDepts = new Set<string>();
-    const unmatchedDivs = new Set<string>();
-    const matchedDeptNames = new Map<string, string>(); // name → id
-    const matchedDivNames = new Map<string, string>();  // name → id
+    const matchedDeptNames = new Map<string, string>();
 
     for (let ri = 0; ri < dataRows.length; ri++) {
       const row = dataRows[ri];
@@ -131,22 +114,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Division matching (Class column)
-      const divName = String(col(row, "Class") ?? "").trim();
-      let divId: string | null = null;
-      if (divName) {
-        if (matchedDivNames.has(divName)) {
-          divId = matchedDivNames.get(divName)!;
-        } else {
-          const match = fuzzyMatchDiv(divName, allDivisions);
-          if (match) {
-            divId = match.id;
-            matchedDivNames.set(divName, match.id);
-          } else {
-            unmatchedDivs.add(divName);
-          }
-        }
-      }
+      // Division not matched at import time — set manually per team member after import
 
       // Status
       const activeRaw = col(row, "Active");
@@ -169,7 +137,7 @@ export async function POST(req: NextRequest) {
         first_working_day: excelDate(col(row, "1st Working Day")),
         job_title: String(col(row, "Current Position") ?? "").trim() || null,
         department_id: deptId,
-        division_id: divId,
+        division_id: null,
         t_shirt_size: String(col(row, "Shirt Size") ?? "").trim() || null,
         date_of_birth: excelDate(col(row, "Birthday")),
         i9_on_file: parseBool(col(row, "I9 On File")),
@@ -192,7 +160,6 @@ export async function POST(req: NextRequest) {
       };
 
       toInsert.push(emp);
-      if (divId) divisionLinks.push({ employeeIndex: toInsert.length - 1, divisionId: divId });
       results.push({ row: ri + 2, name: `${firstName} ${lastName}`, status: "imported" });
       existingKeys.add(key);
     }
@@ -204,7 +171,7 @@ export async function POST(req: NextRequest) {
         to_import: toInsert.length,
         skipped: results.filter(r => r.status === "skipped").length,
         unmatched_depts: [...unmatchedDepts],
-        unmatched_divs: [...unmatchedDivs],
+        unmatched_divs: [],
         preview: results.slice(0, 10),
       });
     }
@@ -225,27 +192,11 @@ export async function POST(req: NextRequest) {
       imported += batch.length;
     }
 
-    // Insert division links
-    if (insertedIds.length > 0 && divisionLinks.length > 0) {
-      const links = divisionLinks
-        .filter(l => l.employeeIndex < insertedIds.length)
-        .map(l => ({
-          employee_id: insertedIds[l.employeeIndex],
-          division_id: divisionLinks.find(d => d.employeeIndex === l.employeeIndex)?.divisionId,
-          is_primary: true,
-        }))
-        .filter(l => l.division_id);
-
-      if (links.length > 0) {
-        await sb.from("at_employee_divisions").insert(links);
-      }
-    }
-
     return NextResponse.json({
       imported,
       skipped: results.filter(r => r.status === "skipped").length,
       unmatched_depts: [...unmatchedDepts],
-      unmatched_divs: [...unmatchedDivs],
+      unmatched_divs: [],
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

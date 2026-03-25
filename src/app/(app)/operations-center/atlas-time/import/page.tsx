@@ -126,12 +126,12 @@ export default function ImportPage() {
           <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
             <Link href="/operations-center" className="hover:text-white/80">Operations Center</Link>
             <span>/</span>
-            <Link href="/operations-center/atlas-time" className="hover:text-white/80">Atlas Time</Link>
+            <Link href="/operations-center/atlas-time" className="hover:text-white/80">Atlas HR</Link>
             <span>/</span>
             <span className="text-white/80">Import Team Members</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Import Team Members</h1>
-          <p className="text-white/50 text-sm mt-1">One-time bulk import from QuickBooks HR export (.xlsx)</p>
+          <p className="text-white/50 text-sm mt-1">Upload a QuickBooks HR export to add new hires. Existing team members are always skipped.</p>
         </div>
       </div>
 
@@ -182,8 +182,8 @@ export default function ImportPage() {
         {!result && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">Step 1 — Upload your QB HR Export</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Export the Employee Contact List from QB as .xlsx. Supports the standard column layout.</p>
+              <h2 className="text-sm font-semibold text-gray-800">Step 1 — Upload QB HR Export</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Export the Employee Contact List from QB as .xlsx. Run this anytime — only new names are imported.</p>
             </div>
 
             <div
@@ -269,14 +269,14 @@ export default function ImportPage() {
 
             {preview.unmatched_depts.length > 0 && (
               <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm">
-                <div className="font-semibold text-amber-800 mb-1">These departments weren't found in Atlas Time — affected team members will be imported without a department:</div>
+                <div className="font-semibold text-amber-800 mb-1">These departments weren't found in Atlas HR — affected team members will be imported without a department:</div>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {preview.unmatched_depts.map(d => (
                     <span key={d} className="text-xs font-semibold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">{d}</span>
                   ))}
                 </div>
                 <p className="text-xs text-amber-600 mt-2">
-                  Tip: Add them in <Link href="/operations-center/atlas-time/departments" className="underline">Departments & Divisions</Link> first, then re-run the import (duplicates are skipped automatically).
+                  Tip: Add them in <Link href="/operations-center/atlas-time/departments" className="underline">Departments & Divisions</Link> first, then upload the export again — already-imported names are skipped so there's no duplication.
                 </p>
               </div>
             )}
@@ -312,15 +312,21 @@ export default function ImportPage() {
 
         {/* Instructions */}
         {!file && !result && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">How to export from QuickBooks Desktop</h3>
-            <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
-              <li>Go to <strong>Reports → Employees & Payroll → Employee Contact List</strong></li>
-              <li>Click <strong>Customize Report</strong> and enable all columns you want imported</li>
-              <li>Click <strong>Excel → Create New Worksheet</strong></li>
-              <li>Save as <strong>.xlsx</strong> and upload above</li>
-            </ol>
-            <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-xs text-gray-500">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">How to export from QuickBooks Desktop</h3>
+              <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
+                <li>Go to <strong>Reports → Employees & Payroll → Employee Contact List</strong></li>
+                <li>Click <strong>Customize Report</strong> and enable all columns you want imported</li>
+                <li>Click <strong>Excel → Create New Worksheet</strong></li>
+                <li>Save as <strong>.xlsx</strong> and upload above</li>
+              </ol>
+            </div>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm">
+              <div className="font-semibold text-emerald-800 mb-1">Run this anytime you have new hires</div>
+              <p className="text-emerald-700 text-xs">Import matches by first + last name. Anyone already in Atlas HR is skipped — no duplicates, no cleanup needed. Just pull a fresh export from QB and upload it.</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3 text-xs text-gray-500">
               <strong className="text-gray-700">Columns imported:</strong> First Name, Last Name, M.I., Phone, Email, Address, Department, Class (Division), Hire Date, 1st Working Day, Position, Shirt Size, Birthday, I9 On File, CPR/First Aid/License/DOT/Fert expirations, Health Care Plan, Electronic Devices, Driver, License Type, PTO Plan, Leave Date, Reason for Leaving, Eligible for Rehire.
             </div>
           </div>
