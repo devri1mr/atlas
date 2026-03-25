@@ -8,8 +8,9 @@ async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
   return data?.id ?? null;
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const companyId = await getCompanyId(sb);
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await sb
       .from("at_field_options")
       .update(patch)
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("company_id", companyId)
       .select("id, field_key, label, sort_order, active")
       .single();
@@ -35,8 +36,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const sb = supabaseAdmin();
     const companyId = await getCompanyId(sb);
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
@@ -44,7 +46,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const { error } = await sb
       .from("at_field_options")
       .delete()
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("company_id", companyId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
