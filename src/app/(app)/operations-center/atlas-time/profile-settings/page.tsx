@@ -63,6 +63,8 @@ export default function ProfileSettingsPage() {
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [newOptionLabel, setNewOptionLabel] = useState("");
   const [addingOption, setAddingOption] = useState(false);
+  const [editingOptId, setEditingOptId] = useState<string | null>(null);
+  const [editingOptLabel, setEditingOptLabel] = useState("");
 
   const [error, setError] = useState("");
 
@@ -205,6 +207,19 @@ export default function ProfileSettingsPage() {
   async function deleteBuiltInOption(id: string) {
     const r = await fetch(`/api/atlas-time/field-options/${id}`, { method: "DELETE" });
     if (r.ok) setOptions(prev => prev.filter(o => o.id !== id));
+  }
+
+  async function saveEditOption() {
+    if (!editingOptId || !editingOptLabel.trim()) return;
+    const r = await fetch(`/api/atlas-time/field-options/${editingOptId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: editingOptLabel.trim() }),
+    });
+    if (r.ok) {
+      setOptions(prev => prev.map(o => o.id === editingOptId ? { ...o, label: editingOptLabel.trim() } : o));
+      setEditingOptId(null);
+      setEditingOptLabel("");
+    }
   }
 
   const customBySection = customFields.reduce<Record<string, CustomFieldDef[]>>((acc, f) => {
@@ -522,17 +537,38 @@ export default function ProfileSettingsPage() {
               <div className="divide-y divide-gray-50">
                 {options.map(opt => (
                   <div key={opt.id} className="flex items-center gap-3 px-5 py-2.5">
-                    <span className={`flex-1 text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>{opt.label}</span>
-                    <button onClick={() => toggleBuiltInOption(opt)}
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${opt.active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-400 border-gray-200"}`}>
-                      {opt.active ? "Active" : "Inactive"}
-                    </button>
-                    <button onClick={() => deleteBuiltInOption(opt.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
+                    {editingOptId === opt.id ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={editingOptLabel}
+                          onChange={e => setEditingOptLabel(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") saveEditOption(); if (e.key === "Escape") { setEditingOptId(null); setEditingOptLabel(""); } }}
+                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]"
+                        />
+                        <button onClick={saveEditOption} className="text-xs font-semibold text-white bg-[#123b1f] px-2.5 py-1 rounded-lg hover:bg-[#1a5c2e]">Save</button>
+                        <button onClick={() => { setEditingOptId(null); setEditingOptLabel(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <span className={`flex-1 text-sm ${opt.active ? "text-gray-800" : "text-gray-400 line-through"}`}>{opt.label}</span>
+                        <button onClick={() => { setEditingOptId(opt.id); setEditingOptLabel(opt.label); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Edit">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button onClick={() => toggleBuiltInOption(opt)}
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${opt.active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-400 border-gray-200"}`}>
+                          {opt.active ? "Active" : "Inactive"}
+                        </button>
+                        <button onClick={() => deleteBuiltInOption(opt.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
