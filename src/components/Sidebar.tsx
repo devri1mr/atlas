@@ -163,10 +163,16 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     ? fullName.trim().split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
     : email ? email.substring(0, 2).toUpperCase() : "…";
 
-  // Filter nav items by permission
+  // Filter nav items by permission.
+  // For items with children, show the parent if ANY child is accessible (not just the parent's own permKey).
   const visibleNav = loading
-    ? NAV // show all while loading to avoid flash
-    : NAV.filter(item => !item.permKey || can(item.permKey));
+    ? NAV
+    : NAV.filter(item => {
+        if (item.children?.length) {
+          return item.children.some(c => !c.permKey || can(c.permKey));
+        }
+        return !item.permKey || can(item.permKey);
+      });
 
   return (
     <aside
