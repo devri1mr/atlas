@@ -4,12 +4,23 @@ import Link from "next/link";
 
 const sections = [
   {
+    title: "Time Clock",
+    description: "Clock employees in and out, see who's live right now, and view today's completed punches.",
+    href: "/operations-center/atlas-time/clock",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    ),
+    color: "text-green-600 bg-green-50",
+  },
+  {
     title: "Time Clock Settings",
     description: "Pay cycle, overtime rules, lunch deductions, geofencing, kiosk PIN, and Michigan ESTA sick accrual.",
     href: "/operations-center/atlas-time/settings",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
       </svg>
     ),
     color: "text-blue-600 bg-blue-50",

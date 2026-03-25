@@ -55,6 +55,7 @@ export async function PATCH(req: NextRequest) {
     const fields: Array<[string, "num" | "bool" | "str", number | boolean | string]> = [
       ["pay_cycle", "str", "weekly"],
       ["pay_period_start_day", "num", 1],
+      ["payday_day_of_week", "num", 5],
       ["ot_daily_threshold", "num", 8],
       ["ot_weekly_threshold", "num", 40],
       ["ot_multiplier", "num", 1.5],
@@ -79,6 +80,11 @@ export async function PATCH(req: NextRequest) {
         else if (type === "bool") patch[key] = bool(body[key], fallback as boolean);
         else patch[key] = body[key];
       }
+    }
+
+    // pay_period_anchor_date is a date string, handle separately
+    if ("pay_period_anchor_date" in body) {
+      patch.pay_period_anchor_date = body.pay_period_anchor_date || null;
     }
 
     // Upsert — creates the row if it doesn't exist yet

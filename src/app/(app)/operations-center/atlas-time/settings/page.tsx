@@ -6,6 +6,8 @@ import Link from "next/link";
 type Settings = {
   pay_cycle: string;
   pay_period_start_day: number;
+  pay_period_anchor_date: string | null;
+  payday_day_of_week: number;
   ot_daily_threshold: number | null;
   ot_weekly_threshold: number;
   ot_multiplier: number;
@@ -27,6 +29,8 @@ type Settings = {
 const DEFAULTS: Settings = {
   pay_cycle: "weekly",
   pay_period_start_day: 1,
+  pay_period_anchor_date: null,
+  payday_day_of_week: 5,
   ot_daily_threshold: null,
   ot_weekly_threshold: 40,
   ot_multiplier: 1.5,
@@ -207,6 +211,29 @@ export default function AtlasTimeSettingsPage() {
                   </select>
                 </Row>
               )}
+              <Row>
+                <label className={labelCls}>Last Pay Period Close Date</label>
+                <p className={descCls}>The end date of the most recently completed pay period. Used to align Atlas Time to your existing payroll schedule.</p>
+                <input
+                  type="date"
+                  value={s.pay_period_anchor_date ?? ""}
+                  onChange={(e) => set("pay_period_anchor_date", e.target.value || null)}
+                  className={inputCls}
+                />
+              </Row>
+              <Row>
+                <label className={labelCls}>Payday</label>
+                <p className={descCls}>The day of the week employees receive their paycheck.</p>
+                <select
+                  value={s.payday_day_of_week}
+                  onChange={(e) => set("payday_day_of_week", Number(e.target.value))}
+                  className={inputCls}
+                >
+                  {dayNames.map((d, i) => (
+                    <option key={i} value={i}>{d}</option>
+                  ))}
+                </select>
+              </Row>
             </Section>
 
             {/* Overtime */}
