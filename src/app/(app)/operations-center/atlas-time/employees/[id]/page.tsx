@@ -97,6 +97,10 @@ export default function EmployeeDetailPage() {
   const [success, setSuccess] = useState("");
 
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [showPin, setShowPin] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinSuccess, setPinSuccess] = useState(false);
   const [payRates, setPayRates] = useState<PayRate[]>([]);
   const [form, setForm] = useState<Employee>({});
 
@@ -237,6 +241,25 @@ export default function EmployeeDetailPage() {
     finally { setRateSaving(false); }
   }
 
+  async function savePin() {
+    const trimmed = newPin.trim();
+    if (!/^\d{4,6}$/.test(trimmed)) { setError("PIN must be 4–6 digits."); return; }
+    try {
+      setPinSaving(true);
+      setError("");
+      const res = await fetch(`/api/atlas-time/employees/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kiosk_pin: trimmed }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save PIN");
+      setForm((prev: Employee) => ({ ...prev, kiosk_pin: trimmed }));
+      setNewPin(""); setPinSuccess(true);
+      setTimeout(() => setPinSuccess(false), 3000);
+    } catch (e: any) { setError(e?.message ?? "Failed to save PIN"); }
+    finally { setPinSaving(false); }
+  }
+
   async function deletePayRate(rateId: string) {
     if (!confirm("Remove this pay rate?")) return;
     const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates?rate_id=${rateId}`, { method: "DELETE" });
@@ -373,15 +396,50 @@ export default function EmployeeDetailPage() {
                   <input type="date" value={form.first_working_day ?? ""} onChange={e => set("first_working_day", e.target.value)} className={inputCls} />
                 </div>
               </TwoCol>
-              <div>
-                <label className={labelCls}>Job Title</label>
-                <FieldSelect
-                  value={form.job_title ?? ""}
-                  onChange={v => set("job_title", v)}
-                  options={fieldOpts["job_title"] ?? []}
-                  placeholder="Job Title"
-                />
-              </div>
+              <TwoCol>
+                <div>
+                  <label className={labelCls}>Job Title</label>
+                  <FieldSelect
+                    value={form.job_title ?? ""}
+                    onChange={v => set("job_title", v)}
+                    options={fieldOpts["job_title"] ?? []}
+                    placeholder="Job Title"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Kiosk PIN</label>
+                  <div className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <input
+                        type={showPin ? "text" : "password"}
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={newPin !== "" ? newPin : (form.kiosk_pin ? "••••" : "")}
+                        onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
+                        onFocus={() => { if (newPin === "") setNewPin(""); }}
+                        className={inputCls + " pr-10"}
+                        placeholder={form.kiosk_pin ? "Change PIN" : "Set PIN"}
+                      />
+                      <button type="button" onClick={() => setShowPin(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPin
+                          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        }
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={savePin}
+                      disabled={pinSaving || newPin.length < 4}
+                      className="shrink-0 text-xs font-semibold bg-[#123b1f] text-white px-3 py-2.5 rounded-xl hover:bg-[#1a5c2e] disabled:opacity-50 transition-colors"
+                    >
+                      {pinSaving ? "…" : pinSuccess ? "✓" : "Save"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">4–6 digits. Used for time clock sign-in.</p>
+                </div>
+              </TwoCol>
 
               <TwoCol>
                 <div>
