@@ -48,6 +48,17 @@ const sections = [
     color: "text-emerald-600 bg-emerald-50",
   },
   {
+    title: "Import Team Members",
+    description: "One-time bulk import from QuickBooks HR export. Maps departments, divisions, and all employee fields.",
+    href: "/operations-center/atlas-time/import",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    ),
+    color: "text-violet-600 bg-violet-50",
+  },
+  {
     title: "Team Members",
     description: "Team member profiles, pay rates, hire dates, uniform info, and termination workflow.",
     href: "/operations-center/atlas-time/employees",
