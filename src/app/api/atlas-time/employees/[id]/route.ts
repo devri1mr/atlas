@@ -19,21 +19,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     if (error || !employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-    const [payRatesRes, divLinksRes] = await Promise.all([
-      sb.from("at_pay_rates")
-        .select("id, label, rate, effective_date, end_date, is_default")
-        .eq("employee_id", id)
-        .order("effective_date", { ascending: false }),
-      sb.from("at_employee_divisions")
-        .select("id, division_id, is_primary, at_divisions(id, name)")
-        .eq("employee_id", id)
-        .order("is_primary", { ascending: false }),
-    ]);
+    const payRatesRes = await sb.from("at_pay_rates")
+      .select("id, division_id, qb_class, rate, effective_date, end_date, is_default, at_divisions(id, name)")
+      .eq("employee_id", id)
+      .order("effective_date", { ascending: false });
 
     return NextResponse.json({
       employee,
       pay_rates: payRatesRes.data ?? [],
-      division_links: divLinksRes.data ?? [],
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

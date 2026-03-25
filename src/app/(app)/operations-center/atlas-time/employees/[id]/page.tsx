@@ -14,10 +14,8 @@ const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
 const labelCls = "block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide";
 const descCls = "text-xs text-gray-400 mb-2";
 
-type Department = { id: string; name: string };
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean };
-type DivisionLink = { id: string; division_id: string; is_primary: boolean; at_divisions: { id: string; name: string } | null };
-type PayRate = { id: string; label: string; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
+type PayRate = { id: string; division_id: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean; at_divisions: { id: string; name: string } | null };
 type Employee = Record<string, any>;
 type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
@@ -98,13 +96,9 @@ export default function EmployeeDetailPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
-  const [divisionLinks, setDivisionLinks] = useState<DivisionLink[]>([]);
   const [payRates, setPayRates] = useState<PayRate[]>([]);
   const [form, setForm] = useState<Employee>({});
-  const [addingDivision, setAddingDivision] = useState(false);
-  const [newDivisionId, setNewDivisionId] = useState("");
 
   const [sectionCfg, setSectionCfg] = useState<SectionCfg[]>([]);
   const [fieldOpts, setFieldOpts] = useState<Record<string, FieldOpt[]>>({});
@@ -118,7 +112,8 @@ export default function EmployeeDetailPage() {
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [addingRate, setAddingRate] = useState(false);
-  const [newRateLabel, setNewRateLabel] = useState("");
+  const [newRateDivisionId, setNewRateDivisionId] = useState("");
+  const [newRateClass, setNewRateClass] = useState("");
   const [newRateAmount, setNewRateAmount] = useState("");
   const [newRateDate, setNewRateDate] = useState(new Date().toISOString().slice(0, 10));
   const [newRateDefault, setNewRateDefault] = useState(false);
@@ -134,9 +129,8 @@ export default function EmployeeDetailPage() {
     try {
       setLoading(true);
       setError("");
-      const [empRes, deptRes, divRes, fcRes, foRes, cfRes, cvRes] = await Promise.all([
+      const [empRes, divRes, fcRes, foRes, cfRes, cvRes] = await Promise.all([
         fetch(`/api/atlas-time/employees/${id}`, { cache: "no-store" }),
-        fetch("/api/atlas-time/departments", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/field-config", { cache: "no-store" }),
         fetch("/api/atlas-time/field-options", { cache: "no-store" }),
@@ -144,7 +138,6 @@ export default function EmployeeDetailPage() {
         fetch(`/api/atlas-time/employees/${id}/custom-values`, { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
-      const deptJson = await deptRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
       const fcJson = await fcRes.json().catch(() => ({}));
       const foJson = await foRes.json().catch(() => ({}));
@@ -154,8 +147,6 @@ export default function EmployeeDetailPage() {
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
       setPayRates(empJson.pay_rates ?? []);
-      setDivisionLinks(empJson.division_links ?? []);
-      setDepartments(deptJson?.departments ?? []);
       setDivisions((divJson?.divisions ?? []).filter((d: Division) => d.active));
       setSectionCfg(fcJson.sections ?? []);
 
@@ -227,12 +218,12 @@ export default function EmployeeDetailPage() {
   }
 
   async function addPayRate() {
-    if (!newRateLabel.trim() || !newRateAmount) return;
+    if (!newRateAmount) return;
     try {
       setRateSaving(true);
       const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: newRateLabel.trim(), rate: Number(newRateAmount), effective_date: newRateDate, is_default: newRateDefault }),
+        body: JSON.stringify({ division_id: newRateDivisionId || null, qb_class: newRateClass || null, rate: Number(newRateAmount), effective_date: newRateDate, is_default: newRateDefault }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to add rate");
@@ -241,7 +232,7 @@ export default function EmployeeDetailPage() {
       } else {
         setPayRates(prev => [...prev, json.pay_rate]);
       }
-      setAddingRate(false); setNewRateLabel(""); setNewRateAmount(""); setNewRateDefault(false);
+      setAddingRate(false); setNewRateDivisionId(""); setNewRateClass(""); setNewRateAmount(""); setNewRateDefault(false);
     } catch (e: any) { setError(e?.message ?? "Failed to add rate"); }
     finally { setRateSaving(false); }
   }
@@ -382,88 +373,14 @@ export default function EmployeeDetailPage() {
                   <input type="date" value={form.first_working_day ?? ""} onChange={e => set("first_working_day", e.target.value)} className={inputCls} />
                 </div>
               </TwoCol>
-              <TwoCol>
-                <div>
-                  <label className={labelCls}>Job Title</label>
-                  <input value={form.job_title ?? ""} onChange={e => set("job_title", e.target.value)} className={inputCls} placeholder="e.g. Crew Leader" />
-                </div>
-                <div>
-                  <label className={labelCls}>Department</label>
-                  <select value={form.department_id ?? ""} onChange={e => set("department_id", e.target.value)} className={inputCls}>
-                    <option value="">— None —</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-              </TwoCol>
-
               <div>
-                <label className={labelCls}>Divisions</label>
-                {divisionLinks.length > 0 && (
-                  <div className="space-y-1.5 mb-2">
-                    {divisionLinks.map(link => (
-                      <div key={link.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl">
-                        <span className="flex-1 text-sm text-gray-800">{link.at_divisions?.name ?? "Unknown"}</span>
-                        {link.is_primary
-                          ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Primary</span>
-                          : <button
-                              onClick={async () => {
-                                const r = await fetch(`/api/atlas-time/employees/${id}/divisions`, {
-                                  method: "PATCH", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ link_id: link.id }),
-                                });
-                                if (r.ok) setDivisionLinks(prev => prev.map(l => ({ ...l, is_primary: l.id === link.id })));
-                              }}
-                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                            >Set Primary</button>
-                        }
-                        <button
-                          onClick={async () => {
-                            const r = await fetch(`/api/atlas-time/employees/${id}/divisions?link_id=${link.id}`, { method: "DELETE" });
-                            if (r.ok) setDivisionLinks(prev => prev.filter(l => l.id !== link.id));
-                          }}
-                          className="text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {addingDivision ? (
-                  <div className="flex gap-2">
-                    <select autoFocus value={newDivisionId} onChange={e => setNewDivisionId(e.target.value)} className={inputCls + " flex-1"}>
-                      <option value="">— Select division —</option>
-                      {divisions
-                        .filter(d => !divisionLinks.some(l => l.division_id === d.id))
-                        .map(d => <option key={d.id} value={d.id}>{d.name}{d.time_clock_only ? " (Time Clock)" : ""}</option>)}
-                    </select>
-                    <button
-                      onClick={async () => {
-                        if (!newDivisionId) return;
-                        const isPrimary = divisionLinks.length === 0;
-                        const r = await fetch(`/api/atlas-time/employees/${id}/divisions`, {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ division_id: newDivisionId, is_primary: isPrimary }),
-                        });
-                        const j = await r.json();
-                        if (r.ok) setDivisionLinks(prev => isPrimary ? [...prev.map(l => ({ ...l, is_primary: false })), j] : [...prev, j]);
-                        else setError(j?.error ?? "Failed to add division");
-                        setAddingDivision(false); setNewDivisionId("");
-                      }}
-                      className="text-xs font-semibold bg-[#123b1f] text-white px-3 py-2 rounded-xl hover:bg-[#1a5c2e]"
-                    >Add</button>
-                    <button onClick={() => { setAddingDivision(false); setNewDivisionId(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-2">Cancel</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingDivision(true)} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1 transition-colors mt-1">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    Add Division
-                  </button>
-                )}
+                <label className={labelCls}>Job Title</label>
+                <FieldSelect
+                  value={form.job_title ?? ""}
+                  onChange={v => set("job_title", v)}
+                  options={fieldOpts["job_title"] ?? []}
+                  placeholder="Job Title"
+                />
               </div>
 
               <TwoCol>
@@ -522,8 +439,9 @@ export default function EmployeeDetailPage() {
                   {payRates.map(r => (
                     <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-gray-50 rounded-xl">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-800">{r.label}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-800">{r.at_divisions?.name ?? "No Division"}</span>
+                          {r.qb_class && <span className="text-xs text-gray-500">{r.qb_class}</span>}
                           {r.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Default</span>}
                         </div>
                         <span className="text-xs text-gray-400">
@@ -544,9 +462,23 @@ export default function EmployeeDetailPage() {
                 <div className="border border-green-200 bg-green-50/40 rounded-xl p-4 space-y-3">
                   <TwoCol>
                     <div>
-                      <label className={labelCls}>Label</label>
-                      <input autoFocus value={newRateLabel} onChange={e => setNewRateLabel(e.target.value)} className={inputCls} placeholder="e.g. Snow Removal" />
+                      <label className={labelCls}>Division</label>
+                      <select autoFocus value={newRateDivisionId} onChange={e => setNewRateDivisionId(e.target.value)} className={inputCls}>
+                        <option value="">— Select division —</option>
+                        {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
                     </div>
+                    <div>
+                      <label className={labelCls}>QB Class</label>
+                      <FieldSelect
+                        value={newRateClass}
+                        onChange={setNewRateClass}
+                        options={fieldOpts["qb_class"] ?? []}
+                        placeholder="QB Class"
+                      />
+                    </div>
+                  </TwoCol>
+                  <TwoCol>
                     <div>
                       <label className={labelCls}>Hourly Rate</label>
                       <div className="relative">
@@ -554,23 +486,21 @@ export default function EmployeeDetailPage() {
                         <input type="number" min={0} step={0.01} value={newRateAmount} onChange={e => setNewRateAmount(e.target.value)} className={inputCls + " pl-7"} placeholder="0.00" />
                       </div>
                     </div>
-                  </TwoCol>
-                  <TwoCol>
                     <div>
                       <label className={labelCls}>Effective Date</label>
                       <input type="date" value={newRateDate} onChange={e => setNewRateDate(e.target.value)} className={inputCls} />
                     </div>
-                    <div className="flex items-center gap-3 pt-6">
-                      <Toggle checked={newRateDefault} onChange={setNewRateDefault} />
-                      <span className="text-xs text-gray-600 font-medium">Set as default rate</span>
-                    </div>
                   </TwoCol>
+                  <div className="flex items-center gap-3">
+                    <Toggle checked={newRateDefault} onChange={setNewRateDefault} />
+                    <span className="text-xs text-gray-600 font-medium">Set as default rate</span>
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={addPayRate} disabled={rateSaving || !newRateLabel.trim() || !newRateAmount}
+                    <button onClick={addPayRate} disabled={rateSaving || !newRateAmount}
                       className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
                       {rateSaving ? "Saving…" : "Add Rate"}
                     </button>
-                    <button onClick={() => { setAddingRate(false); setNewRateLabel(""); setNewRateAmount(""); }}
+                    <button onClick={() => { setAddingRate(false); setNewRateDivisionId(""); setNewRateClass(""); setNewRateAmount(""); }}
                       className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
                   </div>
                 </div>
