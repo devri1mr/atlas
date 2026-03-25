@@ -11,7 +11,10 @@ type Division = {
   active: boolean;
   created_at?: string;
   performance_sheet_url?: string | null;
+  department_id?: string | null;
 };
+
+type Department = { id: string; name: string; code: string | null; active: boolean };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 });
@@ -38,6 +41,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function DivisionsClient() {
   const [rows, setRows] = useState<Division[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +53,7 @@ export default function DivisionsClient() {
   const [targetGp, setTargetGp] = useState<string>("50");
   const [allowOt, setAllowOt] = useState(true);
   const [active, setActive] = useState(true);
+  const [deptId, setDeptId] = useState<string>("");
 
   // Edit modal
   const [showEdit, setShowEdit] = useState(false);
@@ -59,6 +64,7 @@ export default function DivisionsClient() {
   const [editAllowOt, setEditAllowOt] = useState(true);
   const [editActive, setEditActive] = useState(true);
   const [editSheetUrl, setEditSheetUrl] = useState<string>("");
+  const [editDeptId, setEditDeptId] = useState<string>("");
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
@@ -66,8 +72,13 @@ export default function DivisionsClient() {
     setError(null);
     setLoading(true);
     try {
-      const out = await api<{ data: Division[] }>("/api/operations-center/divisions", { method: "GET" });
-      setRows(out.data ?? []);
+      const [divOut, deptRes] = await Promise.all([
+        api<{ data: Division[] }>("/api/operations-center/divisions", { method: "GET" }),
+        fetch("/api/atlas-time/departments", { cache: "no-store" }),
+      ]);
+      setRows(divOut.data ?? []);
+      const deptJson = await deptRes.json().catch(() => null);
+      setDepartments((deptJson?.departments ?? []).filter((d: Department) => d.active));
     } catch (e: any) {
       setError(e?.message ?? "Failed to load divisions");
     } finally {
@@ -85,6 +96,7 @@ export default function DivisionsClient() {
     setTargetGp("50");
     setAllowOt(true);
     setActive(true);
+    setDeptId("");
   }
 
   function openEdit(row: Division) {
@@ -96,6 +108,7 @@ export default function DivisionsClient() {
     setEditAllowOt(Boolean(row.allow_overtime));
     setEditActive(Boolean(row.active));
     setEditSheetUrl(row.performance_sheet_url ?? "");
+    setEditDeptId(row.department_id ?? "");
     setShowEdit(true);
   }
 
@@ -120,6 +133,7 @@ export default function DivisionsClient() {
           target_gross_profit_percent: gp,
           allow_overtime: allowOt,
           active,
+          department_id: deptId || null,
         }),
       });
 
@@ -159,6 +173,7 @@ export default function DivisionsClient() {
           allow_overtime: editAllowOt,
           active: editActive,
           performance_sheet_url: editSheetUrl.trim() || null,
+          department_id: editDeptId || null,
         }),
       });
 
@@ -280,6 +295,7 @@ export default function DivisionsClient() {
                 <thead>
                   <tr className="text-left text-emerald-900/70">
                     <th className="px-4 py-3 font-semibold">Division</th>
+                    <th className="px-4 py-3 font-semibold">Department</th>
                     <th className="px-4 py-3 font-semibold">Labor Rate</th>
                     <th className="px-4 py-3 font-semibold">Target GP%</th>
                     <th className="px-4 py-3 font-semibold">Allow OT</th>
@@ -294,6 +310,12 @@ export default function DivisionsClient() {
                       <tr key={r.id} className="border-t border-emerald-100 hover:bg-emerald-50/40">
                         <td className="px-4 py-3">
                           <div className="font-medium text-emerald-950">{r.name}</div>
+                        </td>
+
+                        <td className="px-4 py-3 text-emerald-950 text-sm">
+                          {r.department_id
+                            ? (departments.find(d => d.id === r.department_id)?.name ?? <span className="text-emerald-900/40 italic">Unknown</span>)
+                            : <span className="text-emerald-900/40">—</span>}
                         </td>
 
                         <td className="px-4 py-3 text-emerald-950">{money.format(Number(r.labor_rate ?? 0))}</td>
@@ -382,6 +404,21 @@ export default function DivisionsClient() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">Department</label>
+                  <select
+                    value={deptId}
+                    onChange={(e) => setDeptId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 bg-white"
+                  >
+                    <option value="">— None —</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-emerald-900/40">Determines payroll items for QB export.</p>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
@@ -468,6 +505,21 @@ export default function DivisionsClient() {
                     onChange={(e) => setEditName(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-900/80">Department</label>
+                  <select
+                    value={editDeptId}
+                    onChange={(e) => setEditDeptId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 bg-white"
+                  >
+                    <option value="">— None —</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-emerald-900/40">Determines payroll items for QB export.</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

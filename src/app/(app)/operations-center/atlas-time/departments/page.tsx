@@ -7,6 +7,32 @@ import Link from "next/link";
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock" };
+type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
+
+const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
+type PayrollType = typeof PAYROLL_TYPES[number];
+
+const TYPE_LABELS: Record<string, string> = {
+  regular: "Regular",
+  overtime: "Overtime (1.5x)",
+  doubletime: "Double Time (2x)",
+  pto: "PTO",
+  sick: "Sick",
+  holiday: "Holiday",
+  bonus: "Bonus",
+  other: "Other",
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  regular: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  overtime: "bg-amber-50 text-amber-700 border-amber-200",
+  doubletime: "bg-orange-50 text-orange-700 border-orange-200",
+  pto: "bg-blue-50 text-blue-700 border-blue-200",
+  sick: "bg-purple-50 text-purple-700 border-purple-200",
+  holiday: "bg-rose-50 text-rose-700 border-rose-200",
+  bonus: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  other: "bg-gray-50 text-gray-600 border-gray-200",
+};
 
 const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
 
@@ -22,6 +48,7 @@ export default function DepartmentsPage() {
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [payrollItems, setPayrollItems] = useState<PayrollItem[]>([]);
   const [error, setError] = useState("");
 
   // Dept form
@@ -37,26 +64,34 @@ export default function DepartmentsPage() {
   // Division form
   const [addingDiv, setAddingDiv] = useState(false);
   const [newDivName, setNewDivName] = useState("");
-  // All new divisions added here are time-clock-only (company divisions come from ops center)
   const [divSaving, setDivSaving] = useState(false);
   const [editDivId, setEditDivId] = useState<string | null>(null);
   const [editDivName, setEditDivName] = useState("");
-  const [editDivTCO, setEditDivTCO] = useState(false);
   const [editDivSaving, setEditDivSaving] = useState(false);
+
+  // Payroll items — expanded dept + add form
+  const [expandedDeptId, setExpandedDeptId] = useState<string | null>(null);
+  const [addingItemDeptId, setAddingItemDeptId] = useState<string | null>(null);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemType, setNewItemType] = useState<PayrollType>("regular");
+  const [itemSaving, setItemSaving] = useState(false);
 
   async function load() {
     try {
       setLoading(true);
       setError("");
-      const [deptRes, divRes] = await Promise.all([
+      const [deptRes, divRes, itemRes] = await Promise.all([
         fetch("/api/atlas-time/departments", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
+        fetch("/api/atlas-time/payroll-items", { cache: "no-store" }),
       ]);
       const deptJson = await deptRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
+      const itemJson = await itemRes.json().catch(() => null);
       if (!deptRes.ok) throw new Error(deptJson?.error ?? "Failed to load departments");
       setDepartments(deptJson.departments ?? []);
       setDivisions(divJson?.divisions ?? []);
+      setPayrollItems(itemJson?.payroll_items ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
@@ -107,10 +142,12 @@ export default function DepartmentsPage() {
   }
 
   async function deleteDept(id: string) {
-    if (!confirm("Delete this department?")) return;
+    if (!confirm("Delete this department? This will also remove its payroll items.")) return;
     const res = await fetch(`/api/atlas-time/departments/${id}`, { method: "DELETE" });
-    if (res.ok) setDepartments(p => p.filter(d => d.id !== id));
-    else {
+    if (res.ok) {
+      setDepartments(p => p.filter(d => d.id !== id));
+      setPayrollItems(p => p.filter(i => i.department_id !== id));
+    } else {
       const json = await res.json().catch(() => null);
       setError(json?.error ?? "Failed to delete");
     }
@@ -170,6 +207,33 @@ export default function DepartmentsPage() {
 
   function startEditDiv(div: Division) {
     setEditDivId(div.id); setEditDivName(div.name);
+  }
+
+  // ── Payroll Items ─────────────────────────────────────────
+  async function addPayrollItem(departmentId: string) {
+    if (!newItemName.trim()) return;
+    try {
+      setItemSaving(true);
+      const res = await fetch("/api/atlas-time/payroll-items", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ department_id: departmentId, name: newItemName.trim(), type: newItemType }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed");
+      setPayrollItems(p => [...p, json.payroll_item]);
+      setNewItemName(""); setNewItemType("regular"); setAddingItemDeptId(null);
+    } catch (e: any) { setError(e?.message ?? "Failed"); }
+    finally { setItemSaving(false); }
+  }
+
+  async function deletePayrollItem(id: string) {
+    if (!confirm("Remove this payroll item?")) return;
+    const res = await fetch(`/api/atlas-time/payroll-items/${id}`, { method: "DELETE" });
+    if (res.ok) setPayrollItems(p => p.filter(i => i.id !== id));
+    else {
+      const json = await res.json().catch(() => null);
+      setError(json?.error ?? "Failed to delete");
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -238,7 +302,10 @@ export default function DepartmentsPage() {
         {/* ── Departments ─────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">Departments</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800">Departments</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Click a department to manage its QB payroll items.</p>
+            </div>
             <button onClick={() => { setAddingDept(true); setEditDeptId(null); }}
               className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -257,36 +324,126 @@ export default function DepartmentsPage() {
                   <p className="text-sm text-gray-400">No departments yet.</p>
                 </div>
               )}
-              {departments.map(dept => (
-                <div key={dept.id} className="px-5 py-3.5">
-                  {editDeptId === dept.id ? (
-                    <div className="flex items-center gap-2">
-                      <input autoFocus value={editDeptName} onChange={e => setEditDeptName(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") saveDeptEdit(dept.id); if (e.key === "Escape") setEditDeptId(null); }}
-                        placeholder="Department name"
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                      <input value={editDeptCode} onChange={e => setEditDeptCode(e.target.value.toUpperCase())}
-                        placeholder="CODE" maxLength={6}
-                        className="w-20 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono uppercase" />
-                      <EditButtons onSave={() => saveDeptEdit(dept.id)} onCancel={() => setEditDeptId(null)} saving={editDeptSaving} />
+              {departments.map(dept => {
+                const deptItems = payrollItems.filter(i => i.department_id === dept.id);
+                const expanded = expandedDeptId === dept.id;
+                return (
+                  <div key={dept.id}>
+                    <div className="px-5 py-3.5">
+                      {editDeptId === dept.id ? (
+                        <div className="flex items-center gap-2">
+                          <input autoFocus value={editDeptName} onChange={e => setEditDeptName(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") saveDeptEdit(dept.id); if (e.key === "Escape") setEditDeptId(null); }}
+                            placeholder="Department name"
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                          <input value={editDeptCode} onChange={e => setEditDeptCode(e.target.value.toUpperCase())}
+                            placeholder="CODE" maxLength={6}
+                            className="w-20 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono uppercase" />
+                          <EditButtons onSave={() => saveDeptEdit(dept.id)} onCancel={() => setEditDeptId(null)} saving={editDeptSaving} />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          {/* Expand toggle */}
+                          <button
+                            onClick={() => setExpandedDeptId(expanded ? null : dept.id)}
+                            className="p-1 text-gray-300 hover:text-gray-600 transition-colors"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                              style={{ transform: expanded ? "rotate(90deg)" : undefined, transition: "transform 0.15s" }}>
+                              <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                          </button>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className={`text-sm font-medium ${dept.active ? "text-gray-900" : "text-gray-400"}`}>{dept.name}</span>
+                            {dept.code && <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{dept.code}</span>}
+                            {!dept.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+                            {deptItems.length > 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                                {deptItems.length} payroll item{deptItems.length !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </div>
+                          <RowActions
+                            onEdit={() => { setEditDeptId(dept.id); setEditDeptName(dept.name); setEditDeptCode(dept.code ?? ""); }}
+                            onToggle={() => toggleDept(dept)}
+                            onDelete={() => deleteDept(dept.id)}
+                            active={dept.active}
+                          />
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <span className={`text-sm font-medium ${dept.active ? "text-gray-900" : "text-gray-400"}`}>{dept.name}</span>
-                        {dept.code && <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{dept.code}</span>}
-                        {!dept.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
+
+                    {/* Payroll items sub-panel */}
+                    {expanded && (
+                      <div className="bg-gray-50/60 border-t border-gray-100 px-5 py-3 space-y-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">QB Payroll Items</span>
+                          {addingItemDeptId !== dept.id && (
+                            <button
+                              onClick={() => { setAddingItemDeptId(dept.id); setNewItemName(""); setNewItemType("regular"); }}
+                              className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                              </svg>
+                              Add Item
+                            </button>
+                          )}
+                        </div>
+
+                        {deptItems.length === 0 && addingItemDeptId !== dept.id && (
+                          <p className="text-xs text-gray-400 py-1">No payroll items yet. Add items to map hours to QB payroll entries.</p>
+                        )}
+
+                        {deptItems.map(item => (
+                          <div key={item.id} className="flex items-center gap-2">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TYPE_COLORS[item.type] ?? TYPE_COLORS.other}`}>
+                              {TYPE_LABELS[item.type] ?? item.type}
+                            </span>
+                            <span className="text-sm text-gray-700 flex-1">{item.name}</span>
+                            <button
+                              onClick={() => deletePayrollItem(item.id)}
+                              className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors"
+                              title="Remove"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+
+                        {addingItemDeptId === dept.id && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <select
+                              value={newItemType}
+                              onChange={e => setNewItemType(e.target.value as PayrollType)}
+                              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                              {PAYROLL_TYPES.map(t => (
+                                <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+                              ))}
+                            </select>
+                            <input
+                              autoFocus
+                              value={newItemName}
+                              onChange={e => setNewItemName(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") addPayrollItem(dept.id); if (e.key === "Escape") setAddingItemDeptId(null); }}
+                              placeholder="QB payroll item name"
+                              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                            <button onClick={() => addPayrollItem(dept.id)} disabled={itemSaving || !newItemName.trim()}
+                              className="bg-[#123b1f] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60">
+                              {itemSaving ? "…" : "Add"}
+                            </button>
+                            <button onClick={() => setAddingItemDeptId(null)} className="text-gray-400 hover:text-gray-600 text-xs px-1.5 py-1.5">Cancel</button>
+                          </div>
+                        )}
                       </div>
-                      <RowActions
-                        onEdit={() => { setEditDeptId(dept.id); setEditDeptName(dept.name); setEditDeptCode(dept.code ?? ""); }}
-                        onToggle={() => toggleDept(dept)}
-                        onDelete={() => deleteDept(dept.id)}
-                        active={dept.active}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
               {addingDept && (
                 <div className="px-5 py-3.5 bg-green-50/50">
                   <div className="flex items-center gap-2">
