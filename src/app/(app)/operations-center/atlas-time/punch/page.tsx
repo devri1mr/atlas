@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 type Employee = {
@@ -317,10 +318,10 @@ export default function KioskPage() {
   // ─── PIN ENTRY ──────────────────────────────────────────
   return (
     <Wrap>
-      {/* Clock — compact top */}
-      <div className="flex items-center justify-between px-5 py-3 shrink-0">
-        <span className="text-white/50 font-semibold text-sm tracking-tight">Atlas Time</span>
-        <span className="text-white/40 font-mono text-xs tabular-nums">
+      {/* Logo + clock — top center */}
+      <div className="shrink-0 flex flex-col items-center pt-6 pb-2 gap-1">
+        <Image src="/garpiel-logo-transparent.png" alt="Garpiel Group" width={120} height={120} priority />
+        <span className="text-white/35 font-mono text-xs tabular-nums">
           {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
         </span>
       </div>
