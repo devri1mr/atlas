@@ -14,8 +14,8 @@ const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm
 const labelCls = "block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide";
 const descCls = "text-xs text-gray-400 mb-2";
 
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean };
-type PayRate = { id: string; division_id: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean; at_divisions: { id: string; name: string } | null };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; qb_class_name: string | null };
+type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
 type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
@@ -227,7 +227,7 @@ export default function EmployeeDetailPage() {
       setRateSaving(true);
       const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ division_id: newRateDivisionId || null, qb_class: newRateClass || null, rate: Number(newRateAmount), effective_date: newRateDate, is_default: newRateDefault }),
+        body: JSON.stringify({ division_id: newRateDivisionId || null, division_name: divisions.find(d => d.id === newRateDivisionId)?.name ?? null, qb_class: newRateClass || null, rate: Number(newRateAmount), effective_date: newRateDate, is_default: newRateDefault }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to add rate");
@@ -472,7 +472,7 @@ export default function EmployeeDetailPage() {
                     <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-gray-50 rounded-xl">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-gray-800">{r.at_divisions?.name ?? "No Division"}</span>
+                          <span className="text-sm font-semibold text-gray-800">{r.division_name ?? "No Division"}</span>
                           {r.qb_class && <span className="text-xs text-gray-500">{r.qb_class}</span>}
                           {r.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Default</span>}
                         </div>
@@ -495,7 +495,13 @@ export default function EmployeeDetailPage() {
                   <TwoCol>
                     <div>
                       <label className={labelCls}>Division</label>
-                      <select autoFocus value={newRateDivisionId} onChange={e => setNewRateDivisionId(e.target.value)} className={inputCls}>
+                      <select autoFocus value={newRateDivisionId}
+                        onChange={e => {
+                          const div = divisions.find(d => d.id === e.target.value);
+                          setNewRateDivisionId(e.target.value);
+                          if (div?.qb_class_name) setNewRateClass(div.qb_class_name);
+                        }}
+                        className={inputCls}>
                         <option value="">— Select division —</option>
                         {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>

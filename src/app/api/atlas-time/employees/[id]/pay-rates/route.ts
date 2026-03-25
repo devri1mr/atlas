@@ -17,6 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const body = await req.json().catch(() => ({}));
     const divisionId = body.division_id ?? null;
+    const divisionName = String(body.division_name ?? "").trim() || null;
     const qbClass = String(body.qb_class ?? "").trim() || null;
     const rate = Number(body.rate);
 
@@ -33,13 +34,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         company_id: companyId,
         label: "",
         division_id: divisionId,
+        division_name: divisionName,
         qb_class: qbClass,
         rate,
         effective_date: body.effective_date || new Date().toISOString().slice(0, 10),
         end_date: body.end_date || null,
         is_default: body.is_default ?? false,
       })
-      .select("id, division_id, qb_class, rate, effective_date, end_date, is_default, at_divisions(id, name)")
+      .select("id, division_id, division_name, qb_class, rate, effective_date, end_date, is_default")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
