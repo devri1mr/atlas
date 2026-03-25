@@ -375,7 +375,7 @@ export default function KioskPage() {
     >
       {/* Logo + clock */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-5">
-        <Image src="/atlas-time-logo.png" alt="Atlas Time" width={44} height={44} style={{ objectFit: "contain", mixBlendMode: "screen" }} />
+        <Image src="/atlas-time-logo.png" alt="Atlas Time" width={44} height={44} style={{ objectFit: "contain" }} />
         <div className="text-right">
           <div className="text-white font-mono font-bold text-2xl tabular-nums">
             {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
