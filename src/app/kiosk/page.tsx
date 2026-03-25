@@ -294,8 +294,9 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-          <div className="flex flex-col items-center gap-3 py-4">
+        {/* Scrollable info area — name, status, divisions */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6">
+          <div className="flex flex-col items-center gap-3 pt-4 pb-2">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
             )}
@@ -340,26 +341,30 @@ export default function KioskPage() {
                 </div>
               </div>
             )}
-            <div className="w-full max-w-sm">
-              <button
-                onPointerDown={e => { e.stopPropagation(); if (!acting && !(!isClockedIn && divisions.length > 0 && !selectedDivision)) confirmPunch(); armIdle(); }}
-                disabled={acting || (!isClockedIn && divisions.length > 0 && !selectedDivision)}
-                className={`w-full py-4 rounded-2xl text-lg font-bold text-white transition-all active:scale-95 disabled:opacity-40 ${
-                  isClockedIn ? "bg-red-500" : "bg-green-600"
-                }`}
-                style={{ boxShadow: isClockedIn ? "0 4px 20px rgba(239,68,68,0.3)" : "0 4px 20px rgba(22,163,74,0.3)" }}
-              >
-                {acting ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-                    {isClockedIn ? "Clocking Out…" : "Clocking In…"}
-                  </div>
-                ) : isClockedIn ? "Clock Out" : "Clock In"}
-              </button>
-              <button onPointerDown={e => { e.stopPropagation(); reset(); }} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
-                Not me
-              </button>
-            </div>
+          </div>
+        </div>
+
+        {/* Clock In/Out always pinned to bottom — never needs scrolling */}
+        <div className="shrink-0 px-6 pb-6 pt-3">
+          <div className="w-full max-w-sm mx-auto">
+            <button
+              onPointerDown={e => { e.stopPropagation(); if (!acting && !(!isClockedIn && divisions.length > 0 && !selectedDivision)) confirmPunch(); armIdle(); }}
+              disabled={acting || (!isClockedIn && divisions.length > 0 && !selectedDivision)}
+              className={`w-full py-4 rounded-2xl text-lg font-bold text-white transition-all active:scale-95 disabled:opacity-40 ${
+                isClockedIn ? "bg-red-500" : "bg-green-600"
+              }`}
+              style={{ boxShadow: isClockedIn ? "0 4px 20px rgba(239,68,68,0.3)" : "0 4px 20px rgba(22,163,74,0.3)" }}
+            >
+              {acting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                  {isClockedIn ? "Clocking Out…" : "Clocking In…"}
+                </div>
+              ) : isClockedIn ? "Clock Out" : "Clock In"}
+            </button>
+            <button onPointerDown={e => { e.stopPropagation(); reset(); }} className="w-full mt-2 py-2 text-white/20 text-xs active:text-white/40">
+              Not me
+            </button>
           </div>
         </div>
       </Wrap>
