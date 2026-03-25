@@ -22,6 +22,7 @@ type Employee = Record<string, any>;
 type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
 type FieldOpt = { id: string; label: string };
+type CustomFieldDef = { id: string; label: string; field_key: string; field_type: string; section: string; sort_order: number; active: boolean; options: string[] };
 
 const T_SHIRT_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
 const JACKET_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
@@ -107,6 +108,8 @@ export default function EmployeeDetailPage() {
 
   const [sectionCfg, setSectionCfg] = useState<SectionCfg[]>([]);
   const [fieldOpts, setFieldOpts] = useState<Record<string, FieldOpt[]>>({});
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
   const [uniformItems, setUniformItems] = useState<UniformItem[]>([]);
   const [addingItem, setAddingItem] = useState(false);
@@ -131,18 +134,22 @@ export default function EmployeeDetailPage() {
     try {
       setLoading(true);
       setError("");
-      const [empRes, deptRes, divRes, fcRes, foRes] = await Promise.all([
+      const [empRes, deptRes, divRes, fcRes, foRes, cfRes, cvRes] = await Promise.all([
         fetch(`/api/atlas-time/employees/${id}`, { cache: "no-store" }),
         fetch("/api/atlas-time/departments", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/field-config", { cache: "no-store" }),
         fetch("/api/atlas-time/field-options", { cache: "no-store" }),
+        fetch("/api/atlas-time/custom-fields", { cache: "no-store" }),
+        fetch(`/api/atlas-time/employees/${id}/custom-values`, { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
       const deptJson = await deptRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
       const fcJson = await fcRes.json().catch(() => ({}));
       const foJson = await foRes.json().catch(() => ({}));
+      const cfJson = await cfRes.json().catch(() => ({}));
+      const cvJson = await cvRes.json().catch(() => ({}));
 
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
@@ -159,6 +166,8 @@ export default function EmployeeDetailPage() {
         grouped[opt.field_key].push({ id: opt.id, label: opt.label });
       }
       setFieldOpts(grouped);
+      setCustomFieldDefs((cfJson.fields ?? []).filter((f: CustomFieldDef) => f.active));
+      setCustomValues(cvJson.values ?? {});
 
       const raw = empJson.employee?.uniform_items;
       setUniformItems(Array.isArray(raw) ? raw : []);
@@ -181,6 +190,13 @@ export default function EmployeeDetailPage() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save");
+      if (Object.keys(customValues).length > 0) {
+        await fetch(`/api/atlas-time/employees/${id}/custom-values`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ values: customValues }),
+        });
+      }
       setSuccess("Saved.");
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: any) {
@@ -273,6 +289,52 @@ export default function EmployeeDetailPage() {
     ? [...sectionCfg].sort((a, b) => a.sort_order - b.sort_order).filter(s => s.visible).map(s => s.section)
     : ["personal", "employment", "address", "certifications", "benefits", "hr_records"];
 
+  function renderCustomFields(section: string): React.ReactNode {
+    const fields = customFieldDefs
+      .filter(f => f.section === section)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    if (fields.length === 0) return null;
+    return (
+      <>
+        {fields.map(f => (
+          <div key={f.id}>
+            <label className={labelCls}>{f.label}</label>
+            {f.field_type === "textarea" ? (
+              <textarea
+                value={customValues[f.id] ?? ""}
+                onChange={e => setCustomValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                rows={3} className={inputCls + " resize-none"}
+              />
+            ) : f.field_type === "toggle" ? (
+              <div className="flex items-center gap-3 pt-1">
+                <Toggle
+                  checked={customValues[f.id] === "true"}
+                  onChange={v => setCustomValues(prev => ({ ...prev, [f.id]: v ? "true" : "false" }))}
+                />
+              </div>
+            ) : f.field_type === "dropdown" ? (
+              <select
+                value={customValues[f.id] ?? ""}
+                onChange={e => setCustomValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                className={inputCls}
+              >
+                <option value="">— Select —</option>
+                {(f.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            ) : (
+              <input
+                type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"}
+                value={customValues[f.id] ?? ""}
+                onChange={e => setCustomValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                className={inputCls}
+              />
+            )}
+          </div>
+        ))}
+      </>
+    );
+  }
+
   function renderSection(sk: string): React.ReactNode {
     switch (sk) {
       case "personal":
@@ -302,6 +364,7 @@ export default function EmployeeDetailPage() {
                 <input type="date" value={form.date_of_birth ?? ""} onChange={e => set("date_of_birth", e.target.value)} className={inputCls} />
               </div>
             </TwoCol>
+            {renderCustomFields("personal")}
           </Section>
         );
 
@@ -438,6 +501,7 @@ export default function EmployeeDetailPage() {
                   <input value={form.anniversary_note ?? ""} onChange={e => set("anniversary_note", e.target.value)} className={inputCls} placeholder="e.g. 5-year milestone in June" />
                 </div>
               </TwoCol>
+              {renderCustomFields("employment")}
             </Section>
 
             <Section title="Pay Rates"
@@ -561,6 +625,7 @@ export default function EmployeeDetailPage() {
                   <input value={form.emergency_contact_phone ?? ""} onChange={e => set("emergency_contact_phone", e.target.value)} className={inputCls} />
                 </div>
               </TwoCol>
+              {renderCustomFields("address")}
             </Section>
           </Fragment>
         );
@@ -617,6 +682,7 @@ export default function EmployeeDetailPage() {
                 </TwoCol>
               </>
             )}
+            {renderCustomFields("certifications")}
           </Section>
         );
 
@@ -677,6 +743,7 @@ export default function EmployeeDetailPage() {
                 </select>
               </div>
             </TwoCol>
+            {renderCustomFields("benefits")}
           </Section>
         );
 
@@ -690,11 +757,20 @@ export default function EmployeeDetailPage() {
               className={inputCls + " resize-none"}
               placeholder="Internal notes…"
             />
+            {renderCustomFields("hr_records")}
           </Section>
         );
 
-      default:
-        return null;
+      default: {
+        const sectionLabel = sectionCfg.find(s => s.section === sk)?.label ?? sk;
+        const customFields = renderCustomFields(sk);
+        if (!customFields) return null;
+        return (
+          <Section title={sectionLabel}>
+            {customFields}
+          </Section>
+        );
+      }
     }
   }
 

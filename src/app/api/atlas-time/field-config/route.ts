@@ -28,6 +28,48 @@ export async function GET() {
   }
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const sb = supabaseAdmin();
+    const companyId = await getCompanyId(sb);
+    if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+    const body = await req.json();
+    const { label, section } = body;
+    if (!label?.trim() || !section?.trim()) {
+      return NextResponse.json({ error: "label and section are required" }, { status: 400 });
+    }
+
+    const { data: existing } = await sb
+      .from("at_field_config")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("section", section.trim())
+      .maybeSingle();
+    if (existing) return NextResponse.json({ error: "Section already exists" }, { status: 409 });
+
+    const { data: maxOrder } = await sb
+      .from("at_field_config")
+      .select("sort_order")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: false })
+      .limit(1);
+
+    const nextSort = ((maxOrder?.[0]?.sort_order ?? 0) as number) + 1;
+
+    const { data, error } = await sb
+      .from("at_field_config")
+      .insert({ company_id: companyId, field_key: section.trim(), label: label.trim(), section: section.trim(), sort_order: nextSort, visible: true })
+      .select("id, field_key, label, section, sort_order, visible")
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const sb = supabaseAdmin();
