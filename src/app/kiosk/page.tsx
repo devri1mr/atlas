@@ -252,7 +252,7 @@ export default function KioskPage() {
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           <div className="flex flex-col items-center gap-3 py-4">
             {error && (
               <div className="w-full max-w-sm bg-red-500/15 border border-red-400/20 rounded-xl px-4 py-2.5 text-red-300 text-sm text-center">{error}</div>
