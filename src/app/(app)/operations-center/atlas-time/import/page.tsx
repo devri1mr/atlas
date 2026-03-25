@@ -38,10 +38,8 @@ async function parseXLSX(file: File): Promise<any[][]> {
   return utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][];
 }
 
-const DISPLAY_COLS = [
-  "First Name", "Last Name", "Class",
-  "Hire Date", "Main Phone", "Main Email", "Current Position",
-];
+// Columns to always exclude from the preview (not useful to verify visually)
+const EXCLUDE_COLS = new Set(["Class"]);
 
 export default function ImportPage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +111,7 @@ export default function ImportPage() {
 
   const headers: string[] = rows ? rows[0].map((h: any) => String(h ?? "").trim()) : [];
   const dataRows = rows ? rows.slice(1).filter((r: any[]) => r.some((c: any) => c != null && c !== "")) : [];
-  const displayColIdxs = DISPLAY_COLS.map(c => headers.indexOf(c)).filter(i => i >= 0);
+  const displayCols = headers.filter(h => h && !EXCLUDE_COLS.has(h));
 
   function cellVal(row: any[], colName: string) {
     const i = headers.indexOf(colName);
@@ -235,7 +233,7 @@ export default function ImportPage() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-500">
-                    {DISPLAY_COLS.map(c => (
+                    {displayCols.map(c => (
                       <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap border-b border-gray-100">{c}</th>
                     ))}
                   </tr>
@@ -243,7 +241,7 @@ export default function ImportPage() {
                 <tbody>
                   {dataRows.slice(0, 5).map((row, ri) => (
                     <tr key={ri} className="border-b border-gray-50 hover:bg-gray-50/40">
-                      {DISPLAY_COLS.map(c => (
+                      {displayCols.map(c => (
                         <td key={c} className="px-3 py-2 text-gray-700 whitespace-nowrap">{String(cellVal(row, c))}</td>
                       ))}
                     </tr>
