@@ -24,6 +24,12 @@ function excelDateToISO(v: any): string | null {
   try { return new Date((v - 25569) * 86400 * 1000).toISOString().split("T")[0]; } catch { return null; }
 }
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${m}/${d}/${y}`;
+}
+
 async function parseXLSX(file: File): Promise<any[][]> {
   const { read, utils } = await import("xlsx");
   const buf = await file.arrayBuffer();
@@ -33,7 +39,7 @@ async function parseXLSX(file: File): Promise<any[][]> {
 }
 
 const DISPLAY_COLS = [
-  "First Name", "Last Name", "Department", "Class",
+  "First Name", "Last Name", "Class",
   "Hire Date", "Main Phone", "Main Email", "Current Position",
 ];
 
@@ -113,7 +119,7 @@ export default function ImportPage() {
     const i = headers.indexOf(colName);
     if (i < 0) return "";
     const v = row[i];
-    if (colName.includes("Date") || colName === "Birthday") return excelDateToISO(v) ?? (v ?? "");
+    if (colName.includes("Date") || colName === "Birthday") return fmtDate(excelDateToISO(v)) || (v ?? "");
     return v ?? "";
   }
 

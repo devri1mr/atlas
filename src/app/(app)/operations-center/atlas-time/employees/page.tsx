@@ -44,6 +44,12 @@ function displayName(emp: Employee) {
   return `${emp.last_name}, ${emp.first_name}${mi}`;
 }
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${m}/${d}/${y}`;
+}
+
 export default function EmployeesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -221,7 +227,7 @@ export default function EmployeesPage() {
                       </span>
                     )}
                     <span className="text-xs text-gray-400">
-                      Hired {new Date(emp.hire_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      Hired {fmtDate(emp.hire_date)}
                     </span>
                   </div>
 

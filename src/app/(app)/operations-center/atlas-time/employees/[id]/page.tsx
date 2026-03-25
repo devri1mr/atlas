@@ -15,6 +15,12 @@ type PayRate = { id: string; label: string; rate: number; effective_date: string
 type Employee = Record<string, any>;
 type UniformItem = { key: string; item: string; qty: number; issued_date: string; returned: boolean };
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${m}/${d}/${y}`;
+}
+
 const T_SHIRT_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
 const JACKET_SIZES = ["XS","S","M","L","XL","2XL","3XL","4XL"];
 const COMMON_ITEMS = ["T-Shirt","Polo","Work Pants","Shorts","Hoodie","Work Jacket","Rain Jacket","Rain Pants","Safety Vest","Baseball Cap","Hi-Vis Vest","Gloves","Work Boots"];
@@ -260,7 +266,7 @@ export default function EmployeeDetailPage() {
           </div>
           {form.hire_date && (
             <p className="text-white/50 text-sm mt-1">
-              Hired {new Date(form.hire_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+              Hired {fmtDate(form.hire_date)}
               {form.job_title && ` · ${form.job_title}`}
             </p>
           )}
@@ -478,8 +484,8 @@ export default function EmployeeDetailPage() {
                       {r.is_default && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Default</span>}
                     </div>
                     <span className="text-xs text-gray-400">
-                      Effective {new Date(r.effective_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      {r.end_date && ` → ${new Date(r.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                      Effective {fmtDate(r.effective_date)}
+                      {r.end_date && ` → ${fmtDate(r.end_date)}`}
                     </span>
                   </div>
                   <span className="text-sm font-bold text-gray-800">${Number(r.rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">/hr</span></span>
