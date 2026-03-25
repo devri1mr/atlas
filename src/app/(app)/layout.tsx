@@ -22,7 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/operations-center/atlas-time/clock": "Time Clock",
   "/operations-center/atlas-time": "Atlas Time",
   "/operations-center/atlas-time/settings": "Time Clock Settings",
-  "/operations-center/atlas-time/departments": "Departments",
+  "/operations-center/atlas-time/departments": "Departments & Divisions",
   "/operations-center/atlas-time/employees/new": "New Team Member",
   "/operations-center/atlas-time/employees": "Team Members",
   "/operations-center": "Operations Center",
