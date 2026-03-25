@@ -56,19 +56,18 @@ type ColKey = keyof typeof DEFAULT_COLS;
 function useTeamCols() {
   const [cols, setCols] = useState(DEFAULT_COLS);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("tm-list-cols");
-      if (saved) setCols({ ...DEFAULT_COLS, ...JSON.parse(saved) });
-    } catch {}
-    // re-read on focus so changes from Profile Settings take effect
-    function onFocus() {
+    function read() {
       try {
         const saved = localStorage.getItem("tm-list-cols");
         if (saved) setCols({ ...DEFAULT_COLS, ...JSON.parse(saved) });
       } catch {}
     }
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    read();
+    function onStorage(e: StorageEvent) {
+      if (e.key === "tm-list-cols") read();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
   return cols;
 }

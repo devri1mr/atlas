@@ -57,18 +57,18 @@ type ClockColKey = keyof typeof DEFAULT_CLOCK_COLS;
 function useClockCols() {
   const [cols, setCols] = useState(DEFAULT_CLOCK_COLS);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("tm-clock-cols");
-      if (saved) setCols({ ...DEFAULT_CLOCK_COLS, ...JSON.parse(saved) });
-    } catch {}
-    function onFocus() {
+    function read() {
       try {
         const saved = localStorage.getItem("tm-clock-cols");
         if (saved) setCols({ ...DEFAULT_CLOCK_COLS, ...JSON.parse(saved) });
       } catch {}
     }
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    read();
+    function onStorage(e: StorageEvent) {
+      if (e.key === "tm-clock-cols") read();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
   return cols;
 }

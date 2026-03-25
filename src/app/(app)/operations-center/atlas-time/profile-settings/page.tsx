@@ -135,12 +135,18 @@ export default function ProfileSettingsPage() {
   function saveTeamCol(key: TeamColKey, val: boolean) {
     const next = { ...teamCols, [key]: val };
     setTeamCols(next);
-    try { localStorage.setItem("tm-list-cols", JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem("tm-list-cols", JSON.stringify(next));
+      window.dispatchEvent(new StorageEvent("storage", { key: "tm-list-cols", newValue: JSON.stringify(next) }));
+    } catch {}
   }
   function saveClockCol(key: ClockColKey, val: boolean) {
     const next = { ...clockCols, [key]: val };
     setClockCols(next);
-    try { localStorage.setItem("tm-clock-cols", JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem("tm-clock-cols", JSON.stringify(next));
+      window.dispatchEvent(new StorageEvent("storage", { key: "tm-clock-cols", newValue: JSON.stringify(next) }));
+    } catch {}
   }
 
   useEffect(() => {
