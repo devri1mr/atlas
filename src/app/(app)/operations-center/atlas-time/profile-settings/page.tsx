@@ -48,6 +48,8 @@ export default function ProfileSettingsPage() {
   const [sectionMsg, setSectionMsg] = useState("");
   const dragIdx = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editingSectionLabel, setEditingSectionLabel] = useState("");
 
   // ── Custom fields ──
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
@@ -122,6 +124,19 @@ export default function ProfileSettingsPage() {
     dragIdx.current = null;
   }
   function onDragEnd() { setDragOver(null); dragIdx.current = null; }
+
+  async function saveSectionLabel() {
+    if (!editingSectionId || !editingSectionLabel.trim()) return;
+    const r = await fetch(`/api/atlas-time/field-config/${editingSectionId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: editingSectionLabel.trim() }),
+    });
+    if (r.ok) {
+      setSections(prev => prev.map(s => s.id === editingSectionId ? { ...s, label: editingSectionLabel.trim() } : s));
+      setEditingSectionId(null);
+      setEditingSectionLabel("");
+    }
+  }
 
   async function saveSectionOrder() {
     setSectionSaving(true);
@@ -295,28 +310,50 @@ export default function ProfileSettingsPage() {
             ) : (
               <div className="divide-y divide-gray-50">
                 {sections.map((s, i) => (
-                  <div key={s.id} draggable
+                  <div key={s.id}
+                    draggable={editingSectionId !== s.id}
                     onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)}
                     onDrop={e => onDrop(e, i)} onDragEnd={onDragEnd}
-                    className={`flex items-center gap-3 px-5 py-3 cursor-grab active:cursor-grabbing transition-colors ${dragOver === i ? "bg-blue-50" : "hover:bg-gray-50/50"}`}>
+                    className={`flex items-center gap-3 px-5 py-3 transition-colors ${editingSectionId === s.id ? "bg-gray-50" : `cursor-grab active:cursor-grabbing ${dragOver === i ? "bg-blue-50" : "hover:bg-gray-50/50"}`}`}>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-gray-300 shrink-0">
                       <circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="4" r="1.5" fill="currentColor"/>
                       <circle cx="5" cy="8" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/>
                       <circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="11" cy="12" r="1.5" fill="currentColor"/>
                     </svg>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-800">{s.label}</div>
-                      <div className="text-xs text-gray-400">{s.section}</div>
-                    </div>
-                    {customBySection[s.section]?.length > 0 && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
-                        {customBySection[s.section].filter(f => f.active).length} custom fields
-                      </span>
+                    {editingSectionId === s.id ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={editingSectionLabel}
+                          onChange={e => setEditingSectionLabel(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") saveSectionLabel(); if (e.key === "Escape") { setEditingSectionId(null); setEditingSectionLabel(""); } }}
+                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]"
+                        />
+                        <button onClick={saveSectionLabel} className="text-xs font-semibold text-white bg-[#123b1f] px-2.5 py-1 rounded-lg hover:bg-[#1a5c2e]">Save</button>
+                        <button onClick={() => { setEditingSectionId(null); setEditingSectionLabel(""); }} className="text-xs text-gray-400 hover:text-gray-600 px-1">Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-800">{s.label}</div>
+                          <div className="text-xs text-gray-400">{s.section}</div>
+                        </div>
+                        {customBySection[s.section]?.length > 0 && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                            {customBySection[s.section].filter(f => f.active).length} custom fields
+                          </span>
+                        )}
+                        <button onClick={() => { setEditingSectionId(s.id); setEditingSectionLabel(s.label); }} className="text-gray-300 hover:text-gray-600 transition-colors p-1" title="Rename">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button onClick={() => setSections(prev => prev.map(x => x.id === s.id ? { ...x, visible: !x.visible } : x))}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${s.visible ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-400 border-gray-200"}`}>
+                          {s.visible ? "Visible" : "Hidden"}
+                        </button>
+                      </>
                     )}
-                    <button onClick={() => setSections(prev => prev.map(x => x.id === s.id ? { ...x, visible: !x.visible } : x))}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${s.visible ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-400 border-gray-200"}`}>
-                      {s.visible ? "Visible" : "Hidden"}
-                    </button>
                   </div>
                 ))}
               </div>

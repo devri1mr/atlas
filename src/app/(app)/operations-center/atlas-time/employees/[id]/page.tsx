@@ -363,11 +363,24 @@ export default function EmployeeDetailPage() {
     );
   }
 
+  const DEFAULT_SECTION_LABELS: Record<string, string> = {
+    personal: "Personal",
+    employment: "Employment",
+    address: "Contact & Address",
+    certifications: "Certifications & Licensing",
+    benefits: "Benefits",
+    hr_records: "HR Notes",
+  };
+
+  function sectionTitle(sk: string): string {
+    return sectionCfg.find(s => s.section === sk)?.label ?? DEFAULT_SECTION_LABELS[sk] ?? sk;
+  }
+
   function renderSection(sk: string): React.ReactNode {
     switch (sk) {
       case "personal":
         return (
-          <Section title="Name & Identity">
+          <Section title={sectionTitle(sk)}>
             <div className="grid grid-cols-[1fr_80px_1fr] gap-3">
               <div>
                 <label className={labelCls}>First Name</label>
@@ -399,7 +412,7 @@ export default function EmployeeDetailPage() {
       case "employment":
         return (
           <Fragment>
-            <Section title="Employment">
+            <Section title={sectionTitle(sk)}>
               <TwoCol>
                 <div>
                   <label className={labelCls}>Hire Date</label>
@@ -564,7 +577,7 @@ export default function EmployeeDetailPage() {
       case "address":
         return (
           <Fragment>
-            <Section title="Contact Information">
+            <Section title={sectionTitle(sk)}>
               <TwoCol>
                 <div>
                   <label className={labelCls}>Mobile Phone</label>
@@ -613,7 +626,7 @@ export default function EmployeeDetailPage() {
 
       case "certifications":
         return (
-          <Section title="Certifications & Licensing">
+          <Section title={sectionTitle(sk)}>
             <TwoCol>
               <div>
                 <label className={labelCls}>CPR Expiration</label>
@@ -669,7 +682,7 @@ export default function EmployeeDetailPage() {
 
       case "benefits":
         return (
-          <Section title="Benefits & HR Records">
+          <Section title={sectionTitle(sk)}>
             <TwoCol>
               <div>
                 <label className={labelCls}>Health Care Plan</label>
@@ -730,7 +743,7 @@ export default function EmployeeDetailPage() {
 
       case "hr_records":
         return (
-          <Section title="HR Notes">
+          <Section title={sectionTitle(sk)}>
             <textarea
               value={form.notes ?? ""}
               onChange={e => set("notes", e.target.value)}
