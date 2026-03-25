@@ -37,6 +37,18 @@ const PIN_LENGTH = 4;
 const PAD = [["1","2","3"],["4","5","6"],["7","8","9"],["","0","⌫"]];
 const BG = "linear-gradient(160deg,#071a0d 0%,#0d2616 50%,#0f3019 100%)";
 
+function Wrap({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className="fixed inset-0 flex flex-col select-none overflow-hidden"
+      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function KioskPage() {
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState<View>("pin");
@@ -182,15 +194,6 @@ export default function KioskPage() {
     setResult(null); setCoords(null); setActing(false);
   }
 
-  const Wrap = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <div
-      onClick={onClick}
-      className="fixed inset-0 flex flex-col select-none overflow-hidden"
-      style={{ background: BG, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      {children}
-    </div>
-  );
 
   // ─── SUCCESS ────────────────────────────────────────────
   if (view === "success" && result && employee) {
