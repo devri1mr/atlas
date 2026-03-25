@@ -451,29 +451,6 @@ export default function EmployeeDetailPage() {
                     <option value="terminated">Terminated</option>
                   </select>
                 </div>
-                <div>
-                  <label className={labelCls}>Pay Type</label>
-                  <select value={form.pay_type ?? "hourly"} onChange={e => set("pay_type", e.target.value)} className={inputCls}>
-                    <option value="hourly">Hourly</option>
-                    <option value="salary">Salaried (OT eligible)</option>
-                    <option value="exempt_salary">Salaried Exempt</option>
-                  </select>
-                </div>
-              </TwoCol>
-              <TwoCol>
-                <div>
-                  <label className={labelCls}>Default {form.pay_type === "hourly" ? "Hourly Rate" : "Annual Salary"}</label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">$</span>
-                    <input type="number" min={0} step={0.01}
-                      value={form.default_pay_rate ?? ""}
-                      onChange={e => set("default_pay_rate", e.target.value === "" ? null : Number(e.target.value))}
-                      className={inputCls + " pl-7"} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelCls}>Anniversary Note</label>
-                  <input value={form.anniversary_note ?? ""} onChange={e => set("anniversary_note", e.target.value)} className={inputCls} placeholder="e.g. 5-year milestone in June" />
                 </div>
               </TwoCol>
               {renderCustomFields("employment")}
@@ -563,7 +540,6 @@ export default function EmployeeDetailPage() {
                   </div>
                 </div>
               )}
-              <p className={descCls + " !mb-0"}>Multiple rates support weighted OT calculation (FLSA) for team members who work across different pay grades in the same week.</p>
             </Section>
           </Fragment>
         );
