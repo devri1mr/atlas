@@ -45,6 +45,7 @@ function initials(e: Emp) {
 export default function RateSetupPage() {
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [hasRates, setHasRates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [idx, setIdx] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -69,17 +70,21 @@ export default function RateSetupPage() {
   async function load() {
     setLoading(true);
     try {
-      const [empRes, divRes] = await Promise.all([
+      const [empRes, divRes, hrRes] = await Promise.all([
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
+        fetch("/api/atlas-time/employees/has-rates", { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
+      const hrJson  = await hrRes.json().catch(() => ({ employee_ids: [] }));
       if (!empRes.ok) throw new Error(empJson?.error ?? "Failed");
+      const rateIds = new Set<string>(hrJson.employee_ids ?? []);
+      setHasRates(rateIds);
       let list: Emp[] = empJson.employees ?? [];
       list = [
-        ...list.filter(e => !e.default_pay_rate),
-        ...list.filter(e => e.default_pay_rate),
+        ...list.filter(e => !rateIds.has(e.id)),
+        ...list.filter(e => rateIds.has(e.id)),
       ];
       setEmployees(list);
       setDivisions((divJson?.divisions ?? []).filter((d: Division) => d.active));
@@ -92,9 +97,10 @@ export default function RateSetupPage() {
 
   useEffect(() => { load(); }, []);
 
-  const visible = showAll ? employees : employees.filter(e => !e.default_pay_rate || done.has(e.id));
+  const missing = employees.filter(e => !hasRates.has(e.id) && !done.has(e.id));
+  const visible = showAll ? employees : missing;
   const emp = visible[idx] ?? null;
-  const missingCount = employees.filter(e => !e.default_pay_rate).length;
+  const missingCount = missing.length;
 
   // When employee changes, fetch their existing rates and reset pending
   useEffect(() => {
@@ -176,6 +182,7 @@ export default function RateSetupPage() {
         ));
       }
       setDone(prev => new Set([...prev, emp.id]));
+      setHasRates(prev => new Set([...prev, emp.id]));
       setJustSaved(true);
       setTimeout(() => { setJustSaved(false); advance(); }, 700);
     } catch (e: any) {
@@ -212,7 +219,7 @@ export default function RateSetupPage() {
                 <h1 className="text-xl font-bold text-white">Rate Setup</h1>
                 <p className="text-white/50 text-xs mt-0.5">{missingCount} without a rate · {done.size} set this session</p>
               </div>
-              <button onClick={() => setShowAll(s => !s)}
+              <button onClick={() => { setShowAll(s => !s); setIdx(0); }}
                 className="text-xs font-semibold text-white/60 hover:text-white border border-white/20 px-3 py-1.5 rounded-lg transition-colors">
                 {showAll ? "Missing only" : "Show all"}
               </button>
@@ -391,33 +398,30 @@ export default function RateSetupPage() {
                 </button>
               </div>
 
-              {/* Thumbnail strip */}
-              {employees.length > 1 && (
+              {/* Thumbnail strip — only visible employees */}
+              {visible.length > 1 && (
                 <div className="w-full">
-                  <p className="text-xs text-gray-400 mb-2">All team members</p>
+                  <p className="text-xs text-gray-400 mb-2">{showAll ? "All team members" : "Missing rates"}</p>
                   <div className="flex gap-2 overflow-x-auto pb-2">
-                    {employees.map(e => {
-                      const visIdx = visible.findIndex(v => v.id === e.id);
-                      return (
-                        <button key={e.id} onClick={() => visIdx >= 0 && setIdx(visIdx)} disabled={visIdx < 0}
-                          className={`relative shrink-0 w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${
-                            emp.id === e.id ? "border-[#123b1f] scale-110" :
-                            done.has(e.id) ? "border-green-400 opacity-70" :
-                            "border-transparent opacity-50"
-                          }`}
-                        >
-                          {e.photo_url
-                            ? <img src={e.photo_url} alt={initials(e)} className="w-full h-full object-cover" />
-                            : <div className="w-full h-full bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(e)}</div>
-                          }
-                          {done.has(e.id) && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-green-500/30">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {visible.map((e, i) => (
+                      <button key={e.id} onClick={() => setIdx(i)}
+                        className={`relative shrink-0 w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${
+                          emp.id === e.id ? "border-[#123b1f] scale-110" :
+                          done.has(e.id) ? "border-green-400 opacity-70" :
+                          "border-transparent opacity-60"
+                        }`}
+                      >
+                        {e.photo_url
+                          ? <img src={e.photo_url} alt={initials(e)} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(e)}</div>
+                        }
+                        {done.has(e.id) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-green-500/30">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

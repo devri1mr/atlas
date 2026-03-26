@@ -168,6 +168,10 @@ export default function EmployeeDetailPage() {
   const [newRaiseAmount, setNewRaiseAmount] = useState("");
   const [newRaiseDate, setNewRaiseDate] = useState(new Date().toISOString().slice(0, 10));
   const [raiseSaving, setRaiseSaving] = useState(false);
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editRateAmount, setEditRateAmount] = useState("");
+  const [editRateDate, setEditRateDate] = useState("");
+  const [editRateSaving, setEditRateSaving] = useState(false);
 
   const [showTerminate, setShowTerminate] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -405,6 +409,40 @@ export default function EmployeeDetailPage() {
     finally { setRaiseSaving(false); }
   }
 
+  async function editRate(rateId: string) {
+    const amount = parseFloat(editRateAmount);
+    if (!amount || amount <= 0) { setError("Enter a valid rate."); return; }
+    try {
+      setEditRateSaving(true);
+      setError("");
+      const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate_id: rateId, rate: amount, effective_date: editRateDate || undefined }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to update rate");
+      setPayRates(prev => prev.map(r => r.id === rateId ? { ...r, rate: amount, effective_date: editRateDate || r.effective_date } : r));
+      setEditingRateId(null);
+    } catch (e: any) { setError(e?.message ?? "Failed"); }
+    finally { setEditRateSaving(false); }
+  }
+
+  async function setDefaultRate(rateId: string) {
+    try {
+      setError("");
+      const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate_id: rateId, is_default: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed");
+      setPayRates(prev => prev.map(r => ({ ...r, is_default: r.id === rateId })));
+      setForm((prev: Employee) => ({ ...prev, default_pay_rate: json.pay_rate?.rate ?? prev.default_pay_rate }));
+    } catch (e: any) { setError(e?.message ?? "Failed"); }
+  }
+
   async function terminate() {
     if (!form.termination_date) { setError("Termination date is required."); return; }
     try {
@@ -626,6 +664,7 @@ export default function EmployeeDetailPage() {
             </Section>
 
             <Section title="Pay Rates"
+              desc="Division-specific rates take priority. Punches with no matching division use the default rate."
               action={
                 <button onClick={() => setAddingRate(true)} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1 shrink-0">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -636,7 +675,7 @@ export default function EmployeeDetailPage() {
               }
             >
               {payRates.length === 0 && !addingRate && (
-                <p className="text-sm text-gray-400">No pay rates on file. The default rate above is used for payroll.</p>
+                <p className="text-sm text-gray-400">No pay rates on file.</p>
               )}
               {payRates.length > 0 && (() => {
                 // Group by division_id (null = no division)
@@ -667,6 +706,12 @@ export default function EmployeeDetailPage() {
                               <span className="text-xs text-gray-400">Effective {fmtDate(latest.effective_date)}{latest.end_date && ` → ${fmtDate(latest.end_date)}`}</span>
                             </div>
                             <span className="text-sm font-bold text-gray-800">${Number(latest.rate).toFixed(2)}<span className="text-xs text-gray-400 font-normal">/hr</span></span>
+                            {!latest.is_default && (
+                              <button onClick={() => setDefaultRate(latest.id)}
+                                className="text-[10px] font-semibold text-gray-400 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors whitespace-nowrap">
+                                Set default
+                              </button>
+                            )}
                             <button onClick={() => setExpandedRateGroup(isExpanded ? null : groupKey)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors" title="View history / add raise">
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 {isExpanded ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>}
@@ -678,15 +723,52 @@ export default function EmployeeDetailPage() {
                             <div className="px-3.5 py-2.5 space-y-2 bg-white border-t border-gray-100">
                               <div className="space-y-1">
                                 {rates.map(r => (
-                                  <div key={r.id} className="flex items-center gap-3 text-xs py-1 border-b border-gray-50 last:border-0">
-                                    <span className="text-gray-400 w-20 shrink-0">{fmtDate(r.effective_date)}</span>
-                                    <span className="font-semibold text-gray-700">${Number(r.rate).toFixed(2)}/hr</span>
-                                    {r.end_date && <span className="text-gray-400">→ {fmtDate(r.end_date)}</span>}
-                                    <button onClick={() => deletePayRate(r.id)} className="ml-auto p-1 text-gray-300 hover:text-red-400 rounded transition-colors">
-                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                      </svg>
-                                    </button>
+                                  <div key={r.id} className="border-b border-gray-50 last:border-0">
+                                    {editingRateId === r.id ? (
+                                      <div className="py-2 space-y-2">
+                                        <div className="flex gap-2">
+                                          <div className="relative flex-1">
+                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">$</span>
+                                            <input autoFocus type="number" min={0} step={0.01}
+                                              value={editRateAmount}
+                                              onChange={e => setEditRateAmount(e.target.value)}
+                                              className={inputCls + " pl-6 py-1.5 text-sm"}
+                                              placeholder="0.00" />
+                                          </div>
+                                          <input type="date" value={editRateDate} onChange={e => setEditRateDate(e.target.value)} className={inputCls + " py-1.5 text-sm"} />
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <button onClick={() => editRate(r.id)} disabled={editRateSaving || !editRateAmount}
+                                            className="text-xs font-semibold px-3 py-1.5 bg-[#123b1f] text-white rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                                            {editRateSaving ? "Saving…" : "Save"}
+                                          </button>
+                                          <button onClick={() => setEditingRateId(null)} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5">Cancel</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-xs py-1.5">
+                                        <span className="text-gray-400 w-20 shrink-0">{fmtDate(r.effective_date)}</span>
+                                        <span className="font-semibold text-gray-700">${Number(r.rate).toFixed(2)}/hr</span>
+                                        {r.is_default && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">Default</span>}
+                                        <div className="ml-auto flex items-center gap-1">
+                                          {!r.is_default && (
+                                            <button onClick={() => setDefaultRate(r.id)} title="Set as default rate"
+                                              className="text-[10px] font-semibold text-gray-400 hover:text-green-700 px-1.5 py-1 rounded hover:bg-green-50 transition-colors">
+                                              Set default
+                                            </button>
+                                          )}
+                                          <button onClick={() => { setEditingRateId(r.id); setEditRateAmount(String(r.rate)); setEditRateDate(r.effective_date); }}
+                                            className="p-1 text-gray-300 hover:text-blue-500 rounded transition-colors" title="Edit rate">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                          </button>
+                                          <button onClick={() => deletePayRate(r.id)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors" title="Delete">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>

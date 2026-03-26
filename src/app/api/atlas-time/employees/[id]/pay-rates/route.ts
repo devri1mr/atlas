@@ -52,6 +52,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const sb = supabaseAdmin();
+    const companyId = await getCompanyId(sb);
+    if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+    const body = await req.json().catch(() => ({}));
+    const rateId = body.rate_id;
+    if (!rateId) return NextResponse.json({ error: "rate_id required" }, { status: 400 });
+
+    const patch: Record<string, any> = {};
+    if (body.rate != null) {
+      const r = Number(body.rate);
+      if (!r || r <= 0) return NextResponse.json({ error: "Rate must be > 0" }, { status: 400 });
+      patch.rate = r;
+    }
+    if (body.effective_date) patch.effective_date = body.effective_date;
+    if (body.is_default === true) {
+      // Unset all other defaults for this employee first
+      await sb.from("at_pay_rates").update({ is_default: false }).eq("employee_id", id);
+      patch.is_default = true;
+      // Also update the employee's default_pay_rate field
+      if (body.rate != null) {
+        await sb.from("at_employees").update({ default_pay_rate: Number(body.rate) }).eq("id", id);
+      } else {
+        // Fetch the rate value
+        const { data: existing } = await sb.from("at_pay_rates").select("rate").eq("id", rateId).single();
+        if (existing) await sb.from("at_employees").update({ default_pay_rate: existing.rate }).eq("id", id);
+      }
+    } else if (body.is_default === false) {
+      patch.is_default = false;
+    }
+
+    const { data, error } = await sb
+      .from("at_pay_rates")
+      .update(patch)
+      .eq("id", rateId)
+      .eq("employee_id", id)
+      .select("id, division_id, division_name, qb_class, rate, effective_date, end_date, is_default")
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ pay_rate: data });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
