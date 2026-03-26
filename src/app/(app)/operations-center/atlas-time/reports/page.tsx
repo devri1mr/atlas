@@ -507,8 +507,8 @@ export default function ReportsPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-100 bg-gray-50">
                       <Th  label="Employee"   col="name"    sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Division"   col="div"     sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Reg Hrs"    col="reg"     sort={summarySort} onSort={toggleSummarySort} />
@@ -559,8 +559,8 @@ export default function ReportsPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-100 bg-gray-50">
                       <Th  label="Employee"   col="name"  sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="Date"       col="date"  sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="In"         col="in"    sort={detailSort} onSort={toggleDetailSort} />

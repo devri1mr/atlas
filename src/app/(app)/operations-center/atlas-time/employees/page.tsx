@@ -351,8 +351,8 @@ export default function EmployeesPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="w-10 px-4 py-3">
                       <input
                         type="checkbox"

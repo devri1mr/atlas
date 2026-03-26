@@ -496,7 +496,7 @@ export default function ClockPage() {
           ) : (
             <>
               {/* Column headers — built dynamically from col prefs */}
-              <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 <span className="flex-1 min-w-[120px]">Name</span>
                 {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
                 {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}
@@ -554,7 +554,7 @@ export default function ClockPage() {
             <div className="px-5 py-4 border-b border-gray-50">
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
             </div>
-            <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               <span className="flex-1 min-w-[120px]">Name</span>
               {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
               {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}

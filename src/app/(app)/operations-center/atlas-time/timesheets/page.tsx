@@ -321,8 +321,8 @@ export default function TimesheetsPage() {
                     <div className={`border-t border-gray-50 ${!isOpen ? "hidden print:block" : ""}`}>
                       <div className="overflow-x-auto">
                       <table className="w-full text-xs min-w-[640px]">
-                        <thead>
-                          <tr className="bg-gray-50/60 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                        <thead className="sticky top-0 z-10">
+                          <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                             <th className="px-4 py-2 text-left">Date</th>
                             <th className="px-3 py-2 text-center">In</th>
                             <th className="px-3 py-2 text-center">Out</th>
