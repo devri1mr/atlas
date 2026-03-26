@@ -1205,16 +1205,16 @@ function ClockPageInner() {
                             <div className="text-center">{(p.divisions || p.at_divisions) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
-                            <span className="text-xs text-gray-600 text-center tabular-nums">{p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)}</span>
-                            <span className={`text-xs text-center tabular-nums font-semibold ${(p.ot_hours ?? 0) > 0 ? "text-amber-600" : "text-gray-300"}`}>{(p.ot_hours ?? 0) > 0 ? p.ot_hours!.toFixed(2) : "—"}</span>
+                            <span className="text-xs text-gray-600 text-center tabular-nums">{group.length === 1 ? (p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)) : <span className="text-gray-300">—</span>}</span>
+                            <span className={`text-xs text-center tabular-nums font-semibold ${group.length === 1 && (p.ot_hours ?? 0) > 0 ? "text-amber-600" : "text-gray-300"}`}>{group.length === 1 && (p.ot_hours ?? 0) > 0 ? p.ot_hours!.toFixed(2) : "—"}</span>
                             <div className="relative text-center">
-                              {hrs ? (
+                              {group.length === 1 && hrs ? (
                                 <button onClick={() => setBreakdownId(showBD ? null : p.id)}
                                   className="text-xs font-bold text-gray-700 tabular-nums underline decoration-dotted underline-offset-2 cursor-pointer hover:text-[#123b1f]">
                                   {hrs}
                                 </button>
                               ) : <span className="text-gray-300 text-xs">—</span>}
-                              {showBD && p.clock_out_at && (
+                              {showBD && group.length === 1 && p.clock_out_at && (
                                 <div className="absolute left-1/2 -translate-x-1/2 top-5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-left min-w-[140px]">
                                   <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Breakdown</div>
                                   <div className="space-y-1 text-xs text-gray-700 tabular-nums">
@@ -1227,7 +1227,7 @@ function ClockPageInner() {
                                 </div>
                               )}
                             </div>
-                            {showLaborCost && (() => {
+                            {showLaborCost && (group.length === 1 ? (() => {
                               const hrsNum = hrs ? Number(hrs) : null;
                               const cost = hrsNum != null && emp.default_pay_rate
                                 ? hrsNum * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100) : null;
@@ -1241,7 +1241,7 @@ function ClockPageInner() {
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </div>
                               );
-                            })()}
+                            })() : <span />)}
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => startEditPunch(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
