@@ -29,7 +29,7 @@ type RawPunch = {
     at_departments: { id: string; name: string } | null;
   } | null;
   divisions: { id: string; name: string; qb_class_name: string | null } | null;
-  at_divisions: { id: string; name: string } | null;
+  at_divisions: { id: string; name: string; qb_class_name: string | null } | null;
 };
 
 type EmpOption  = { id: string; name: string };
@@ -287,7 +287,7 @@ export default function ReportsPage() {
         _total: reg + ot + dt,
         _lunch: lunch,
         _div:   p.at_divisions?.name ?? p.divisions?.name ?? "",
-        _class: p.divisions?.qb_class_name ?? "",
+        _class: p.divisions?.qb_class_name ?? p.at_divisions?.qb_class_name ?? "",
       };
     });
     return sortFn(rows, detailSort[0], detailSort[1], {

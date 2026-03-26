@@ -20,7 +20,7 @@ const PUNCH_SELECT = `
     lunch_auto_deduct, lunch_deduct_after_hours, lunch_deduct_minutes,
     at_departments(id, name)),
   divisions(id, name, qb_class_name),
-  at_divisions!at_division_id(id, name)
+  at_divisions!at_division_id(id, name, qb_class_name)
 `;
 
 // GET — today's punches (no params) OR date-range filtered (date_from + date_to)
