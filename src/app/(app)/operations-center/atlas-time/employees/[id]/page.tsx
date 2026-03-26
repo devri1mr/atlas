@@ -54,6 +54,7 @@ const descCls = "text-xs text-gray-400 mb-2";
 type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; qb_class_name: string | null };
 type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
+type NavEmp = { id: string; first_name: string; last_name: string; photo_url: string | null };
 type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number; color?: string };
 type Variant = { id: string; item_option_id: string; variant_type: "size" | "color"; label: string; cost: number | null; sort_order: number; active: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
@@ -176,6 +177,7 @@ export default function EmployeeDetailPage() {
   const [showTerminate, setShowTerminate] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState("");
+  const [navEmployees, setNavEmployees] = useState<NavEmp[]>([]);
 
   const photoFileRef = useRef<HTMLInputElement>(null);
   const photoCameraRef = useRef<HTMLInputElement>(null);
@@ -191,7 +193,7 @@ export default function EmployeeDetailPage() {
     try {
       setLoading(true);
       setError("");
-      const [empRes, divRes, fcRes, foRes, cfRes, cvRes, uvRes] = await Promise.all([
+      const [empRes, divRes, fcRes, foRes, cfRes, cvRes, uvRes, listRes] = await Promise.all([
         fetch(`/api/atlas-time/employees/${id}`, { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/field-config", { cache: "no-store" }),
@@ -199,6 +201,7 @@ export default function EmployeeDetailPage() {
         fetch("/api/atlas-time/custom-fields", { cache: "no-store" }),
         fetch(`/api/atlas-time/employees/${id}/custom-values`, { cache: "no-store" }),
         fetch("/api/atlas-time/uniform-variants", { cache: "no-store" }),
+        fetch("/api/atlas-time/employees", { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
@@ -207,6 +210,8 @@ export default function EmployeeDetailPage() {
       const cfJson = await cfRes.json().catch(() => ({}));
       const cvJson = await cvRes.json().catch(() => ({}));
       const uvJson = await uvRes.json().catch(() => ({}));
+      const listJson = await listRes.json().catch(() => ({ employees: [] }));
+      setNavEmployees(listJson.employees ?? []);
 
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
@@ -485,6 +490,11 @@ export default function EmployeeDetailPage() {
 
   const mi = form.middle_initial ? ` ${form.middle_initial}.` : "";
   const fullName = form.first_name ? `${form.last_name}, ${form.first_name}${mi}` : "Team Member";
+
+  const navIdx = navEmployees.findIndex(e => e.id === id);
+  const prevEmp = navIdx > 0 ? navEmployees[navIdx - 1] : null;
+  const nextEmp = navIdx >= 0 && navIdx < navEmployees.length - 1 ? navEmployees[navIdx + 1] : null;
+  const hasNav = prevEmp !== null || nextEmp !== null;
 
   const orderedSections = sectionCfg.length > 0
     ? [...sectionCfg].sort((a, b) => a.sort_order - b.sort_order).filter(s => s.visible).map(s => s.section)
@@ -1137,7 +1147,7 @@ export default function EmployeeDetailPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto space-y-4">
+      <div className={`px-4 md:px-8 py-6 max-w-4xl mx-auto space-y-4 ${hasNav ? "pb-24" : ""}`}>
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
@@ -1479,6 +1489,56 @@ export default function EmployeeDetailPage() {
           </span>
         </div>
       </div>
+
+      {/* Sticky prev/next navigation */}
+      {hasNav && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+          <div className="max-w-4xl mx-auto px-3 py-2 flex items-center gap-2">
+            {/* Prev */}
+            {prevEmp ? (
+              <Link href={`/operations-center/atlas-time/employees/${prevEmp.id}`}
+                className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-400"><polyline points="15 18 9 12 15 6"/></svg>
+                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-[#123b1f]/10 flex items-center justify-center">
+                  {prevEmp.photo_url
+                    ? <img src={prevEmp.photo_url} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-[#123b1f] font-bold text-[10px]">{prevEmp.first_name[0]}{prevEmp.last_name[0]}</span>
+                  }
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 leading-none mb-0.5">Previous</p>
+                  <p className="text-xs font-semibold text-gray-700 truncate">{prevEmp.first_name} {prevEmp.last_name}</p>
+                </div>
+              </Link>
+            ) : <div className="flex-1" />}
+
+            {/* Center count */}
+            {navIdx >= 0 && (
+              <span className="shrink-0 text-[10px] text-gray-400 font-medium tabular-nums px-1">
+                {navIdx + 1}/{navEmployees.length}
+              </span>
+            )}
+
+            {/* Next */}
+            {nextEmp ? (
+              <Link href={`/operations-center/atlas-time/employees/${nextEmp.id}`}
+                className="flex items-center gap-2 flex-row-reverse flex-1 min-w-0 px-3 py-2 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-gray-400"><polyline points="9 18 15 12 9 6"/></svg>
+                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-[#123b1f]/10 flex items-center justify-center">
+                  {nextEmp.photo_url
+                    ? <img src={nextEmp.photo_url} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-[#123b1f] font-bold text-[10px]">{nextEmp.first_name[0]}{nextEmp.last_name[0]}</span>
+                  }
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[10px] text-gray-400 leading-none mb-0.5">Next</p>
+                  <p className="text-xs font-semibold text-gray-700 truncate">{nextEmp.first_name} {nextEmp.last_name}</p>
+                </div>
+              </Link>
+            ) : <div className="flex-1" />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

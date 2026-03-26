@@ -43,7 +43,7 @@ function initials(e: Emp) {
 }
 
 export default function RateSetupPage() {
-  const [employees, setEmployees] = useState<Emp[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Emp[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [hasRates, setHasRates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -86,7 +86,7 @@ export default function RateSetupPage() {
         ...list.filter(e => !rateIds.has(e.id)),
         ...list.filter(e => rateIds.has(e.id)),
       ];
-      setEmployees(list);
+      setAllEmployees(list);
       setDivisions((divJson?.divisions ?? []).filter((d: Division) => d.active));
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
@@ -97,8 +97,8 @@ export default function RateSetupPage() {
 
   useEffect(() => { load(); }, []);
 
-  const missing = employees.filter(e => !hasRates.has(e.id) && !done.has(e.id));
-  const visible = showAll ? employees : missing;
+  const missing = allEmployees.filter(e => !hasRates.has(e.id) && !done.has(e.id));
+  const visible = showAll ? allEmployees : missing;
   const emp = visible[idx] ?? null;
   const missingCount = missing.length;
 
@@ -164,7 +164,7 @@ export default function RateSetupPage() {
       const defaultPending = pendingRates.find(r => r.is_default);
       if (defaultPending) {
         const parsed = parseFloat(defaultPending.rate);
-        setEmployees(prev => prev.map(e => e.id === emp.id
+        setAllEmployees(prev => prev.map(e => e.id === emp.id
           ? { ...e, pay_type: "hourly", default_pay_rate: parsed }
           : e
         ));
@@ -176,7 +176,7 @@ export default function RateSetupPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pay_type: "hourly", default_pay_rate: parsed }),
         });
-        setEmployees(prev => prev.map(e => e.id === emp.id
+        setAllEmployees(prev => prev.map(e => e.id === emp.id
           ? { ...e, pay_type: "hourly", default_pay_rate: parsed }
           : e
         ));
@@ -192,14 +192,15 @@ export default function RateSetupPage() {
     }
   }
 
+  const visibleLen = visible.length;
   function advance() {
-    setIdx(i => Math.min(i + 1, visible.length - 1));
+    setIdx(i => Math.min(i + 1, visibleLen - 1));
   }
   function back() {
     setIdx(i => Math.max(i - 1, 0));
   }
 
-  const total = visible.length;
+  const total = visibleLen;
   const canSave = pendingRates.length > 0;
 
   return (
