@@ -445,20 +445,42 @@ export default function ClockPage() {
                   {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={viewDate}
-                  max={todayStr}
-                  onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
-                  className="bg-white/10 border border-white/20 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]"
-                />
-                <button
-                  onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: viewDate }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
-                  className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
-                >
-                  + Manual Punch
-                </button>
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={viewDate}
+                    max={todayStr}
+                    onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
+                    className="bg-white/10 border border-white/20 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]"
+                  />
+                  <button
+                    onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: viewDate }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
+                    className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
+                  >
+                    + Manual Punch
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      const d = new Date(viewDate + "T12:00:00");
+                      d.setDate(d.getDate() - 1);
+                      setViewDate(d.toISOString().slice(0, 10));
+                    }}
+                    className="text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                  >
+                    ← Prev Day
+                  </button>
+                  {!isToday && (
+                    <button
+                      onClick={() => setViewDate(todayStr)}
+                      className="text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                    >
+                      Today →
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
