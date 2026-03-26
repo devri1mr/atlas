@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recalcDayLunch } from "@/lib/atDayRecalc";
 
 export const runtime = "nodejs";
 
@@ -76,10 +77,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from("at_punches")
       .update(patch)
       .eq("id", id)
-      .select("id, employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked, division_id, at_division_id")
+      .select("id, company_id, employee_id, clock_in_at, clock_out_at, date_for_payroll, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked, division_id, at_division_id")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Recalculate day-level lunch whenever a punch has a clock_out
+    if (data?.clock_out_at && data?.employee_id && data?.company_id && data?.date_for_payroll) {
+      await recalcDayLunch(sb, data.company_id, data.employee_id, data.date_for_payroll);
+      const { data: updated } = await sb
+        .from("at_punches")
+        .select("id, employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked, division_id, at_division_id")
+        .eq("id", id)
+        .single();
+      return NextResponse.json({ punch: updated ?? data });
+    }
+
     return NextResponse.json({ punch: data });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

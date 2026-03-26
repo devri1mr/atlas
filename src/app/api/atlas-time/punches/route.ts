@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recalcDayLunch } from "@/lib/atDayRecalc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,6 +112,14 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      // Recalculate day-level lunch across all punches for this employee+date
+      if (clockOut) {
+        await recalcDayLunch(sb, companyId, employeeId, dateForPayroll);
+        const { data: updated } = await sb.from("at_punches").select(PUNCH_SELECT).eq("id", data!.id).single();
+        return NextResponse.json({ punch: updated ?? data }, { status: 201 });
+      }
+
       return NextResponse.json({ punch: data }, { status: 201 });
     }
 
