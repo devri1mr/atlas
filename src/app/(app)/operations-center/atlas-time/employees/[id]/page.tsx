@@ -566,15 +566,25 @@ export default function EmployeeDetailPage() {
                 </div>
               </TwoCol>
 
-              <div className="max-w-xs">
-                <label className={labelCls}>Status</label>
-                <select value={form.status ?? "active"} onChange={e => set("status", e.target.value)} className={inputCls}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="on_leave">On Leave</option>
-                  <option value="terminated">Terminated</option>
-                </select>
-              </div>
+              <TwoCol>
+                <div>
+                  <label className={labelCls}>Status</label>
+                  <select value={form.status ?? "active"} onChange={e => set("status", e.target.value)} className={inputCls}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="on_leave">On Leave</option>
+                    <option value="terminated">Terminated</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Current Division</label>
+                  <select value={form.division_id ?? ""} onChange={e => set("division_id", e.target.value || null)} className={inputCls}>
+                    <option value="">— None —</option>
+                    {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Shown in the Team Members list.</p>
+                </div>
+              </TwoCol>
               {renderCustomFields("employment")}
             </Section>
 
