@@ -13,6 +13,7 @@ type Emp = {
   pay_type: string;
   default_pay_rate: number | null;
   photo_url: string | null;
+  hire_date: string | null;
   divisions: { id: string; name: string } | null;
 };
 
@@ -137,7 +138,7 @@ export default function RateSetupPage() {
     try {
       setSaving(true);
       setError("");
-      const today = new Date().toISOString().slice(0, 10);
+      const effectiveDate = emp.hire_date ?? new Date().toISOString().slice(0, 10);
       for (const pr of pendingRates) {
         const parsed = parseFloat(pr.rate);
         const div = divisions.find(d => d.id === pr.division_id);
@@ -149,7 +150,7 @@ export default function RateSetupPage() {
             division_id: pr.division_id || null,
             division_name: div?.name ?? null,
             is_default: pr.is_default,
-            effective_date: today,
+            effective_date: effectiveDate,
           }),
         });
       }
