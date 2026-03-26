@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/lib/userContext";
@@ -230,6 +230,10 @@ function useClockCols() {
 }
 
 export default function ClockPage() {
+  return <Suspense><ClockPageInner /></Suspense>;
+}
+
+function ClockPageInner() {
   const { can } = useUser();
   const showLaborCost = can("hr_labor_cost");
   const router = useRouter();
