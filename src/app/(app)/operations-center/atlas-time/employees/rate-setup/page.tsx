@@ -85,7 +85,7 @@ export default function RateSetupPage() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save");
-      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, pay_type: payType, default_pay_rate: parsed } : e));
+      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, pay_type: "hourly", default_pay_rate: parsed } : e));
       setDone(prev => new Set([...prev, emp.id]));
       setJustSaved(true);
       setTimeout(() => {
