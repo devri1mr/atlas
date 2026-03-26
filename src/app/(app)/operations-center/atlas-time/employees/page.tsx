@@ -18,6 +18,7 @@ type Employee = {
   phone: string | null;
   work_email: string | null;
   kiosk_pin: string | null;
+  photo_url: string | null;
   drivers_license_expiration: string | null;
   dot_card_expiration: string | null;
   fert_license_expiration: string | null;
@@ -381,8 +382,11 @@ export default function EmployeesPage() {
                         {/* Avatar */}
                         <td className="px-3 py-3">
                           <Link href={`/operations-center/atlas-time/employees/${emp.id}`} className="block">
-                            <div className="w-9 h-9 rounded-xl bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-xs shrink-0">
-                              {initials(emp)}
+                            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-[#123b1f]/10 flex items-center justify-center">
+                              {emp.photo_url
+                                ? <img src={emp.photo_url} alt={initials(emp)} className="w-full h-full object-cover" />
+                                : <span className="text-[#123b1f] font-bold text-xs">{initials(emp)}</span>
+                              }
                             </div>
                           </Link>
                         </td>

@@ -170,7 +170,11 @@ export default function EmployeeDetailPage() {
   const [raiseSaving, setRaiseSaving] = useState(false);
 
   const [showTerminate, setShowTerminate] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
 
+  const photoFileRef = useRef<HTMLInputElement>(null);
+  const photoCameraRef = useRef<HTMLInputElement>(null);
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef<() => Promise<void>>(async () => {});
@@ -340,6 +344,39 @@ export default function EmployeeDetailPage() {
       setTimeout(() => setPinSuccess(false), 3000);
     } catch (e: any) { setError(e?.message ?? "Failed to save PIN"); }
     finally { setPinSaving(false); }
+  }
+
+  async function uploadPhoto(file: File) {
+    if (!file) return;
+    try {
+      setPhotoUploading(true);
+      setPhotoError("");
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch(`/api/atlas-time/employees/${id}/photo`, { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Upload failed");
+      setForm((prev: Employee) => ({ ...prev, photo_url: json.photo_url }));
+    } catch (e: any) {
+      setPhotoError(e?.message ?? "Upload failed");
+      setTimeout(() => setPhotoError(""), 4000);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function removePhoto() {
+    try {
+      setPhotoUploading(true);
+      const res = await fetch(`/api/atlas-time/employees/${id}/photo`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove photo");
+      setForm((prev: Employee) => ({ ...prev, photo_url: null }));
+    } catch (e: any) {
+      setPhotoError(e?.message ?? "Failed to remove photo");
+      setTimeout(() => setPhotoError(""), 4000);
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   async function deletePayRate(rateId: string) {
@@ -955,10 +992,16 @@ export default function EmployeeDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
+      {/* Hidden file inputs */}
+      <input ref={photoFileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
+      <input ref={photoCameraRef} type="file" accept="image/*" capture="user" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
+
       <div className="px-4 md:px-8 py-6 md:py-8"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
+          <div className="flex items-center gap-2 text-white/50 text-xs mb-4">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
             <Link href="/operations-center/atlas-time" className="hover:text-white/80 transition-colors">Atlas HR</Link>
@@ -967,19 +1010,48 @@ export default function EmployeeDetailPage() {
             <span>/</span>
             <span className="text-white/80 truncate">{fullName}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex-1 truncate">{fullName}</h1>
-            {form.status && (
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[form.status] ?? "bg-gray-100 text-gray-500"}`}>
-                {form.status.charAt(0).toUpperCase() + form.status.slice(1).replace("_", " ")}
-              </span>
-            )}
+          <div className="flex items-center gap-4">
+            {/* Photo widget */}
+            <div className="relative shrink-0 group">
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 flex items-center justify-center">
+                {form.photo_url
+                  ? <img src={form.photo_url} alt={fullName} className="w-full h-full object-cover" />
+                  : <span className="text-white font-bold text-xl md:text-2xl select-none">
+                      {form.first_name?.[0] ?? ""}{form.last_name?.[0] ?? ""}
+                    </span>
+                }
+                {photoUploading && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-2xl">
+                    <svg className="animate-spin w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                  </div>
+                )}
+              </div>
+              {/* Hover overlay */}
+              {!photoUploading && (
+                <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer">
+                  <button onClick={() => photoFileRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 transition-colors leading-tight">Upload</button>
+                  <button onClick={() => photoCameraRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 transition-colors leading-tight">Camera</button>
+                  {form.photo_url && <button onClick={removePhoto} className="text-white/60 text-[10px] hover:text-red-400 transition-colors leading-tight">Remove</button>}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex-1 truncate">{fullName}</h1>
+                {form.status && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${STATUS_COLORS[form.status] ?? "bg-gray-100 text-gray-500"}`}>
+                    {form.status.charAt(0).toUpperCase() + form.status.slice(1).replace("_", " ")}
+                  </span>
+                )}
+              </div>
+              {form.hire_date && (
+                <p className="text-white/50 text-sm mt-1">
+                  Hired {fmtDate(form.hire_date)}{form.job_title && ` · ${form.job_title}`}
+                </p>
+              )}
+              {photoError && <p className="text-red-300 text-xs mt-1">{photoError}</p>}
+            </div>
           </div>
-          {form.hire_date && (
-            <p className="text-white/50 text-sm mt-1">
-              Hired {fmtDate(form.hire_date)}{form.job_title && ` · ${form.job_title}`}
-            </p>
-          )}
         </div>
       </div>
 

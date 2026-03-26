@@ -20,7 +20,7 @@ export async function GET() {
       .select(`
         id, first_name, last_name, middle_initial, preferred_name, hire_date, job_title,
         pay_type, default_pay_rate, status, department_id, division_id,
-        t_shirt_size, date_of_birth, phone, work_email, kiosk_pin,
+        t_shirt_size, date_of_birth, phone, work_email, kiosk_pin, photo_url,
         drivers_license_expiration, dot_card_expiration, fert_license_expiration,
         cpr_expiration, first_aid_expiration,
         at_departments(id, name),
