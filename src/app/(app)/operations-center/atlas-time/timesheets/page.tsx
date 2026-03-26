@@ -202,7 +202,7 @@ export default function TimesheetsPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Timesheets</h1>
-              <p className="text-white/50 text-sm mt-1">Review, correct, and approve employee time cards.</p>
+              <p className="text-white/50 text-sm mt-1">Review, correct, and approve team member time cards.</p>
             </div>
             <Link href="/operations-center/atlas-time/reports"
               className="shrink-0 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors border border-white/20">
@@ -239,7 +239,7 @@ export default function TimesheetsPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employee…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search team member…"
               className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
         </div>

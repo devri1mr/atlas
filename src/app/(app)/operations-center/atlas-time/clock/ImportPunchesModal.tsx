@@ -332,7 +332,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </span>
                   {noEmpRows.length > 0 && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-700">
-                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{noEmpRows.length} unmatched {noEmpRows.length === 1 ? "employee" : "employees"}
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{noEmpRows.length} unmatched {noEmpRows.length === 1 ? "team member" : "team members"}
                     </span>
                   )}
                   {noPunchRows.length > 0 && (
@@ -347,7 +347,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   )}
                 </div>
                 {uniqueNoEmpNames.length > 0 && (
-                  <p className="text-xs text-red-600"><span className="font-semibold">Unmatched employees:</span> {uniqueNoEmpNames.join(", ")}</p>
+                  <p className="text-xs text-red-600"><span className="font-semibold">Unmatched team members:</span> {uniqueNoEmpNames.join(", ")}</p>
                 )}
                 {uniqueNoItem.length > 0 && (
                   <p className="text-xs text-amber-700"><span className="font-semibold">Unmatched punch items:</span> {uniqueNoItem.join(", ")}</p>
@@ -362,7 +362,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   <thead className="sticky top-0 bg-gray-50 z-10">
                     <tr className="border-b border-gray-100">
                       <th className="px-3 py-2.5 w-6"></th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Employee</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Team Member</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Date</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-500">In</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Out</th>

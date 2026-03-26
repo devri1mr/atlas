@@ -223,7 +223,7 @@ export default function AtlasTimeSettingsPage() {
               </Row>
               <Row>
                 <label className={labelCls}>Payday</label>
-                <p className={descCls}>The day of the week employees receive their paycheck.</p>
+                <p className={descCls}>The day of the week team members receive their paycheck.</p>
                 <select
                   value={s.payday_day_of_week}
                   onChange={(e) => set("payday_day_of_week", Number(e.target.value))}
@@ -358,7 +358,7 @@ export default function AtlasTimeSettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <label className={labelCls + " mb-0"}>Enable Geofence Enforcement</label>
-                    <p className={descCls + " mt-0.5 mb-0"}>Require employees to be within a defined radius of a job site to punch in/out from mobile.</p>
+                    <p className={descCls + " mt-0.5 mb-0"}>Require team members to be within a defined radius of a job site to punch in/out from mobile.</p>
                   </div>
                   <Toggle checked={s.geofence_enabled} onChange={(v) => set("geofence_enabled", v)} />
                 </div>
@@ -380,8 +380,8 @@ export default function AtlasTimeSettingsPage() {
             {/* Kiosk */}
             <Section title="Kiosk / iPad Punch Station">
               <Row>
-                <label className={labelCls}>Employee PIN Length</label>
-                <p className={descCls}>Number of digits in each employee's kiosk PIN. Changing this requires issuing new PINs.</p>
+                <label className={labelCls}>Team Member PIN Length</label>
+                <p className={descCls}>Number of digits in each team member's kiosk PIN. Changing this requires issuing new PINs.</p>
                 <select
                   value={s.kiosk_pin_length}
                   onChange={(e) => set("kiosk_pin_length", Number(e.target.value))}
@@ -422,7 +422,7 @@ export default function AtlasTimeSettingsPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Waiting Period (days)</label>
-                      <p className={descCls}>Employees can't use accrued time until this many days after hire.</p>
+                      <p className={descCls}>Team members can't use accrued time until this many days after hire.</p>
                       <input
                         type="number" min={0} max={365} step={1}
                         value={s.esta_wait_days}
@@ -433,7 +433,7 @@ export default function AtlasTimeSettingsPage() {
                   </TwoCol>
                   <Row>
                     <label className={labelCls}>Annual Cap (hours)</label>
-                    <p className={descCls}>Maximum sick hours an employee can accrue per year. Michigan law: 72 hrs.</p>
+                    <p className={descCls}>Maximum sick hours a team member can accrue per year. Michigan law: 72 hrs.</p>
                     <input
                       type="number" min={0} max={200} step={1}
                       value={s.esta_annual_cap_hours}

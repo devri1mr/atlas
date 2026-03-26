@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       const last  = normalize(parts[0].trim());
       const first = normalize(parts.slice(1).join(",").trim());
       const found = empList.find(e => normalize(e.last_name) === last && normalize(e.first_name) === first);
-      if (found) return { id: found.id, name: `${found.first_name} ${found.last_name}` };
+      if (found) return { id: found.id, name: `${found.last_name}, ${found.first_name}` };
       return null;
     }
 
@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
     ].sort((a, b) => a.label.localeCompare(b.label));
 
     const available_employees = empList
-      .map(e => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }))
+      .map(e => ({ id: e.id, name: `${e.last_name}, ${e.first_name}` }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return NextResponse.json({ rows: preview, available_items, available_employees });

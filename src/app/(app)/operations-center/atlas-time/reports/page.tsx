@@ -316,12 +316,12 @@ export default function ReportsPage() {
   function exportCSV() {
     let csv = "";
     if (tab === "summary") {
-      csv = "Employee,Job Title,Division,Reg Hrs,OT Hrs,DT Hrs,Total Hrs,Lunch Deducted (min),Punches\n";
+      csv = "Team Member,Job Title,Division,Reg Hrs,OT Hrs,DT Hrs,Total Hrs,Lunch Deducted (min),Punches\n";
       for (const r of sortedSummary) {
         csv += `"${r.name}","${r.jobTitle}","${r.div}",${h(r.reg)},${h(r.ot)},${h(r.dt)},${h(r.total)},${r.lunch},${r.punches}\n`;
       }
     } else {
-      csv = "Employee,Date,Clock In,Clock Out,Lunch (min),Reg Hrs,OT Hrs,Total Hrs,Division,QB Class,Status,Manual,Note\n";
+      csv = "Team Member,Date,Clock In,Clock Out,Lunch (min),Reg Hrs,OT Hrs,Total Hrs,Division,QB Class,Status,Manual,Note\n";
       for (const r of sortedDetail) {
         const c = computedMap.get(r.id);
         csv += `"${r._name}","${r._date}","${r.clock_in_at ? fmtTime(r.clock_in_at) : ""}","${r.clock_out_at ? fmtTime(r.clock_out_at) : "Open"}",${r._lunch},${h(r._reg)},${h(r._ot)},${h(r._total)},"${r._div}","${r._class}","${r.status}","${r.is_manual ? "Yes" : "No"}","${r.employee_note ?? ""}"\n`;
@@ -360,7 +360,7 @@ export default function ReportsPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Reports</h1>
-              <p className="text-white/50 text-sm mt-1">{rangeLabel} · {filteredPunches.length} punches · {summaryRows.length} employees</p>
+              <p className="text-white/50 text-sm mt-1">{rangeLabel} · {filteredPunches.length} punches · {summaryRows.length} team members</p>
             </div>
             <div className="flex gap-2">
               <button onClick={exportCSV}
@@ -414,7 +414,7 @@ export default function ReportsPage() {
             <div className="relative group">
               <button className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${empFilter.size > 0 ? "border-green-500 bg-green-50 text-green-800" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                {empFilter.size > 0 ? `${empFilter.size} Employee${empFilter.size > 1 ? "s" : ""}` : "All Employees"}
+                {empFilter.size > 0 ? `${empFilter.size} Team Member${empFilter.size > 1 ? "s" : ""}` : "All Team Members"}
               </button>
               <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-[90vw] sm:w-auto sm:min-w-[200px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
                 <div className="p-2 space-y-0.5">
@@ -509,7 +509,7 @@ export default function ReportsPage() {
                 <table className="w-full text-sm min-w-[600px]">
                   <thead className="sticky top-0 z-10">
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      <Th  label="Employee"   col="name"    sort={summarySort} onSort={toggleSummarySort} />
+                      <Th  label="Team Member" col="name"    sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Division"   col="div"     sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Reg Hrs"    col="reg"     sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="OT Hrs"     col="ot"      sort={summarySort} onSort={toggleSummarySort} />
@@ -535,7 +535,7 @@ export default function ReportsPage() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold text-sm">
-                      <td className="px-3 py-3" colSpan={2}>Totals — {summaryRows.length} employees</td>
+                      <td className="px-3 py-3" colSpan={2}>Totals — {summaryRows.length} team members</td>
                       <td className="px-3 py-3 text-center tabular-nums">{h(totals.reg)}</td>
                       <td className={`px-3 py-3 text-center tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totals.ot)}</td>
                       <td className={`px-3 py-3 text-center tabular-nums ${totals.dt > 0 ? "text-red-600" : "text-gray-400"}`}>{h(totals.dt)}</td>
@@ -561,7 +561,7 @@ export default function ReportsPage() {
                 <table className="w-full text-sm min-w-[900px]">
                   <thead className="sticky top-0 z-10">
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      <Th  label="Employee"   col="name"  sort={detailSort} onSort={toggleDetailSort} />
+                      <Th  label="Team Member" col="name"  sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="Date"       col="date"  sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="In"         col="in"    sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="Out"        col="out"   sort={detailSort} onSort={toggleDetailSort} />
