@@ -44,10 +44,14 @@ const QUICK_FILTERS = [
 ];
 
 function fmtDate(iso: string) {
-  return new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const [y, m, d] = iso.split("-");
+  return `${m}/${d}/${y}`;
 }
 function fmtDay(iso: string) {
-  return new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const d = new Date(iso + "T12:00:00");
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+  const [y, m, day] = iso.split("-");
+  return `${weekday} ${m}/${day}/${y}`;
 }
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });

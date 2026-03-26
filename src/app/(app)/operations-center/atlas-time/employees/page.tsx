@@ -18,9 +18,49 @@ type Employee = {
   phone: string | null;
   work_email: string | null;
   kiosk_pin: string | null;
+  drivers_license_expiration: string | null;
+  dot_card_expiration: string | null;
+  fert_license_expiration: string | null;
+  cpr_expiration: string | null;
+  first_aid_expiration: string | null;
   at_departments: { id: string; name: string } | null;
   divisions: { id: string; name: string } | null;
 };
+
+type PunchStatus = { is_clocked_in: boolean; last_active: string | null };
+
+const CERT_LABELS: Record<string, string> = {
+  drivers_license_expiration: "Driver License",
+  dot_card_expiration: "DOT Card",
+  fert_license_expiration: "Fert License",
+  cpr_expiration: "CPR",
+  first_aid_expiration: "First Aid",
+};
+const CERT_KEYS = Object.keys(CERT_LABELS) as (keyof Employee)[];
+
+function certAlerts(emp: Employee): { label: string; daysLeft: number }[] {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return CERT_KEYS
+    .filter(k => emp[k])
+    .map(k => {
+      const exp = new Date(emp[k] as string); exp.setHours(0, 0, 0, 0);
+      return { label: CERT_LABELS[k], daysLeft: Math.ceil((exp.getTime() - today.getTime()) / 86_400_000) };
+    })
+    .filter(a => a.daysLeft <= 60)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+function relativeDate(iso: string | null): string {
+  if (!iso) return "—";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(iso + "T00:00:00"); d.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - d.getTime()) / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days <= 6) return `${days}d ago`;
+  if (days <= 30) return `${Math.floor(days / 7)}w ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 const STATUS_COLORS: Record<string, string> = {
   active:     "bg-green-50 text-green-700 border-green-200",
@@ -47,7 +87,8 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 const DEFAULT_COLS = {
-  status: true, job_title: true, department: true, division: true,
+  job_title: true, department: true, division: true,
+  clock_status: true, last_active: true, cert_alerts: true,
   hire_date: true, pay_rate: true, phone: false, email: false,
 };
 type ColKey = keyof typeof DEFAULT_COLS;
@@ -79,6 +120,7 @@ export default function EmployeesPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
   const [revealedPins, setRevealedPins] = useState<Set<string>>(new Set());
+  const [punchStatus, setPunchStatus] = useState<Record<string, PunchStatus>>({});
   const cols = useTeamCols();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -86,10 +128,15 @@ export default function EmployeesPage() {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch("/api/atlas-time/employees", { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Failed to load employees");
-      setEmployees(json.employees ?? []);
+      const [empRes, psRes] = await Promise.all([
+        fetch("/api/atlas-time/employees", { cache: "no-store" }),
+        fetch("/api/atlas-time/employees/punch-status", { cache: "no-store" }),
+      ]);
+      const empJson = await empRes.json().catch(() => null);
+      const psJson  = await psRes.json().catch(() => ({}));
+      if (!empRes.ok) throw new Error(empJson?.error ?? "Failed to load employees");
+      setEmployees(empJson.employees ?? []);
+      setPunchStatus(psJson.status ?? {});
     } catch (e: any) {
       setError(e?.message ?? "Failed to load employees");
     } finally {
@@ -286,15 +333,17 @@ export default function EmployeesPage() {
                     </th>
                     <th className="px-3 py-3 w-12"></th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Name</th>
-                    {cols.status     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status</th>}
-                    {cols.job_title  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
-                    {cols.department && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
-                    {cols.division   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
-                    {cols.pay_rate   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
-                    {cols.hire_date  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
+                    {cols.job_title    && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
+                    {cols.department   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
+                    {cols.division     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
+                    {cols.clock_status && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Clock</th>}
+                    {cols.last_active  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Last Active</th>}
+                    {cols.cert_alerts  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Certs</th>}
+                    {cols.pay_rate     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
+                    {cols.hire_date    && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
                     <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>
-                    {cols.phone      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
-                    {cols.email      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
+                    {cols.phone        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
+                    {cols.email        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
                     <th className="w-12 px-3 py-3"></th>
                   </tr>
                 </thead>
@@ -332,39 +381,45 @@ export default function EmployeesPage() {
                           </Link>
                         </td>
 
-                        {/* Status — clickable dropdown */}
-                        {cols.status && (
-                          <td className="px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
-                            <div className="relative inline-block">
-                              <button
-                                onClick={() => setStatusMenuFor(statusMenuFor === emp.id ? null : emp.id)}
-                                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-all hover:opacity-80 ${STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}
-                              >
-                                {STATUS_LABELS[emp.status] ?? emp.status}
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                              </button>
-                              {statusMenuFor === emp.id && (
-                                <div ref={menuRef} className="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px]">
-                                  {STATUSES.map(s => (
-                                    <button
-                                      key={s}
-                                      onClick={() => setSingleStatus(emp.id, s)}
-                                      className={`w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-2 ${emp.status === s ? "opacity-40 cursor-default" : ""}`}
-                                      disabled={emp.status === s}
-                                    >
-                                      <span className={`w-2 h-2 rounded-full ${s === "active" ? "bg-green-500" : s === "inactive" ? "bg-gray-400" : s === "on_leave" ? "bg-amber-400" : "bg-red-400"}`} />
-                                      {STATUS_LABELS[s]}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        )}
-
                         {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.department && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
+
+                        {/* Clock Status */}
+                        {cols.clock_status && (
+                          <td className="px-3 py-3 whitespace-nowrap text-center">
+                            {punchStatus[emp.id]?.is_clocked_in
+                              ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Live
+                                </span>
+                              : <span className="text-gray-300 text-xs">—</span>}
+                          </td>
+                        )}
+
+                        {/* Last Active */}
+                        {cols.last_active && (
+                          <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500">
+                            {relativeDate(punchStatus[emp.id]?.last_active ?? null)}
+                          </td>
+                        )}
+
+                        {/* Cert Alerts */}
+                        {cols.cert_alerts && (() => {
+                          const alerts = certAlerts(emp);
+                          if (alerts.length === 0) return <td className="px-3 py-3 text-center"><span className="text-gray-300 text-xs">—</span></td>;
+                          const expired  = alerts.filter(a => a.daysLeft < 0);
+                          const critical = alerts.filter(a => a.daysLeft >= 0 && a.daysLeft <= 30);
+                          const warning  = alerts.filter(a => a.daysLeft > 30);
+                          return (
+                            <td className="px-3 py-3 whitespace-nowrap text-center">
+                              <div className="inline-flex flex-col gap-0.5 items-center" title={alerts.map(a => `${a.label}: ${a.daysLeft < 0 ? "Expired" : `${a.daysLeft}d`}`).join("\n")}>
+                                {expired.length  > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">{expired.length} expired</span>}
+                                {critical.length > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500">{critical.length} &lt;30d</span>}
+                                {warning.length  > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{warning.length} &lt;60d</span>}
+                              </div>
+                            </td>
+                          );
+                        })()}
                         {cols.pay_rate   && (
                           <td className="px-3 py-3 whitespace-nowrap text-center">
                             {emp.default_pay_rate != null
