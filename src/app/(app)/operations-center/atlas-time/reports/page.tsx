@@ -521,7 +521,7 @@ export default function ReportsPage() {
                         <td className="px-3 py-3 font-semibold text-gray-900 whitespace-nowrap">{r.name}</td>
                         <td className="px-3 py-3 text-center text-gray-500 text-xs whitespace-nowrap">{r.jobTitle || "—"}</td>
                         <td className="px-3 py-3 text-center tabular-nums font-semibold">{h(r.reg)}</td>
-                        <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(r.ot)}</td>
+                        <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{r.ot > 0 ? h(r.ot) : "—"}</td>
                         <td className="px-3 py-3 text-center tabular-nums font-bold text-gray-900">{h(r.total)}</td>
                       </tr>
                     ))}
@@ -609,7 +609,7 @@ export default function ReportsPage() {
                               {p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-red-400 font-semibold">Open</span>}
                             </td>
                             <td className="px-3 py-2.5 text-center tabular-nums font-semibold text-xs">{h(p._reg)}</td>
-                            <td className={`px-3 py-2.5 text-center tabular-nums font-semibold text-xs ${p._ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(p._ot)}</td>
+                            <td className={`px-3 py-2.5 text-center tabular-nums font-semibold text-xs ${p._ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{p._ot > 0 ? h(p._ot) : "—"}</td>
                             <td className="px-3 py-2.5 text-center tabular-nums font-bold text-xs">{h(p._total)}</td>
                             <td className="px-3 py-2.5 text-center text-xs text-gray-500 whitespace-nowrap">{p._div || "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs text-gray-400 whitespace-nowrap">{p._class || "—"}</td>
