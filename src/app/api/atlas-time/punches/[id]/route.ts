@@ -34,7 +34,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // Direct field edits (manager corrections)
       if ("clock_in_at"   in body) patch.clock_in_at   = body.clock_in_at  || null;
       if ("clock_out_at"  in body) patch.clock_out_at  = body.clock_out_at || null;
-      if ("division_id"   in body) patch.division_id   = body.division_id  || null;
+      if ("division_id"    in body) patch.division_id    = body.division_id    || null;
+      if ("at_division_id" in body) patch.at_division_id = body.at_division_id || null;
       if ("employee_note" in body) patch.employee_note = body.employee_note ?? null;
       if ("manager_note"  in body) patch.manager_note  = body.manager_note ?? null;
       if ("status"        in body) patch.status        = body.status;
@@ -75,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from("at_punches")
       .update(patch)
       .eq("id", id)
-      .select("id, employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked")
+      .select("id, employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked, division_id, at_division_id")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -25,6 +25,7 @@ type Punch = {
   punch_method: string;
   status: string;
   division_id: string | null;
+  at_division_id: string | null;
   is_manual: boolean | null;
   regular_hours: number | null;
   ot_hours: number | null;
@@ -32,6 +33,7 @@ type Punch = {
   lunch_deducted_mins: number | null;
   at_employees: Employee | null;
   divisions: { id: string; name: string } | null;
+  at_divisions: { id: string; name: string } | null;
 };
 
 type Division = { id: string; name: string; source?: string };
@@ -175,6 +177,13 @@ function localIso(dateStr: string, timeStr: string): string {
   return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
 }
 
+/** Decode a punch-item dropdown value ("d:UUID" or "a:UUID") into the right FK fields. */
+function decodePunchItem(val: string): { division_id: string | null; at_division_id: string | null } {
+  if (val.startsWith("d:")) return { division_id: val.slice(2), at_division_id: null };
+  if (val.startsWith("a:")) return { division_id: null, at_division_id: val.slice(2) };
+  return { division_id: null, at_division_id: null };
+}
+
 function initials(e: Employee) {
   return `${e.first_name[0] ?? ""}${e.last_name[0] ?? ""}`.toUpperCase();
 }
@@ -273,9 +282,7 @@ export default function ClockPage() {
       const divJson      = await divRes.json().catch(() => null);
       const settingsJson = await settingsRes.json().catch(() => ({}));
       setEmployees(empJson?.employees ?? []);
-      // Only use divisions from the main `divisions` table (source: "company") —
-      // at_divisions (time_clock_only) cannot be used as at_punches.division_id due to FK
-      setDivisions((divJson?.divisions ?? []).filter((d: Division) => !d.source || d.source === "company"));
+      setDivisions(divJson?.divisions ?? []);
       const s = settingsJson.settings ?? {};
       const freshSettings: AtSettings = {
         ot_daily_threshold:       s.ot_daily_threshold       ?? 8,
@@ -339,6 +346,7 @@ export default function ClockPage() {
 
     try {
       setManualSaving(true);
+      const divPayload = decodePunchItem(manualForm.division_id);
       const res = await fetch("/api/atlas-time/punches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -348,7 +356,7 @@ export default function ClockPage() {
           clock_in_at:   clockInISO,
           clock_out_at:  clockOutISO,
           date_for_payroll: manualForm.date,
-          division_id:   manualForm.division_id || null,
+          ...divPayload,
           note:          manualForm.note || null,
         }),
       });
@@ -410,12 +418,13 @@ export default function ClockPage() {
     const clockInISO  = localIso(row.date, row.clock_in);
     const clockOutISO = localIso(row.date, row.clock_out);
     const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettingsRef.current);
+    const divPayload = decodePunchItem(row.division_id);
     try {
       if (row.punch_id) {
         const res = await fetch(`/api/atlas-time/punches/${row.punch_id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: row.division_id || null, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
+          body: JSON.stringify({ clock_in_at: clockInISO, clock_out_at: clockOutISO, ...divPayload, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
         });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error ?? "Failed"); }
         setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "saved" } : r));
@@ -423,7 +432,7 @@ export default function ClockPage() {
         const res = await fetch("/api/atlas-time/punches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ employee_id: row.employee_id, is_manual: true, clock_in_at: clockInISO, clock_out_at: clockOutISO, date_for_payroll: row.date, division_id: row.division_id || null, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
+          body: JSON.stringify({ employee_id: row.employee_id, is_manual: true, clock_in_at: clockInISO, clock_out_at: clockOutISO, date_for_payroll: row.date, ...divPayload, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? "Failed");
@@ -469,7 +478,10 @@ export default function ClockPage() {
     } else {
       setEditClockOut("");
     }
-    setEditDivisionId(p.division_id ?? "");
+    setEditDivisionId(
+      p.division_id    ? `d:${p.division_id}`    :
+      p.at_division_id ? `a:${p.at_division_id}` : ""
+    );
   }
 
   async function savePunchEdit(punchId: string) {
@@ -480,22 +492,27 @@ export default function ClockPage() {
       const clockInISO  = localIso(viewDate, editClockIn);
       const clockOutISO = editClockOut ? localIso(viewDate, editClockOut) : null;
       const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, atSettings) : null;
+      const divPayload = decodePunchItem(editDivisionId);
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: editDivisionId || null,
+          clock_in_at: clockInISO, clock_out_at: clockOutISO,
+          division_id: divPayload.division_id, at_division_id: divPayload.at_division_id,
           ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}),
         }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save");
+      const matchedDiv = divPayload.division_id ? divisions.find(d => d.id === divPayload.division_id) ?? null : null;
+      const matchedAtDiv = divPayload.at_division_id ? divisions.find(d => d.id === divPayload.at_division_id) ?? null : null;
       setPunches(prev => prev.map(p => p.id === punchId
         ? { ...p, clock_in_at: json.punch.clock_in_at, clock_out_at: json.punch.clock_out_at,
             regular_hours: json.punch.regular_hours, ot_hours: json.punch.ot_hours,
             dt_hours: json.punch.dt_hours, lunch_deducted_mins: json.punch.lunch_deducted_mins,
-            division_id: editDivisionId || null,
-            divisions: divisions.find(d => d.id === editDivisionId) ?? null }
+            division_id: divPayload.division_id, at_division_id: divPayload.at_division_id,
+            divisions: matchedDiv ? { id: matchedDiv.id, name: matchedDiv.name } : null,
+            at_divisions: matchedAtDiv ? { id: matchedAtDiv.id, name: matchedAtDiv.name } : null }
         : p));
       setEditingPunchId(null);
     } catch (e: any) {
@@ -637,18 +654,25 @@ export default function ClockPage() {
                 </div>
               </div>
 
-              {/* Division */}
+              {/* Punch Item */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Division</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Punch Item</label>
                 <select
                   value={manualForm.division_id}
                   onChange={e => setManualForm(f => ({ ...f, division_id: e.target.value }))}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">— None —</option>
-                  {divisions.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                  {divisions.filter(d => d.source === "company" || !d.source).map(d => (
+                    <option key={d.id} value={`d:${d.id}`}>{d.name}</option>
                   ))}
+                  {divisions.some(d => d.source === "time_clock") && (
+                    <optgroup label="── Time Clock Only ──">
+                      {divisions.filter(d => d.source === "time_clock").map(d => (
+                        <option key={d.id} value={`a:${d.id}`}>{d.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -800,7 +824,7 @@ export default function ClockPage() {
                   <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                     <th className="px-3 py-2 text-left w-32">Date</th>
                     <th className="px-3 py-2 text-left">Team Member</th>
-                    <th className="px-3 py-2 text-left w-36">Division</th>
+                    <th className="px-3 py-2 text-left w-36">Punch Item</th>
                     <th className="px-3 py-2 text-center w-24">In</th>
                     <th className="px-3 py-2 text-center w-24">Out</th>
                     <th className="px-3 py-2 text-center w-16">Reg</th>
@@ -834,7 +858,12 @@ export default function ClockPage() {
                             onChange={e => updateBulkRow(row.key, { division_id: e.target.value })}
                             className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
                             <option value="">— None —</option>
-                            {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            {divisions.filter(d => d.source === "company" || !d.source).map(d => <option key={d.id} value={`d:${d.id}`}>{d.name}</option>)}
+                            {divisions.some(d => d.source === "time_clock") && (
+                              <optgroup label="── Time Clock Only ──">
+                                {divisions.filter(d => d.source === "time_clock").map(d => <option key={d.id} value={`a:${d.id}`}>{d.name}</option>)}
+                              </optgroup>
+                            )}
                           </select>
                         </td>
                         <td className="px-3 py-2">
@@ -1011,7 +1040,7 @@ export default function ClockPage() {
               <>
                 <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
                   <span>Name</span>
-                  <span className="text-center">Division</span>
+                  <span className="text-center">Punch Item</span>
                   <span className="text-center">In</span>
                   <span className="text-center">Out</span>
                   <span className="text-center">Hrs</span>
@@ -1043,7 +1072,7 @@ export default function ClockPage() {
                                 ) : null; })()}
                               </div>
                             </div>
-                            <div className="text-center">{p.divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
+                            <div className="text-center">{(p.divisions || p.at_divisions) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
                             <div className="relative text-center">
@@ -1109,11 +1138,16 @@ export default function ClockPage() {
                               </div>
                             </div>
                             <div>
-                              <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Division</label>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Punch Item</label>
                               <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
                                 className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                                 <option value="">— None —</option>
-                                {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                {divisions.filter(d => d.source === "company" || !d.source).map(d => <option key={d.id} value={`d:${d.id}`}>{d.name}</option>)}
+                                {divisions.some(d => d.source === "time_clock") && (
+                                  <optgroup label="── Time Clock Only ──">
+                                    {divisions.filter(d => d.source === "time_clock").map(d => <option key={d.id} value={`a:${d.id}`}>{d.name}</option>)}
+                                  </optgroup>
+                                )}
                               </select>
                             </div>
                             <div className="flex gap-2">
@@ -1174,7 +1208,7 @@ export default function ClockPage() {
               <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 <span className="flex-1 min-w-[120px]">Name</span>
                 {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
-                {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}
+                {cols.division && <span className="hidden sm:block w-32 shrink-0">Punch Item</span>}
                 {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
                 {cols.clock_in_time && <span className="hidden sm:block w-20 shrink-0">Clock In</span>}
                 {cols.elapsed && <span className="w-16 shrink-0 text-right">Elapsed</span>}
@@ -1202,7 +1236,7 @@ export default function ClockPage() {
                       {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                       {cols.division && (
                         <div className="hidden sm:block w-32 shrink-0">
-                          {p.divisions ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                          {(p.divisions || p.at_divisions) ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                         </div>
                       )}
                       {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
@@ -1235,7 +1269,7 @@ export default function ClockPage() {
             <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               <span className="flex-1 min-w-[120px]">Name</span>
               {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
-              {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}
+              {cols.division && <span className="hidden sm:block w-32 shrink-0">Punch Item</span>}
               {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
               <span className="w-28 sm:w-36 shrink-0">In → Out</span>
               <span className="w-16 sm:w-20 shrink-0 text-right">Hours</span>
@@ -1265,7 +1299,7 @@ export default function ClockPage() {
                     {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                     {cols.division && (
                       <div className="hidden sm:block w-32 shrink-0">
-                        {p.divisions ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                        {(p.divisions || p.at_divisions) ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     )}
                     {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}

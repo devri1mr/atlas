@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("time_clock_only" in body) patch.time_clock_only = Boolean(body.time_clock_only);
     if ("department_id" in body) patch.department_id = body.department_id ? String(body.department_id) : null;
     if ("qb_class_name" in body) patch.qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
+    if ("division_id"   in body) patch.division_id   = body.division_id   ? String(body.division_id)   : null;
 
     if (!patch.name && "name" in body) {
       return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -24,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from("at_divisions")
       .update(patch)
       .eq("id", id)
-      .select("id, name, active, time_clock_only, department_id, qb_class_name")
+      .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

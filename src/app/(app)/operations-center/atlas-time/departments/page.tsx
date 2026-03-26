@@ -6,7 +6,7 @@ import Link from "next/link";
 // Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null; division_id?: string | null };
 type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
 
 const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
@@ -70,6 +70,7 @@ export default function DepartmentsPage() {
   const [editDivName, setEditDivName] = useState("");
   const [editDivDeptId, setEditDivDeptId] = useState("");
   const [editDivQbClass, setEditDivQbClass] = useState("");
+  const [editDivParentId, setEditDivParentId] = useState("");
   const [editDivSaving, setEditDivSaving] = useState(false);
 
   // Payroll items — expanded dept + add form
@@ -182,7 +183,7 @@ export default function DepartmentsPage() {
         ? `/api/atlas-time/divisions/${id}`
         : `/api/operations-center/divisions`;
       const body = source === "time_clock"
-        ? { name: editDivName.trim(), department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null }
+        ? { name: editDivName.trim(), department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null, division_id: editDivParentId || null }
         : { id, department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null };
       const res = await fetch(url, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -221,6 +222,7 @@ export default function DepartmentsPage() {
     setEditDivName(div.name);
     setEditDivDeptId(div.department_id ?? "");
     setEditDivQbClass(div.qb_class_name ?? "");
+    setEditDivParentId(div.division_id ?? "");
   }
 
   // ── Payroll Items ─────────────────────────────────────────
@@ -591,6 +593,18 @@ export default function DepartmentsPage() {
                               <option key={d.id} value={d.id}>{d.name}</option>
                             ))}
                           </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={editDivParentId}
+                            onChange={e => setEditDivParentId(e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="">— No division —</option>
+                            {divisions.filter(d => d.source === "company").map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
                           <EditButtons onSave={() => saveDivEdit(div.id, "time_clock")} onCancel={() => setEditDivId(null)} saving={editDivSaving} />
                         </div>
                         <input
@@ -611,6 +625,7 @@ export default function DepartmentsPage() {
                             ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{linkedDept.name}</span>
                             : <span className="text-[10px] text-amber-600 font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-100">No department</span>
                           }
+                          {(() => { const linkedDiv = divisions.find(d => d.id === div.division_id && d.source === "company"); return linkedDiv ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">{linkedDiv.name}</span> : null; })()}
                           {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
                         </div>
                         <RowActions

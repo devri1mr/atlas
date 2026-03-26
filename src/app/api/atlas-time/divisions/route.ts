@@ -20,7 +20,7 @@ export async function GET() {
     const [companyRes, extrasRes] = await Promise.all([
       sb.from("divisions").select("id, name, active, department_id, qb_class_name").order("name", { ascending: true }),
       sb.from("at_divisions")
-        .select("id, name, active, time_clock_only, department_id, qb_class_name")
+        .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id")
         .eq("company_id", companyId)
         .eq("time_clock_only", true)
         .order("name", { ascending: true }),
@@ -48,11 +48,12 @@ export async function POST(req: NextRequest) {
 
     const department_id = body.department_id ? String(body.department_id) : null;
     const qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
+    const division_id   = body.division_id   ? String(body.division_id)   : null;
 
     const { data, error } = await sb
       .from("at_divisions")
-      .insert({ company_id: companyId, name, active: true, time_clock_only: true, department_id, qb_class_name })
-      .select("id, name, active, time_clock_only, department_id, qb_class_name")
+      .insert({ company_id: companyId, name, active: true, time_clock_only: true, department_id, qb_class_name, division_id })
+      .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

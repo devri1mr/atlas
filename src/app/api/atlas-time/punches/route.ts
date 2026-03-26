@@ -11,13 +11,14 @@ async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
 
 const PUNCH_SELECT = `
   id, employee_id, clock_in_at, clock_out_at, date_for_payroll,
-  punch_method, status, division_id, employee_note, manager_note,
+  punch_method, status, division_id, at_division_id, employee_note, manager_note,
   is_manual, regular_hours, ot_hours, dt_hours, lunch_deducted_mins,
   approved_by, approved_at, locked,
   at_employees(id, first_name, last_name, preferred_name, job_title,
     department_id, default_pay_rate, pay_type,
     at_departments(id, name)),
-  divisions(id, name, qb_class_name)
+  divisions(id, name, qb_class_name),
+  at_divisions!at_division_id(id, name)
 `;
 
 // GET — today's punches (no params) OR date-range filtered (date_from + date_to)
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
           date_for_payroll: dateForPayroll,
           punch_method:        "manual",
           is_manual:           true,
-          division_id:         body.division_id ?? null,
+          division_id:         body.division_id    ?? null,
+          at_division_id:      body.at_division_id ?? null,
           employee_note:       body.note ?? null,
           manager_note:        body.manager_note ?? null,
           status:              clockOut ? "pending" : "open",
@@ -132,7 +134,8 @@ export async function POST(req: NextRequest) {
         clock_in_at:      now.toISOString(),
         date_for_payroll: today,
         punch_method:     body.punch_method ?? "admin",
-        division_id:      body.division_id ?? null,
+        division_id:      body.division_id    ?? null,
+        at_division_id:   body.at_division_id ?? null,
         clock_in_lat:     body.lat ?? null,
         clock_in_lng:     body.lng ?? null,
         employee_note:    body.note ?? null,
