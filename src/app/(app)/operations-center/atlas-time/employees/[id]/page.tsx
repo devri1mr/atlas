@@ -516,7 +516,7 @@ export default function EmployeeDetailPage() {
       case "personal":
         return (
           <Section title={sectionTitle(sk)}>
-            <div className="grid grid-cols-[1fr_80px_1fr] gap-3">
+            <div className="grid grid-cols-[1fr_56px_1fr] sm:grid-cols-[1fr_80px_1fr] gap-2 sm:gap-3">
               <div>
                 <label className={labelCls}>First Name</label>
                 <input value={form.first_name ?? ""} onChange={e => set("first_name", e.target.value)} className={inputCls} />
@@ -1026,12 +1026,12 @@ export default function EmployeeDetailPage() {
                   </div>
                 )}
               </div>
-              {/* Hover overlay */}
+              {/* Overlay: always visible on mobile, hover on desktop */}
               {!photoUploading && (
-                <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer">
-                  <button onClick={() => photoFileRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 transition-colors leading-tight">Upload</button>
-                  <button onClick={() => photoCameraRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 transition-colors leading-tight">Camera</button>
-                  {form.photo_url && <button onClick={removePhoto} className="text-white/60 text-[10px] hover:text-red-400 transition-colors leading-tight">Remove</button>}
+                <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer">
+                  <button onClick={() => photoFileRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 active:text-green-300 transition-colors leading-tight">Upload</button>
+                  <button onClick={() => photoCameraRef.current?.click()} className="text-white text-[10px] font-semibold hover:text-green-300 active:text-green-300 transition-colors leading-tight">Camera</button>
+                  {form.photo_url && <button onClick={removePhoto} className="text-white/60 text-[10px] hover:text-red-400 active:text-red-400 transition-colors leading-tight">Remove</button>}
                 </div>
               )}
             </div>

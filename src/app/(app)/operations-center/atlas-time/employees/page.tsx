@@ -347,17 +347,17 @@ export default function EmployeesPage() {
                     </th>
                     <th className="px-3 py-3 w-12"></th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Name</th>
-                    {cols.job_title    && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
-                    {cols.department   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
-                    {cols.division     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
+                    {cols.job_title    && <th className="hidden sm:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
+                    {cols.department   && <th className="hidden lg:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
+                    {cols.division     && <th className="hidden sm:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
                     {cols.clock_status && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Clock</th>}
-                    {cols.last_active  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Last Active</th>}
+                    {cols.last_active  && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Last Active</th>}
                     {cols.cert_alerts  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Cert Alerts</th>}
-                    {cols.pay_rate     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
-                    {cols.hire_date    && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>
-                    {cols.phone        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
-                    {cols.email        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
+                    {cols.pay_rate     && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
+                    {cols.hire_date    && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
+                    <th className="hidden sm:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>
+                    {cols.phone        && <th className="hidden lg:table-cell text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
+                    {cols.email        && <th className="hidden lg:table-cell text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
                     <th className="w-12 px-3 py-3"></th>
                   </tr>
                 </thead>
@@ -398,9 +398,9 @@ export default function EmployeesPage() {
                           </Link>
                         </td>
 
-                        {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.department && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.job_title  && <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap text-center text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.department && <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.division   && <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
 
                         {/* Clock Status */}
                         {cols.clock_status && (
@@ -415,7 +415,7 @@ export default function EmployeesPage() {
 
                         {/* Last Active */}
                         {cols.last_active && (
-                          <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500">
+                          <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500">
                             {relativeDate(punchStatus[emp.id]?.last_active ?? null)}
                           </td>
                         )}
@@ -438,7 +438,7 @@ export default function EmployeesPage() {
                                   {alerts.length}
                                 </button>
                                 {certPopupFor === emp.id && (
-                                  <div className="absolute z-50 right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                                  <div className="absolute z-50 right-0 mt-1.5 w-[85vw] sm:w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
                                     <div className="px-3 py-2 border-b border-gray-50 bg-gray-50/60">
                                       <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cert Alerts</p>
                                     </div>
@@ -475,15 +475,15 @@ export default function EmployeesPage() {
                           );
                         })()}
                         {cols.pay_rate   && (
-                          <td className="px-3 py-3 whitespace-nowrap text-center">
+                          <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center">
                             {emp.default_pay_rate != null
                               ? <span className="font-semibold text-gray-700 text-xs tabular-nums">${Number(emp.default_pay_rate).toFixed(2)}<span className="text-gray-400 font-normal">{emp.pay_type === "hourly" ? "/hr" : "/yr"}</span></span>
                               : <span className="text-gray-300 text-xs">—</span>
                             }
                           </td>
                         )}
-                        {cols.hire_date  && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
-                        <td className="px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+                        {cols.hire_date  && <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
+                        <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
                           {emp.kiosk_pin ? (
                             <div className="flex items-center justify-center gap-1.5">
                               <span className="text-xs font-mono tracking-widest text-gray-700">
@@ -502,8 +502,8 @@ export default function EmployeesPage() {
                             </div>
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
-                        {cols.phone      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">{emp.phone ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.email      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 truncate max-w-[160px]">{emp.work_email ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.phone      && <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-xs text-gray-500">{emp.phone ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.email      && <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-xs text-gray-500 truncate max-w-[160px]">{emp.work_email ?? <span className="text-gray-300">—</span>}</td>}
 
                         <td className="px-3 py-3 text-right">
                           <Link href={`/operations-center/atlas-time/employees/${emp.id}`} className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors">

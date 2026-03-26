@@ -416,7 +416,7 @@ export default function ReportsPage() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 {empFilter.size > 0 ? `${empFilter.size} Employee${empFilter.size > 1 ? "s" : ""}` : "All Employees"}
               </button>
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[200px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-[90vw] sm:w-auto sm:min-w-[200px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
                 <div className="p-2 space-y-0.5">
                   {empOptions.map(e => (
                     <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-xs">
@@ -439,7 +439,7 @@ export default function ReportsPage() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
                 {divFilter.size > 0 ? `${divFilter.size} Division${divFilter.size > 1 ? "s" : ""}` : "All Divisions"}
               </button>
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl min-w-[180px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-[90vw] sm:w-auto sm:min-w-[180px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
                 <div className="p-2 space-y-0.5">
                   {divOptions.map(d => (
                     <label key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-xs">
@@ -488,10 +488,10 @@ export default function ReportsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-0 bg-white rounded-xl border border-gray-200 w-fit overflow-hidden print:hidden">
+        <div className="flex gap-0 bg-white rounded-xl border border-gray-200 w-full sm:w-fit overflow-hidden print:hidden">
           {(["summary", "detail"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-5 py-2.5 text-sm font-semibold transition-colors ${tab === t ? "bg-[#123b1f] text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+              className={`flex-1 sm:flex-none px-5 py-2.5 text-sm font-semibold transition-colors text-center ${tab === t ? "bg-[#123b1f] text-white" : "text-gray-600 hover:bg-gray-50"}`}>
               {t === "summary" ? "Payroll Summary" : "Time Card Detail"}
             </button>
           ))}
@@ -506,7 +506,7 @@ export default function ReportsPage() {
               <div className="px-6 py-12 text-center text-sm text-gray-400">No data for the selected filters.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
                       <Th  label="Employee"   col="name"    sort={summarySort} onSort={toggleSummarySort} />

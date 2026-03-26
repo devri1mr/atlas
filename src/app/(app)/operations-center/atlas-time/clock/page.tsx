@@ -388,7 +388,7 @@ export default function ClockPage() {
               </button>
             </div>
           </div>
-          <div className="mt-5 flex gap-4 flex-wrap">
+          <div className="mt-5 grid grid-cols-3 sm:flex sm:flex-wrap gap-2 sm:gap-4">
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
               <div className="text-2xl font-bold text-white">{openPunches.length}</div>
               <div className="text-xs text-white/60">Clocked In</div>
@@ -497,14 +497,14 @@ export default function ClockPage() {
             <>
               {/* Column headers — built dynamically from col prefs */}
               <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                <span className="flex-1 min-w-[160px]">Name</span>
-                {cols.job_title && <span className="w-32 shrink-0">Job Title</span>}
-                {cols.division && <span className="w-32 shrink-0">Division</span>}
-                {cols.department && <span className="w-28 shrink-0">Department</span>}
-                {cols.clock_in_time && <span className="w-20 shrink-0">Clock In</span>}
+                <span className="flex-1 min-w-[120px]">Name</span>
+                {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
+                {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}
+                {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
+                {cols.clock_in_time && <span className="hidden sm:block w-20 shrink-0">Clock In</span>}
                 {cols.elapsed && <span className="w-16 shrink-0 text-right">Elapsed</span>}
-                {cols.punch_method && <span className="w-16 shrink-0">Method</span>}
-                <span className="w-24 shrink-0 text-right">Action</span>
+                {cols.punch_method && <span className="hidden sm:block w-16 shrink-0">Method</span>}
+                <span className="w-20 sm:w-24 shrink-0 text-right">Action</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {openPunches.map((p) => {
@@ -512,7 +512,7 @@ export default function ClockPage() {
                   if (!emp) return null;
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-5 py-3.5">
-                      <div className="flex items-center gap-3 flex-1 min-w-[160px]">
+                      <div className="flex items-center gap-3 flex-1 min-w-[120px]">
                         <div className="shrink-0 w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center text-green-700 font-bold text-xs">
                           {initials(emp)}
                         </div>
@@ -521,17 +521,17 @@ export default function ClockPage() {
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">● Live</span>
                         </div>
                       </div>
-                      {cols.job_title && <div className="w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
+                      {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                       {cols.division && (
-                        <div className="w-32 shrink-0">
+                        <div className="hidden sm:block w-32 shrink-0">
                           {p.divisions ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                         </div>
                       )}
-                      {cols.department && <div className="w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
-                      {cols.clock_in_time && <div className="w-20 shrink-0 text-xs text-gray-500">{fmtTime(p.clock_in_at)}</div>}
+                      {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
+                      {cols.clock_in_time && <div className="hidden sm:block w-20 shrink-0 text-xs text-gray-500">{fmtTime(p.clock_in_at)}</div>}
                       {cols.elapsed && <div className="w-16 shrink-0 text-sm font-bold text-gray-800 tabular-nums text-right">{elapsed(p.clock_in_at)}</div>}
-                      {cols.punch_method && <div className="w-16 shrink-0 text-xs text-gray-400">{p.punch_method}</div>}
-                      <div className="w-24 shrink-0 flex justify-end">
+                      {cols.punch_method && <div className="hidden sm:block w-16 shrink-0 text-xs text-gray-400">{p.punch_method}</div>}
+                      <div className="w-20 sm:w-24 shrink-0 flex justify-end">
                         <button
                           onClick={() => clockOut(p.id, emp.id)}
                           disabled={acting === emp.id}
@@ -555,12 +555,12 @@ export default function ClockPage() {
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
             </div>
             <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-              <span className="flex-1 min-w-[160px]">Name</span>
-              {cols.job_title && <span className="w-32 shrink-0">Job Title</span>}
-              {cols.division && <span className="w-32 shrink-0">Division</span>}
-              {cols.department && <span className="w-28 shrink-0">Department</span>}
-              <span className="w-36 shrink-0">In → Out</span>
-              <span className="w-20 shrink-0 text-right">Hours</span>
+              <span className="flex-1 min-w-[120px]">Name</span>
+              {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
+              {cols.division && <span className="hidden sm:block w-32 shrink-0">Division</span>}
+              {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
+              <span className="w-28 sm:w-36 shrink-0">In → Out</span>
+              <span className="w-16 sm:w-20 shrink-0 text-right">Hours</span>
             </div>
             <div className="divide-y divide-gray-50">
               {closedPunches.map((p) => {
@@ -568,19 +568,19 @@ export default function ClockPage() {
                 if (!emp) return null;
                 return (
                   <div key={p.id} className="flex items-center gap-3 px-5 py-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-[160px]">
+                    <div className="flex items-center gap-3 flex-1 min-w-[120px]">
                       <div className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">{initials(emp)}</div>
                       <span className="text-sm font-medium text-gray-700 truncate">{displayName(emp)}</span>
                     </div>
-                    {cols.job_title && <div className="w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
+                    {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                     {cols.division && (
-                      <div className="w-32 shrink-0">
+                      <div className="hidden sm:block w-32 shrink-0">
                         {p.divisions ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     )}
-                    {cols.department && <div className="w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
-                    <div className="w-36 shrink-0 text-xs text-gray-400 tabular-nums">{fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}</div>
-                    <div className="w-20 shrink-0 text-sm font-semibold text-gray-600 tabular-nums text-right">{fmtHours(p.clock_in_at, p.clock_out_at!)}</div>
+                    {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
+                    <div className="w-28 sm:w-36 shrink-0 text-xs text-gray-400 tabular-nums">{fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}</div>
+                    <div className="w-16 sm:w-20 shrink-0 text-sm font-semibold text-gray-600 tabular-nums text-right">{fmtHours(p.clock_in_at, p.clock_out_at!)}</div>
                   </div>
                 );
               })}

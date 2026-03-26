@@ -319,7 +319,8 @@ export default function TimesheetsPage() {
                   {/* Expanded punch rows */}
                   {(isOpen || true) && (
                     <div className={`border-t border-gray-50 ${!isOpen ? "hidden print:block" : ""}`}>
-                      <table className="w-full text-xs">
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-xs min-w-[640px]">
                         <thead>
                           <tr className="bg-gray-50/60 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                             <th className="px-4 py-2 text-left">Date</th>
@@ -438,6 +439,7 @@ export default function TimesheetsPage() {
                           </tr>
                         </tfoot>
                       </table>
+                      </div>
                     </div>
                   )}
                 </div>
