@@ -60,22 +60,6 @@ const NAV: NavItem[] = [
     ],
   },
   {
-    label: "Settings",
-    href: "/operations-center",
-    permKey: "settings_view",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
-        <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
-      </svg>
-    ),
-    children: [
-      { label: "All Settings", href: "/operations-center", permKey: "settings_view" },
-      { label: "Sports Ticker", href: "/operations-center/sports-ticker", permKey: "settings_view" },
-    ],
-  },
-  {
     label: "Atlas HR",
     href: "/operations-center/atlas-time",
     permKey: "hr_team_view",
@@ -123,6 +107,23 @@ const NAV: NavItem[] = [
     ),
   },
 ];
+
+const SETTINGS_ITEM: NavItem = {
+  label: "Settings",
+  href: "/operations-center",
+  permKey: "settings_view",
+  icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+    </svg>
+  ),
+  children: [
+    { label: "All Settings", href: "/operations-center", permKey: "settings_view" },
+    { label: "Sports Ticker", href: "/operations-center/sports-ticker", permKey: "settings_view" },
+  ],
+};
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
@@ -312,6 +313,67 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           );
         })}
       </nav>
+
+      {/* Settings — always pinned above bottom */}
+      {(!SETTINGS_ITEM.permKey || can(SETTINGS_ITEM.permKey)) && (() => {
+        const item = SETTINGS_ITEM;
+        const visibleChildren = item.children?.filter(c => !c.permKey || can(c.permKey));
+        const hasChildren = !!visibleChildren?.length;
+        const isOpen = openGroups.has(item.href);
+        const childActive = visibleChildren?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"));
+        const selfActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        const groupHighlighted = hasChildren && childActive;
+        return (
+          <div className="px-2 pt-1 border-t border-white/10">
+            {hasChildren ? (
+              <div>
+                <div className={`flex items-center rounded-lg transition-all ${groupHighlighted ? "bg-white/10" : "hover:bg-white/8"}`}>
+                  <Link href={item.href} onClick={onClose} title={collapsed ? item.label : undefined}
+                    className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium flex-1 min-w-0 group ${groupHighlighted ? "text-white" : "text-white/60 hover:text-white"}`}>
+                    <span className={`shrink-0 ${groupHighlighted ? "text-green-300" : "text-white/50 group-hover:text-white/80"}`}>{item.icon}</span>
+                    {!collapsed && <span className="truncate flex-1 min-w-0">{item.label}</span>}
+                  </Link>
+                  {!collapsed && (
+                    <button onClick={() => toggleGroup(item.href)} className="shrink-0 px-2 py-2.5 text-white/30 hover:text-white/60 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {isOpen && !collapsed && (
+                  <div className="pl-4 mt-0.5 mb-1">
+                    <div className="border-l border-white/10 ml-3 space-y-0.5 pl-2">
+                      {visibleChildren!.map(child => {
+                        const cActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                        return (
+                          <Link key={child.href} href={child.href} onClick={onClose}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              cActive ? "bg-white/12 text-white" : "text-white/45 hover:text-white/80 hover:bg-white/6"
+                            }`}>
+                            <span className="truncate">{child.label}</span>
+                            {cActive && <span className="w-1 h-1 rounded-full bg-green-400 shrink-0 ml-1" />}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link href={item.href} onClick={onClose} title={collapsed ? item.label : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
+                  selfActive ? "bg-white/15 text-white shadow-sm" : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}>
+                <span className={`shrink-0 ${selfActive ? "text-green-300" : "text-white/50 group-hover:text-white/80"}`}>{item.icon}</span>
+                {!collapsed && <span className="truncate flex-1 min-w-0">{item.label}</span>}
+                {selfActive && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />}
+              </Link>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Bottom */}
       <div className="px-2 pb-8 space-y-1 border-t border-white/10 pt-3 mt-2" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
