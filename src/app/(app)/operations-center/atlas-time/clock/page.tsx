@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/lib/userContext";
+import ImportPunchesModal from "./ImportPunchesModal";
 
 type Employee = {
   id: string;
@@ -274,6 +275,9 @@ function ClockPageInner() {
   bulkRowsRef.current = bulkRows;
   atSettingsRef.current = atSettings;
   employeesRef.current = employees;
+
+  // Import punches modal
+  const [showImport, setShowImport] = useState(false);
 
   // Manual punch drawer
   const [showManual, setShowManual] = useState(false);
@@ -654,6 +658,14 @@ function ClockPageInner() {
 
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
+      {/* Import Punches Modal */}
+      {showImport && (
+        <ImportPunchesModal
+          onClose={() => setShowImport(false)}
+          onImported={() => { setShowImport(false); load(); }}
+        />
+      )}
+
       {/* Manual Punch Drawer */}
       {showManual && (
         <div className="fixed inset-0 z-50 flex">
@@ -825,6 +837,12 @@ function ClockPageInner() {
                     onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
                     className="bg-white/10 border border-white/20 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]"
                   />
+                  <button
+                    onClick={() => setShowImport(true)}
+                    className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
+                  >
+                    Import
+                  </button>
                   <button
                     onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: viewDate }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
                     className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
