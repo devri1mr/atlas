@@ -26,6 +26,10 @@ type Punch = {
   status: string;
   division_id: string | null;
   is_manual: boolean | null;
+  regular_hours: number | null;
+  ot_hours: number | null;
+  dt_hours: number | null;
+  lunch_deducted_mins: number | null;
   at_employees: Employee | null;
   divisions: { id: string; name: string } | null;
 };
@@ -157,6 +161,16 @@ function fmtTime(iso: string): string {
 function fmtHours(clockIn: string, clockOut: string): string {
   const diff = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3_600_000;
   return diff.toFixed(2);
+}
+
+/** Build an ISO-8601 string with the browser's local timezone offset so the server stores the correct UTC time. */
+function localIso(dateStr: string, timeStr: string): string {
+  const off  = new Date().getTimezoneOffset(); // minutes west of UTC (positive = behind UTC)
+  const sign = off <= 0 ? "+" : "-";
+  const abs  = Math.abs(off);
+  const hh   = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm   = String(abs % 60).padStart(2, "0");
+  return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
 }
 
 function initials(e: Employee) {
@@ -310,10 +324,10 @@ export default function ClockPage() {
     if (!manualForm.employee_id) { setManualError("Please select a team member."); return; }
     if (!manualForm.clock_in_time) { setManualError("Clock-in time is required."); return; }
 
-    const clockInISO  = `${manualForm.date}T${manualForm.clock_in_time}:00`;
-    const clockOutISO = manualForm.clock_out_time ? `${manualForm.date}T${manualForm.clock_out_time}:00` : null;
+    const clockInISO  = localIso(manualForm.date, manualForm.clock_in_time);
+    const clockOutISO = manualForm.clock_out_time ? localIso(manualForm.date, manualForm.clock_out_time) : null;
 
-    if (clockOutISO && clockOutISO <= clockInISO) {
+    if (clockOutISO && new Date(clockOutISO) <= new Date(clockInISO)) {
       setManualError("Clock-out must be after clock-in.");
       return;
     }
@@ -388,8 +402,8 @@ export default function ClockPage() {
     const row = bulkRowsRef.current.find(r => r.key === key);
     if (!row || !row.employee_id || !row.date || !row.clock_in || !row.clock_out) return;
     setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "saving" } : r));
-    const clockInISO  = `${row.date}T${row.clock_in}:00`;
-    const clockOutISO = `${row.date}T${row.clock_out}:00`;
+    const clockInISO  = localIso(row.date, row.clock_in);
+    const clockOutISO = localIso(row.date, row.clock_out);
     const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettingsRef.current);
     try {
       if (row.punch_id) {
@@ -458,18 +472,23 @@ export default function ClockPage() {
     try {
       setEditSaving(true);
       setError("");
-      const clockInISO  = `${viewDate}T${editClockIn}:00`;
-      const clockOutISO = editClockOut ? `${viewDate}T${editClockOut}:00` : null;
-      if (clockOutISO && clockOutISO <= clockInISO) { setError("Clock-out must be after clock-in."); return; }
+      const clockInISO  = localIso(viewDate, editClockIn);
+      const clockOutISO = editClockOut ? localIso(viewDate, editClockOut) : null;
+      const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, atSettings) : null;
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: editDivisionId || null }),
+        body: JSON.stringify({
+          clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: editDivisionId || null,
+          ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}),
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save");
       setPunches(prev => prev.map(p => p.id === punchId
         ? { ...p, clock_in_at: json.punch.clock_in_at, clock_out_at: json.punch.clock_out_at,
+            regular_hours: json.punch.regular_hours, ot_hours: json.punch.ot_hours,
+            dt_hours: json.punch.dt_hours, lunch_deducted_mins: json.punch.lunch_deducted_mins,
             division_id: editDivisionId || null,
             divisions: divisions.find(d => d.id === editDivisionId) ?? null }
         : p));
@@ -510,10 +529,15 @@ export default function ClockPage() {
       }).slice(0, 6)
     : [];
 
-  const totalHoursToday = closedPunches.reduce((acc, p) => {
-    if (!p.clock_out_at) return acc;
-    return acc + (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000;
-  }, 0);
+  // Use stored reg+OT+DT hours (lunch already deducted) rather than raw elapsed time
+  function punchTotalHrs(p: Punch): number {
+    if (!p.clock_out_at) return 0;
+    if (p.regular_hours != null) return (p.regular_hours ?? 0) + (p.ot_hours ?? 0) + (p.dt_hours ?? 0);
+    // Fallback: raw elapsed (for legacy punches without stored hours)
+    return (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000;
+  }
+
+  const totalHoursToday = closedPunches.reduce((acc, p) => acc + punchTotalHrs(p), 0);
 
   // Per-employee stats from the broader date range
   const weekStart   = getWeekStart(viewDate, atSettings.pay_period_start_day);
@@ -521,7 +545,7 @@ export default function ClockPage() {
   const empStatsMap = new Map<string, { today: number; week: number; period: number }>();
   for (const p of statsPunches) {
     if (!p.clock_out_at) continue;
-    const hrs = (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000;
+    const hrs = punchTotalHrs(p);
     const cur = empStatsMap.get(p.employee_id) ?? { today: 0, week: 0, period: 0 };
     if (p.date_for_payroll === viewDate) cur.today += hrs;
     if (p.date_for_payroll >= weekStart && p.date_for_payroll <= viewDate) cur.week += hrs;
@@ -735,7 +759,7 @@ export default function ClockPage() {
               <div className="text-xs text-white/60">Completed</div>
             </div>
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-              <div className="text-2xl font-bold text-white">{totalHoursToday.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{totalHoursToday.toFixed(2)}</div>
               <div className="text-xs text-white/60">Total Hrs</div>
             </div>
           </div>
@@ -994,7 +1018,7 @@ export default function ClockPage() {
                                 </div>
                                 {(() => { const st = empStatsMap.get(p.employee_id); return st ? (
                                   <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">
-                                    Day {st.today.toFixed(1)} · Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}
+                                    Day {st.today.toFixed(2)} · Wk {st.week.toFixed(2)} · Period {st.period.toFixed(2)}
                                   </div>
                                 ) : null; })()}
                               </div>
@@ -1132,7 +1156,7 @@ export default function ClockPage() {
                           <div className="font-semibold text-sm text-gray-900 truncate">{displayName(emp)}</div>
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">● Live</span>
                           {(() => { const st = empStatsMap.get(emp.id); return st ? (
-                            <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}</div>
+                            <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">Wk {st.week.toFixed(2)} · Period {st.period.toFixed(2)}</div>
                           ) : null; })()}
                         </div>
                       </div>
@@ -1195,7 +1219,7 @@ export default function ClockPage() {
                       <div className="min-w-0">
                         <span className="text-sm font-medium text-gray-700 truncate block">{displayName(emp)}</span>
                         {(() => { const st = empStatsMap.get(emp.id); return st ? (
-                          <div className="text-[9px] text-gray-400 tabular-nums">Day {st.today.toFixed(1)} · Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}</div>
+                          <div className="text-[9px] text-gray-400 tabular-nums">Day {st.today.toFixed(2)} · Wk {st.week.toFixed(2)} · Period {st.period.toFixed(2)}</div>
                         ) : null; })()}
                       </div>
                     </div>
