@@ -35,6 +35,10 @@ type AtSettings = {
   lunch_auto_deduct: boolean;
   lunch_deduct_after_hours: number;
   lunch_deduct_minutes: number;
+  pay_cycle: string;
+  pay_period_start_day: number;
+  pay_period_anchor_date: string | null;
+  ot_weekly_threshold: number;
 };
 
 type BulkRow = {
@@ -55,7 +59,43 @@ const DEFAULT_SETTINGS: AtSettings = {
   lunch_auto_deduct: false,
   lunch_deduct_after_hours: 6,
   lunch_deduct_minutes: 30,
+  pay_cycle: "weekly",
+  pay_period_start_day: 1,
+  pay_period_anchor_date: null,
+  ot_weekly_threshold: 40,
 };
+
+function getWeekStart(dateStr: string, startDay = 1): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const day = d.getDay(); // 0=Sun
+  const diff = ((day - startDay) + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function getPeriodStart(dateStr: string, s: AtSettings): string {
+  const date = new Date(dateStr + "T12:00:00");
+  switch (s.pay_cycle) {
+    case "biweekly": {
+      const anchor = s.pay_period_anchor_date
+        ? new Date(s.pay_period_anchor_date + "T12:00:00")
+        : new Date(getWeekStart(dateStr, s.pay_period_start_day) + "T12:00:00");
+      const diffDays = Math.floor((date.getTime() - anchor.getTime()) / 86_400_000);
+      const periodDay = ((diffDays % 14) + 14) % 14;
+      const start = new Date(date);
+      start.setDate(date.getDate() - periodDay);
+      return start.toISOString().slice(0, 10);
+    }
+    case "semi_monthly": {
+      const day = date.getDate();
+      return day <= 15 ? `${dateStr.slice(0, 7)}-01` : `${dateStr.slice(0, 7)}-16`;
+    }
+    case "monthly":
+      return `${dateStr.slice(0, 7)}-01`;
+    default: // "weekly"
+      return getWeekStart(dateStr, s.pay_period_start_day);
+  }
+}
 
 function newBulkRow(date: string): BulkRow {
   return { key: `${Date.now()}_${Math.random()}`, date, employee_id: "", division_id: "", clock_in: "", clock_out: "", punch_id: null, status: "draft", error_msg: "" };
@@ -111,7 +151,7 @@ function fmtTime(iso: string): string {
 
 function fmtHours(clockIn: string, clockOut: string): string {
   const diff = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3_600_000;
-  return diff.toFixed(2) + " hrs";
+  return diff.toFixed(2);
 }
 
 function initials(e: Employee) {
@@ -158,6 +198,9 @@ export default function ClockPage() {
   // Date navigation
   const [viewDate, setViewDate] = useState(new Date().toISOString().slice(0, 10));
 
+  // Stats (week + period punches for per-employee totals)
+  const [statsPunches, setStatsPunches] = useState<Punch[]>([]);
+
   // Bulk entry
   const [showBulkEntry, setShowBulkEntry] = useState(false);
   const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => [newBulkRow(new Date().toISOString().slice(0, 10))]);
@@ -190,7 +233,7 @@ export default function ClockPage() {
   }, []);
 
   useEffect(() => { loadStatic(); }, []);
-  useEffect(() => { load(); }, [viewDate]);
+  useEffect(() => { load(); loadStats(); }, [viewDate]);
 
   // Load employees, divisions, and settings once on mount
   async function loadStatic() {
@@ -206,13 +249,33 @@ export default function ClockPage() {
       setEmployees(empJson?.employees ?? []);
       setDivisions(divJson?.divisions ?? []);
       const s = settingsJson.settings ?? {};
-      setAtSettings({
+      const freshSettings: AtSettings = {
         ot_daily_threshold:       s.ot_daily_threshold       ?? 8,
         dt_daily_threshold:       s.dt_daily_threshold       ?? 0,
         lunch_auto_deduct:        s.lunch_auto_deduct        ?? false,
         lunch_deduct_after_hours: s.lunch_deduct_after_hours ?? 6,
         lunch_deduct_minutes:     s.lunch_deduct_minutes     ?? 30,
-      });
+        pay_cycle:                s.pay_cycle                ?? "weekly",
+        pay_period_start_day:     s.pay_period_start_day     ?? 1,
+        pay_period_anchor_date:   s.pay_period_anchor_date   ?? null,
+        ot_weekly_threshold:      s.ot_weekly_threshold      ?? 40,
+      };
+      setAtSettings(freshSettings);
+      atSettingsRef.current = freshSettings;
+      loadStats(freshSettings);
+    } catch { /* non-fatal */ }
+  }
+
+  async function loadStats(settings?: AtSettings) {
+    try {
+      const s = settings ?? atSettingsRef.current;
+      const wStart  = getWeekStart(viewDate, s.pay_period_start_day);
+      const pStart  = getPeriodStart(viewDate, s);
+      const from    = wStart < pStart ? wStart : pStart;
+      if (from >= viewDate) { setStatsPunches([]); return; }
+      const res  = await fetch(`/api/atlas-time/punches?date_from=${from}&date_to=${viewDate}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (res.ok) setStatsPunches(json.punches ?? []);
     } catch { /* non-fatal */ }
   }
 
@@ -441,6 +504,20 @@ export default function ClockPage() {
     if (!p.clock_out_at) return acc;
     return acc + (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000;
   }, 0);
+
+  // Per-employee stats from the broader date range
+  const weekStart   = getWeekStart(viewDate, atSettings.pay_period_start_day);
+  const periodStart = getPeriodStart(viewDate, atSettings);
+  const empStatsMap = new Map<string, { today: number; week: number; period: number }>();
+  for (const p of statsPunches) {
+    if (!p.clock_out_at) continue;
+    const hrs = (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000;
+    const cur = empStatsMap.get(p.employee_id) ?? { today: 0, week: 0, period: 0 };
+    if (p.date_for_payroll === viewDate) cur.today += hrs;
+    if (p.date_for_payroll >= weekStart && p.date_for_payroll <= viewDate) cur.week += hrs;
+    if (p.date_for_payroll >= periodStart && p.date_for_payroll <= viewDate) cur.period += hrs;
+    empStatsMap.set(p.employee_id, cur);
+  }
 
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
@@ -877,12 +954,12 @@ export default function ClockPage() {
               <div className="px-5 py-12 text-center text-sm text-gray-400">No punches recorded for this date.</div>
             ) : (
               <>
-                <div className="sticky top-0 z-10 grid grid-cols-[1fr_100px_100px_80px_100px_80px] gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="sticky top-0 z-10 grid grid-cols-[1fr_110px_100px_100px_72px_80px] gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                   <span>Name</span>
+                  <span className="text-center">Division</span>
                   <span className="text-center">In</span>
                   <span className="text-center">Out</span>
                   <span className="text-center">Hrs</span>
-                  <span className="text-center">Division</span>
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y divide-gray-50">
@@ -896,16 +973,25 @@ export default function ClockPage() {
                     return (
                       <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : ""}`}>
                         {!isEditing ? (
-                          <div className="grid grid-cols-[1fr_100px_100px_80px_100px_80px] gap-2 items-center">
+                          <div className="grid grid-cols-[1fr_110px_100px_100px_72px_80px] gap-2 items-center">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="shrink-0 w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
-                              <span className="text-sm font-medium text-gray-800 truncate">{displayName(emp)}</span>
-                              {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-medium text-gray-800 truncate">{displayName(emp)}</span>
+                                  {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                                </div>
+                                {(() => { const st = empStatsMap.get(p.employee_id); return st ? (
+                                  <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">
+                                    Day {st.today.toFixed(1)} · Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}
+                                  </div>
+                                ) : null; })()}
+                              </div>
                             </div>
+                            <div className="text-center">{p.divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
-                            <span className="text-xs font-semibold text-gray-700 text-center tabular-nums">{hrs ? `${hrs}h` : "—"}</span>
-                            <div className="text-center">{p.divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
+                            <span className="text-xs font-semibold text-gray-700 text-center tabular-nums">{hrs ?? "—"}</span>
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => startEditPunch(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1019,6 +1105,9 @@ export default function ClockPage() {
                         <div className="min-w-0">
                           <div className="font-semibold text-sm text-gray-900 truncate">{displayName(emp)}</div>
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">● Live</span>
+                          {(() => { const st = empStatsMap.get(emp.id); return st ? (
+                            <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}</div>
+                          ) : null; })()}
                         </div>
                       </div>
                       {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
@@ -1070,7 +1159,12 @@ export default function ClockPage() {
                   <div key={p.id} className="flex items-center gap-3 px-5 py-3">
                     <div className="flex items-center gap-3 flex-1 min-w-[120px]">
                       <div className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs">{initials(emp)}</div>
-                      <span className="text-sm font-medium text-gray-700 truncate">{displayName(emp)}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-gray-700 truncate block">{displayName(emp)}</span>
+                        {(() => { const st = empStatsMap.get(emp.id); return st ? (
+                          <div className="text-[9px] text-gray-400 tabular-nums">Day {st.today.toFixed(1)} · Wk {st.week.toFixed(1)} · Period {st.period.toFixed(1)}</div>
+                        ) : null; })()}
+                      </div>
                     </div>
                     {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                     {cols.division && (
