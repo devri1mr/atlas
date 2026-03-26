@@ -16,6 +16,23 @@ type Emp = {
   divisions: { id: string; name: string } | null;
 };
 
+type Division = { id: string; name: string; active: boolean };
+
+type SavedRate = {
+  id: string;
+  rate: number;
+  division_id: string | null;
+  division_name: string | null;
+  is_default: boolean;
+};
+
+type PendingRate = {
+  key: string;
+  rate: string;
+  division_id: string;
+  is_default: boolean;
+};
+
 function displayName(e: Emp) {
   const mi = e.middle_initial ? ` ${e.middle_initial}.` : "";
   return `${e.first_name}${mi} ${e.last_name}`;
@@ -26,6 +43,7 @@ function initials(e: Emp) {
 
 export default function RateSetupPage() {
   const [employees, setEmployees] = useState<Emp[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
   const [idx, setIdx] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -34,22 +52,36 @@ export default function RateSetupPage() {
   const [showAll, setShowAll] = useState(false);
   const [done, setDone] = useState<Set<string>>(new Set());
 
-  const [rate, setRate] = useState("");
+  // Per-employee existing rates (fetched lazily)
+  const [existingRates, setExistingRates] = useState<SavedRate[]>([]);
+  const [loadingRates, setLoadingRates] = useState(false);
+
+  // Pending rates to add this session
+  const [pendingRates, setPendingRates] = useState<PendingRate[]>([]);
+
+  // Add rate form
+  const [addRate, setAddRate] = useState("");
+  const [addDivision, setAddDivision] = useState("");
+  const [addDefault, setAddDefault] = useState(false);
   const rateRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/atlas-time/employees", { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Failed");
-      let list: Emp[] = (json.employees ?? []).filter((e: Emp) => e.pay_type !== "volunteer");
-      // No-rate first, then alphabetical
+      const [empRes, divRes] = await Promise.all([
+        fetch("/api/atlas-time/employees", { cache: "no-store" }),
+        fetch("/api/atlas-time/divisions", { cache: "no-store" }),
+      ]);
+      const empJson = await empRes.json().catch(() => null);
+      const divJson = await divRes.json().catch(() => null);
+      if (!empRes.ok) throw new Error(empJson?.error ?? "Failed");
+      let list: Emp[] = empJson.employees ?? [];
       list = [
         ...list.filter(e => !e.default_pay_rate),
         ...list.filter(e => e.default_pay_rate),
       ];
       setEmployees(list);
+      setDivisions((divJson?.divisions ?? []).filter((d: Division) => d.active));
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
@@ -63,35 +95,88 @@ export default function RateSetupPage() {
   const emp = visible[idx] ?? null;
   const missingCount = employees.filter(e => !e.default_pay_rate).length;
 
-  // Prefill from current employee
+  // When employee changes, fetch their existing rates and reset pending
   useEffect(() => {
-    if (emp) {
-      setRate(emp.default_pay_rate ? String(emp.default_pay_rate) : "");
-      setTimeout(() => rateRef.current?.focus(), 50);
-    }
+    if (!emp) return;
+    setPendingRates([]);
+    setAddRate("");
+    setAddDivision("");
+    setAddDefault(false);
+    setExistingRates([]);
+    setLoadingRates(true);
+    fetch(`/api/atlas-time/employees/${emp.id}`, { cache: "no-store" })
+      .then(r => r.json()).catch(() => null)
+      .then(j => { setExistingRates(j?.pay_rates ?? []); })
+      .finally(() => { setLoadingRates(false); setTimeout(() => rateRef.current?.focus(), 50); });
   }, [idx, emp?.id]);
 
-  async function saveAndNext() {
-    if (!emp || !rate) { advance(); return; }
-    const parsed = parseFloat(rate);
+  function addPending() {
+    const parsed = parseFloat(addRate);
     if (isNaN(parsed) || parsed <= 0) { setError("Enter a valid rate."); return; }
+    setError("");
+    // If marking this as default, unmark others
+    const newPending: PendingRate = {
+      key: `${Date.now()}`,
+      rate: addRate,
+      division_id: addDivision,
+      is_default: addDefault,
+    };
+    setPendingRates(prev => addDefault
+      ? [...prev.map(r => ({ ...r, is_default: false })), newPending]
+      : [...prev, newPending]
+    );
+    setAddRate("");
+    setAddDivision("");
+    setAddDefault(false);
+    setTimeout(() => rateRef.current?.focus(), 50);
+  }
+
+  async function saveAndNext() {
+    if (!emp) { advance(); return; }
+    if (pendingRates.length === 0) { advance(); return; }
     try {
       setSaving(true);
       setError("");
-      const res = await fetch(`/api/atlas-time/employees/${emp.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pay_type: "hourly", default_pay_rate: parsed }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Failed to save");
-      setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, pay_type: "hourly", default_pay_rate: parsed } : e));
+      const today = new Date().toISOString().slice(0, 10);
+      for (const pr of pendingRates) {
+        const parsed = parseFloat(pr.rate);
+        const div = divisions.find(d => d.id === pr.division_id);
+        await fetch(`/api/atlas-time/employees/${emp.id}/pay-rates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rate: parsed,
+            division_id: pr.division_id || null,
+            division_name: div?.name ?? null,
+            is_default: pr.is_default,
+            effective_date: today,
+          }),
+        });
+      }
+      // Update employee's default_pay_rate in local state if any is_default
+      const defaultPending = pendingRates.find(r => r.is_default);
+      if (defaultPending) {
+        const parsed = parseFloat(defaultPending.rate);
+        setEmployees(prev => prev.map(e => e.id === emp.id
+          ? { ...e, pay_type: "hourly", default_pay_rate: parsed }
+          : e
+        ));
+      } else if (!emp.default_pay_rate && pendingRates.length > 0) {
+        // Mark first rate as default_pay_rate on employee for display
+        const parsed = parseFloat(pendingRates[0].rate);
+        await fetch(`/api/atlas-time/employees/${emp.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pay_type: "hourly", default_pay_rate: parsed }),
+        });
+        setEmployees(prev => prev.map(e => e.id === emp.id
+          ? { ...e, pay_type: "hourly", default_pay_rate: parsed }
+          : e
+        ));
+      }
       setDone(prev => new Set([...prev, emp.id]));
       setJustSaved(true);
-      setTimeout(() => {
-        setJustSaved(false);
-        advance();
-      }, 600);
+      setTimeout(() => { setJustSaved(false); advance(); }, 700);
     } catch (e: any) {
       setError(e?.message ?? "Failed to save");
     } finally {
@@ -107,6 +192,7 @@ export default function RateSetupPage() {
   }
 
   const total = visible.length;
+  const canSave = pendingRates.length > 0;
 
   return (
     <AccessGate permKey="hr_team_view">
@@ -125,19 +211,15 @@ export default function RateSetupPage() {
                 <h1 className="text-xl font-bold text-white">Rate Setup</h1>
                 <p className="text-white/50 text-xs mt-0.5">{missingCount} without a rate · {done.size} set this session</p>
               </div>
-              <button
-                onClick={() => setShowAll(s => !s)}
-                className="text-xs font-semibold text-white/60 hover:text-white border border-white/20 px-3 py-1.5 rounded-lg transition-colors"
-              >
+              <button onClick={() => setShowAll(s => !s)}
+                className="text-xs font-semibold text-white/60 hover:text-white border border-white/20 px-3 py-1.5 rounded-lg transition-colors">
                 {showAll ? "Missing only" : "Show all"}
               </button>
             </div>
             {missingCount > 0 && (
               <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-400 rounded-full transition-all duration-500"
-                  style={{ width: `${missingCount > 0 ? Math.round((done.size / missingCount) * 100) : 100}%` }}
-                />
+                <div className="h-full bg-green-400 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.round((done.size / missingCount) * 100)}%` }} />
               </div>
             )}
           </div>
@@ -164,7 +246,7 @@ export default function RateSetupPage() {
           ) : emp ? (
             <>
               {/* Counter */}
-              <div className="flex items-center gap-2 text-xs text-gray-400 w-full">
+              <div className="flex items-center gap-2 w-full">
                 <button onClick={back} disabled={idx === 0} className="w-7 h-7 rounded-lg flex items-center justify-center bg-white border border-gray-200 text-gray-400 disabled:opacity-30 hover:bg-gray-50 transition-colors">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
@@ -177,56 +259,116 @@ export default function RateSetupPage() {
               {/* Card */}
               <div className={`w-full bg-white rounded-3xl border shadow-sm overflow-hidden transition-all duration-300 ${justSaved ? "border-green-400 shadow-green-100" : "border-gray-100"}`}>
                 {/* Employee identity */}
-                <div className="flex items-center gap-4 px-5 py-5 border-b border-gray-50">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 bg-[#123b1f]/10 flex items-center justify-center">
+                <div className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 bg-[#123b1f]/10 flex items-center justify-center">
                     {emp.photo_url
                       ? <img src={emp.photo_url} alt={initials(emp)} className="w-full h-full object-cover" />
-                      : <span className="text-[#123b1f] font-bold text-lg">{initials(emp)}</span>
-                    }
+                      : <span className="text-[#123b1f] font-bold text-base">{initials(emp)}</span>}
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-lg font-bold text-gray-900 truncate">{displayName(emp)}</div>
-                    {emp.job_title && <div className="text-sm text-gray-400">{emp.job_title}</div>}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-base font-bold text-gray-900 truncate">{displayName(emp)}</div>
+                    {emp.job_title && <div className="text-xs text-gray-400">{emp.job_title}</div>}
                     {emp.divisions && <div className="text-xs text-blue-600 mt-0.5">{emp.divisions.name}</div>}
                   </div>
                   {justSaved && (
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <div className="shrink-0 w-7 h-7 rounded-full bg-green-500 flex items-center justify-center">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </div>
                   )}
                 </div>
 
-                {/* Current rate display */}
-                {emp.default_pay_rate && !done.has(emp.id) && (
-                  <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-                    <span className="text-xs text-amber-700">Current rate:</span>
-                    <span className="text-sm font-bold text-amber-800">
-                      ${emp.default_pay_rate.toFixed(2)}/hr
-                    </span>
+                {/* Existing rates */}
+                {loadingRates ? (
+                  <div className="px-5 py-3 border-b border-gray-50">
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+                  </div>
+                ) : existingRates.length > 0 && (
+                  <div className="px-5 py-3 border-b border-gray-50 space-y-1.5">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Existing Rates</p>
+                    {existingRates.map(r => (
+                      <div key={r.id} className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500">{r.division_name ?? "General"}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-800 tabular-nums">${r.rate.toFixed(2)}/hr</span>
+                          {r.is_default && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">Default</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Rate input */}
-                <div className="px-5 py-5 space-y-3">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pay Rate</label>
-
-                  {/* Rate field */}
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-lg">$</span>
-                    <input
-                      ref={rateRef}
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      value={rate}
-                      onChange={e => setRate(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") saveAndNext(); }}
-                      placeholder="0.00"
-                      className="w-full border border-gray-200 rounded-2xl pl-8 pr-12 py-4 text-2xl font-bold text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">/hr</span>
+                {/* Pending rates (added this session) */}
+                {pendingRates.length > 0 && (
+                  <div className="px-5 py-3 border-b border-gray-50 space-y-1.5">
+                    <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-2">To Be Saved</p>
+                    {pendingRates.map(pr => {
+                      const div = divisions.find(d => d.id === pr.division_id);
+                      return (
+                        <div key={pr.key} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-600">{div?.name ?? "General"}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-gray-800 tabular-nums">${parseFloat(pr.rate).toFixed(2)}/hr</span>
+                            {pr.is_default && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Default</span>}
+                            <button onClick={() => setPendingRates(prev => prev.filter(r => r.key !== pr.key))}
+                              className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+
+                {/* Add rate form */}
+                <div className="px-5 py-4 space-y-3">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Add Rate</p>
+
+                  {/* Division */}
+                  <select
+                    value={addDivision}
+                    onChange={e => setAddDivision(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">General (no division)</option>
+                    {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+
+                  {/* Rate + default toggle + add button */}
+                  <div className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+                      <input
+                        ref={rateRef}
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={addRate}
+                        onChange={e => setAddRate(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") addPending(); }}
+                        placeholder="0.00"
+                        className="w-full border border-gray-200 rounded-xl pl-7 pr-10 py-2.5 text-lg font-bold text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">/hr</span>
+                    </div>
+                    <button
+                      onClick={addPending}
+                      disabled={!addRate}
+                      className="shrink-0 h-[42px] px-4 bg-[#123b1f] hover:bg-[#1a5c2e] text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Default toggle */}
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <button type="button" onClick={() => setAddDefault(v => !v)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${addDefault ? "bg-[#123b1f]" : "bg-gray-200"}`}>
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${addDefault ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                    </button>
+                    <span className="text-xs text-gray-500">Mark as default rate</span>
+                  </label>
                 </div>
               </div>
 
@@ -234,23 +376,16 @@ export default function RateSetupPage() {
               <div className="w-full space-y-2">
                 <button
                   onClick={saveAndNext}
-                  disabled={saving || !rate}
-                  className="w-full flex items-center justify-center gap-2 bg-[#123b1f] hover:bg-[#1a5c2e] text-white font-semibold py-4 rounded-2xl text-base transition-colors disabled:opacity-60 shadow-lg shadow-[#123b1f]/20"
+                  disabled={saving || !canSave}
+                  className="w-full flex items-center justify-center gap-2 bg-[#123b1f] hover:bg-[#1a5c2e] text-white font-semibold py-4 rounded-2xl text-base transition-colors disabled:opacity-50 shadow-lg shadow-[#123b1f]/20"
                 >
-                  {saving ? (
-                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-                  ) : (
-                    <>
-                      Save & Next
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                    </>
-                  )}
+                  {saving
+                    ? <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                    : <>Save {pendingRates.length > 0 ? `${pendingRates.length} Rate${pendingRates.length > 1 ? "s" : ""}` : ""} & Next <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></>
+                  }
                 </button>
-                <button
-                  onClick={advance}
-                  disabled={idx === total - 1}
-                  className="w-full flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-400 font-semibold py-3 rounded-xl text-sm transition-colors hover:bg-gray-50 disabled:opacity-30"
-                >
+                <button onClick={advance} disabled={idx === total - 1}
+                  className="w-full flex items-center justify-center gap-1.5 bg-white border border-gray-200 text-gray-400 font-semibold py-3 rounded-xl text-sm transition-colors hover:bg-gray-50 disabled:opacity-30">
                   Skip →
                 </button>
               </div>
@@ -263,10 +398,7 @@ export default function RateSetupPage() {
                     {employees.map(e => {
                       const visIdx = visible.findIndex(v => v.id === e.id);
                       return (
-                        <button
-                          key={e.id}
-                          onClick={() => visIdx >= 0 && setIdx(visIdx)}
-                          disabled={visIdx < 0}
+                        <button key={e.id} onClick={() => visIdx >= 0 && setIdx(visIdx)} disabled={visIdx < 0}
                           className={`relative shrink-0 w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${
                             emp.id === e.id ? "border-[#123b1f] scale-110" :
                             done.has(e.id) ? "border-green-400 opacity-70" :
