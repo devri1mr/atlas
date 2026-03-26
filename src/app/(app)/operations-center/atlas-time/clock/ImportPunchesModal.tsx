@@ -245,28 +245,42 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     setEditIdx(null);
   }
 
+  function buildEditedRow(row: PreviewRow, emp: AvailableEmp | undefined, item: AvailableItem | undefined, inTime: string, outTime: string): PreviewRow {
+    const newIn  = inTime  ? localIso(row.date, inTime)  : row.clock_in_at;
+    const newOut = outTime ? localIso(row.date, outTime) : row.clock_out_at;
+    const newStatus: PreviewRow["status"] = !emp ? "no_employee" : !item ? "no_punch_item" : "ready";
+    return { ...row, clock_in_at: newIn, clock_out_at: newOut, employee_id: emp?.id ?? null, employee_name: emp?.name ?? null, division_id: item?.division_id ?? null, at_division_id: item?.at_division_id ?? null, matched_item_name: item?.label ?? null, raw_hours: calcRawHours(newIn, newOut), status: newStatus };
+  }
+
   function applyEdit() {
     if (editIdx === null) return;
-    const row     = previewRows[editIdx];
-    const emp     = availEmps.find(e => e.id === editEmpId);
-    const item    = itemFromKey(editItemKey);
-    const newIn   = editInTime  ? localIso(row.date, editInTime)  : row.clock_in_at;
-    const newOut  = editOutTime ? localIso(row.date, editOutTime) : row.clock_out_at;
-    const newStatus: PreviewRow["status"] = !emp ? "no_employee" : !item ? "no_punch_item" : "ready";
-
+    const row  = previewRows[editIdx];
+    const emp  = availEmps.find(e => e.id === editEmpId);
+    const item = itemFromKey(editItemKey);
     const updated = [...previewRows];
-    updated[editIdx] = {
-      ...row,
-      clock_in_at:       newIn,
-      clock_out_at:      newOut,
-      employee_id:       emp?.id ?? null,
-      employee_name:     emp?.name ?? null,
-      division_id:       item?.division_id ?? null,
-      at_division_id:    item?.at_division_id ?? null,
-      matched_item_name: item?.label ?? null,
-      raw_hours:         calcRawHours(newIn, newOut),
-      status:            newStatus,
-    };
+    updated[editIdx] = buildEditedRow(row, emp, item, editInTime, editOutTime);
+    setPreviewRows(updated);
+    setEditIdx(null);
+  }
+
+  function applyEditToAll() {
+    if (editIdx === null) return;
+    const row  = previewRows[editIdx];
+    const emp  = availEmps.find(e => e.id === editEmpId);
+    const item = editItemKey ? itemFromKey(editItemKey) : undefined;
+
+    const updated = previewRows.map((r, i) => {
+      // Always apply full edit to the row being edited
+      if (i === editIdx) return buildEditedRow(r, emp, item, editInTime, editOutTime);
+      // Apply to other unresolved rows with the same csv_name
+      if (r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")) {
+        // Keep the row's own punch item unless user explicitly picked one
+        const resolvedItem = item ?? (r.at_division_id ? availItems.find(x => x.at_division_id === r.at_division_id) : r.division_id ? availItems.find(x => !x.at_division_id && x.division_id === r.division_id) : undefined);
+        const newStatus: PreviewRow["status"] = !emp ? "no_employee" : !resolvedItem ? "no_punch_item" : "ready";
+        return { ...r, employee_id: emp?.id ?? null, employee_name: emp?.name ?? null, division_id: resolvedItem?.division_id ?? null, at_division_id: resolvedItem?.at_division_id ?? null, matched_item_name: resolvedItem?.label ?? null, status: newStatus };
+      }
+      return r;
+    });
     setPreviewRows(updated);
     setEditIdx(null);
   }
@@ -446,6 +460,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                       const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
 
                       if (isEditing) {
+                        const sameNameCount = previewRows.filter((r, j) => j !== i && r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")).length;
                         return (
                           <tr id={`import-row-${i}`} key={i} className="border-b border-gray-100 bg-blue-50/40">
                             <td className="px-3 py-2"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
@@ -476,9 +491,17 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                               {editInTime && editOutTime ? calcRawHours(localIso(row.date, editInTime), localIso(row.date, editOutTime))?.toFixed(2) ?? "—" : "—"}
                             </td>
                             <td className="px-3 py-2">
-                              <div className="flex gap-1">
-                                <button onClick={applyEdit} className="text-[10px] font-semibold text-white bg-[#123b1f] hover:bg-[#1a5c2e] px-2 py-1 rounded-md transition-colors">OK</button>
-                                <button onClick={cancelEdit} className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors">✕</button>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex gap-1">
+                                  <button onClick={applyEdit} className="text-[10px] font-semibold text-white bg-[#123b1f] hover:bg-[#1a5c2e] px-2 py-1 rounded-md transition-colors">OK</button>
+                                  <button onClick={cancelEdit} className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors">✕</button>
+                                </div>
+                                {sameNameCount > 0 && (
+                                  <button onClick={applyEditToAll}
+                                    className="text-[9px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors whitespace-nowrap">
+                                    Apply to all {sameNameCount}
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
