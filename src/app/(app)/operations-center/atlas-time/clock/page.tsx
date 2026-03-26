@@ -22,6 +22,7 @@ type Punch = {
   punch_method: string;
   status: string;
   division_id: string | null;
+  is_manual: boolean | null;
   at_employees: Employee | null;
   divisions: { id: string; name: string } | null;
 };
@@ -95,12 +96,22 @@ export default function ClockPage() {
   const [acting, setActing] = useState<string | null>(null);
   const cols = useClockCols();
 
+  // Date navigation
+  const [viewDate, setViewDate] = useState(new Date().toISOString().slice(0, 10));
+
   // Manual punch drawer
   const [showManual, setShowManual] = useState(false);
   const [manualForm, setManualForm] = useState(EMPTY_MANUAL);
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState("");
   const [manualSuccess, setManualSuccess] = useState(false);
+
+  // Inline punch editing
+  const [editingPunchId, setEditingPunchId] = useState<string | null>(null);
+  const [editClockIn, setEditClockIn] = useState("");
+  const [editClockOut, setEditClockOut] = useState("");
+  const [editDivisionId, setEditDivisionId] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -114,7 +125,7 @@ export default function ClockPage() {
       setLoading(true);
       setError("");
       const [punchRes, empRes, divRes] = await Promise.all([
-        fetch("/api/atlas-time/punches", { cache: "no-store" }),
+        fetch(`/api/atlas-time/punches?date_from=${viewDate}&date_to=${viewDate}`, { cache: "no-store" }),
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
       ]);
@@ -210,8 +221,60 @@ export default function ClockPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  function startEditPunch(p: Punch) {
+    setEditingPunchId(p.id);
+    const inD = new Date(p.clock_in_at);
+    setEditClockIn(`${String(inD.getHours()).padStart(2,"0")}:${String(inD.getMinutes()).padStart(2,"0")}`);
+    if (p.clock_out_at) {
+      const outD = new Date(p.clock_out_at);
+      setEditClockOut(`${String(outD.getHours()).padStart(2,"0")}:${String(outD.getMinutes()).padStart(2,"0")}`);
+    } else {
+      setEditClockOut("");
+    }
+    setEditDivisionId(p.division_id ?? "");
+  }
 
+  async function savePunchEdit(punchId: string) {
+    if (!editClockIn) { setError("Clock-in time is required."); return; }
+    try {
+      setEditSaving(true);
+      setError("");
+      const clockInISO  = `${viewDate}T${editClockIn}:00`;
+      const clockOutISO = editClockOut ? `${viewDate}T${editClockOut}:00` : null;
+      if (clockOutISO && clockOutISO <= clockInISO) { setError("Clock-out must be after clock-in."); return; }
+      const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: editDivisionId || null }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save");
+      setPunches(prev => prev.map(p => p.id === punchId
+        ? { ...p, clock_in_at: json.punch.clock_in_at, clock_out_at: json.punch.clock_out_at,
+            division_id: editDivisionId || null,
+            divisions: divisions.find(d => d.id === editDivisionId) ?? null }
+        : p));
+      setEditingPunchId(null);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to save");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function deletePunch(punchId: string) {
+    if (!confirm("Delete this punch? This cannot be undone.")) return;
+    const res = await fetch(`/api/atlas-time/punches/${punchId}`, { method: "DELETE" });
+    if (res.ok) {
+      setPunches(prev => prev.filter(p => p.id !== punchId));
+    } else {
+      const j = await res.json().catch(() => null);
+      setError(j?.error ?? "Failed to delete punch");
+    }
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday = viewDate === todayStr;
   const openPunches = punches.filter((p) => !p.clock_out_at);
   const closedPunches = punches.filter((p) => p.clock_out_at);
   const clockedInIds = new Set(openPunches.map((p) => p.employee_id));
@@ -376,30 +439,41 @@ export default function ClockPage() {
                 {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tight">
-                {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+            <div className="text-right flex flex-col items-end gap-2">
+              {isToday && (
+                <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tight">
+                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={viewDate}
+                  max={todayStr}
+                  onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
+                  className="bg-white/10 border border-white/20 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]"
+                />
+                <button
+                  onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: viewDate }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
+                  className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
+                >
+                  + Manual Punch
+                </button>
               </div>
-              <button
-                onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: new Date().toISOString().slice(0, 10) }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
-                className="mt-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
-              >
-                + Manual Punch
-              </button>
             </div>
           </div>
           <div className="mt-5 grid grid-cols-3 sm:flex sm:flex-wrap gap-2 sm:gap-4">
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
               <div className="text-2xl font-bold text-white">{openPunches.length}</div>
-              <div className="text-xs text-white/60">Clocked In</div>
+              <div className="text-xs text-white/60">{isToday ? "Clocked In" : "Open"}</div>
             </div>
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
               <div className="text-2xl font-bold text-white">{closedPunches.length}</div>
-              <div className="text-xs text-white/60">Clocked Out</div>
+              <div className="text-xs text-white/60">Completed</div>
             </div>
             <div className="bg-white/10 rounded-xl px-4 py-2.5 text-center min-w-[80px]">
               <div className="text-2xl font-bold text-white">{totalHoursToday.toFixed(1)}</div>
-              <div className="text-xs text-white/60">Total Hrs Today</div>
+              <div className="text-xs text-white/60">Total Hrs</div>
             </div>
           </div>
         </div>
@@ -413,8 +487,8 @@ export default function ClockPage() {
           </div>
         )}
 
-        {/* Clock-in search */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
+        {/* Clock-in search (today only) */}
+        {isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
           <div className="px-5 py-4 border-b border-gray-50">
             <h2 className="text-sm font-semibold text-gray-800">Clock In a Team Member</h2>
           </div>
@@ -463,10 +537,116 @@ export default function ClockPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>}
 
-        {/* Currently clocked in — table layout */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Historical view — past dates */}
+        {!isToday && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">
+                  Punches for {new Date(viewDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">{punches.length} punch{punches.length !== 1 ? "es" : ""}</p>
+              </div>
+              <button onClick={() => setViewDate(todayStr)} className="text-xs text-[#123b1f] font-semibold hover:underline">← Back to Today</button>
+            </div>
+            {loading ? (
+              <div className="p-5 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+            ) : punches.length === 0 ? (
+              <div className="px-5 py-12 text-center text-sm text-gray-400">No punches recorded for this date.</div>
+            ) : (
+              <>
+                <div className="sticky top-0 z-10 grid grid-cols-[1fr_100px_100px_80px_100px_80px] gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                  <span>Name</span>
+                  <span className="text-center">In</span>
+                  <span className="text-center">Out</span>
+                  <span className="text-center">Hrs</span>
+                  <span className="text-center">Division</span>
+                  <span className="text-right">Actions</span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {punches.map(p => {
+                    const emp = p.at_employees;
+                    if (!emp) return null;
+                    const isEditing = editingPunchId === p.id;
+                    const hrs = p.clock_in_at && p.clock_out_at
+                      ? ((new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000).toFixed(2)
+                      : null;
+                    return (
+                      <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : ""}`}>
+                        {!isEditing ? (
+                          <div className="grid grid-cols-[1fr_100px_100px_80px_100px_80px] gap-2 items-center">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="shrink-0 w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
+                              <span className="text-sm font-medium text-gray-800 truncate">{displayName(emp)}</span>
+                              {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                            </div>
+                            <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
+                            <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
+                            <span className="text-xs font-semibold text-gray-700 text-center tabular-nums">{hrs ? `${hrs}h` : "—"}</span>
+                            <div className="text-center">{p.divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => startEditPunch(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button onClick={() => deletePunch(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
+                              <span className="text-sm font-semibold text-gray-800">{displayName(emp)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Clock In</label>
+                                <input type="time" value={editClockIn} onChange={e => setEditClockIn(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Clock Out</label>
+                                <input type="time" value={editClockOut} onChange={e => setEditClockOut(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Division</label>
+                              <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <option value="">— None —</option>
+                                {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => savePunchEdit(p.id)} disabled={editSaving}
+                                className="flex-1 bg-[#123b1f] text-white text-xs font-semibold py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                                {editSaving ? "Saving…" : "Save"}
+                              </button>
+                              <button onClick={() => setEditingPunchId(null)}
+                                className="flex-1 border border-gray-200 text-gray-600 text-xs font-semibold py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="px-5 py-3 border-t border-gray-50 flex justify-end">
+                  <span className="text-xs text-gray-500">Total: <strong>{totalHoursToday.toFixed(2)} hrs</strong></span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Currently clocked in — table layout (today only) */}
+        {isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-800">Currently Clocked In</h2>
             <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1.5">
@@ -546,10 +726,10 @@ export default function ClockPage() {
               </div>
             </>
           )}
-        </div>
+        </div>}
 
-        {/* Completed today */}
-        {closedPunches.length > 0 && (
+        {/* Completed today (today only) */}
+        {isToday && closedPunches.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50">
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
