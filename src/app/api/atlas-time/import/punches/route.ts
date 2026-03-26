@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         clock_in_at:      r.clock_in_at,
         clock_out_at:     r.clock_out_at,
         date_for_payroll: r.date,
-        punch_method:     "import",
+        punch_method:     "manual",
         is_manual:        true,
         division_id:      r.division_id ?? null,
         at_division_id:   r.at_division_id ?? null,
