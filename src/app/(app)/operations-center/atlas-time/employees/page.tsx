@@ -45,17 +45,10 @@ function fmtDate(iso: string | null | undefined): string {
   const [y, m, d] = iso.split("-");
   return `${m}/${d}/${y}`;
 }
-function yearsService(hireDate: string): string {
-  const hire = new Date(hireDate);
-  const now = new Date();
-  const yrs = (now.getTime() - hire.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-  if (yrs < 1) return `${Math.floor(yrs * 12)}mo`;
-  return `${Math.floor(yrs)}yr`;
-}
 
 const DEFAULT_COLS = {
   status: true, job_title: true, department: true, division: true,
-  hire_date: true, years: true, pay_rate: true, phone: false, email: false,
+  hire_date: true, pay_rate: true, phone: false, email: false,
 };
 type ColKey = keyof typeof DEFAULT_COLS;
 
@@ -208,17 +201,6 @@ export default function EmployeesPage() {
               <p className="text-white/50 text-sm mt-1">{counts.active} active · {employees.length} total</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setShowPins(v => !v)}
-                title={showPins ? "Hide PINs" : "Reveal PINs"}
-                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-xl border transition-colors ${showPins ? "bg-white/20 text-white border-white/30" : "bg-white/10 hover:bg-white/20 text-white/70 border-white/20"}`}
-              >
-                {showPins
-                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                }
-                PINs
-              </button>
               <Link
                 href="/operations-center/atlas-time/employees/new"
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors border border-white/20"
@@ -308,10 +290,17 @@ export default function EmployeesPage() {
                     {cols.job_title  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
                     {cols.department && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
                     {cols.division   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
-                    {showPins        && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>}
                     {cols.pay_rate   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
                     {cols.hire_date  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
-                    {cols.years      && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Tenure</th>}
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                      <button onClick={() => setShowPins(v => !v)} className="flex items-center gap-1 mx-auto hover:text-gray-600 transition-colors" title={showPins ? "Hide PINs" : "Reveal PINs"}>
+                        PIN
+                        {showPins
+                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        }
+                      </button>
+                    </th>
                     {cols.phone      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
                     {cols.email      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
                     <th className="w-12 px-3 py-3"></th>
@@ -384,7 +373,6 @@ export default function EmployeesPage() {
                         {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.department && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
-                        {showPins        && <td className="px-3 py-3 whitespace-nowrap text-center text-xs font-mono tracking-widest text-gray-700">{emp.kiosk_pin ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.pay_rate   && (
                           <td className="px-3 py-3 whitespace-nowrap text-center">
                             {emp.default_pay_rate != null
@@ -394,7 +382,9 @@ export default function EmployeesPage() {
                           </td>
                         )}
                         {cols.hire_date  && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
-                        {cols.years      && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-400 tabular-nums">{emp.hire_date ? yearsService(emp.hire_date) : "—"}</td>}
+                        <td className="px-3 py-3 whitespace-nowrap text-center text-xs font-mono tracking-widest text-gray-700">
+                          {showPins ? (emp.kiosk_pin ?? <span className="text-gray-300">—</span>) : <span className="text-gray-300 tracking-normal">••••</span>}
+                        </td>
                         {cols.phone      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">{emp.phone ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.email      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 truncate max-w-[160px]">{emp.work_email ?? <span className="text-gray-300">—</span>}</td>}
 

@@ -77,9 +77,9 @@ function Th({ label, col, sort, onSort }: { label: string; col: string; sort: [s
     </th>
   );
 }
-function ThR({ label, col, sort, onSort }: { label: string; col: string; sort: [string, SortDir]; onSort: (c: string) => void }) {
+function ThC({ label, col, sort, onSort }: { label: string; col: string; sort: [string, SortDir]; onSort: (c: string) => void }) {
   return (
-    <th className="px-3 py-3 text-right text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-gray-600"
+    <th className="px-3 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none hover:text-gray-600"
       onClick={() => onSort(col)}>
       {label}<SortIcon active={sort[0] === col} dir={sort[1]} />
     </th>
@@ -217,7 +217,7 @@ export default function ReportsPage() {
 
   // ── Summary data ─────────────────────────────────────────────────────────────
   type SummaryRow = {
-    empId: string; name: string; jobTitle: string; dept: string;
+    empId: string; name: string; jobTitle: string; div: string;
     reg: number; ot: number; dt: number; total: number; lunch: number; punches: number;
   };
   const summaryRows = useMemo((): SummaryRow[] => {
@@ -229,11 +229,18 @@ export default function ReportsPage() {
     return [...byEmp.entries()].map(([empId, eps]) => {
       const e    = eps[0]?.at_employees;
       const comp = eps.map(p => computedMap.get(p.id)).filter(Boolean) as PunchOut[];
+      // Primary division = most-used division across the employee's punches in period
+      const divCounts = new Map<string, number>();
+      for (const p of eps) {
+        const dn = p.divisions?.name;
+        if (dn) divCounts.set(dn, (divCounts.get(dn) ?? 0) + 1);
+      }
+      const div = divCounts.size > 0 ? [...divCounts.entries()].sort((a, b) => b[1] - a[1])[0][0] : "";
       return {
         empId,
         name:     empName(e),
         jobTitle: e?.job_title ?? "",
-        dept:     e?.at_departments?.name ?? "",
+        div,
         reg:      comp.reduce((s, c) => s + c.regular_hours, 0),
         ot:       comp.reduce((s, c) => s + c.ot_hours, 0),
         dt:       comp.reduce((s, c) => s + c.dt_hours, 0),
@@ -254,7 +261,7 @@ export default function ReportsPage() {
   }
 
   const sortedSummary = useMemo(() => sortFn(summaryRows, summarySort[0], summarySort[1], {
-    name: r => r.name, dept: r => r.dept, reg: r => r.reg, ot: r => r.ot, total: r => r.total, punches: r => r.punches,
+    name: r => r.name, div: r => r.div, reg: r => r.reg, ot: r => r.ot, total: r => r.total, punches: r => r.punches,
   }), [summaryRows, summarySort]);
 
   function toggleSummarySort(col: string) {
@@ -305,9 +312,9 @@ export default function ReportsPage() {
   function exportCSV() {
     let csv = "";
     if (tab === "summary") {
-      csv = "Employee,Job Title,Department,Reg Hrs,OT Hrs,DT Hrs,Total Hrs,Lunch Deducted (min),Punches\n";
+      csv = "Employee,Job Title,Division,Reg Hrs,OT Hrs,DT Hrs,Total Hrs,Lunch Deducted (min),Punches\n";
       for (const r of sortedSummary) {
-        csv += `"${r.name}","${r.jobTitle}","${r.dept}",${h(r.reg)},${h(r.ot)},${h(r.dt)},${h(r.total)},${r.lunch},${r.punches}\n`;
+        csv += `"${r.name}","${r.jobTitle}","${r.div}",${h(r.reg)},${h(r.ot)},${h(r.dt)},${h(r.total)},${r.lunch},${r.punches}\n`;
       }
     } else {
       csv = "Employee,Date,Clock In,Clock Out,Lunch (min),Reg Hrs,OT Hrs,Total Hrs,Division,QB Class,Status,Manual,Note\n";
@@ -499,36 +506,36 @@ export default function ReportsPage() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
                       <Th  label="Employee"   col="name"    sort={summarySort} onSort={toggleSummarySort} />
-                      <Th  label="Department" col="dept"    sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="Reg Hrs"    col="reg"     sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="OT Hrs"     col="ot"      sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="DT Hrs"     col="dt"      sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="Total Hrs"  col="total"   sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="Lunch (min)" col="lunch"  sort={summarySort} onSort={toggleSummarySort} />
-                      <ThR label="# Punches"  col="punches" sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="Division"   col="div"     sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="Reg Hrs"    col="reg"     sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="OT Hrs"     col="ot"      sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="DT Hrs"     col="dt"      sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="Total Hrs"  col="total"   sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="Lunch (min)" col="lunch"  sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="# Punches"  col="punches" sort={summarySort} onSort={toggleSummarySort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {sortedSummary.map(r => (
                       <tr key={r.empId} className="hover:bg-gray-50/40">
                         <td className="px-3 py-3 font-semibold text-gray-900 whitespace-nowrap">{r.name}</td>
-                        <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">{r.dept || "—"}</td>
-                        <td className="px-3 py-3 text-right tabular-nums font-semibold">{h(r.reg)}</td>
-                        <td className={`px-3 py-3 text-right tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(r.ot)}</td>
-                        <td className={`px-3 py-3 text-right tabular-nums font-semibold ${r.dt > 0 ? "text-red-600" : "text-gray-300"}`}>{h(r.dt)}</td>
-                        <td className="px-3 py-3 text-right tabular-nums font-bold text-gray-900">{h(r.total)}</td>
-                        <td className="px-3 py-3 text-right tabular-nums text-gray-400 text-xs">{r.lunch > 0 ? r.lunch : "—"}</td>
-                        <td className="px-3 py-3 text-right tabular-nums text-gray-500">{r.punches}</td>
+                        <td className="px-3 py-3 text-center text-gray-500 text-xs whitespace-nowrap">{r.div || "—"}</td>
+                        <td className="px-3 py-3 text-center tabular-nums font-semibold">{h(r.reg)}</td>
+                        <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(r.ot)}</td>
+                        <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.dt > 0 ? "text-red-600" : "text-gray-300"}`}>{h(r.dt)}</td>
+                        <td className="px-3 py-3 text-center tabular-nums font-bold text-gray-900">{h(r.total)}</td>
+                        <td className="px-3 py-3 text-center tabular-nums text-gray-400 text-xs">{r.lunch > 0 ? r.lunch : "—"}</td>
+                        <td className="px-3 py-3 text-center tabular-nums text-gray-500">{r.punches}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold text-sm">
                       <td className="px-3 py-3" colSpan={2}>Totals — {summaryRows.length} employees</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{h(totals.reg)}</td>
-                      <td className={`px-3 py-3 text-right tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totals.ot)}</td>
-                      <td className={`px-3 py-3 text-right tabular-nums ${totals.dt > 0 ? "text-red-600" : "text-gray-400"}`}>{h(totals.dt)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-gray-900">{h(totals.total)}</td>
+                      <td className="px-3 py-3 text-center tabular-nums">{h(totals.reg)}</td>
+                      <td className={`px-3 py-3 text-center tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totals.ot)}</td>
+                      <td className={`px-3 py-3 text-center tabular-nums ${totals.dt > 0 ? "text-red-600" : "text-gray-400"}`}>{h(totals.dt)}</td>
+                      <td className="px-3 py-3 text-center tabular-nums text-gray-900">{h(totals.total)}</td>
                       <td colSpan={2} />
                     </tr>
                   </tfoot>
@@ -551,16 +558,16 @@ export default function ReportsPage() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
                       <Th  label="Employee"   col="name"  sort={detailSort} onSort={toggleDetailSort} />
-                      <Th  label="Date"       col="date"  sort={detailSort} onSort={toggleDetailSort} />
-                      <Th  label="In"         col="in"    sort={detailSort} onSort={toggleDetailSort} />
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Out</th>
-                      <ThR label="Lunch"      col="lunch" sort={detailSort} onSort={toggleDetailSort} />
-                      <ThR label="Reg Hrs"    col="reg"   sort={detailSort} onSort={toggleDetailSort} />
-                      <ThR label="OT Hrs"     col="ot"    sort={detailSort} onSort={toggleDetailSort} />
-                      <ThR label="Total"      col="total" sort={detailSort} onSort={toggleDetailSort} />
-                      <Th  label="Division"   col="div"   sort={detailSort} onSort={toggleDetailSort} />
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Class</th>
-                      <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                      <ThC label="Date"       col="date"  sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="In"         col="in"    sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Out"        col="out"   sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Lunch"      col="lunch" sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Reg Hrs"    col="reg"   sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="OT Hrs"     col="ot"    sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Total"      col="total" sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Division"   col="div"   sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Class"      col="class" sort={detailSort} onSort={toggleDetailSort} />
+                      <ThC label="Status"     col="status" sort={detailSort} onSort={toggleDetailSort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -576,23 +583,23 @@ export default function ReportsPage() {
                               <span className="text-gray-300 text-xs pl-2">↳</span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap text-xs">
+                          <td className="px-3 py-2.5 text-center text-gray-600 whitespace-nowrap text-xs">
                             {fmtDay(p.date_for_payroll)}
                           </td>
-                          <td className="px-3 py-2.5 tabular-nums text-gray-700 whitespace-nowrap text-xs">{fmtTime(p.clock_in_at)}</td>
-                          <td className="px-3 py-2.5 tabular-nums text-gray-700 whitespace-nowrap text-xs">
+                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 whitespace-nowrap text-xs">{fmtTime(p.clock_in_at)}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 whitespace-nowrap text-xs">
                             {p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-red-400 font-semibold">Open</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums text-xs text-gray-400">
+                          <td className="px-3 py-2.5 text-center tabular-nums text-xs text-gray-400">
                             {p._lunch > 0 ? `${p._lunch}m` : "—"}
                           </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-xs">{h(p._reg)}</td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums font-semibold text-xs ${p._ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(p._ot)}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-bold text-xs">{h(p._total)}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{p._div || "—"}</td>
-                          <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">{p._class || "—"}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums font-semibold text-xs">{h(p._reg)}</td>
+                          <td className={`px-3 py-2.5 text-center tabular-nums font-semibold text-xs ${p._ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(p._ot)}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums font-bold text-xs">{h(p._total)}</td>
+                          <td className="px-3 py-2.5 text-center text-xs text-gray-500 whitespace-nowrap">{p._div || "—"}</td>
+                          <td className="px-3 py-2.5 text-center text-xs text-gray-400 whitespace-nowrap">{p._class || "—"}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
                               {p.status === "approved"
                                 ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-700">Approved</span>
                                 : p.clock_out_at

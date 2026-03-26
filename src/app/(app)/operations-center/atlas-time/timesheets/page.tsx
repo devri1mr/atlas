@@ -320,15 +320,15 @@ export default function TimesheetsPage() {
                         <thead>
                           <tr className="bg-gray-50/60 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                             <th className="px-4 py-2 text-left">Date</th>
-                            <th className="px-3 py-2 text-left">In</th>
-                            <th className="px-3 py-2 text-left">Out</th>
-                            <th className="px-3 py-2 text-right">Lunch</th>
-                            <th className="px-3 py-2 text-right">Reg</th>
-                            <th className="px-3 py-2 text-right">OT</th>
-                            <th className="px-3 py-2 text-right">Total</th>
-                            <th className="px-3 py-2 text-left">Division</th>
-                            <th className="px-3 py-2 text-left">Status</th>
-                            <th className="px-3 py-2 text-right print:hidden">Actions</th>
+                            <th className="px-3 py-2 text-center">In</th>
+                            <th className="px-3 py-2 text-center">Out</th>
+                            <th className="px-3 py-2 text-center">Lunch</th>
+                            <th className="px-3 py-2 text-center">Reg</th>
+                            <th className="px-3 py-2 text-center">OT</th>
+                            <th className="px-3 py-2 text-center">Total</th>
+                            <th className="px-3 py-2 text-center">Division</th>
+                            <th className="px-3 py-2 text-center">Status</th>
+                            <th className="px-3 py-2 text-center print:hidden">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -355,10 +355,10 @@ export default function TimesheetsPage() {
                                     onChange={e => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], clock_out_at: e.target.value }}))}
                                     className={inputCls} />
                                 </td>
-                                <td className="px-3 py-2 text-right text-gray-400">{lunch > 0 ? `${lunch}m` : "—"}</td>
-                                <td className="px-3 py-2 text-right font-semibold">{h(reg)}</td>
-                                <td className={`px-3 py-2 text-right font-semibold ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
-                                <td className="px-3 py-2 text-right font-bold">{h(total)}</td>
+                                <td className="px-3 py-2 text-center text-gray-400">{lunch > 0 ? `${lunch}m` : "—"}</td>
+                                <td className="px-3 py-2 text-center font-semibold">{h(reg)}</td>
+                                <td className={`px-3 py-2 text-center font-semibold ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
+                                <td className="px-3 py-2 text-center font-bold">{h(total)}</td>
                                 <td className="px-3 py-2">
                                   <select value={(draft.division_id as string) ?? ""}
                                     onChange={e => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], division_id: e.target.value }}))}
@@ -389,16 +389,16 @@ export default function TimesheetsPage() {
                                   {fmtDate(p.date_for_payroll)}
                                   {p.is_manual && <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded bg-amber-100 text-amber-700">M</span>}
                                 </td>
-                                <td className="px-3 py-2.5 text-gray-700 tabular-nums whitespace-nowrap">{fmtTime(p.clock_in_at)}</td>
-                                <td className="px-3 py-2.5 text-gray-700 tabular-nums whitespace-nowrap">
+                                <td className="px-3 py-2.5 text-center text-gray-700 tabular-nums whitespace-nowrap">{fmtTime(p.clock_in_at)}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-700 tabular-nums whitespace-nowrap">
                                   {p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-red-400 font-semibold">Open</span>}
                                 </td>
-                                <td className="px-3 py-2.5 text-right text-gray-400 tabular-nums">{lunch > 0 ? `${lunch}m` : "—"}</td>
-                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{h(reg)}</td>
-                                <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
-                                <td className="px-3 py-2.5 text-right font-bold tabular-nums">{h(total)}</td>
-                                <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
-                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                <td className="px-3 py-2.5 text-center text-gray-400 tabular-nums">{lunch > 0 ? `${lunch}m` : "—"}</td>
+                                <td className="px-3 py-2.5 text-center font-semibold tabular-nums">{h(reg)}</td>
+                                <td className={`px-3 py-2.5 text-center font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
+                                <td className="px-3 py-2.5 text-center font-bold tabular-nums">{h(total)}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                   {p.locked
                                     ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Locked</span>
                                     : p.status === "approved"
@@ -407,7 +407,7 @@ export default function TimesheetsPage() {
                                         ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Pending</span>
                                         : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">Active</span>}
                                 </td>
-                                <td className="px-3 py-2.5 text-right print:hidden">
+                                <td className="px-3 py-2.5 text-center print:hidden">
                                   {!p.locked && (
                                     <div className="flex items-center justify-end gap-1">
                                       <button onClick={() => startEdit(p)} title="Edit"
@@ -428,9 +428,9 @@ export default function TimesheetsPage() {
                         <tfoot>
                           <tr className="bg-gray-50/80 font-semibold text-xs">
                             <td colSpan={4} className="px-4 py-2.5 text-gray-500">Period Total</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">{h(totReg)}</td>
-                            <td className={`px-3 py-2.5 text-right tabular-nums ${totOT > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totOT)}</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums font-bold">{h(totHrs)}</td>
+                            <td className="px-3 py-2.5 text-center tabular-nums">{h(totReg)}</td>
+                            <td className={`px-3 py-2.5 text-center tabular-nums ${totOT > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totOT)}</td>
+                            <td className="px-3 py-2.5 text-center tabular-nums font-bold">{h(totHrs)}</td>
                             <td colSpan={3} />
                           </tr>
                         </tfoot>
