@@ -1090,7 +1090,7 @@ export default function EmployeeDetailPage() {
       <input ref={photoCameraRef} type="file" accept="image/*" capture="user" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ""; }} />
 
-      <div className="px-4 md:px-8 py-6 md:py-8"
+      <div className="sticky top-0 z-40 px-4 md:px-8 py-6 md:py-8"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 text-white/50 text-xs mb-4">
