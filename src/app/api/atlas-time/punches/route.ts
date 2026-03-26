@@ -93,13 +93,16 @@ export async function POST(req: NextRequest) {
           clock_in_at:      clockIn.toISOString(),
           clock_out_at:     clockOut?.toISOString() ?? null,
           date_for_payroll: dateForPayroll,
-          punch_method:     "manual",
-          is_manual:        true,
-          division_id:      body.division_id ?? null,
-          employee_note:    body.note ?? null,
-          manager_note:     body.manager_note ?? null,
-          status:           clockOut ? "pending" : "open",
-          regular_hours:    regularHours,
+          punch_method:        "manual",
+          is_manual:           true,
+          division_id:         body.division_id ?? null,
+          employee_note:       body.note ?? null,
+          manager_note:        body.manager_note ?? null,
+          status:              clockOut ? "pending" : "open",
+          regular_hours:       body.regular_hours != null ? Number(body.regular_hours) : regularHours,
+          ot_hours:            body.ot_hours != null ? Number(body.ot_hours) : null,
+          dt_hours:            body.dt_hours != null ? Number(body.dt_hours) : null,
+          lunch_deducted_mins: body.lunch_deducted_mins != null ? Number(body.lunch_deducted_mins) : null,
         })
         .select(PUNCH_SELECT)
         .single();

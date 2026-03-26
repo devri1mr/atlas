@@ -29,6 +29,65 @@ type Punch = {
 
 type Division = { id: string; name: string };
 
+type AtSettings = {
+  ot_daily_threshold: number;
+  dt_daily_threshold: number;
+  lunch_auto_deduct: boolean;
+  lunch_deduct_after_hours: number;
+  lunch_deduct_minutes: number;
+};
+
+type BulkRow = {
+  key: string;
+  date: string;
+  employee_id: string;
+  division_id: string;
+  clock_in: string;
+  clock_out: string;
+  punch_id: string | null;
+  status: "draft" | "saving" | "saved" | "error";
+  error_msg: string;
+};
+
+const DEFAULT_SETTINGS: AtSettings = {
+  ot_daily_threshold: 8,
+  dt_daily_threshold: 0,
+  lunch_auto_deduct: false,
+  lunch_deduct_after_hours: 6,
+  lunch_deduct_minutes: 30,
+};
+
+function newBulkRow(date: string): BulkRow {
+  return { key: `${Date.now()}_${Math.random()}`, date, employee_id: "", division_id: "", clock_in: "", clock_out: "", punch_id: null, status: "draft", error_msg: "" };
+}
+
+function calcPunchHours(clockIn: string, clockOut: string, s: AtSettings) {
+  if (!clockIn || !clockOut) return null;
+  const base = "2000-01-01T";
+  let inMs  = new Date(base + clockIn).getTime();
+  let outMs = new Date(base + clockOut).getTime();
+  if (outMs <= inMs) outMs += 86_400_000; // overnight
+  let mins = (outMs - inMs) / 60_000;
+  let lunchMins = 0;
+  if (s.lunch_auto_deduct && mins / 60 > s.lunch_deduct_after_hours) {
+    lunchMins = s.lunch_deduct_minutes;
+    mins -= lunchMins;
+  }
+  const total = Math.round(mins / 60 * 100) / 100;
+  const otThresh = s.ot_daily_threshold;
+  const dtThresh = s.dt_daily_threshold;
+  let reg = total, ot = 0, dt = 0;
+  if (dtThresh > 0 && total > dtThresh) {
+    dt  = Math.round((total - dtThresh) * 100) / 100;
+    ot  = Math.round((dtThresh - otThresh) * 100) / 100;
+    reg = otThresh;
+  } else if (total > otThresh) {
+    ot  = Math.round((total - otThresh) * 100) / 100;
+    reg = otThresh;
+  }
+  return { total, reg, ot, dt, lunchMins };
+}
+
 const EMPTY_MANUAL = {
   employee_id: "",
   date: new Date().toISOString().slice(0, 10),
@@ -99,6 +158,16 @@ export default function ClockPage() {
   // Date navigation
   const [viewDate, setViewDate] = useState(new Date().toISOString().slice(0, 10));
 
+  // Bulk entry
+  const [showBulkEntry, setShowBulkEntry] = useState(false);
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => [newBulkRow(new Date().toISOString().slice(0, 10))]);
+  const [atSettings, setAtSettings] = useState<AtSettings>(DEFAULT_SETTINGS);
+  const bulkRowsRef = useRef<BulkRow[]>([]);
+  const atSettingsRef = useRef<AtSettings>(DEFAULT_SETTINGS);
+  const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  bulkRowsRef.current = bulkRows;
+  atSettingsRef.current = atSettings;
+
   // Manual punch drawer
   const [showManual, setShowManual] = useState(false);
   const [manualForm, setManualForm] = useState(EMPTY_MANUAL);
@@ -124,18 +193,28 @@ export default function ClockPage() {
     try {
       setLoading(true);
       setError("");
-      const [punchRes, empRes, divRes] = await Promise.all([
+      const [punchRes, empRes, divRes, settingsRes] = await Promise.all([
         fetch(`/api/atlas-time/punches?date_from=${viewDate}&date_to=${viewDate}`, { cache: "no-store" }),
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
+        fetch("/api/atlas-time/settings", { cache: "no-store" }),
       ]);
-      const punchJson = await punchRes.json().catch(() => null);
-      const empJson = await empRes.json().catch(() => null);
-      const divJson = await divRes.json().catch(() => null);
+      const punchJson    = await punchRes.json().catch(() => null);
+      const empJson      = await empRes.json().catch(() => null);
+      const divJson      = await divRes.json().catch(() => null);
+      const settingsJson = await settingsRes.json().catch(() => ({}));
       if (!punchRes.ok) throw new Error(punchJson?.error ?? "Failed to load");
       setPunches(punchJson.punches ?? []);
       setEmployees(empJson.employees ?? []);
       setDivisions(divJson.divisions ?? []);
+      const s = settingsJson.settings ?? {};
+      setAtSettings({
+        ot_daily_threshold:    s.ot_daily_threshold    ?? 8,
+        dt_daily_threshold:    s.dt_daily_threshold    ?? 0,
+        lunch_auto_deduct:     s.lunch_auto_deduct     ?? false,
+        lunch_deduct_after_hours: s.lunch_deduct_after_hours ?? 6,
+        lunch_deduct_minutes:  s.lunch_deduct_minutes  ?? 30,
+      });
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
@@ -220,6 +299,63 @@ export default function ClockPage() {
       setActing(null);
     }
   }
+
+  // ── Bulk entry ────────────────────────────────────────────────
+  async function saveBulkRowNow(key: string) {
+    const row = bulkRowsRef.current.find(r => r.key === key);
+    if (!row || !row.employee_id || !row.date || !row.clock_in || !row.clock_out) return;
+    setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "saving" } : r));
+    const clockInISO  = `${row.date}T${row.clock_in}:00`;
+    const clockOutISO = `${row.date}T${row.clock_out}:00`;
+    const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettingsRef.current);
+    try {
+      if (row.punch_id) {
+        const res = await fetch(`/api/atlas-time/punches/${row.punch_id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clock_in_at: clockInISO, clock_out_at: clockOutISO, division_id: row.division_id || null, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
+        });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error ?? "Failed"); }
+        setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "saved" } : r));
+      } else {
+        const res = await fetch("/api/atlas-time/punches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ employee_id: row.employee_id, is_manual: true, clock_in_at: clockInISO, clock_out_at: clockOutISO, date_for_payroll: row.date, division_id: row.division_id || null, ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}) }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? "Failed");
+        setBulkRows(prev => prev.map(r => r.key === key ? { ...r, punch_id: json.punch.id, status: "saved" } : r));
+      }
+    } catch (e: any) {
+      setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "error", error_msg: e?.message ?? "Failed" } : r));
+    }
+  }
+
+  function scheduleBulkSave(key: string) {
+    if (saveTimersRef.current.has(key)) clearTimeout(saveTimersRef.current.get(key)!);
+    saveTimersRef.current.set(key, setTimeout(() => {
+      saveTimersRef.current.delete(key);
+      saveBulkRowNow(key);
+    }, 350));
+  }
+
+  function updateBulkRow(key: string, patch: Partial<BulkRow>) {
+    setBulkRows(prev => {
+      const next = prev.map(r => r.key === key ? { ...r, ...patch, status: "draft" as const, error_msg: "" } : r);
+      const row = next.find(r => r.key === key);
+      if (row && row.employee_id && row.date && row.clock_in && row.clock_out) scheduleBulkSave(key);
+      return next;
+    });
+  }
+
+  async function deleteBulkRow(key: string) {
+    if (saveTimersRef.current.has(key)) clearTimeout(saveTimersRef.current.get(key)!);
+    const row = bulkRowsRef.current.find(r => r.key === key);
+    if (row?.punch_id) await fetch(`/api/atlas-time/punches/${row.punch_id}`, { method: "DELETE" });
+    setBulkRows(prev => prev.filter(r => r.key !== key));
+  }
+  // ── End bulk entry ─────────────────────────────────────────────
 
   function startEditPunch(p: Punch) {
     setEditingPunchId(p.id);
@@ -435,6 +571,12 @@ export default function ClockPage() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Time Clock</h1>
+              <button
+                onClick={() => { setShowBulkEntry(v => !v); if (!showBulkEntry) setBulkRows([newBulkRow(viewDate)]); }}
+                className={`mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${showBulkEntry ? "bg-white text-[#123b1f] border-white" : "bg-white/10 hover:bg-white/20 text-white border-white/20"}`}
+              >
+                {showBulkEntry ? "✕ Exit Bulk Entry" : "⊞ Bulk Entry"}
+              </button>
               <p className="text-white/50 text-sm mt-1">
                 {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
@@ -506,11 +648,155 @@ export default function ClockPage() {
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between">
             {error}
             <button onClick={() => setError("")} className="text-red-400 hover:text-red-600">✕</button>
+
           </div>
         )}
 
+        {/* ── Bulk Entry grid ────────────────────────────────────── */}
+        {showBulkEntry && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">Bulk Punch Entry</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Autosaves each row when complete · OT after {atSettings.ot_daily_threshold}h
+                  {atSettings.lunch_auto_deduct && ` · ${atSettings.lunch_deduct_minutes}min lunch deducted after ${atSettings.lunch_deduct_after_hours}h`}
+                </p>
+              </div>
+              <span className="text-xs text-gray-400">{bulkRows.filter(r => r.status === "saved").length} saved</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" style={{ minWidth: atSettings.dt_daily_threshold > 0 ? 920 : 860 }}>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <th className="px-3 py-2 text-left w-32">Date</th>
+                    <th className="px-3 py-2 text-left">Team Member</th>
+                    <th className="px-3 py-2 text-left w-36">Division</th>
+                    <th className="px-3 py-2 text-center w-24">In</th>
+                    <th className="px-3 py-2 text-center w-24">Out</th>
+                    <th className="px-3 py-2 text-center w-16">Reg</th>
+                    <th className="px-3 py-2 text-center w-16">OT</th>
+                    {atSettings.dt_daily_threshold > 0 && <th className="px-3 py-2 text-center w-14">DT</th>}
+                    <th className="px-3 py-2 text-center w-16">Total</th>
+                    <th className="px-2 py-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {bulkRows.map((row) => {
+                    const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettings);
+                    const isComplete = !!(row.employee_id && row.date && row.clock_in && row.clock_out);
+                    return (
+                      <tr key={row.key} className={`${row.status === "error" ? "bg-red-50/40" : row.status === "saved" ? "bg-green-50/20" : ""}`}>
+                        <td className="px-3 py-2">
+                          <input type="date" value={row.date} max={todayStr}
+                            onChange={e => updateBulkRow(row.key, { date: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select value={row.employee_id}
+                            onChange={e => updateBulkRow(row.key, { employee_id: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <option value="">— Select —</option>
+                            {employees.map(e => <option key={e.id} value={e.id}>{e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select value={row.division_id}
+                            onChange={e => updateBulkRow(row.key, { division_id: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <option value="">— None —</option>
+                            {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="time" value={row.clock_in}
+                            onChange={e => updateBulkRow(row.key, { clock_in: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="time" value={row.clock_out}
+                            onChange={e => updateBulkRow(row.key, { clock_out: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs font-semibold text-gray-700 tabular-nums">
+                          {hrs ? hrs.reg.toFixed(2) : <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs font-semibold tabular-nums">
+                          {hrs ? <span className={hrs.ot > 0 ? "text-amber-600" : "text-gray-300"}>{hrs.ot > 0 ? hrs.ot.toFixed(2) : "—"}</span> : <span className="text-gray-300">—</span>}
+                        </td>
+                        {atSettings.dt_daily_threshold > 0 && (
+                          <td className="px-3 py-2 text-center text-xs font-semibold tabular-nums">
+                            {hrs ? <span className={hrs.dt > 0 ? "text-red-600" : "text-gray-300"}>{hrs.dt > 0 ? hrs.dt.toFixed(2) : "—"}</span> : <span className="text-gray-300">—</span>}
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-center text-xs font-bold text-gray-800 tabular-nums">
+                          {hrs ? hrs.total.toFixed(2) : <span className="text-gray-300">—</span>}
+                          {hrs && atSettings.lunch_auto_deduct && hrs.lunchMins > 0 && (
+                            <div className="text-[9px] text-gray-400 font-normal">-{hrs.lunchMins}m lunch</div>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {row.status === "saving" && (
+                            <svg className="animate-spin w-4 h-4 text-gray-400 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                          )}
+                          {row.status === "saved" && (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 mx-auto"><polyline points="20 6 9 17 4 12"/></svg>
+                          )}
+                          {row.status === "error" && (
+                            <button title={row.error_msg} onClick={() => saveBulkRowNow(row.key)} className="text-red-400 hover:text-red-600 mx-auto block">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            </button>
+                          )}
+                          {row.status === "draft" && isComplete && (
+                            <svg className="w-4 h-4 text-gray-200 mx-auto animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                          )}
+                          {row.status === "draft" && !isComplete && bulkRows.length > 1 && (
+                            <button onClick={() => deleteBulkRow(row.key)} className="text-gray-300 hover:text-red-400 transition-colors mx-auto block">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-50 flex items-center justify-between">
+              <button
+                onClick={() => setBulkRows(prev => [...prev, newBulkRow(viewDate)])}
+                className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1.5 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Row
+              </button>
+              {(() => {
+                const savedRows = bulkRows.filter(r => r.punch_id);
+                if (savedRows.length === 0) return null;
+                const totals = savedRows.reduce((acc, row) => {
+                  const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettings);
+                  if (!hrs) return acc;
+                  return { reg: acc.reg + hrs.reg, ot: acc.ot + hrs.ot, dt: acc.dt + hrs.dt, total: acc.total + hrs.total };
+                }, { reg: 0, ot: 0, dt: 0, total: 0 });
+                return (
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="text-gray-500">Session totals:</span>
+                    <span className="text-gray-700 font-semibold">{totals.reg.toFixed(2)} reg</span>
+                    {totals.ot > 0 && <span className="text-amber-600 font-semibold">{totals.ot.toFixed(2)} OT</span>}
+                    {totals.dt > 0 && <span className="text-red-600 font-semibold">{totals.dt.toFixed(2)} DT</span>}
+                    <span className="text-gray-900 font-bold">{totals.total.toFixed(2)} total</span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+        {/* ── End Bulk Entry ─────────────────────────────────────── */}
+
         {/* Clock-in search (today only) */}
-        {isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
+        {!showBulkEntry && isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
           <div className="px-5 py-4 border-b border-gray-50">
             <h2 className="text-sm font-semibold text-gray-800">Clock In a Team Member</h2>
           </div>
@@ -562,7 +848,7 @@ export default function ClockPage() {
         </div>}
 
         {/* Historical view — past dates */}
-        {!isToday && (
+        {!showBulkEntry && !isToday && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
               <div>
@@ -668,7 +954,7 @@ export default function ClockPage() {
         )}
 
         {/* Currently clocked in — table layout (today only) */}
-        {isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {!showBulkEntry && isToday && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-800">Currently Clocked In</h2>
             <button onClick={load} className="text-xs text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1.5">
@@ -751,7 +1037,7 @@ export default function ClockPage() {
         </div>}
 
         {/* Completed today (today only) */}
-        {isToday && closedPunches.length > 0 && (
+        {!showBulkEntry && isToday && closedPunches.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-50">
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
