@@ -172,6 +172,7 @@ export default function EmployeeDetailPage() {
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
   const [editRateAmount, setEditRateAmount] = useState("");
   const [editRateDate, setEditRateDate] = useState("");
+  const [editRateDivisionId, setEditRateDivisionId] = useState("");
   const [editRateSaving, setEditRateSaving] = useState(false);
 
   const [showTerminate, setShowTerminate] = useState(false);
@@ -417,17 +418,20 @@ export default function EmployeeDetailPage() {
   async function editRate(rateId: string) {
     const amount = parseFloat(editRateAmount);
     if (!amount || amount <= 0) { setError("Enter a valid rate."); return; }
+    const divObj = divisions.find(d => d.id === editRateDivisionId);
+    const newDivisionId = editRateDivisionId || null;
+    const newDivisionName = divObj?.name ?? null;
     try {
       setEditRateSaving(true);
       setError("");
       const res = await fetch(`/api/atlas-time/employees/${id}/pay-rates`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rate_id: rateId, rate: amount, effective_date: editRateDate || undefined }),
+        body: JSON.stringify({ rate_id: rateId, rate: amount, effective_date: editRateDate || undefined, division_id: newDivisionId, division_name: newDivisionName }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to update rate");
-      setPayRates(prev => prev.map(r => r.id === rateId ? { ...r, rate: amount, effective_date: editRateDate || r.effective_date } : r));
+      setPayRates(prev => prev.map(r => r.id === rateId ? { ...r, rate: amount, effective_date: editRateDate || r.effective_date, division_id: newDivisionId, division_name: newDivisionName } : r));
       setEditingRateId(null);
     } catch (e: any) { setError(e?.message ?? "Failed"); }
     finally { setEditRateSaving(false); }
@@ -676,7 +680,7 @@ export default function EmployeeDetailPage() {
             <Section title="Pay Rates"
               desc="Division-specific rates take priority. Punches with no matching division use the default rate."
               action={
-                <button onClick={() => setAddingRate(true)} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1 shrink-0">
+                <button onClick={() => { setAddingRate(true); setNewRateDivisionId(form.division_id ?? ""); }} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1 shrink-0">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
@@ -736,6 +740,10 @@ export default function EmployeeDetailPage() {
                                   <div key={r.id} className="border-b border-gray-50 last:border-0">
                                     {editingRateId === r.id ? (
                                       <div className="py-2 space-y-2">
+                                        <select value={editRateDivisionId} onChange={e => setEditRateDivisionId(e.target.value)} className={inputCls + " py-1.5 text-sm"}>
+                                          <option value="">— No division (default) —</option>
+                                          {divisions.filter(d => !d.time_clock_only).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                        </select>
                                         <div className="flex gap-2">
                                           <div className="relative flex-1">
                                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">$</span>
@@ -767,7 +775,7 @@ export default function EmployeeDetailPage() {
                                               Set default
                                             </button>
                                           )}
-                                          <button onClick={() => { setEditingRateId(r.id); setEditRateAmount(String(r.rate)); setEditRateDate(r.effective_date); }}
+                                          <button onClick={() => { setEditingRateId(r.id); setEditRateAmount(String(r.rate)); setEditRateDate(r.effective_date); setEditRateDivisionId(r.division_id ?? ""); }}
                                             className="p-1 text-gray-300 hover:text-blue-500 rounded transition-colors" title="Edit rate">
                                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                           </button>

@@ -70,6 +70,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       patch.rate = r;
     }
     if (body.effective_date) patch.effective_date = body.effective_date;
+    if ("division_id"   in body) patch.division_id   = body.division_id   ?? null;
+    if ("division_name" in body) patch.division_name = body.division_name ?? null;
     if (body.is_default === true) {
       // Unset all other defaults for this employee first
       await sb.from("at_pay_rates").update({ is_default: false }).eq("employee_id", id);

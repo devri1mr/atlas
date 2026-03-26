@@ -253,6 +253,20 @@ export default function ClockPage() {
   // Hours breakdown popover
   const [breakdownId, setBreakdownId] = useState<string | null>(null);
 
+  // Column sort
+  const [sortCol, setSortCol] = useState<string>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+  function SortIcon({ col }: { col: string }) {
+    if (sortCol !== col) return <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-30"><polyline points="6 9 12 15 18 9"/></svg>;
+    return sortDir === "asc"
+      ? <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      : <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
+  }
+
   // Inline punch editing
   const [editingPunchId, setEditingPunchId] = useState<string | null>(null);
   const [editClockIn, setEditClockIn] = useState("");
@@ -560,6 +574,33 @@ export default function ClockPage() {
   }
 
   const totalHoursToday = closedPunches.reduce((acc, p) => acc + punchTotalHrs(p), 0);
+
+  function sortPunches<T extends Punch>(list: T[]): T[] {
+    return [...list].sort((a, b) => {
+      const emp_a = a.at_employees, emp_b = b.at_employees;
+      let cmp = 0;
+      switch (sortCol) {
+        case "name":
+          cmp = `${emp_a?.last_name ?? ""}${emp_a?.first_name ?? ""}`.localeCompare(`${emp_b?.last_name ?? ""}${emp_b?.first_name ?? ""}`);
+          break;
+        case "punch_item":
+          cmp = ((a.divisions ?? a.at_divisions)?.name ?? "").localeCompare((b.divisions ?? b.at_divisions)?.name ?? "");
+          break;
+        case "clock_in":
+          cmp = a.clock_in_at.localeCompare(b.clock_in_at);
+          break;
+        case "clock_out":
+          cmp = (a.clock_out_at ?? "").localeCompare(b.clock_out_at ?? "");
+          break;
+        case "hours":
+          cmp = punchTotalHrs(a) - punchTotalHrs(b);
+          break;
+        default:
+          cmp = `${emp_a?.last_name ?? ""}`.localeCompare(`${emp_b?.last_name ?? ""}`);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }
 
   // Per-employee stats from the broader date range
   const weekStart   = getWeekStart(viewDate, atSettings.pay_period_start_day);
@@ -1039,16 +1080,16 @@ export default function ClockPage() {
             ) : (
               <>
                 <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
-                  <span>Name</span>
-                  <span className="text-center">Punch Item</span>
-                  <span className="text-center">In</span>
-                  <span className="text-center">Out</span>
-                  <span className="text-center">Hrs</span>
+                  {[["name","Name"],["punch_item","Punch Item"],["clock_in","In"],["clock_out","Out"],["hours","Hrs"]].map(([col, label]) => (
+                    <button key={col} onClick={() => handleSort(col)} className={`flex items-center gap-1 hover:text-gray-600 transition-colors ${col !== "name" ? "justify-center" : ""}`}>
+                      {label}<SortIcon col={col} />
+                    </button>
+                  ))}
                   {showLaborCost && <span className="text-right">Rate / Cost</span>}
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {punches.map(p => {
+                  {sortPunches(punches).map(p => {
                     const emp = p.at_employees;
                     if (!emp) return null;
                     const isEditing = editingPunchId === p.id;
@@ -1206,17 +1247,17 @@ export default function ClockPage() {
             <>
               {/* Column headers — built dynamically from col prefs */}
               <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                <span className="flex-1 min-w-[120px]">Name</span>
+                <button onClick={() => handleSort("name")} className="flex items-center gap-1 flex-1 min-w-[120px] hover:text-gray-600 transition-colors"><span>Name</span><SortIcon col="name" /></button>
                 {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
-                {cols.division && <span className="hidden sm:block w-32 shrink-0">Punch Item</span>}
+                {cols.division && <button onClick={() => handleSort("punch_item")} className="hidden sm:flex items-center gap-1 w-32 shrink-0 hover:text-gray-600 transition-colors"><span>Punch Item</span><SortIcon col="punch_item" /></button>}
                 {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
-                {cols.clock_in_time && <span className="hidden sm:block w-20 shrink-0">Clock In</span>}
+                {cols.clock_in_time && <button onClick={() => handleSort("clock_in")} className="hidden sm:flex items-center gap-1 w-20 shrink-0 hover:text-gray-600 transition-colors"><span>Clock In</span><SortIcon col="clock_in" /></button>}
                 {cols.elapsed && <span className="w-16 shrink-0 text-right">Elapsed</span>}
                 {cols.punch_method && <span className="hidden sm:block w-16 shrink-0">Method</span>}
                 <span className="w-20 sm:w-24 shrink-0 text-right">Action</span>
               </div>
               <div className="divide-y divide-gray-50">
-                {openPunches.map((p) => {
+                {sortPunches(openPunches).map((p) => {
                   const emp = p.at_employees;
                   if (!emp) return null;
                   return (
@@ -1267,16 +1308,16 @@ export default function ClockPage() {
               <h2 className="text-sm font-semibold text-gray-800">Completed Today</h2>
             </div>
             <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-              <span className="flex-1 min-w-[120px]">Name</span>
+              <button onClick={() => handleSort("name")} className="flex items-center gap-1 flex-1 min-w-[120px] hover:text-gray-600 transition-colors"><span>Name</span><SortIcon col="name" /></button>
               {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
-              {cols.division && <span className="hidden sm:block w-32 shrink-0">Punch Item</span>}
+              {cols.division && <button onClick={() => handleSort("punch_item")} className="hidden sm:flex items-center gap-1 w-32 shrink-0 hover:text-gray-600 transition-colors"><span>Punch Item</span><SortIcon col="punch_item" /></button>}
               {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
               <span className="w-28 sm:w-36 shrink-0">In → Out</span>
               <span className="w-16 sm:w-20 shrink-0 text-right">Hours</span>
               {showLaborCost && <span className="hidden sm:block w-28 shrink-0 text-right">Rate / Cost</span>}
             </div>
             <div className="divide-y divide-gray-50">
-              {closedPunches.map((p) => {
+              {sortPunches(closedPunches).map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
                 const punchHrs = p.clock_out_at ? punchTotalHrs(p) : null;
