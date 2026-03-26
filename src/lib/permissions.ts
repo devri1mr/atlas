@@ -63,6 +63,7 @@ export const SECTIONS: Section[] = [
       { key: "hr_reports",            label: "View HR reports",            sub: "Reports & Other" },
       { key: "hr_import",             label: "Import HR data" },
       { key: "hr_settings",           label: "HR profile settings" },
+      { key: "hr_labor_cost",         label: "View pay rates & labor cost", sub: "Labor Cost" },
     ],
   },
   {

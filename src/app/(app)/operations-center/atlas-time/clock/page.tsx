@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useUser } from "@/lib/userContext";
 
 type Employee = {
   id: string;
@@ -10,6 +11,8 @@ type Employee = {
   preferred_name: string | null;
   job_title: string | null;
   department_id: string | null;
+  default_pay_rate: number | null;
+  pay_type: string | null;
   at_departments: { name: string } | null;
 };
 
@@ -27,7 +30,7 @@ type Punch = {
   divisions: { id: string; name: string } | null;
 };
 
-type Division = { id: string; name: string };
+type Division = { id: string; name: string; source?: string };
 
 type AtSettings = {
   ot_daily_threshold: number;
@@ -39,6 +42,7 @@ type AtSettings = {
   pay_period_start_day: number;
   pay_period_anchor_date: string | null;
   ot_weekly_threshold: number;
+  labor_overhead_rate: number;
 };
 
 type BulkRow = {
@@ -63,6 +67,7 @@ const DEFAULT_SETTINGS: AtSettings = {
   pay_period_start_day: 1,
   pay_period_anchor_date: null,
   ot_weekly_threshold: 40,
+  labor_overhead_rate: 15,
 };
 
 function getWeekStart(dateStr: string, startDay = 1): string {
@@ -185,6 +190,8 @@ function useClockCols() {
 }
 
 export default function ClockPage() {
+  const { can } = useUser();
+  const showLaborCost = can("hr_labor_cost");
   const [now, setNow] = useState(new Date());
   const [punches, setPunches] = useState<Punch[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -247,7 +254,9 @@ export default function ClockPage() {
       const divJson      = await divRes.json().catch(() => null);
       const settingsJson = await settingsRes.json().catch(() => ({}));
       setEmployees(empJson?.employees ?? []);
-      setDivisions(divJson?.divisions ?? []);
+      // Only use divisions from the main `divisions` table (source: "company") —
+      // at_divisions (time_clock_only) cannot be used as at_punches.division_id due to FK
+      setDivisions((divJson?.divisions ?? []).filter((d: Division) => !d.source || d.source === "company"));
       const s = settingsJson.settings ?? {};
       const freshSettings: AtSettings = {
         ot_daily_threshold:       s.ot_daily_threshold       ?? 8,
@@ -259,6 +268,7 @@ export default function ClockPage() {
         pay_period_start_day:     s.pay_period_start_day     ?? 1,
         pay_period_anchor_date:   s.pay_period_anchor_date   ?? null,
         ot_weekly_threshold:      s.ot_weekly_threshold      ?? 40,
+        labor_overhead_rate:      s.labor_overhead_rate      ?? 15,
       };
       setAtSettings(freshSettings);
       atSettingsRef.current = freshSettings;
@@ -954,12 +964,13 @@ export default function ClockPage() {
               <div className="px-5 py-12 text-center text-sm text-gray-400">No punches recorded for this date.</div>
             ) : (
               <>
-                <div className="sticky top-0 z-10 grid grid-cols-[1fr_110px_100px_100px_72px_80px] gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
                   <span>Name</span>
                   <span className="text-center">Division</span>
                   <span className="text-center">In</span>
                   <span className="text-center">Out</span>
                   <span className="text-center">Hrs</span>
+                  {showLaborCost && <span className="text-right">Rate / Cost</span>}
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y divide-gray-50">
@@ -973,7 +984,7 @@ export default function ClockPage() {
                     return (
                       <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : ""}`}>
                         {!isEditing ? (
-                          <div className="grid grid-cols-[1fr_110px_100px_100px_72px_80px] gap-2 items-center">
+                          <div className={`grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="shrink-0 w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
                               <div className="min-w-0">
@@ -992,6 +1003,21 @@ export default function ClockPage() {
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
                             <span className="text-xs font-semibold text-gray-700 text-center tabular-nums">{hrs ?? "—"}</span>
+                            {showLaborCost && (() => {
+                              const hrsNum = hrs ? Number(hrs) : null;
+                              const cost = hrsNum != null && emp.default_pay_rate
+                                ? hrsNum * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100) : null;
+                              return (
+                                <div className="text-right">
+                                  {emp.default_pay_rate ? (
+                                    <>
+                                      <div className="text-[10px] text-gray-400 tabular-nums">${emp.default_pay_rate.toFixed(2)}/hr</div>
+                                      {cost != null && <div className="text-[10px] font-semibold text-emerald-700 tabular-nums">${cost.toFixed(2)}</div>}
+                                    </>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </div>
+                              );
+                            })()}
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => startEditPunch(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1150,11 +1176,18 @@ export default function ClockPage() {
               {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
               <span className="w-28 sm:w-36 shrink-0">In → Out</span>
               <span className="w-16 sm:w-20 shrink-0 text-right">Hours</span>
+              {showLaborCost && <span className="hidden sm:block w-28 shrink-0 text-right">Rate / Cost</span>}
             </div>
             <div className="divide-y divide-gray-50">
               {closedPunches.map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
+                const punchHrs = p.clock_out_at
+                  ? (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000
+                  : null;
+                const laborCost = showLaborCost && punchHrs != null && emp.default_pay_rate
+                  ? punchHrs * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
+                  : null;
                 return (
                   <div key={p.id} className="flex items-center gap-3 px-5 py-3">
                     <div className="flex items-center gap-3 flex-1 min-w-[120px]">
@@ -1175,6 +1208,16 @@ export default function ClockPage() {
                     {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
                     <div className="w-28 sm:w-36 shrink-0 text-xs text-gray-400 tabular-nums">{fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}</div>
                     <div className="w-16 sm:w-20 shrink-0 text-sm font-semibold text-gray-600 tabular-nums text-right">{fmtHours(p.clock_in_at, p.clock_out_at!)}</div>
+                    {showLaborCost && (
+                      <div className="hidden sm:block w-28 shrink-0 text-right">
+                        {emp.default_pay_rate ? (
+                          <div>
+                            <div className="text-xs text-gray-500 tabular-nums">${emp.default_pay_rate.toFixed(2)}/hr</div>
+                            {laborCost != null && <div className="text-xs font-semibold text-emerald-700 tabular-nums">${laborCost.toFixed(2)}</div>}
+                          </div>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                    )}
                   </div>
                 );
               })}

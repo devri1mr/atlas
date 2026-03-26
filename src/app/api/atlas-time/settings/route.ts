@@ -68,6 +68,7 @@ export async function PATCH(req: NextRequest) {
       ["geofence_enabled", "bool", false],
       ["geofence_radius_meters", "num", 300],
       ["kiosk_pin_length", "num", 4],
+      ["labor_overhead_rate", "num", 15],
       ["esta_enabled", "bool", false],
       ["esta_accrual_hours_per", "num", 30],
       ["esta_wait_days", "num", 90],
