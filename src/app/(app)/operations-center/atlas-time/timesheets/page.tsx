@@ -164,6 +164,7 @@ export default function TimesheetsPage() {
       division_id:  p.division_id ?? "",
       employee_note: p.employee_note ?? "",
       manager_note: p.manager_note ?? "",
+      lunch_deducted_mins: p.lunch_deducted_mins ?? 0,
     }}));
   }
 
@@ -171,15 +172,19 @@ export default function TimesheetsPage() {
     setSaving(punchId);
     const draft = editing[punchId];
     try {
+      const origPunch = [...byEmployee.values()].flat().find(p => p.id === punchId);
+      const origLunch = origPunch?.lunch_deducted_mins ?? 0;
+      const newLunch  = (draft?.lunch_deducted_mins as number) ?? origLunch;
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clock_in_at:   draft?.clock_in_at  ? new Date(draft.clock_in_at!  as string).toISOString() : undefined,
-          clock_out_at:  draft?.clock_out_at ? new Date(draft.clock_out_at! as string).toISOString() : null,
-          division_id:   (draft?.division_id as string) || null,
-          employee_note: draft?.employee_note,
-          manager_note:  draft?.manager_note,
+          clock_in_at:        draft?.clock_in_at  ? new Date(draft.clock_in_at!  as string).toISOString() : undefined,
+          clock_out_at:       draft?.clock_out_at ? new Date(draft.clock_out_at! as string).toISOString() : null,
+          division_id:        (draft?.division_id as string) || null,
+          employee_note:      draft?.employee_note,
+          manager_note:       draft?.manager_note,
+          ...(newLunch !== origLunch ? { lunch_deducted_mins: newLunch } : {}),
         }),
       });
       const json = await res.json();
@@ -425,7 +430,16 @@ export default function TimesheetsPage() {
                                     onChange={e => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], clock_out_at: e.target.value }}))}
                                     className={inputCls} />
                                 </td>
-                                <td className="px-3 py-2 text-center text-gray-400">{lunch > 0 ? `${lunch}m` : "—"}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {(draft.lunch_deducted_mins as number ?? 0) > 0 ? (
+                                    <button
+                                      onClick={() => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], lunch_deducted_mins: 0 }}))}
+                                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors group" title="Remove lunch deduction">
+                                      {draft.lunch_deducted_mins as number}m
+                                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </td>
                                 <td className="px-3 py-2 text-center font-semibold">{h(reg)}</td>
                                 <td className={`px-3 py-2 text-center font-semibold ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2 text-center font-bold">{h(total)}</td>

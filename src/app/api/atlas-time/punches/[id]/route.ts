@@ -92,6 +92,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Recalculate day-level lunch whenever a punch has a clock_out
     if (data?.clock_out_at && data?.employee_id && data?.company_id && data?.date_for_payroll) {
       await recalcDayLunch(sb, data.company_id, data.employee_id, data.date_for_payroll);
+
+      // If lunch was explicitly removed (set to 0), re-apply after recalc so it sticks
+      // (recalcDayLunch may have re-added it based on auto-deduct settings)
+      if ("lunch_deducted_mins" in body && Number(body.lunch_deducted_mins) === 0) {
+        const { data: afterRecalc } = await sb
+          .from("at_punches")
+          .select("regular_hours, lunch_deducted_mins")
+          .eq("id", id)
+          .single();
+        if (afterRecalc && (afterRecalc.lunch_deducted_mins ?? 0) > 0) {
+          await sb.from("at_punches").update({
+            lunch_deducted_mins: 0,
+            regular_hours: (afterRecalc.regular_hours ?? 0) + (afterRecalc.lunch_deducted_mins / 60),
+          }).eq("id", id);
+        }
+      }
+
       const { data: updated } = await sb
         .from("at_punches")
         .select("id, employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours, lunch_deducted_mins, status, locked, division_id, at_division_id")

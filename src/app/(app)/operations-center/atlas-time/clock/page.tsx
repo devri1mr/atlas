@@ -320,6 +320,7 @@ function ClockPageInner() {
   const [editClockIn, setEditClockIn] = useState("");
   const [editClockOut, setEditClockOut] = useState("");
   const [editDivisionId, setEditDivisionId] = useState("");
+  const [editLunchMins, setEditLunchMins] = useState<number>(0);
   const [editSaving, setEditSaving] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -550,6 +551,7 @@ function ClockPageInner() {
       p.division_id    ? `d:${p.division_id}`    :
       p.at_division_id ? `a:${p.at_division_id}` : ""
     );
+    setEditLunchMins(p.lunch_deducted_mins ?? 0);
   }
 
   async function savePunchEdit(punchId: string) {
@@ -560,7 +562,11 @@ function ClockPageInner() {
       const clockInISO  = localIso(viewDate, editClockIn);
       const clockOutISO = editClockOut ? localIso(viewDate, editClockOut) : null;
       const punchEmp = employees.find(e => e.id === (punches.find(p => p.id === punchId)?.employee_id)) ?? null;
-      const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, empSettings(atSettings, punchEmp)) : null;
+      const origLunchMins = punches.find(p => p.id === punchId)?.lunch_deducted_mins ?? 0;
+      const sett = empSettings(atSettings, punchEmp);
+      // If user removed lunch, calculate hours without auto-deduct
+      const effectiveSett = editLunchMins === 0 ? { ...sett, lunch_auto_deduct: false } : sett;
+      const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, effectiveSett) : null;
       const divPayload = decodePunchItem(editDivisionId);
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",
@@ -568,7 +574,9 @@ function ClockPageInner() {
         body: JSON.stringify({
           clock_in_at: clockInISO, clock_out_at: clockOutISO,
           division_id: divPayload.division_id, at_division_id: divPayload.at_division_id,
-          ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}),
+          ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt } : {}),
+          // Always send lunch_deducted_mins so the PATCH endpoint can re-apply override if needed
+          lunch_deducted_mins: editLunchMins,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -1295,6 +1303,18 @@ function ClockPageInner() {
                                 )}
                               </select>
                             </div>
+                            {/* Lunch deduction toggle */}
+                            {atSettings.lunch_auto_deduct && (
+                              <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <div className={`w-8 h-4 rounded-full transition-colors relative ${editLunchMins > 0 ? "bg-[#123b1f]" : "bg-gray-200"}`}
+                                  onClick={() => setEditLunchMins(editLunchMins > 0 ? 0 : (atSettings.lunch_deduct_minutes ?? 30))}>
+                                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${editLunchMins > 0 ? "translate-x-4" : "translate-x-0.5"}`} />
+                                </div>
+                                <span className="text-xs text-gray-600">
+                                  {editLunchMins > 0 ? `Lunch deducted (${editLunchMins}m)` : "No lunch deduction"}
+                                </span>
+                              </label>
+                            )}
                             <div className="flex gap-2">
                               <button onClick={() => savePunchEdit(p.id)} disabled={editSaving}
                                 className="flex-1 bg-[#123b1f] text-white text-xs font-semibold py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
@@ -1486,6 +1506,18 @@ function ClockPageInner() {
                           )}
                         </select>
                       </div>
+                      {/* Lunch deduction toggle */}
+                      {atSettings.lunch_auto_deduct && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <div className={`w-8 h-4 rounded-full transition-colors relative ${editLunchMins > 0 ? "bg-[#123b1f]" : "bg-gray-200"}`}
+                            onClick={() => setEditLunchMins(editLunchMins > 0 ? 0 : (atSettings.lunch_deduct_minutes ?? 30))}>
+                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${editLunchMins > 0 ? "translate-x-4" : "translate-x-0.5"}`} />
+                          </div>
+                          <span className="text-xs text-gray-600">
+                            {editLunchMins > 0 ? `Lunch deducted (${editLunchMins}m)` : "No lunch deduction"}
+                          </span>
+                        </label>
+                      )}
                       <div className="flex gap-2">
                         <button onClick={() => savePunchEdit(p.id)} disabled={editSaving}
                           className="flex-1 bg-[#123b1f] text-white text-xs font-semibold py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
