@@ -197,13 +197,16 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
         const inRaw  = (cells[4] ?? "").trim();
         const outRaw = (cells[5] ?? "").trim();
         if (inRaw === "-" || outRaw === "-") continue;
+        // Column H (index 7) = reported hours; skip if 0 or negative (same-time punches)
+        const csvHours = parseFloat(String(cells[7] ?? ""));
+        if (!isNaN(csvHours) && csvHours <= 0) continue;
         const inTime  = parseTime12(inRaw);
         const outTime = parseTime12(outRaw);
         if (!inTime || !outTime) continue;
         const date    = parseMMDDYYYY((cells[3] ?? "").trim());
         const inIso   = localIso(date, inTime);
-        // If clock-out is earlier than clock-in it crossed midnight — advance out by 1 day
-        const outDate = new Date(localIso(date, outTime)) <= new Date(inIso) ? addDays(date, 1) : date;
+        // If clock-out is strictly before clock-in it crossed midnight — advance out by 1 day
+        const outDate = new Date(localIso(date, outTime)) < new Date(inIso) ? addDays(date, 1) : date;
         const outIso  = localIso(outDate, outTime);
         valid.push({ csv_name: (cells[0] ?? "").trim(), date, clock_in_at: inIso, clock_out_at: outIso, punch_item: type });
       }
