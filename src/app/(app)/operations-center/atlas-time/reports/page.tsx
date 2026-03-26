@@ -60,7 +60,8 @@ function fmtDay(iso: string) {
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
-function h(n: number) { return n.toFixed(2); }
+function h(n: number) { return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function c(n: number) { return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function empName(e: RawPunch["at_employees"]) {
   if (!e) return "Unknown";
   return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
@@ -553,7 +554,7 @@ export default function ReportsPage() {
                         <td className="px-3 py-3 text-center tabular-nums font-semibold">{h(r.reg)}</td>
                         <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{r.ot > 0 ? h(r.ot) : "—"}</td>
                         <td className="px-3 py-3 text-center tabular-nums font-bold text-gray-900">{h(r.total)}</td>
-                        <td className="px-3 py-3 text-right tabular-nums font-semibold text-emerald-700">{r.cost != null ? `$${r.cost.toFixed(2)}` : "—"}</td>
+                        <td className="px-3 py-3 text-right tabular-nums font-semibold text-emerald-700">{r.cost != null ? c(r.cost) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -563,7 +564,7 @@ export default function ReportsPage() {
                       <td className="px-3 py-3 text-center tabular-nums">{h(totals.reg)}</td>
                       <td className={`px-3 py-3 text-center tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{totals.ot > 0 ? h(totals.ot) : "—"}</td>
                       <td className="px-3 py-3 text-center tabular-nums text-gray-900">{h(totals.total)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-emerald-700">${totals.cost.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-emerald-700">{c(totals.cost)}</td>
                     </tr>
                   </tfoot>
                 </table>
