@@ -46,6 +46,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Keep at_employees.default_pay_rate in sync when this is the default rate
+    if (body.is_default) {
+      await sb.from("at_employees").update({ default_pay_rate: rate }).eq("id", id);
+    }
+
     return NextResponse.json({ pay_rate: data }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

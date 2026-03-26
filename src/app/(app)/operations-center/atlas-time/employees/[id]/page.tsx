@@ -337,6 +337,7 @@ export default function EmployeeDetailPage() {
       if (!res.ok) throw new Error(json?.error ?? "Failed to add rate");
       if (newRateDefault) {
         setPayRates(prev => prev.map(r => ({ ...r, is_default: false })).concat(json.pay_rate));
+        setForm((prev: Employee) => ({ ...prev, default_pay_rate: json.pay_rate?.rate ?? prev.default_pay_rate }));
       } else {
         setPayRates(prev => [...prev, json.pay_rate]);
       }
