@@ -95,7 +95,8 @@ function ThC({ label, col, sort, onSort }: { label: string; col: string; sort: [
 }
 
 export default function ReportsPage() {
-  const [settings, setSettings]     = useState<HRSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings]         = useState<HRSettings>(DEFAULT_SETTINGS);
+  const [laborOverheadRate, setLaborOverheadRate] = useState(15);
   const [punches, setPunches]       = useState<RawPunch[]>([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState("");
@@ -127,6 +128,7 @@ export default function ReportsPage() {
       .then(j => {
         const s = { ...DEFAULT_SETTINGS, ...j.settings };
         setSettings(s);
+        setLaborOverheadRate((j.settings as any)?.labor_overhead_rate ?? 15);
         setCurrentPeriod(getPayPeriodContaining(new Date(), s));
       }).catch(() => setCurrentPeriod(getPayPeriodContaining(new Date(), DEFAULT_SETTINGS)));
 
@@ -234,8 +236,8 @@ export default function ReportsPage() {
 
   // ── Summary data ─────────────────────────────────────────────────────────────
   type SummaryRow = {
-    empId: string; name: string; jobTitle: string;
-    reg: number; ot: number; total: number;
+    empId: string; name: string;
+    reg: number; ot: number; total: number; cost: number | null;
   };
   const summaryRows = useMemo((): SummaryRow[] => {
     const byEmp = new Map<string, RawPunch[]>();
@@ -246,20 +248,23 @@ export default function ReportsPage() {
     return [...byEmp.entries()].map(([empId, eps]) => {
       const e = eps[0]?.at_employees;
       const closed = eps.filter(p => p.clock_out_at);
-      // Use stored recalculated values; fall back to computedMap for punches without them
-      const reg   = closed.reduce((s, p) => s + (p.regular_hours ?? computedMap.get(p.id)?.regular_hours ?? 0), 0);
-      const ot    = closed.reduce((s, p) => s + (p.ot_hours    ?? computedMap.get(p.id)?.ot_hours    ?? 0), 0);
-      const dt    = closed.reduce((s, p) => s + (p.dt_hours    ?? computedMap.get(p.id)?.dt_hours    ?? 0), 0);
+      const reg = closed.reduce((s, p) => s + (p.regular_hours ?? computedMap.get(p.id)?.regular_hours ?? 0), 0);
+      const ot  = closed.reduce((s, p) => s + (p.ot_hours    ?? computedMap.get(p.id)?.ot_hours    ?? 0), 0);
+      const dt  = closed.reduce((s, p) => s + (p.dt_hours    ?? computedMap.get(p.id)?.dt_hours    ?? 0), 0);
+      const rate = e?.default_pay_rate ?? null;
+      const cost = rate != null
+        ? Math.round((reg * rate + ot * rate * settings.ot_multiplier + dt * rate * settings.dt_multiplier) * (1 + laborOverheadRate / 100) * 100) / 100
+        : null;
       return {
         empId,
-        name:     empName(e),
-        jobTitle: e?.job_title ?? "",
-        reg:      Math.round(reg  * 100) / 100,
-        ot:       Math.round(ot   * 100) / 100,
-        total:    Math.round((reg + ot + dt) * 100) / 100,
+        name:  empName(e),
+        reg:   Math.round(reg  * 100) / 100,
+        ot:    Math.round(ot   * 100) / 100,
+        total: Math.round((reg + ot + dt) * 100) / 100,
+        cost,
       };
     });
-  }, [filteredPunches, computedMap]);
+  }, [filteredPunches, computedMap, settings, laborOverheadRate]);
 
   function sortFn<T>(rows: T[], key: string, dir: SortDir, getters: Record<string, (r: T) => any>): T[] {
     return [...rows].sort((a, b) => {
@@ -271,7 +276,7 @@ export default function ReportsPage() {
   }
 
   const sortedSummary = useMemo(() => sortFn(summaryRows, summarySort[0], summarySort[1], {
-    name: r => r.name, job: r => r.jobTitle, reg: r => r.reg, ot: r => r.ot, total: r => r.total,
+    name: r => r.name, reg: r => r.reg, ot: r => r.ot, total: r => r.total, cost: r => r.cost ?? 0,
   }), [summaryRows, summarySort]);
 
   function toggleSummarySort(col: string) {
@@ -316,9 +321,10 @@ export default function ReportsPage() {
 
   // ── Totals ───────────────────────────────────────────────────────────────────
   const totals = useMemo(() => ({
-    reg:   summaryRows.reduce((s, r) => s + r.reg,   0),
-    ot:    summaryRows.reduce((s, r) => s + r.ot,    0),
-    total: summaryRows.reduce((s, r) => s + r.total, 0),
+    reg:   summaryRows.reduce((s, r) => s + r.reg,        0),
+    ot:    summaryRows.reduce((s, r) => s + r.ot,         0),
+    total: summaryRows.reduce((s, r) => s + r.total,      0),
+    cost:  summaryRows.reduce((s, r) => s + (r.cost ?? 0), 0),
   }), [summaryRows]);
 
   // ── CSV export ───────────────────────────────────────────────────────────────
@@ -534,29 +540,30 @@ export default function ReportsPage() {
                   <thead className="sticky top-0 z-10">
                     <tr className="border-b border-gray-100 bg-gray-50">
                       <Th  label="Team Member" col="name"  sort={summarySort} onSort={toggleSummarySort} />
-                      <ThC label="Job Title"   col="job"   sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Reg Hrs"     col="reg"   sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="OT Hrs"      col="ot"    sort={summarySort} onSort={toggleSummarySort} />
                       <ThC label="Total Hrs"   col="total" sort={summarySort} onSort={toggleSummarySort} />
+                      <ThC label="Total Cost"  col="cost"  sort={summarySort} onSort={toggleSummarySort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {sortedSummary.map(r => (
                       <tr key={r.empId} className="hover:bg-gray-50/40">
                         <td className="px-3 py-3 font-semibold text-gray-900 whitespace-nowrap">{r.name}</td>
-                        <td className="px-3 py-3 text-center text-gray-500 text-xs whitespace-nowrap">{r.jobTitle || "—"}</td>
                         <td className="px-3 py-3 text-center tabular-nums font-semibold">{h(r.reg)}</td>
                         <td className={`px-3 py-3 text-center tabular-nums font-semibold ${r.ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{r.ot > 0 ? h(r.ot) : "—"}</td>
                         <td className="px-3 py-3 text-center tabular-nums font-bold text-gray-900">{h(r.total)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums font-semibold text-emerald-700">{r.cost != null ? `$${r.cost.toFixed(2)}` : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold text-sm">
-                      <td className="px-3 py-3" colSpan={2}>Totals — {summaryRows.length} team members</td>
+                      <td className="px-3 py-3">Totals — {summaryRows.length} team members</td>
                       <td className="px-3 py-3 text-center tabular-nums">{h(totals.reg)}</td>
-                      <td className={`px-3 py-3 text-center tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totals.ot)}</td>
+                      <td className={`px-3 py-3 text-center tabular-nums ${totals.ot > 0 ? "text-amber-600" : "text-gray-400"}`}>{totals.ot > 0 ? h(totals.ot) : "—"}</td>
                       <td className="px-3 py-3 text-center tabular-nums text-gray-900">{h(totals.total)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-emerald-700">${totals.cost.toFixed(2)}</td>
                     </tr>
                   </tfoot>
                 </table>
