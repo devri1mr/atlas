@@ -35,7 +35,6 @@ export default function RateSetupPage() {
   const [done, setDone] = useState<Set<string>>(new Set());
 
   const [rate, setRate] = useState("");
-  const [payType, setPayType] = useState<"hourly" | "salary">("hourly");
   const rateRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -68,7 +67,6 @@ export default function RateSetupPage() {
   useEffect(() => {
     if (emp) {
       setRate(emp.default_pay_rate ? String(emp.default_pay_rate) : "");
-      setPayType((emp.pay_type === "salary" ? "salary" : "hourly") as "hourly" | "salary");
       setTimeout(() => rateRef.current?.focus(), 50);
     }
   }, [idx, emp?.id]);
@@ -83,7 +81,7 @@ export default function RateSetupPage() {
       const res = await fetch(`/api/atlas-time/employees/${emp.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pay_type: payType, default_pay_rate: parsed }),
+        body: JSON.stringify({ pay_type: "hourly", default_pay_rate: parsed }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save");
@@ -203,7 +201,7 @@ export default function RateSetupPage() {
                   <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                     <span className="text-xs text-amber-700">Current rate:</span>
                     <span className="text-sm font-bold text-amber-800">
-                      ${emp.default_pay_rate.toFixed(2)}{emp.pay_type === "salary" ? "/yr" : "/hr"}
+                      ${emp.default_pay_rate.toFixed(2)}/hr
                     </span>
                   </div>
                 )}
@@ -211,19 +209,6 @@ export default function RateSetupPage() {
                 {/* Rate input */}
                 <div className="px-5 py-5 space-y-3">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pay Rate</label>
-
-                  {/* Pay type toggle */}
-                  <div className="flex gap-0 bg-gray-100 rounded-xl p-1">
-                    {(["hourly", "salary"] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setPayType(t)}
-                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${payType === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
-                      >
-                        {t === "hourly" ? "Hourly" : "Salary"}
-                      </button>
-                    ))}
-                  </div>
 
                   {/* Rate field */}
                   <div className="relative">
@@ -237,12 +222,10 @@ export default function RateSetupPage() {
                       value={rate}
                       onChange={e => setRate(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter") saveAndNext(); }}
-                      placeholder={payType === "hourly" ? "0.00" : "0"}
-                      className="w-full border border-gray-200 rounded-2xl pl-8 pr-16 py-4 text-2xl font-bold text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="0.00"
+                      className="w-full border border-gray-200 rounded-2xl pl-8 pr-12 py-4 text-2xl font-bold text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">
-                      {payType === "hourly" ? "/hr" : "/yr"}
-                    </span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">/hr</span>
                   </div>
                 </div>
               </div>

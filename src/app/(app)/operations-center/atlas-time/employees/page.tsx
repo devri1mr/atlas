@@ -494,7 +494,7 @@ export default function EmployeesPage() {
                         {cols.pay_rate   && (
                           <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center">
                             {emp.default_pay_rate != null
-                              ? <span className="font-semibold text-gray-700 text-xs tabular-nums">${Number(emp.default_pay_rate).toFixed(2)}<span className="text-gray-400 font-normal">{emp.pay_type === "hourly" ? "/hr" : "/yr"}</span></span>
+                              ? <span className="font-semibold text-gray-700 text-xs tabular-nums">${Number(emp.default_pay_rate).toFixed(2)}<span className="text-gray-400 font-normal">/hr</span></span>
                               : <span className="text-gray-300 text-xs">—</span>
                             }
                           </td>

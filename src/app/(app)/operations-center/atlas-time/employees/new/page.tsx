@@ -199,21 +199,13 @@ export default function NewEmployeePage() {
           </TwoCol>
           <TwoCol>
             <div>
-              <label className={labelCls}>Pay Type</label>
-              <select value={form.pay_type} onChange={e => set("pay_type", e.target.value)} className={inputCls}>
-                <option value="hourly">Hourly</option>
-                <option value="salary">Salaried (OT eligible)</option>
-                <option value="exempt_salary">Salaried Exempt</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>{form.pay_type === "hourly" ? "Hourly Rate" : "Annual Salary"}</label>
+              <label className={labelCls}>Hourly Rate</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">$</span>
                 <input type="number" min={0} step={0.01} value={form.default_pay_rate}
                   onChange={e => set("default_pay_rate", e.target.value)}
                   className={inputCls + " pl-7"}
-                  placeholder={form.pay_type === "hourly" ? "0.00 / hr" : "0.00 / yr"} />
+                  placeholder="0.00 / hr" />
               </div>
             </div>
           </TwoCol>
