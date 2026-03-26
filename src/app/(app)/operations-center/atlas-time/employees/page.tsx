@@ -302,16 +302,16 @@ export default function EmployeesPage() {
                         className="w-4 h-4 rounded accent-[#123b1f] cursor-pointer"
                       />
                     </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap w-12"></th>
+                    <th className="px-3 py-3 w-12"></th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Name</th>
-                    {cols.status     && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status</th>}
-                    {cols.job_title  && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
-                    {cols.department && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
-                    {cols.division   && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
-                    {showPins        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>}
-                    {cols.pay_rate   && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
-                    {cols.hire_date  && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
-                    {cols.years      && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Tenure</th>}
+                    {cols.status     && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status</th>}
+                    {cols.job_title  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
+                    {cols.department && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
+                    {cols.division   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
+                    {showPins        && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>}
+                    {cols.pay_rate   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
+                    {cols.hire_date  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
+                    {cols.years      && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Tenure</th>}
                     {cols.phone      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
                     {cols.email      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
                     <th className="w-12 px-3 py-3"></th>
@@ -353,7 +353,7 @@ export default function EmployeesPage() {
 
                         {/* Status — clickable dropdown */}
                         {cols.status && (
-                          <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <td className="px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
                             <div className="relative inline-block">
                               <button
                                 onClick={() => setStatusMenuFor(statusMenuFor === emp.id ? null : emp.id)}
@@ -381,20 +381,20 @@ export default function EmployeesPage() {
                           </td>
                         )}
 
-                        {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.department && <td className="px-3 py-3 whitespace-nowrap text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
-                        {showPins        && <td className="px-3 py-3 whitespace-nowrap text-xs font-mono">{emp.kiosk_pin ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.department && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-center text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {showPins        && <td className="px-3 py-3 whitespace-nowrap text-center text-xs font-mono tracking-widest text-gray-700">{emp.kiosk_pin ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.pay_rate   && (
-                          <td className="px-3 py-3 whitespace-nowrap text-right">
+                          <td className="px-3 py-3 whitespace-nowrap text-center">
                             {emp.default_pay_rate != null
                               ? <span className="font-semibold text-gray-700 text-xs tabular-nums">${Number(emp.default_pay_rate).toFixed(2)}<span className="text-gray-400 font-normal">{emp.pay_type === "hourly" ? "/hr" : "/yr"}</span></span>
                               : <span className="text-gray-300 text-xs">—</span>
                             }
                           </td>
                         )}
-                        {cols.hire_date  && <td className="px-3 py-3 whitespace-nowrap text-right text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
-                        {cols.years      && <td className="px-3 py-3 whitespace-nowrap text-right text-xs text-gray-400 tabular-nums">{emp.hire_date ? yearsService(emp.hire_date) : "—"}</td>}
+                        {cols.hire_date  && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
+                        {cols.years      && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-400 tabular-nums">{emp.hire_date ? yearsService(emp.hire_date) : "—"}</td>}
                         {cols.phone      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">{emp.phone ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.email      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 truncate max-w-[160px]">{emp.work_email ?? <span className="text-gray-300">—</span>}</td>}
 
