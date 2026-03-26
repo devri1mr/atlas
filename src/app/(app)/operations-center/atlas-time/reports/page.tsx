@@ -59,7 +59,7 @@ function fmtTime(iso: string) {
 function h(n: number) { return n.toFixed(2); }
 function empName(e: RawPunch["at_employees"]) {
   if (!e) return "Unknown";
-  return e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`;
+  return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -131,7 +131,7 @@ export default function ReportsPage() {
       .then(j => {
         const emps: EmpOption[] = (j.employees ?? []).map((e: any) => ({
           id: e.id,
-          name: e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`,
+          name: `${e.last_name}, ${e.preferred_name ?? e.first_name}`,
         }));
         emps.sort((a, b) => a.name.localeCompare(b.name));
         setEmpOptions(emps);

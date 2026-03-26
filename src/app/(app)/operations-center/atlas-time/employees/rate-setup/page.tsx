@@ -36,7 +36,7 @@ type PendingRate = {
 
 function displayName(e: Emp) {
   const mi = e.middle_initial ? ` ${e.middle_initial}.` : "";
-  return `${e.first_name}${mi} ${e.last_name}`;
+  return `${e.last_name}, ${e.first_name}${mi}`;
 }
 function initials(e: Emp) {
   return `${e.first_name[0] ?? ""}${e.last_name[0] ?? ""}`.toUpperCase();

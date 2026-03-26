@@ -39,7 +39,7 @@ function fmtDate(iso: string) {
 }
 function empName(e: RawPunch["at_employees"]) {
   if (!e) return "Unknown";
-  return e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`;
+  return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 function initials(e: RawPunch["at_employees"]) {
   if (!e) return "?";

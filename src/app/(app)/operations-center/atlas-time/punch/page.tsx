@@ -22,7 +22,7 @@ type OpenPunch = {
 type View = "pin" | "confirm" | "success";
 
 function displayName(e: Employee) {
-  return e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`;
+  return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });

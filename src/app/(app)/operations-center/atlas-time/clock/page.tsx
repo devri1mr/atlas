@@ -180,7 +180,7 @@ function initials(e: Employee) {
 }
 
 function displayName(e: Employee) {
-  return e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`;
+  return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 
 const DEFAULT_CLOCK_COLS = { job_title: true, division: true, department: true, clock_in_time: true, elapsed: true, punch_method: false };
@@ -598,7 +598,7 @@ export default function ClockPage() {
                   <option value="">— Select team member —</option>
                   {employees.map(e => (
                     <option key={e.id} value={e.id}>
-                      {e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}
+                      {`${e.last_name}, ${e.preferred_name ?? e.first_name}`}
                     </option>
                   ))}
                 </select>
@@ -826,7 +826,7 @@ export default function ClockPage() {
                             onChange={e => updateBulkRow(row.key, { employee_id: e.target.value })}
                             className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
                             <option value="">— Select —</option>
-                            {employees.map(e => <option key={e.id} value={e.id}>{e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}</option>)}
+                            {employees.map(e => <option key={e.id} value={e.id}>{`${e.last_name}, ${e.preferred_name ?? e.first_name}`}</option>)}
                           </select>
                         </td>
                         <td className="px-3 py-2">
