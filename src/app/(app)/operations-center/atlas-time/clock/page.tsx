@@ -189,32 +189,42 @@ export default function ClockPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  async function load() {
+  useEffect(() => { loadStatic(); }, []);
+  useEffect(() => { load(); }, [viewDate]);
+
+  // Load employees, divisions, and settings once on mount
+  async function loadStatic() {
     try {
-      setLoading(true);
-      setError("");
-      const [punchRes, empRes, divRes, settingsRes] = await Promise.all([
-        fetch(`/api/atlas-time/punches?date_from=${viewDate}&date_to=${viewDate}`, { cache: "no-store" }),
+      const [empRes, divRes, settingsRes] = await Promise.all([
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/settings", { cache: "no-store" }),
       ]);
-      const punchJson    = await punchRes.json().catch(() => null);
       const empJson      = await empRes.json().catch(() => null);
       const divJson      = await divRes.json().catch(() => null);
       const settingsJson = await settingsRes.json().catch(() => ({}));
-      if (!punchRes.ok) throw new Error(punchJson?.error ?? "Failed to load");
-      setPunches(punchJson.punches ?? []);
-      setEmployees(empJson.employees ?? []);
-      setDivisions(divJson.divisions ?? []);
+      setEmployees(empJson?.employees ?? []);
+      setDivisions(divJson?.divisions ?? []);
       const s = settingsJson.settings ?? {};
       setAtSettings({
-        ot_daily_threshold:    s.ot_daily_threshold    ?? 8,
-        dt_daily_threshold:    s.dt_daily_threshold    ?? 0,
-        lunch_auto_deduct:     s.lunch_auto_deduct     ?? false,
+        ot_daily_threshold:       s.ot_daily_threshold       ?? 8,
+        dt_daily_threshold:       s.dt_daily_threshold       ?? 0,
+        lunch_auto_deduct:        s.lunch_auto_deduct        ?? false,
         lunch_deduct_after_hours: s.lunch_deduct_after_hours ?? 6,
-        lunch_deduct_minutes:  s.lunch_deduct_minutes  ?? 30,
+        lunch_deduct_minutes:     s.lunch_deduct_minutes     ?? 30,
       });
+    } catch { /* non-fatal */ }
+  }
+
+  // Reload punches whenever the viewed date changes
+  async function load() {
+    try {
+      setLoading(true);
+      setError("");
+      const res  = await fetch(`/api/atlas-time/punches?date_from=${viewDate}&date_to=${viewDate}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load");
+      setPunches(json.punches ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
@@ -578,7 +588,9 @@ export default function ClockPage() {
                 {showBulkEntry ? "✕ Exit Bulk Entry" : "⊞ Bulk Entry"}
               </button>
               <p className="text-white/50 text-sm mt-1">
-                {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                {isToday
+                  ? now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+                  : new Date(viewDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
             </div>
             <div className="text-right flex flex-col items-end gap-2">
