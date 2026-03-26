@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       const itemMatch = matchPunchItem(row.punch_item);
 
       if (!empMatch) {
-        preview.push({ ...row, status: "no_employee", employee_id: null, employee_name: null, division_id: null, at_division_id: null, matched_item_name: itemMatch?.matched_item_name ?? null, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
+        preview.push({ ...row, status: "no_employee", employee_id: null, employee_name: null, division_id: itemMatch?.division_id ?? null, at_division_id: itemMatch?.at_division_id ?? null, matched_item_name: itemMatch?.matched_item_name ?? null, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
         continue;
       }
 

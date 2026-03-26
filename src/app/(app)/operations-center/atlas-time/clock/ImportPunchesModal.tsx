@@ -119,7 +119,18 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
   const [editInTime, setEditInTime]     = useState("");
   const [editOutTime, setEditOutTime]   = useState("");
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef    = useRef<HTMLInputElement>(null);
+  const scrollRef  = useRef<HTMLDivElement>(null);
+
+  function scrollToRow(idx: number) {
+    const el = document.getElementById(`import-row-${idx}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function scrollToFirstWhere(predicate: (r: PreviewRow) => boolean) {
+    const idx = previewRows.findIndex(predicate);
+    if (idx >= 0) scrollToRow(idx);
+  }
 
   // ── Item key encoding ──────────────────────────────────────────────────────
 
@@ -286,7 +297,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
 
           {/* Upload */}
           {stage === "upload" && (
@@ -331,14 +342,16 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                     <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{readyCount} ready
                   </span>
                   {noEmpRows.length > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-700">
+                    <button onClick={() => scrollToFirstWhere(r => r.status === "no_employee")}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer">
                       <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{noEmpRows.length} unmatched {noEmpRows.length === 1 ? "team member" : "team members"}
-                    </span>
+                    </button>
                   )}
                   {noPunchRows.length > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700">
+                    <button onClick={() => scrollToFirstWhere(r => r.status === "no_punch_item")}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors cursor-pointer">
                       <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{noPunchRows.length} unmatched punch {noPunchRows.length === 1 ? "item" : "items"}
-                    </span>
+                    </button>
                   )}
                   {dupRows.length > 0 && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600">
@@ -347,10 +360,28 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   )}
                 </div>
                 {uniqueNoEmpNames.length > 0 && (
-                  <p className="text-xs text-red-600"><span className="font-semibold">Unmatched team members:</span> {uniqueNoEmpNames.join(", ")}</p>
+                  <p className="text-xs text-red-600">
+                    <span className="font-semibold">Unmatched team members:</span>{" "}
+                    {uniqueNoEmpNames.map((name, i) => (
+                      <span key={name}>
+                        {i > 0 && ", "}
+                        <button onClick={() => scrollToFirstWhere(r => r.csv_name === name && r.status === "no_employee")}
+                          className="underline underline-offset-2 hover:text-red-800 transition-colors">{name}</button>
+                      </span>
+                    ))}
+                  </p>
                 )}
                 {uniqueNoItem.length > 0 && (
-                  <p className="text-xs text-amber-700"><span className="font-semibold">Unmatched punch items:</span> {uniqueNoItem.join(", ")}</p>
+                  <p className="text-xs text-amber-700">
+                    <span className="font-semibold">Unmatched punch items:</span>{" "}
+                    {uniqueNoItem.map((item, i) => (
+                      <span key={item}>
+                        {i > 0 && ", "}
+                        <button onClick={() => scrollToFirstWhere(r => r.punch_item === item && r.status === "no_punch_item")}
+                          className="underline underline-offset-2 hover:text-amber-900 transition-colors">{item}</button>
+                      </span>
+                    ))}
+                  </p>
                 )}
               </div>
 
@@ -378,7 +409,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
 
                       if (isEditing) {
                         return (
-                          <tr key={i} className="border-b border-gray-100 bg-blue-50/40">
+                          <tr id={`import-row-${i}`} key={i} className="border-b border-gray-100 bg-blue-50/40">
                             <td className="px-3 py-2"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
                             <td className="px-3 py-2">
                               <select value={editEmpId} onChange={e => setEditEmpId(e.target.value)}
@@ -417,7 +448,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                       }
 
                       return (
-                        <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50/50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                        <tr id={`import-row-${i}`} key={i} className={`border-b border-gray-50 hover:bg-gray-50/50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
                           <td className="px-3 py-2.5"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
                           <td className="px-3 py-2.5 font-medium">
                             {row.employee_name
