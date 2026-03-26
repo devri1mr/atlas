@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { recalcDayLunch } from "@/lib/atDayRecalc";
+import { weekStart } from "@/lib/atHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
   const { data } = await sb.from("companies").select("id").limit(1).single();
@@ -84,12 +86,21 @@ export async function POST(req: NextRequest) {
       const { error: insertErr } = await sb.from("at_punches").insert(toInsert);
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-      // Recalc lunch/OT for each unique employee+date pair
-      const pairs = new Set(resolvedRows.map(r => `${r.employee_id}|${r.date}`));
-      await Promise.all([...pairs].map(pair => {
-        const [empId, date] = pair.split("|");
-        return recalcDayLunch(sb, companyId, empId, date);
-      }));
+      // Deduplicate to one recalc per employee × calendar-week, run sequentially
+      // (parallel writes race each other and produce bad OT results)
+      const { data: gs } = await sb.from("at_settings").select("pay_period_start_day").eq("company_id", companyId).maybeSingle();
+      const startDay: number = gs?.pay_period_start_day ?? 0;
+
+      const seen  = new Set<string>();
+      const tasks: { empId: string; date: string }[] = [];
+      for (const r of resolvedRows) {
+        const ws  = weekStart(new Date(r.date + "T12:00:00"), startDay);
+        const key = `${r.employee_id}|${ws.toISOString().slice(0, 10)}`;
+        if (!seen.has(key)) { seen.add(key); tasks.push({ empId: r.employee_id, date: r.date }); }
+      }
+      for (const { empId, date } of tasks) {
+        await recalcDayLunch(sb, companyId, empId, date);
+      }
 
       return NextResponse.json({ imported: resolvedRows.length, skipped: 0, skipped_reasons: {} });
     }
