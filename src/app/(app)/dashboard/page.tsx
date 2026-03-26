@@ -175,32 +175,41 @@ function SHead({ children }: { children: React.ReactNode }) {
 const ANNUAL_GOAL = 8_245_000;
 
 // ── Sports Ticker ──────────────────────────────────────────────────────────────
-function SportsTicker({ games, news, config }: { games: GameScore[]; news: NewsItem[]; config: DashConfig }) {
-  const tickerRef = useRef<HTMLDivElement>(null);
+const TICKER_SESSION_KEY = "sports-ticker-start";
 
+function SportsTicker({ games, news, config }: { games: GameScore[]; news: NewsItem[]; config: DashConfig }) {
   const activeLeagues = LEAGUES.filter(l => config[l.key]);
   const visibleGames = games.filter(g => activeLeagues.some(l => l.label === g.leagueLabel));
 
   const items: string[] = [];
-  // Group games by league for the ticker
   for (const league of activeLeagues) {
     const lg = visibleGames.filter(g => g.leagueLabel === league.label);
-    if (lg.length > 0) {
-      lg.forEach(g => {
-        const score = g.isComplete || g.isLive
-          ? `${g.awayAbbr} ${g.awayScore} - ${g.homeScore} ${g.homeAbbr}`
-          : `${g.awayAbbr} vs ${g.homeAbbr}`;
-        const status = g.isLive ? `🔴 ${g.status}` : g.status;
-        items.push(`[${league.label}] ${score}  ${status}`);
-      });
-    }
-  }
-
-  if (config.showSportsNews) {
-    news.forEach(n => {
-      items.push(`📰 [${n.sport}] ${n.headline}`);
+    lg.forEach(g => {
+      const score = g.isComplete || g.isLive
+        ? `${g.awayAbbr} ${g.awayScore} - ${g.homeScore} ${g.homeAbbr}`
+        : `${g.awayAbbr} vs ${g.homeAbbr}`;
+      const status = g.isLive ? `🔴 ${g.status}` : g.status;
+      items.push(`[${league.label}] ${score}  ${status}`);
     });
   }
+  if (config.showSportsNews) {
+    news.forEach(n => { items.push(`📰 [${n.sport}] ${n.headline}`); });
+  }
+
+  const duration = Math.max(30, items.length * 8);
+  const [animDelay, setAnimDelay] = useState(0);
+
+  useEffect(() => {
+    try {
+      let start = Number(sessionStorage.getItem(TICKER_SESSION_KEY) || 0);
+      if (!start) {
+        start = Date.now();
+        sessionStorage.setItem(TICKER_SESSION_KEY, String(start));
+      }
+      const elapsed = (Date.now() - start) / 1000;
+      setAnimDelay(-(elapsed % duration));
+    } catch {}
+  }, [duration]);
 
   if (items.length === 0) return null;
 
@@ -209,17 +218,15 @@ function SportsTicker({ games, news, config }: { games: GameScore[]; news: NewsI
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center overflow-hidden"
       style={{ background: "#0a1a0e", borderTop: "1px solid rgba(255,255,255,0.08)", height: 32 }}>
-      {/* League badge */}
       <div className="shrink-0 px-3 text-[10px] font-bold text-green-400 tracking-widest uppercase border-r border-white/10 h-full flex items-center">
         SCORES
       </div>
-      {/* Scrolling content */}
       <div className="flex-1 overflow-hidden relative h-full">
         <div
-          ref={tickerRef}
           className="absolute top-0 whitespace-nowrap flex items-center h-full text-[11px] font-medium text-white/80 tracking-wide"
           style={{
-            animation: `ticker ${Math.max(30, items.length * 8)}s linear infinite`,
+            animation: `ticker ${duration}s linear infinite`,
+            animationDelay: `${animDelay}s`,
           }}
         >
           {ticker}

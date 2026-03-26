@@ -70,6 +70,10 @@ const NAV: NavItem[] = [
         <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
       </svg>
     ),
+    children: [
+      { label: "All Settings", href: "/operations-center", permKey: "settings_view" },
+      { label: "Sports Ticker", href: "/operations-center/sports-ticker", permKey: "settings_view" },
+    ],
   },
   {
     label: "Atlas HR",

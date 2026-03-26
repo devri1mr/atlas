@@ -136,6 +136,18 @@ const sections = [
     ),
     color: "text-sky-600 bg-sky-50",
   },
+  {
+    title: "Sports Ticker",
+    description: "Configure live scores and news leagues shown in the dashboard ticker bar.",
+    href: "/operations-center/sports-ticker",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+    ),
+    color: "text-cyan-600 bg-cyan-50",
+  },
 ];
 
 const STORAGE_KEY = "ops-center-card-order";
