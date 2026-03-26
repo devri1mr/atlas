@@ -78,11 +78,11 @@ export function computeWeekPunches(punches: PunchIn[], s: HRSettings): PunchOut[
     const dayPunches = byDate.get(date)!;
     const dayGross = r4(dayPunches.reduce((sum, p) => sum + p.grossH, 0));
 
-    // Daily thresholds
+    // Daily thresholds (treat 0 as disabled, same as null)
     let dayReg = dayGross, dayOT = 0, dayDT = 0;
-    if (s.ot_daily_threshold !== null && dayGross > s.ot_daily_threshold) {
+    if (s.ot_daily_threshold !== null && s.ot_daily_threshold > 0 && dayGross > s.ot_daily_threshold) {
       dayReg = s.ot_daily_threshold;
-      if (s.dt_daily_threshold !== null && dayGross > s.dt_daily_threshold) {
+      if (s.dt_daily_threshold !== null && s.dt_daily_threshold > 0 && dayGross > s.dt_daily_threshold) {
         dayOT = r4(s.dt_daily_threshold - s.ot_daily_threshold);
         dayDT = r4(dayGross - s.dt_daily_threshold);
       } else {

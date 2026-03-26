@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/lib/userContext";
@@ -125,7 +125,7 @@ function calcPunchHours(clockIn: string, clockOut: string, s: AtSettings) {
   if (outMs <= inMs) outMs += 86_400_000; // overnight
   let mins = (outMs - inMs) / 60_000;
   let lunchMins = 0;
-  if (s.lunch_auto_deduct && mins / 60 > s.lunch_deduct_after_hours) {
+  if (s.lunch_auto_deduct && mins / 60 >= s.lunch_deduct_after_hours) {
     lunchMins = s.lunch_deduct_minutes;
     mins -= lunchMins;
   }
@@ -862,12 +862,25 @@ function ClockPageInner() {
                     ← Prev Day
                   </button>
                   {!isToday && (
-                    <button
-                      onClick={() => setViewDate(todayStr)}
-                      className="text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
-                    >
-                      Today →
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          const d = new Date(viewDate + "T12:00:00");
+                          d.setDate(d.getDate() + 1);
+                          const next = d.toISOString().slice(0, 10);
+                          if (next <= todayStr) setViewDate(next);
+                        }}
+                        className="text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                      >
+                        Next Day →
+                      </button>
+                      <button
+                        onClick={() => setViewDate(todayStr)}
+                        className="text-white/60 hover:text-white text-[11px] font-medium px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                      >
+                        Today ↠
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1133,47 +1146,71 @@ function ClockPageInner() {
               <div className="px-5 py-12 text-center text-sm text-gray-400">No punches recorded for this date.</div>
             ) : (
               <>
-                <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
-                  {[["name","Name"],["punch_item","Punch Item"],["clock_in","In"],["clock_out","Out"],["hours","Hrs"]].map(([col, label]) => (
+                <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                  {[["name","Name"],["punch_item","Punch Item"],["clock_in","In"],["clock_out","Out"]].map(([col, label]) => (
                     <button key={col} onClick={() => handleSort(col)} className={`flex items-center gap-1 hover:text-gray-600 transition-colors ${col !== "name" ? "justify-center" : ""}`}>
                       {label}<SortIcon col={col} />
                     </button>
                   ))}
+                  <span className="text-center">Reg</span>
+                  <span className="text-center">OT</span>
+                  <button onClick={() => handleSort("hours")} className="flex items-center justify-center gap-1 hover:text-gray-600 transition-colors">Total<SortIcon col="hours" /></button>
                   {showLaborCost && <span className="text-right">Rate / Cost</span>}
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {sortPunches(punches).map(p => {
-                    const emp = p.at_employees;
-                    if (!emp) return null;
-                    const isEditing = editingPunchId === p.id;
-                    const hrs = p.clock_out_at ? punchTotalHrs(p).toFixed(2) : null;
-                    const showBD = breakdownId === p.id;
-                    return (
-                      <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : ""}`}>
-                        {!isEditing ? (
-                          <div className={`grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_72px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_72px_80px]"}`}>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="shrink-0 w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-sm font-medium text-gray-800 truncate">{displayName(emp)}</span>
-                                  {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                  {(() => {
+                    const sorted = sortPunches(punches);
+                    const groupMap = new Map<string, typeof sorted>();
+                    for (const p of sorted) {
+                      if (!groupMap.has(p.employee_id)) groupMap.set(p.employee_id, []);
+                      groupMap.get(p.employee_id)!.push(p);
+                    }
+                    const groups = [...groupMap.values()];
+                    return groups.flatMap(group => {
+                      const rows = group.map((p, gi) => {
+                        const emp = p.at_employees;
+                        if (!emp) return null;
+                        const isEditing = editingPunchId === p.id;
+                        const hrs = p.clock_out_at ? punchTotalHrs(p).toFixed(2) : null;
+                        const showBD = breakdownId === p.id;
+                        const isFirstInGroup = gi === 0;
+                        return (
+                          <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : group.length > 1 ? "bg-gray-50/30" : ""}`}>
+                            {!isEditing ? (
+                              <div className={`grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {isFirstInGroup ? (
+                                    <>
+                                      <div className="shrink-0 w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-sm font-medium text-gray-800 truncate">{displayName(emp)}</span>
+                                          {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                                        </div>
+                                        {(() => { const st = empStatsMap.get(p.employee_id); return st ? (
+                                          <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">
+                                            Day {st.today.toFixed(2)} · Wk {st.week.toFixed(2)} · Period {st.period.toFixed(2)}
+                                          </div>
+                                        ) : null; })()}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <div className="shrink-0 w-7 h-7 flex items-center justify-center text-gray-300 text-sm">↳</div>
+                                      {p.is_manual && <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Manual</span>}
+                                    </div>
+                                  )}
                                 </div>
-                                {(() => { const st = empStatsMap.get(p.employee_id); return st ? (
-                                  <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">
-                                    Day {st.today.toFixed(2)} · Wk {st.week.toFixed(2)} · Period {st.period.toFixed(2)}
-                                  </div>
-                                ) : null; })()}
-                              </div>
-                            </div>
                             <div className="text-center">{(p.divisions || p.at_divisions) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
+                            <span className="text-xs text-gray-600 text-center tabular-nums">{p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)}</span>
+                            <span className={`text-xs text-center tabular-nums font-semibold ${(p.ot_hours ?? 0) > 0 ? "text-amber-600" : "text-gray-300"}`}>{(p.ot_hours ?? 0) > 0 ? p.ot_hours!.toFixed(2) : "—"}</span>
                             <div className="relative text-center">
                               {hrs ? (
                                 <button onClick={() => setBreakdownId(showBD ? null : p.id)}
-                                  className="text-xs font-semibold text-gray-700 tabular-nums underline decoration-dotted underline-offset-2 cursor-pointer hover:text-[#123b1f]">
+                                  className="text-xs font-bold text-gray-700 tabular-nums underline decoration-dotted underline-offset-2 cursor-pointer hover:text-[#123b1f]">
                                   {hrs}
                                 </button>
                               ) : <span className="text-gray-300 text-xs">—</span>}
@@ -1256,10 +1293,31 @@ function ClockPageInner() {
                               </button>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                            )}
+                          </div>
+                        );
+                      });
+                      const emp0 = group[0].at_employees;
+                      const dayTotal = group.reduce((sum, p) => sum + (p.clock_out_at ? punchTotalHrs(p) : 0), 0);
+                      const dayCost = showLaborCost && emp0?.default_pay_rate
+                        ? dayTotal * emp0.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
+                        : null;
+                      const dayReg   = group.reduce((sum, p) => sum + (p.regular_hours ?? 0), 0);
+                      const dayOt    = group.reduce((sum, p) => sum + (p.ot_hours ?? 0), 0);
+                      const dayTotalRow = group.length > 1 ? (
+                        <div key={`total_${group[0].employee_id}`} className={`px-5 py-2 bg-[#123b1f]/5 border-t border-[#123b1f]/10 grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                          <span className="text-[10px] font-semibold text-[#123b1f] uppercase tracking-wide pl-9">Day Total</span>
+                          <span /><span /><span />
+                          <span className="text-xs text-gray-600 text-center tabular-nums">{dayReg.toFixed(2)}</span>
+                          <span className={`text-xs text-center tabular-nums font-semibold ${dayOt > 0 ? "text-amber-600" : "text-gray-300"}`}>{dayOt > 0 ? dayOt.toFixed(2) : "—"}</span>
+                          <span className="text-xs font-bold text-[#123b1f] text-center tabular-nums">{dayTotal.toFixed(2)}</span>
+                          {showLaborCost && <span className="text-[10px] font-semibold text-emerald-700 text-right tabular-nums">{dayCost != null ? `$${dayCost.toFixed(2)}` : ""}</span>}
+                          <span />
+                        </div>
+                      ) : null;
+                      return [...rows, dayTotalRow].filter((x): x is React.JSX.Element => x != null);
+                    })
+                  })()}
                 </div>
                 <div className="px-5 py-3 border-t border-gray-50 flex justify-end">
                   <span className="text-xs text-gray-500">Total: <strong>{totalHoursToday.toFixed(2)} hrs</strong></span>
@@ -1369,17 +1427,64 @@ function ClockPageInner() {
               <span className="w-28 sm:w-36 shrink-0">In → Out</span>
               <span className="w-16 sm:w-20 shrink-0 text-right">Hours</span>
               {showLaborCost && <span className="hidden sm:block w-28 shrink-0 text-right">Rate / Cost</span>}
+              <span className="w-14 shrink-0 text-right">Actions</span>
             </div>
             <div className="divide-y divide-gray-50">
               {sortPunches(closedPunches).map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
+                const isEditing = editingPunchId === p.id;
                 const punchHrs = p.clock_out_at ? punchTotalHrs(p) : null;
                 const punchHrsStr = punchHrs != null ? punchHrs.toFixed(2) : null;
                 const laborCost = showLaborCost && punchHrs != null && emp.default_pay_rate
                   ? punchHrs * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
                   : null;
                 const showBDC = breakdownId === `c_${p.id}`;
+                if (isEditing) return (
+                  <div key={p.id} className="px-5 py-3 bg-blue-50/30">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-7 h-7 rounded-lg bg-[#123b1f]/10 flex items-center justify-center text-[#123b1f] font-bold text-[10px]">{initials(emp)}</div>
+                        <span className="text-sm font-semibold text-gray-800">{displayName(emp)}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Clock In</label>
+                          <input type="time" value={editClockIn} onChange={e => setEditClockIn(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Clock Out</label>
+                          <input type="time" value={editClockOut} onChange={e => setEditClockOut(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase">Punch Item</label>
+                        <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
+                          className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                          <option value="">— None —</option>
+                          {divisions.filter(d => d.source === "company" || !d.source).map(d => <option key={d.id} value={`d:${d.id}`}>{d.name}</option>)}
+                          {divisions.some(d => d.source === "time_clock") && (
+                            <optgroup label="── Time Clock Only ──">
+                              {divisions.filter(d => d.source === "time_clock").map(d => <option key={d.id} value={`a:${d.id}`}>{d.name}</option>)}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => savePunchEdit(p.id)} disabled={editSaving}
+                          className="flex-1 bg-[#123b1f] text-white text-xs font-semibold py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                          {editSaving ? "Saving…" : "Save"}
+                        </button>
+                        <button onClick={() => setEditingPunchId(null)}
+                          className="flex-1 border border-gray-200 text-gray-600 text-xs font-semibold py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
                 return (
                   <div key={p.id} className="flex items-center gap-3 px-5 py-3">
                     <div className="flex items-center gap-3 flex-1 min-w-[120px]">
@@ -1427,6 +1532,14 @@ function ClockPageInner() {
                         ) : <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     )}
+                    <div className="w-14 shrink-0 flex items-center justify-end gap-1">
+                      <button onClick={() => startEditPunch(p)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button onClick={() => deletePunch(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </div>
                   </div>
                 );
               })}

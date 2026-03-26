@@ -49,7 +49,7 @@ export async function recalcDayLunch(
     return sum + (new Date(p.clock_out_at!).getTime() - new Date(p.clock_in_at).getTime()) / 60_000;
   }, 0);
 
-  const shouldDeduct = autoDeduct && totalRawMins / 60 > afterHours;
+  const shouldDeduct = autoDeduct && totalRawMins / 60 >= afterHours;
   const lastPunch    = dayPunches[dayPunches.length - 1];
 
   for (const p of dayPunches) {
