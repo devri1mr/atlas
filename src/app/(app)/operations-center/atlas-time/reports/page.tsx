@@ -105,15 +105,15 @@ export default function ReportsPage() {
   const [quick, setQuick]           = useState("this_period");
   const [dateFrom, setDateFrom]     = useState("");
   const [dateTo, setDateTo]         = useState("");
-  const [empFilter, setEmpFilter]   = useState<Set<string>>(new Set());
-  const [divFilter, setDivFilter]   = useState<Set<string>>(new Set());
-  const [deptFilter, setDeptFilter] = useState<string>("");
+  const [empFilter, setEmpFilter]       = useState<Set<string>>(new Set());
+  const [divFilter, setDivFilter]       = useState<Set<string>>(new Set());
+  const [punchItemFilter, setPunchItemFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState("all");
 
   // Options for multi-selects
-  const [empOptions, setEmpOptions]   = useState<EmpOption[]>([]);
-  const [divOptions, setDivOptions]   = useState<DivOption[]>([]);
-  const [deptOptions, setDeptOptions] = useState<DeptOption[]>([]);
+  const [empOptions, setEmpOptions]         = useState<EmpOption[]>([]);
+  const [divOptions, setDivOptions]         = useState<DivOption[]>([]);
+  const [punchItemOptions, setPunchItemOptions] = useState<DivOption[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<PayPeriod | null>(null);
 
   // Sort
@@ -143,11 +143,18 @@ export default function ReportsPage() {
 
     fetch("/api/atlas-time/divisions")
       .then(r => r.json())
-      .then(j => setDivOptions((j.divisions ?? []).filter((d: any) => d.active).map((d: any) => ({ id: d.id, name: d.name }))));
-
-    fetch("/api/atlas-time/departments")
-      .then(r => r.json())
-      .then(j => setDeptOptions((j.departments ?? []).map((d: any) => ({ id: d.id, name: d.name }))));
+      .then(j => {
+        const all = (j.divisions ?? []).filter((d: any) => d.active);
+        // Division filter: company divisions only (the 9 top-level ones)
+        setDivOptions(all.filter((d: any) => d.source === "company").map((d: any) => ({ id: d.id, name: d.name })));
+        // Punch item filter: all items keyed as "a:<id>" for time-clock or "d:<id>" for company
+        const items: DivOption[] = all.map((d: any) => ({
+          id: d.source === "time_clock" ? `a:${d.id}` : `d:${d.id}`,
+          name: d.name,
+        }));
+        items.sort((a, b) => a.name.localeCompare(b.name));
+        setPunchItemOptions(items);
+      });
   }, []);
 
   // Compute resolved date range from quick filter
@@ -216,12 +223,14 @@ export default function ReportsPage() {
     return m;
   }, [punches, settings]);
 
-  // Apply dept filter (client-side only since API doesn't filter by dept yet)
-  const filteredPunches = useMemo(() =>
-    deptFilter
-      ? punches.filter(p => p.at_employees?.at_departments?.id === deptFilter)
-      : punches,
-    [punches, deptFilter]);
+  // Apply punch item filter client-side
+  const filteredPunches = useMemo(() => {
+    if (!punchItemFilter.size) return punches;
+    return punches.filter(p => {
+      const key = p.at_division_id ? `a:${p.at_division_id}` : (p.division_id ? `d:${p.division_id}` : null);
+      return key ? punchItemFilter.has(key) : false;
+    });
+  }, [punches, punchItemFilter]);
 
   // ── Summary data ─────────────────────────────────────────────────────────────
   type SummaryRow = {
@@ -455,12 +464,28 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Department */}
-            <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              className="border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-600">
-              <option value="">All Departments</option>
-              {deptOptions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            {/* Punch Items multi-select */}
+            <div className="relative group">
+              <button className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${punchItemFilter.size > 0 ? "border-purple-500 bg-purple-50 text-purple-800" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+                {punchItemFilter.size > 0 ? `${punchItemFilter.size} Punch Item${punchItemFilter.size > 1 ? "s" : ""}` : "All Punch Items"}
+              </button>
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-[90vw] sm:w-auto sm:min-w-[200px] max-h-60 overflow-y-auto hidden group-focus-within:block hover:block">
+                <div className="p-2 space-y-0.5">
+                  {punchItemOptions.map(d => (
+                    <label key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-xs">
+                      <input type="checkbox" checked={punchItemFilter.has(d.id)} onChange={() => toggleMulti(punchItemFilter, setPunchItemFilter, d.id)} className="accent-[#123b1f]" />
+                      {d.name}
+                    </label>
+                  ))}
+                </div>
+                {punchItemFilter.size > 0 && (
+                  <div className="border-t border-gray-100 p-2">
+                    <button onClick={() => setPunchItemFilter(new Set())} className="text-xs text-red-500 hover:underline w-full text-left px-2">Clear</button>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Status */}
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
@@ -471,8 +496,8 @@ export default function ReportsPage() {
             </select>
 
             {/* Clear all */}
-            {(empFilter.size > 0 || divFilter.size > 0 || deptFilter || statusFilter !== "all") && (
-              <button onClick={() => { setEmpFilter(new Set()); setDivFilter(new Set()); setDeptFilter(""); setStatusFilter("all"); }}
+            {(empFilter.size > 0 || divFilter.size > 0 || punchItemFilter.size > 0 || statusFilter !== "all") && (
+              <button onClick={() => { setEmpFilter(new Set()); setDivFilter(new Set()); setPunchItemFilter(new Set()); setStatusFilter("all"); }}
                 className="px-3 py-2 rounded-xl text-xs font-semibold border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
                 Clear Filters
               </button>

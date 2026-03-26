@@ -36,7 +36,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if ("clock_in_at"   in body) patch.clock_in_at   = body.clock_in_at  || null;
       if ("clock_out_at"  in body) patch.clock_out_at  = body.clock_out_at || null;
       if ("division_id"    in body) patch.division_id    = body.division_id    || null;
-      if ("at_division_id" in body) patch.at_division_id = body.at_division_id || null;
+      if ("at_division_id" in body) {
+        patch.at_division_id = body.at_division_id || null;
+        // Auto-populate division_id from at_division parent when not explicitly provided
+        if (patch.at_division_id && !("division_id" in body)) {
+          const { data: atDiv } = await sb.from("at_divisions").select("division_id").eq("id", patch.at_division_id).single();
+          if (atDiv?.division_id) patch.division_id = atDiv.division_id;
+        }
+      }
       if ("employee_note" in body) patch.employee_note = body.employee_note ?? null;
       if ("manager_note"  in body) patch.manager_note  = body.manager_note ?? null;
       if ("status"        in body) patch.status        = body.status;

@@ -88,6 +88,14 @@ export async function POST(req: NextRequest) {
         regularHours = Math.round(((clockOut.getTime() - clockIn.getTime()) / 3_600_000) * 100) / 100;
       }
 
+      // Auto-populate division_id from at_division parent when not explicitly provided
+      let divisionId: string | null = body.division_id ?? null;
+      const atDivisionId: string | null = body.at_division_id ?? null;
+      if (!divisionId && atDivisionId) {
+        const { data: atDiv } = await sb.from("at_divisions").select("division_id").eq("id", atDivisionId).single();
+        divisionId = atDiv?.division_id ?? null;
+      }
+
       const { data, error } = await sb
         .from("at_punches")
         .insert({
@@ -98,8 +106,8 @@ export async function POST(req: NextRequest) {
           date_for_payroll: dateForPayroll,
           punch_method:        "manual",
           is_manual:           true,
-          division_id:         body.division_id    ?? null,
-          at_division_id:      body.at_division_id ?? null,
+          division_id:         divisionId,
+          at_division_id:      atDivisionId,
           employee_note:       body.note ?? null,
           manager_note:        body.manager_note ?? null,
           status:              clockOut ? "pending" : "open",
@@ -136,6 +144,14 @@ export async function POST(req: NextRequest) {
     const now   = new Date();
     const today = now.toISOString().slice(0, 10);
 
+    // Auto-populate division_id from at_division parent when not explicitly provided
+    let clockInDivId: string | null = body.division_id ?? null;
+    const clockInAtDivId: string | null = body.at_division_id ?? null;
+    if (!clockInDivId && clockInAtDivId) {
+      const { data: atDiv } = await sb.from("at_divisions").select("division_id").eq("id", clockInAtDivId).single();
+      clockInDivId = atDiv?.division_id ?? null;
+    }
+
     const { data, error } = await sb
       .from("at_punches")
       .insert({
@@ -144,8 +160,8 @@ export async function POST(req: NextRequest) {
         clock_in_at:      now.toISOString(),
         date_for_payroll: today,
         punch_method:     body.punch_method ?? "admin",
-        division_id:      body.division_id    ?? null,
-        at_division_id:   body.at_division_id ?? null,
+        division_id:      clockInDivId,
+        at_division_id:   clockInAtDivId,
         clock_in_lat:     body.lat ?? null,
         clock_in_lng:     body.lng ?? null,
         employee_note:    body.note ?? null,
