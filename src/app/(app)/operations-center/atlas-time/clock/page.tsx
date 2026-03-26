@@ -14,6 +14,9 @@ type Employee = {
   default_pay_rate: number | null;
   pay_type: string | null;
   at_departments: { name: string } | null;
+  lunch_auto_deduct: boolean | null;
+  lunch_deduct_after_hours: number | null;
+  lunch_deduct_minutes: number | null;
 };
 
 type Punch = {
@@ -177,6 +180,17 @@ function localIso(dateStr: string, timeStr: string): string {
   return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
 }
 
+/** Merge per-employee lunch overrides onto global settings. */
+function empSettings(global: AtSettings, emp: Employee | null): AtSettings {
+  if (!emp) return global;
+  return {
+    ...global,
+    lunch_auto_deduct:        emp.lunch_auto_deduct        ?? global.lunch_auto_deduct,
+    lunch_deduct_after_hours: emp.lunch_deduct_after_hours ?? global.lunch_deduct_after_hours,
+    lunch_deduct_minutes:     emp.lunch_deduct_minutes     ?? global.lunch_deduct_minutes,
+  };
+}
+
 /** Decode a punch-item dropdown value ("d:UUID" or "a:UUID") into the right FK fields. */
 function decodePunchItem(val: string): { division_id: string | null; at_division_id: string | null } {
   if (val.startsWith("d:")) return { division_id: val.slice(2), at_division_id: null };
@@ -239,9 +253,11 @@ export default function ClockPage() {
   const [atSettings, setAtSettings] = useState<AtSettings>(DEFAULT_SETTINGS);
   const bulkRowsRef = useRef<BulkRow[]>([]);
   const atSettingsRef = useRef<AtSettings>(DEFAULT_SETTINGS);
+  const employeesRef = useRef<Employee[]>([]);
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   bulkRowsRef.current = bulkRows;
   atSettingsRef.current = atSettings;
+  employeesRef.current = employees;
 
   // Manual punch drawer
   const [showManual, setShowManual] = useState(false);
@@ -361,6 +377,8 @@ export default function ClockPage() {
     try {
       setManualSaving(true);
       const divPayload = decodePunchItem(manualForm.division_id);
+      const manualEmp = employees.find(e => e.id === manualForm.employee_id) ?? null;
+      const hrs = clockOutISO ? calcPunchHours(manualForm.clock_in_time, manualForm.clock_out_time, empSettings(atSettings, manualEmp)) : null;
       const res = await fetch("/api/atlas-time/punches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -372,6 +390,7 @@ export default function ClockPage() {
           date_for_payroll: manualForm.date,
           ...divPayload,
           note:          manualForm.note || null,
+          ...(hrs ? { regular_hours: hrs.reg, ot_hours: hrs.ot, dt_hours: hrs.dt, lunch_deducted_mins: hrs.lunchMins } : {}),
         }),
       });
       const json = await res.json().catch(() => null);
@@ -431,7 +450,8 @@ export default function ClockPage() {
     setBulkRows(prev => prev.map(r => r.key === key ? { ...r, status: "saving" } : r));
     const clockInISO  = localIso(row.date, row.clock_in);
     const clockOutISO = localIso(row.date, row.clock_out);
-    const hrs = calcPunchHours(row.clock_in, row.clock_out, atSettingsRef.current);
+    const rowEmp = employeesRef.current.find(e => e.id === row.employee_id) ?? null;
+    const hrs = calcPunchHours(row.clock_in, row.clock_out, empSettings(atSettingsRef.current, rowEmp));
     const divPayload = decodePunchItem(row.division_id);
     try {
       if (row.punch_id) {
@@ -505,7 +525,8 @@ export default function ClockPage() {
       setError("");
       const clockInISO  = localIso(viewDate, editClockIn);
       const clockOutISO = editClockOut ? localIso(viewDate, editClockOut) : null;
-      const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, atSettings) : null;
+      const punchEmp = employees.find(e => e.id === (punches.find(p => p.id === punchId)?.employee_id)) ?? null;
+      const hrs = editClockOut ? calcPunchHours(editClockIn, editClockOut, empSettings(atSettings, punchEmp)) : null;
       const divPayload = decodePunchItem(editDivisionId);
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",

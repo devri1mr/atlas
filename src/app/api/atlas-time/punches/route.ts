@@ -16,6 +16,7 @@ const PUNCH_SELECT = `
   approved_by, approved_at, locked,
   at_employees(id, first_name, last_name, preferred_name, job_title,
     department_id, default_pay_rate, pay_type,
+    lunch_auto_deduct, lunch_deduct_after_hours, lunch_deduct_minutes,
     at_departments(id, name)),
   divisions(id, name, qb_class_name),
   at_divisions!at_division_id(id, name)

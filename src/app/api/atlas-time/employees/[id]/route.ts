@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       "drivers_license_expiration","dot_card_expiration","fert_license_expiration",
       "cpr_expiration","first_aid_expiration",
       "health_care_plan","electronic_devices","pto_plan",
+      "lunch_auto_deduct","lunch_deduct_after_hours","lunch_deduct_minutes",
     ];
 
     const patch: Record<string, any> = { updated_at: new Date().toISOString() };

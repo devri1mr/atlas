@@ -175,6 +175,8 @@ export default function EmployeeDetailPage() {
   const [editRateDivisionId, setEditRateDivisionId] = useState("");
   const [editRateSaving, setEditRateSaving] = useState(false);
 
+  const [globalLunch, setGlobalLunch] = useState<{ auto_deduct: boolean; after_hours: number; minutes: number }>({ auto_deduct: false, after_hours: 6, minutes: 30 });
+
   const [showTerminate, setShowTerminate] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -194,7 +196,7 @@ export default function EmployeeDetailPage() {
     try {
       setLoading(true);
       setError("");
-      const [empRes, divRes, fcRes, foRes, cfRes, cvRes, uvRes, listRes] = await Promise.all([
+      const [empRes, divRes, fcRes, foRes, cfRes, cvRes, uvRes, listRes, settingsRes] = await Promise.all([
         fetch(`/api/atlas-time/employees/${id}`, { cache: "no-store" }),
         fetch("/api/atlas-time/divisions", { cache: "no-store" }),
         fetch("/api/atlas-time/field-config", { cache: "no-store" }),
@@ -203,6 +205,7 @@ export default function EmployeeDetailPage() {
         fetch(`/api/atlas-time/employees/${id}/custom-values`, { cache: "no-store" }),
         fetch("/api/atlas-time/uniform-variants", { cache: "no-store" }),
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
+        fetch("/api/atlas-time/settings", { cache: "no-store" }),
       ]);
       const empJson = await empRes.json().catch(() => null);
       const divJson = await divRes.json().catch(() => null);
@@ -212,7 +215,12 @@ export default function EmployeeDetailPage() {
       const cvJson = await cvRes.json().catch(() => ({}));
       const uvJson = await uvRes.json().catch(() => ({}));
       const listJson = await listRes.json().catch(() => ({ employees: [] }));
+      const settingsJson = await settingsRes.json().catch(() => ({}));
       setNavEmployees(listJson.employees ?? []);
+      if (settingsJson.settings) {
+        const s = settingsJson.settings;
+        setGlobalLunch({ auto_deduct: !!s.lunch_auto_deduct, after_hours: s.lunch_deduct_after_hours ?? 6, minutes: s.lunch_deduct_minutes ?? 30 });
+      }
 
       if (!empRes.ok) throw new Error(empJson?.error ?? "Team member not found");
       setForm(empJson.employee ?? {});
@@ -675,6 +683,58 @@ export default function EmployeeDetailPage() {
                 </div>
               </TwoCol>
               {renderCustomFields("employment")}
+            </Section>
+
+            <Section title="Lunch Deduction" desc="Override global time clock settings for this team member. Leave blank to use the company default.">
+              <TwoCol>
+                <div>
+                  <label className={labelCls}>Auto-Deduct Lunch</label>
+                  <div className="flex items-center gap-3 mt-1">
+                    <Toggle
+                      checked={form.lunch_auto_deduct != null ? !!form.lunch_auto_deduct : globalLunch.auto_deduct}
+                      onChange={v => set("lunch_auto_deduct", v)}
+                    />
+                    <span className="text-sm text-gray-600">
+                      {form.lunch_auto_deduct != null
+                        ? (form.lunch_auto_deduct ? "On (override)" : "Off (override)")
+                        : `${globalLunch.auto_deduct ? "On" : "Off"} (company default)`}
+                    </span>
+                    {form.lunch_auto_deduct != null && (
+                      <button type="button" onClick={() => set("lunch_auto_deduct", null)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div />
+              </TwoCol>
+              <TwoCol>
+                <div>
+                  <label className={labelCls}>Deduct After (hours)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={form.lunch_deduct_after_hours ?? ""}
+                    onChange={e => set("lunch_deduct_after_hours", e.target.value === "" ? null : Number(e.target.value))}
+                    placeholder={`${globalLunch.after_hours} (default)`}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Deduct Minutes</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={form.lunch_deduct_minutes ?? ""}
+                    onChange={e => set("lunch_deduct_minutes", e.target.value === "" ? null : Number(e.target.value))}
+                    placeholder={`${globalLunch.minutes} (default)`}
+                    className={inputCls}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Set to 0 to disable lunch deduction for this person.</p>
+                </div>
+              </TwoCol>
             </Section>
 
             <Section title="Pay Rates"
