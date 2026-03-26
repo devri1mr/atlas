@@ -78,7 +78,7 @@ export default function EmployeesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
-  const [showPins, setShowPins] = useState(false);
+  const [revealedPins, setRevealedPins] = useState<Set<string>>(new Set());
   const cols = useTeamCols();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -292,15 +292,7 @@ export default function EmployeesPage() {
                     {cols.division   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
                     {cols.pay_rate   && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
                     {cols.hire_date  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                      <button onClick={() => setShowPins(v => !v)} className="flex items-center gap-1 mx-auto hover:text-gray-600 transition-colors" title={showPins ? "Hide PINs" : "Reveal PINs"}>
-                        PIN
-                        {showPins
-                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                          : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        }
-                      </button>
-                    </th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>
                     {cols.phone      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
                     {cols.email      && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
                     <th className="w-12 px-3 py-3"></th>
@@ -382,8 +374,24 @@ export default function EmployeesPage() {
                           </td>
                         )}
                         {cols.hire_date  && <td className="px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
-                        <td className="px-3 py-3 whitespace-nowrap text-center text-xs font-mono tracking-widest text-gray-700">
-                          {showPins ? (emp.kiosk_pin ?? <span className="text-gray-300">—</span>) : <span className="text-gray-300 tracking-normal">••••</span>}
+                        <td className="px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+                          {emp.kiosk_pin ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className="text-xs font-mono tracking-widest text-gray-700">
+                                {revealedPins.has(emp.id) ? emp.kiosk_pin : "••••"}
+                              </span>
+                              <button
+                                onClick={() => setRevealedPins(prev => { const n = new Set(prev); n.has(emp.id) ? n.delete(emp.id) : n.add(emp.id); return n; })}
+                                className="text-gray-300 hover:text-gray-500 transition-colors"
+                                title={revealedPins.has(emp.id) ? "Hide PIN" : "Show PIN"}
+                              >
+                                {revealedPins.has(emp.id)
+                                  ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                  : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                }
+                              </button>
+                            </div>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
                         {cols.phone      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">{emp.phone ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.email      && <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 truncate max-w-[160px]">{emp.work_email ?? <span className="text-gray-300">—</span>}</td>}
