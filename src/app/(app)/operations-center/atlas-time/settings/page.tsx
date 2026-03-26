@@ -212,8 +212,8 @@ export default function AtlasTimeSettingsPage() {
                 </Row>
               )}
               <Row>
-                <label className={labelCls}>Last Pay Period Close Date</label>
-                <p className={descCls}>The end date of the most recently completed pay period. Used to align Atlas HR to your existing payroll schedule.</p>
+                <label className={labelCls}>Pay Period Start Date</label>
+                <p className={descCls}>The start date of any known pay period. Used to anchor Atlas HR to your existing payroll schedule.</p>
                 <input
                   type="date"
                   value={s.pay_period_anchor_date ?? ""}

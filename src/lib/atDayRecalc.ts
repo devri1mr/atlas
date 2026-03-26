@@ -1,11 +1,15 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { computeWeekPunches, weekStart, HRSettings } from "@/lib/atHours";
+
+function r2(n: number) { return Math.round(n * 100) / 100; }
 
 /**
  * After any punch with a clock_out is saved, recalculate hours for every
- * completed punch that employee has on that date so that:
+ * completed punch that employee has in the same calendar week so that:
  *  - Lunch deduction is based on TOTAL raw hours across all punches that day
- *  - Deduction is applied only to the last punch (by clock_out time)
- *  - All other punches on that day have their lunch_deducted_mins cleared
+ *  - Daily OT thresholds are applied per-day
+ *  - Weekly OT threshold is accumulated correctly across the full week
+ *  - Results are written back to regular_hours, ot_hours, dt_hours, lunch_deducted_mins
  */
 export async function recalcDayLunch(
   sb: ReturnType<typeof supabaseAdmin>,
@@ -20,59 +24,58 @@ export async function recalcDayLunch(
       .eq("id", employeeId)
       .single(),
     sb.from("at_settings")
-      .select("lunch_auto_deduct, lunch_deduct_after_hours, lunch_deduct_minutes, ot_daily_threshold, dt_daily_threshold")
+      .select("lunch_auto_deduct, lunch_deduct_after_hours, lunch_deduct_minutes, ot_daily_threshold, dt_daily_threshold, ot_weekly_threshold, ot_multiplier, dt_multiplier, pay_period_start_day, punch_rounding_minutes")
       .eq("company_id", companyId)
       .maybeSingle(),
   ]);
 
-  // Employee values take priority; fall back to global
-  const autoDeduct: boolean = emp?.lunch_auto_deduct   ?? gs?.lunch_auto_deduct   ?? false;
-  const afterHours: number  = emp?.lunch_deduct_after_hours ?? gs?.lunch_deduct_after_hours ?? 6;
-  const deductMins: number  = emp?.lunch_deduct_minutes ?? gs?.lunch_deduct_minutes ?? 30;
-  const otThresh: number    = gs?.ot_daily_threshold ?? 8;
-  const dtThresh: number    = gs?.dt_daily_threshold ?? 0;
+  const settings: HRSettings = {
+    pay_cycle:               "weekly",
+    pay_period_start_day:    gs?.pay_period_start_day    ?? 0,
+    pay_period_anchor_date:  null,
+    ot_weekly_threshold:     gs?.ot_weekly_threshold     ?? 40,
+    ot_daily_threshold:      gs?.ot_daily_threshold      ?? null,
+    ot_multiplier:           gs?.ot_multiplier           ?? 1.5,
+    dt_daily_threshold:      gs?.dt_daily_threshold      ?? null,
+    dt_multiplier:           gs?.dt_multiplier           ?? 2,
+    lunch_auto_deduct:       emp?.lunch_auto_deduct       ?? gs?.lunch_auto_deduct       ?? false,
+    lunch_deduct_after_hours: emp?.lunch_deduct_after_hours ?? gs?.lunch_deduct_after_hours ?? 6,
+    lunch_deduct_minutes:    emp?.lunch_deduct_minutes    ?? gs?.lunch_deduct_minutes    ?? 30,
+    punch_rounding_minutes:  gs?.punch_rounding_minutes  ?? 0,
+  };
 
-  // All completed punches for this employee on this date, oldest clock_out first
-  const { data: dayPunches } = await sb
+  // Determine the calendar week containing this date
+  const ws = weekStart(new Date(dateForPayroll + "T12:00:00"), settings.pay_period_start_day);
+  const we = new Date(ws);
+  we.setDate(ws.getDate() + 6);
+  const weekStartStr = ws.toISOString().slice(0, 10);
+  const weekEndStr   = we.toISOString().slice(0, 10);
+
+  // All completed punches for this employee in this week
+  const { data: weekPunches } = await sb
     .from("at_punches")
-    .select("id, clock_in_at, clock_out_at")
+    .select("id, clock_in_at, clock_out_at, date_for_payroll")
     .eq("employee_id", employeeId)
-    .eq("date_for_payroll", dateForPayroll)
     .eq("company_id", companyId)
     .not("clock_out_at", "is", null)
-    .order("clock_out_at", { ascending: true });
+    .gte("date_for_payroll", weekStartStr)
+    .lte("date_for_payroll", weekEndStr);
 
-  if (!dayPunches?.length) return;
+  if (!weekPunches?.length) return;
 
-  // Total raw minutes across all punches (ignoring any stored deductions)
-  const totalRawMins = dayPunches.reduce((sum, p) => {
-    return sum + (new Date(p.clock_out_at!).getTime() - new Date(p.clock_in_at).getTime()) / 60_000;
-  }, 0);
+  // computeWeekPunches handles lunch deduction, daily OT, and weekly OT accumulation
+  const results   = computeWeekPunches(weekPunches, settings);
+  const resultMap = new Map(results.map(r => [r.id, r]));
 
-  const shouldDeduct = autoDeduct && totalRawMins / 60 >= afterHours;
-  const lastPunch    = dayPunches[dayPunches.length - 1];
-
-  for (const p of dayPunches) {
-    const rawMins  = (new Date(p.clock_out_at!).getTime() - new Date(p.clock_in_at).getTime()) / 60_000;
-    const lunchMins = shouldDeduct && p.id === lastPunch.id ? deductMins : 0;
-    const netHrs   = Math.max(0, rawMins - lunchMins) / 60;
-
-    // Per-punch OT/DT breakdown
-    let reg = netHrs, ot = 0, dt = 0;
-    if (dtThresh > 0 && netHrs > dtThresh) {
-      dt  = Math.round((netHrs - dtThresh) * 100) / 100;
-      ot  = otThresh > 0 && otThresh < dtThresh ? Math.round((dtThresh - otThresh) * 100) / 100 : 0;
-      reg = otThresh > 0 && otThresh < dtThresh ? otThresh : dtThresh;
-    } else if (otThresh > 0 && netHrs > otThresh) {
-      ot  = Math.round((netHrs - otThresh) * 100) / 100;
-      reg = otThresh;
-    }
-
-    await sb.from("at_punches").update({
-      regular_hours:       Math.round(reg * 100) / 100,
-      ot_hours:            Math.round(ot * 100) / 100,
-      dt_hours:            Math.round(dt * 100) / 100,
-      lunch_deducted_mins: lunchMins || null,
+  // Write all results back in parallel
+  await Promise.all(weekPunches.map(p => {
+    const r = resultMap.get(p.id);
+    if (!r) return Promise.resolve();
+    return sb.from("at_punches").update({
+      regular_hours:       r2(r.regular_hours),
+      ot_hours:            r2(r.ot_hours),
+      dt_hours:            r2(r.dt_hours),
+      lunch_deducted_mins: r.lunch_deducted_mins || null,
     }).eq("id", p.id);
-  }
+  }));
 }
