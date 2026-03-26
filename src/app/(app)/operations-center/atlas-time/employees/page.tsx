@@ -17,8 +17,9 @@ type Employee = {
   status: string;
   phone: string | null;
   work_email: string | null;
+  kiosk_pin: string | null;
   at_departments: { id: string; name: string } | null;
-  at_divisions: { id: string; name: string } | null;
+  divisions: { id: string; name: string } | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -84,6 +85,7 @@ export default function EmployeesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
+  const [showPins, setShowPins] = useState(false);
   const cols = useTeamCols();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +126,7 @@ export default function EmployeesPage() {
       (e.preferred_name?.toLowerCase().includes(q)) ||
       (e.job_title?.toLowerCase().includes(q)) ||
       (e.at_departments?.name.toLowerCase().includes(q)) ||
-      (e.at_divisions?.name.toLowerCase().includes(q)) ||
+      (e.divisions?.name.toLowerCase().includes(q)) ||
       (e.phone?.includes(q));
     return matchesStatus && matchesSearch;
   });
@@ -205,15 +207,28 @@ export default function EmployeesPage() {
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Team Members</h1>
               <p className="text-white/50 text-sm mt-1">{counts.active} active · {employees.length} total</p>
             </div>
-            <Link
-              href="/operations-center/atlas-time/employees/new"
-              className="shrink-0 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex items-center gap-2 border border-white/20"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Add Team Member
-            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowPins(v => !v)}
+                title={showPins ? "Hide PINs" : "Reveal PINs"}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-xl border transition-colors ${showPins ? "bg-white/20 text-white border-white/30" : "bg-white/10 hover:bg-white/20 text-white/70 border-white/20"}`}
+              >
+                {showPins
+                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                }
+                PINs
+              </button>
+              <Link
+                href="/operations-center/atlas-time/employees/new"
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors border border-white/20"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add Team Member
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -293,6 +308,7 @@ export default function EmployeesPage() {
                     {cols.job_title  && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Title</th>}
                     {cols.department && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Dept</th>}
                     {cols.division   && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Division</th>}
+                    {showPins        && <th className="text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>}
                     {cols.pay_rate   && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
                     {cols.hire_date  && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
                     {cols.years      && <th className="text-right px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Tenure</th>}
@@ -367,7 +383,8 @@ export default function EmployeesPage() {
 
                         {cols.job_title  && <td className="px-3 py-3 whitespace-nowrap text-gray-600 text-xs">{emp.job_title ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.department && <td className="px-3 py-3 whitespace-nowrap text-gray-500 text-xs">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</td>}
-                        {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-gray-500 text-xs">{emp.at_divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {cols.division   && <td className="px-3 py-3 whitespace-nowrap text-gray-500 text-xs">{emp.divisions?.name ?? <span className="text-gray-300">—</span>}</td>}
+                        {showPins        && <td className="px-3 py-3 whitespace-nowrap text-xs font-mono">{emp.kiosk_pin ?? <span className="text-gray-300">—</span>}</td>}
                         {cols.pay_rate   && (
                           <td className="px-3 py-3 whitespace-nowrap text-right">
                             {emp.default_pay_rate != null

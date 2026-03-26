@@ -20,9 +20,9 @@ export async function GET() {
       .select(`
         id, first_name, last_name, middle_initial, preferred_name, hire_date, job_title,
         pay_type, default_pay_rate, status, department_id, division_id,
-        t_shirt_size, date_of_birth, phone, work_email,
+        t_shirt_size, date_of_birth, phone, work_email, kiosk_pin,
         at_departments(id, name),
-        at_divisions(id, name)
+        divisions(id, name)
       `)
       .eq("company_id", companyId)
       .order("last_name", { ascending: true })

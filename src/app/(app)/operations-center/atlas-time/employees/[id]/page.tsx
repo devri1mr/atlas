@@ -539,7 +539,7 @@ export default function EmployeeDetailPage() {
                         type={showPin ? "text" : "password"}
                         inputMode="numeric"
                         maxLength={6}
-                        value={newPin !== "" ? newPin : (form.kiosk_pin ? "••••" : "")}
+                        value={newPin !== "" ? newPin : (form.kiosk_pin ? (showPin ? form.kiosk_pin : "••••") : "")}
                         onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
                         onFocus={() => { if (newPin === "") setNewPin(""); }}
                         className={inputCls + " pr-10"}
@@ -580,7 +580,7 @@ export default function EmployeeDetailPage() {
                   <label className={labelCls}>Current Division</label>
                   <select value={form.division_id ?? ""} onChange={e => set("division_id", e.target.value || null)} className={inputCls}>
                     <option value="">— None —</option>
-                    {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {divisions.filter(d => !d.time_clock_only).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                   <p className="text-xs text-gray-400 mt-1">Shown in the Team Members list.</p>
                 </div>
