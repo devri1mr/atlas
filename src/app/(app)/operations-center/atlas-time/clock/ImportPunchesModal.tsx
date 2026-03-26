@@ -51,12 +51,19 @@ function parseMMDDYYYY(d: string): string {
 }
 
 function localIso(dateStr: string, timeStr: string): string {
-  const off  = new Date().getTimezoneOffset();
+  // Use the offset for the specific date (not today) to handle DST correctly
+  const off  = new Date(`${dateStr}T12:00:00`).getTimezoneOffset();
   const sign = off <= 0 ? "+" : "-";
   const abs  = Math.abs(off);
   const hh   = String(Math.floor(abs / 60)).padStart(2, "0");
   const mm   = String(abs % 60).padStart(2, "0");
   return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
+}
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 function extractHHMM(iso: string): string {
@@ -188,8 +195,12 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
         const inTime  = parseTime12(inRaw);
         const outTime = parseTime12(outRaw);
         if (!inTime || !outTime) continue;
-        const date = parseMMDDYYYY((cells[3] ?? "").trim());
-        valid.push({ csv_name: (cells[0] ?? "").trim(), date, clock_in_at: localIso(date, inTime), clock_out_at: localIso(date, outTime), punch_item: type });
+        const date    = parseMMDDYYYY((cells[3] ?? "").trim());
+        const inIso   = localIso(date, inTime);
+        // If clock-out is earlier than clock-in it crossed midnight — advance out by 1 day
+        const outDate = new Date(localIso(date, outTime)) <= new Date(inIso) ? addDays(date, 1) : date;
+        const outIso  = localIso(outDate, outTime);
+        valid.push({ csv_name: (cells[0] ?? "").trim(), date, clock_in_at: inIso, clock_out_at: outIso, punch_item: type });
       }
 
       const res  = await fetch("/api/atlas-time/import/punches", {
