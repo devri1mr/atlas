@@ -61,6 +61,8 @@ export default function TimesheetsPage() {
   const [saving, setSaving]     = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
   const [search, setSearch]     = useState("");
+  const [sortBy, setSortBy]     = useState<"name_asc" | "name_desc" | "hours_desc" | "hours_asc" | "ot_desc" | "status">("name_asc");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "open">("all");
 
   // Load settings once
   useEffect(() => {
@@ -108,13 +110,48 @@ export default function TimesheetsPage() {
     computed.set(empId, m);
   }
 
-  // Filter by search
-  const employees = [...byEmployee.entries()].filter(([, eps]) => {
-    const e = eps[0]?.at_employees;
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return empName(e).toLowerCase().includes(q) || (e?.job_title?.toLowerCase().includes(q));
-  });
+  // Precompute per-employee totals for sort/filter (single pass)
+  type EmpSummary = { totHrs: number; totOT: number; allApproved: boolean; hasOpen: boolean; hasPending: boolean };
+  const empSummary = new Map<string, EmpSummary>();
+  for (const [empId, eps] of byEmployee.entries()) {
+    const allOut     = computePeriodPunches(eps, settings);
+    const totHrs     = allOut.reduce((s, p) => s + p.regular_hours + p.ot_hours + p.dt_hours, 0);
+    const totOT      = allOut.reduce((s, p) => s + p.ot_hours, 0);
+    const closed     = eps.filter(p => p.clock_out_at);
+    const allApproved = closed.length > 0 && closed.every(p => p.status === "approved" || p.locked);
+    const hasOpen    = eps.some(p => !p.clock_out_at);
+    const hasPending = eps.some(p => p.clock_out_at && p.status === "pending" && !p.locked);
+    empSummary.set(empId, { totHrs, totOT, allApproved, hasOpen, hasPending });
+  }
+
+  // Filter by search + status, then sort
+  const employees = [...byEmployee.entries()]
+    .filter(([empId, eps]) => {
+      const e = eps[0]?.at_employees;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        if (!empName(e).toLowerCase().includes(q) && !e?.job_title?.toLowerCase().includes(q)) return false;
+      }
+      const s = empSummary.get(empId)!;
+      if (statusFilter === "pending")  return s.hasPending;
+      if (statusFilter === "approved") return s.allApproved;
+      if (statusFilter === "open")     return s.hasOpen;
+      return true;
+    })
+    .sort(([aId, aEps], [bId, bEps]) => {
+      const sa = empSummary.get(aId)!;
+      const sb = empSummary.get(bId)!;
+      if (sortBy === "name_asc")   return empName(aEps[0]?.at_employees).localeCompare(empName(bEps[0]?.at_employees));
+      if (sortBy === "name_desc")  return empName(bEps[0]?.at_employees).localeCompare(empName(aEps[0]?.at_employees));
+      if (sortBy === "hours_desc") return sb.totHrs - sa.totHrs;
+      if (sortBy === "hours_asc")  return sa.totHrs - sb.totHrs;
+      if (sortBy === "ot_desc")    return sb.totOT - sa.totOT;
+      if (sortBy === "status") {
+        const w = (s: EmpSummary) => s.hasPending ? 0 : s.hasOpen ? 1 : s.allApproved ? 3 : 2;
+        return w(sa) - w(sb);
+      }
+      return 0;
+    });
 
   function toggleExpand(empId: string) {
     setExpanded(prev => { const n = new Set(prev); n.has(empId) ? n.delete(empId) : n.add(empId); return n; });
@@ -233,14 +270,43 @@ export default function TimesheetsPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="flex gap-3">
-          <div className="relative flex-1 max-w-xs print:hidden">
+        {/* Search + sort + filter */}
+        <div className="flex flex-wrap gap-2 items-center print:hidden">
+          {/* Search */}
+          <div className="relative">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search team member…"
-              className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-52 border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+
+          {/* Sort */}
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="name_asc">Name A → Z</option>
+            <option value="name_desc">Name Z → A</option>
+            <option value="hours_desc">Most Hours First</option>
+            <option value="hours_asc">Fewest Hours First</option>
+            <option value="ot_desc">Most OT First</option>
+            <option value="status">Needs Approval First</option>
+          </select>
+
+          {/* Status filter pills */}
+          <div className="flex gap-1">
+            {(["all", "pending", "approved", "open"] as const).map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors border ${
+                  statusFilter === f
+                    ? f === "pending"  ? "bg-amber-500 text-white border-amber-500"
+                    : f === "approved" ? "bg-green-700 text-white border-green-700"
+                    : f === "open"     ? "bg-blue-500 text-white border-blue-500"
+                    :                   "bg-[#123b1f] text-white border-[#123b1f]"
+                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                }`}>
+                {f === "all" ? "All" : f === "pending" ? "Needs Approval" : f === "approved" ? "Approved" : "Open Punch"}
+              </button>
+            ))}
           </div>
         </div>
 
