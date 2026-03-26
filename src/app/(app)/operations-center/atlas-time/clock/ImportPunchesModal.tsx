@@ -119,17 +119,35 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
   const [editInTime, setEditInTime]     = useState("");
   const [editOutTime, setEditOutTime]   = useState("");
 
-  const fileRef    = useRef<HTMLInputElement>(null);
-  const scrollRef  = useRef<HTMLDivElement>(null);
+  // Navigation state
+  const [navQueue, setNavQueue] = useState<number[]>([]);
+  const [navPos, setNavPos]     = useState(0);
+
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   function scrollToRow(idx: number) {
     const el = document.getElementById(`import-row-${idx}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  function startNav(predicate: (r: PreviewRow) => boolean) {
+    const queue = previewRows.map((r, i) => predicate(r) ? i : -1).filter(i => i >= 0);
+    if (!queue.length) return;
+    setNavQueue(queue);
+    setNavPos(0);
+    scrollToRow(queue[0]);
+  }
+
   function scrollToFirstWhere(predicate: (r: PreviewRow) => boolean) {
-    const idx = previewRows.findIndex(predicate);
-    if (idx >= 0) scrollToRow(idx);
+    startNav(predicate);
+  }
+
+  function navStep(dir: 1 | -1) {
+    if (!navQueue.length) return;
+    const next = (navPos + dir + navQueue.length) % navQueue.length;
+    setNavPos(next);
+    scrollToRow(navQueue[next]);
   }
 
   // ── Item key encoding ──────────────────────────────────────────────────────
@@ -404,7 +422,8 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </thead>
                   <tbody>
                     {previewRows.map((row, i) => {
-                      const isEditing = editIdx === i;
+                      const isEditing  = editIdx === i;
+                      const isNavFocus = navQueue.length > 0 && navQueue[navPos] === i;
                       const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
 
                       if (isEditing) {
@@ -448,7 +467,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                       }
 
                       return (
-                        <tr id={`import-row-${i}`} key={i} className={`border-b border-gray-50 hover:bg-gray-50/50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                        <tr id={`import-row-${i}`} key={i} className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors ${isNavFocus ? "bg-yellow-50 outline outline-2 outline-yellow-300 outline-offset-[-2px]" : i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
                           <td className="px-3 py-2.5"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
                           <td className="px-3 py-2.5 font-medium">
                             {row.employee_name
@@ -475,6 +494,30 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </tbody>
                 </table>
               </div>
+
+              {/* Floating nav pill */}
+              {navQueue.length > 0 && (
+                <div className="sticky bottom-4 flex justify-center pointer-events-none z-20">
+                  <div className="pointer-events-auto flex items-center gap-1 bg-gray-900/90 backdrop-blur-sm text-white rounded-full px-1 py-1 shadow-xl text-xs font-semibold">
+                    <button onClick={() => navStep(-1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+                      title="Previous">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7"/></svg>
+                    </button>
+                    <span className="px-2 tabular-nums">{navPos + 1} / {navQueue.length}</span>
+                    <button onClick={() => navStep(1)}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+                      title="Next">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <button onClick={() => setNavQueue([])}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors ml-0.5 text-white/60 hover:text-white"
+                      title="Close">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
