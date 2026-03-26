@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 
 type Employee = {
@@ -231,6 +232,8 @@ function useClockCols() {
 export default function ClockPage() {
   const { can } = useUser();
   const showLaborCost = can("hr_labor_cost");
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [now, setNow] = useState(new Date());
   const [punches, setPunches] = useState<Punch[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -241,8 +244,17 @@ export default function ClockPage() {
   const [acting, setActing] = useState<string | null>(null);
   const cols = useClockCols();
 
-  // Date navigation
-  const [viewDate, setViewDate] = useState(new Date().toISOString().slice(0, 10));
+  // Date navigation — persisted in URL query string so refresh keeps the date
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const urlDate  = searchParams.get("date");
+  const [viewDate, setViewDateState] = useState(urlDate ?? todayStr);
+
+  function setViewDate(date: string) {
+    setViewDateState(date);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", date);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   // Stats (week + period punches for per-employee totals)
   const [statsPunches, setStatsPunches] = useState<Punch[]>([]);
@@ -568,7 +580,6 @@ export default function ClockPage() {
     }
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
   const isToday = viewDate === todayStr;
   const openPunches = punches.filter((p) => !p.clock_out_at);
   const closedPunches = punches.filter((p) => p.clock_out_at);
