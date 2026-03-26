@@ -121,8 +121,10 @@ export default function EmployeesPage() {
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
   const [revealedPins, setRevealedPins] = useState<Set<string>>(new Set());
   const [punchStatus, setPunchStatus] = useState<Record<string, PunchStatus>>({});
+  const [certPopupFor, setCertPopupFor] = useState<string | null>(null);
   const cols = useTeamCols();
   const menuRef = useRef<HTMLDivElement>(null);
+  const certPopupRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     try {
@@ -156,6 +158,17 @@ export default function EmployeesPage() {
     if (statusMenuFor) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [statusMenuFor]);
+
+  // Close cert popup on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (certPopupRef.current && !certPopupRef.current.contains(e.target as Node)) {
+        setCertPopupFor(null);
+      }
+    }
+    if (certPopupFor) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [certPopupFor]);
 
   const filtered = employees.filter((e) => {
     const matchesStatus = filterStatus === "all" || e.status === filterStatus;
@@ -407,15 +420,52 @@ export default function EmployeesPage() {
                         {cols.cert_alerts && (() => {
                           const alerts = certAlerts(emp);
                           if (alerts.length === 0) return <td className="px-3 py-3 text-center"><span className="text-gray-300 text-xs">—</span></td>;
-                          const expired  = alerts.filter(a => a.daysLeft < 0);
-                          const critical = alerts.filter(a => a.daysLeft >= 0 && a.daysLeft <= 30);
-                          const warning  = alerts.filter(a => a.daysLeft > 30);
+                          const hasExpired = alerts.some(a => a.daysLeft < 0);
+                          const badgeColor = hasExpired
+                            ? "bg-red-100 text-red-600 hover:bg-red-200 border border-red-200"
+                            : "bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200";
                           return (
-                            <td className="px-3 py-3 whitespace-nowrap text-center">
-                              <div className="inline-flex flex-col gap-0.5 items-center" title={alerts.map(a => `${a.label}: ${a.daysLeft < 0 ? "Expired" : `${a.daysLeft}d`}`).join("\n")}>
-                                {expired.length  > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">{expired.length} expired</span>}
-                                {critical.length > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500">{critical.length} &lt;30d</span>}
-                                {warning.length  > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">{warning.length} &lt;60d</span>}
+                            <td className="px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+                              <div className="relative inline-block" ref={certPopupFor === emp.id ? certPopupRef : undefined}>
+                                <button
+                                  onClick={() => setCertPopupFor(certPopupFor === emp.id ? null : emp.id)}
+                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full transition-colors ${badgeColor}`}
+                                >
+                                  {alerts.length}
+                                </button>
+                                {certPopupFor === emp.id && (
+                                  <div className="absolute z-50 right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                                    <div className="px-3 py-2 border-b border-gray-50 bg-gray-50/60">
+                                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cert Alerts</p>
+                                    </div>
+                                    <ul className="divide-y divide-gray-50">
+                                      {alerts.map(a => (
+                                        <li key={a.label} className="flex items-center justify-between px-3 py-2 gap-2">
+                                          <span className="text-xs font-medium text-gray-700">{a.label}</span>
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className="text-[11px] text-gray-400 tabular-nums">
+                                              {fmtDate(
+                                                (() => {
+                                                  const k = CERT_KEYS.find(k => CERT_LABELS[k] === a.label);
+                                                  return k ? emp[k] as string : null;
+                                                })()
+                                              )}
+                                            </span>
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                              a.daysLeft < 0
+                                                ? "bg-red-100 text-red-600"
+                                                : a.daysLeft <= 30
+                                                  ? "bg-red-50 text-red-500"
+                                                  : "bg-amber-50 text-amber-600"
+                                            }`}>
+                                              {a.daysLeft < 0 ? `${Math.abs(a.daysLeft)}d ago` : `${a.daysLeft}d`}
+                                            </span>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           );

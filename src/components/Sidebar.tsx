@@ -169,12 +169,15 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     : email ? email.substring(0, 2).toUpperCase() : "…";
 
   // Filter nav items by permission.
-  // For items with children, show the parent if ANY child is accessible (not just the parent's own permKey).
+  // While loading: show nothing (avoid flashing all items).
+  // For parent groups: visible only if at least one permKey-gated child passes.
+  // Children with no permKey are always shown once the parent is visible, but
+  // don't count toward making the parent visible on their own.
   const visibleNav = loading
-    ? NAV
+    ? []
     : NAV.filter(item => {
         if (item.children?.length) {
-          return item.children.some(c => !c.permKey || can(c.permKey));
+          return item.children.some(c => c.permKey && can(c.permKey));
         }
         return !item.permKey || can(item.permKey);
       });
