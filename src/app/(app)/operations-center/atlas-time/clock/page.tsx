@@ -123,16 +123,18 @@ function calcPunchHours(clockIn: string, clockOut: string, s: AtSettings) {
     mins -= lunchMins;
   }
   const total = Math.round(mins / 60 * 100) / 100;
-  const otThresh = s.ot_daily_threshold;
-  const dtThresh = s.dt_daily_threshold;
+  const otThresh = s.ot_daily_threshold;  // 0 = daily OT disabled
+  const dtThresh = s.dt_daily_threshold;  // 0 = DT disabled
   let reg = total, ot = 0, dt = 0;
-  if (dtThresh > 0 && total > dtThresh) {
-    dt  = Math.round((total - dtThresh) * 100) / 100;
-    ot  = Math.round((dtThresh - otThresh) * 100) / 100;
-    reg = otThresh;
-  } else if (total > otThresh) {
-    ot  = Math.round((total - otThresh) * 100) / 100;
-    reg = otThresh;
+  if (otThresh > 0) { // only apply daily OT when threshold is set
+    if (dtThresh > 0 && total > dtThresh) {
+      dt  = Math.round((total - dtThresh) * 100) / 100;
+      ot  = Math.round((dtThresh - otThresh) * 100) / 100;
+      reg = otThresh;
+    } else if (total > otThresh) {
+      ot  = Math.round((total - otThresh) * 100) / 100;
+      reg = otThresh;
+    }
   }
   return { total, reg, ot, dt, lunchMins };
 }
@@ -238,6 +240,9 @@ export default function ClockPage() {
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState("");
   const [manualSuccess, setManualSuccess] = useState(false);
+
+  // Hours breakdown popover
+  const [breakdownId, setBreakdownId] = useState<string | null>(null);
 
   // Inline punch editing
   const [editingPunchId, setEditingPunchId] = useState<string | null>(null);
@@ -853,11 +858,27 @@ export default function ClockPage() {
                             {hrs ? <span className={hrs.dt > 0 ? "text-red-600" : "text-gray-300"}>{hrs.dt > 0 ? hrs.dt.toFixed(2) : "—"}</span> : <span className="text-gray-300">—</span>}
                           </td>
                         )}
-                        <td className="px-3 py-2 text-center text-xs font-bold text-gray-800 tabular-nums">
-                          {hrs ? hrs.total.toFixed(2) : <span className="text-gray-300">—</span>}
-                          {hrs && atSettings.lunch_auto_deduct && hrs.lunchMins > 0 && (
-                            <div className="text-[9px] text-gray-400 font-normal">-{hrs.lunchMins}m lunch</div>
-                          )}
+                        <td className="px-3 py-2 text-center text-xs font-bold text-gray-800 tabular-nums relative">
+                          {hrs ? (
+                            <>
+                              <button onClick={() => setBreakdownId(breakdownId === `b_${row.key}` ? null : `b_${row.key}`)}
+                                className="underline decoration-dotted underline-offset-2 hover:text-[#123b1f]">
+                                {hrs.total.toFixed(2)}
+                              </button>
+                              {breakdownId === `b_${row.key}` && (
+                                <div className="absolute left-1/2 -translate-x-1/2 top-7 z-30 bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-left min-w-[140px]">
+                                  <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Breakdown</div>
+                                  <div className="space-y-1 text-xs text-gray-700 tabular-nums font-normal">
+                                    <div className="flex justify-between gap-4"><span>Reg</span><span className="font-semibold">{hrs.reg.toFixed(2)}</span></div>
+                                    {hrs.ot > 0 && <div className="flex justify-between gap-4"><span className="text-amber-600">OT</span><span className="font-semibold text-amber-600">{hrs.ot.toFixed(2)}</span></div>}
+                                    {hrs.dt > 0 && <div className="flex justify-between gap-4"><span className="text-red-600">DT</span><span className="font-semibold text-red-600">{hrs.dt.toFixed(2)}</span></div>}
+                                    {hrs.lunchMins > 0 && <div className="flex justify-between gap-4 text-gray-400"><span>Lunch</span><span>−{hrs.lunchMins}m</span></div>}
+                                    <div className="border-t border-gray-100 pt-1 flex justify-between gap-4 font-bold"><span>Total</span><span>{hrs.total.toFixed(2)}</span></div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-2 py-2 text-center">
                           {row.status === "saving" && (
@@ -1002,9 +1023,8 @@ export default function ClockPage() {
                     const emp = p.at_employees;
                     if (!emp) return null;
                     const isEditing = editingPunchId === p.id;
-                    const hrs = p.clock_in_at && p.clock_out_at
-                      ? ((new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000).toFixed(2)
-                      : null;
+                    const hrs = p.clock_out_at ? punchTotalHrs(p).toFixed(2) : null;
+                    const showBD = breakdownId === p.id;
                     return (
                       <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : ""}`}>
                         {!isEditing ? (
@@ -1026,7 +1046,26 @@ export default function ClockPage() {
                             <div className="text-center">{p.divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
-                            <span className="text-xs font-semibold text-gray-700 text-center tabular-nums">{hrs ?? "—"}</span>
+                            <div className="relative text-center">
+                              {hrs ? (
+                                <button onClick={() => setBreakdownId(showBD ? null : p.id)}
+                                  className="text-xs font-semibold text-gray-700 tabular-nums underline decoration-dotted underline-offset-2 cursor-pointer hover:text-[#123b1f]">
+                                  {hrs}
+                                </button>
+                              ) : <span className="text-gray-300 text-xs">—</span>}
+                              {showBD && p.clock_out_at && (
+                                <div className="absolute left-1/2 -translate-x-1/2 top-5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-left min-w-[140px]">
+                                  <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Breakdown</div>
+                                  <div className="space-y-1 text-xs text-gray-700 tabular-nums">
+                                    <div className="flex justify-between gap-4"><span>Reg</span><span className="font-semibold">{(p.regular_hours ?? punchTotalHrs(p)).toFixed(2)}</span></div>
+                                    {(p.ot_hours ?? 0) > 0 && <div className="flex justify-between gap-4"><span className="text-amber-600">OT</span><span className="font-semibold text-amber-600">{(p.ot_hours!).toFixed(2)}</span></div>}
+                                    {(p.dt_hours ?? 0) > 0 && <div className="flex justify-between gap-4"><span className="text-red-600">DT</span><span className="font-semibold text-red-600">{(p.dt_hours!).toFixed(2)}</span></div>}
+                                    {(p.lunch_deducted_mins ?? 0) > 0 && <div className="flex justify-between gap-4 text-gray-400"><span>Lunch</span><span>−{p.lunch_deducted_mins}m</span></div>}
+                                    <div className="border-t border-gray-100 pt-1 flex justify-between gap-4 font-bold"><span>Total</span><span>{hrs}</span></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             {showLaborCost && (() => {
                               const hrsNum = hrs ? Number(hrs) : null;
                               const cost = hrsNum != null && emp.default_pay_rate
@@ -1206,12 +1245,12 @@ export default function ClockPage() {
               {closedPunches.map((p) => {
                 const emp = p.at_employees;
                 if (!emp) return null;
-                const punchHrs = p.clock_out_at
-                  ? (new Date(p.clock_out_at).getTime() - new Date(p.clock_in_at).getTime()) / 3_600_000
-                  : null;
+                const punchHrs = p.clock_out_at ? punchTotalHrs(p) : null;
+                const punchHrsStr = punchHrs != null ? punchHrs.toFixed(2) : null;
                 const laborCost = showLaborCost && punchHrs != null && emp.default_pay_rate
                   ? punchHrs * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
                   : null;
+                const showBDC = breakdownId === `c_${p.id}`;
                 return (
                   <div key={p.id} className="flex items-center gap-3 px-5 py-3">
                     <div className="flex items-center gap-3 flex-1 min-w-[120px]">
@@ -1231,7 +1270,24 @@ export default function ClockPage() {
                     )}
                     {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
                     <div className="w-28 sm:w-36 shrink-0 text-xs text-gray-400 tabular-nums">{fmtTime(p.clock_in_at)} → {fmtTime(p.clock_out_at!)}</div>
-                    <div className="w-16 sm:w-20 shrink-0 text-sm font-semibold text-gray-600 tabular-nums text-right">{fmtHours(p.clock_in_at, p.clock_out_at!)}</div>
+                    <div className="w-16 sm:w-20 shrink-0 text-right relative">
+                      <button onClick={() => setBreakdownId(showBDC ? null : `c_${p.id}`)}
+                        className="text-sm font-semibold text-gray-600 tabular-nums underline decoration-dotted underline-offset-2 hover:text-[#123b1f]">
+                        {punchHrsStr ?? "—"}
+                      </button>
+                      {showBDC && (
+                        <div className="absolute right-0 top-5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2.5 text-left min-w-[140px]">
+                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Breakdown</div>
+                          <div className="space-y-1 text-xs text-gray-700 tabular-nums">
+                            <div className="flex justify-between gap-4"><span>Reg</span><span className="font-semibold">{(p.regular_hours ?? punchHrs ?? 0).toFixed(2)}</span></div>
+                            {(p.ot_hours ?? 0) > 0 && <div className="flex justify-between gap-4"><span className="text-amber-600">OT</span><span className="font-semibold text-amber-600">{p.ot_hours!.toFixed(2)}</span></div>}
+                            {(p.dt_hours ?? 0) > 0 && <div className="flex justify-between gap-4"><span className="text-red-600">DT</span><span className="font-semibold text-red-600">{p.dt_hours!.toFixed(2)}</span></div>}
+                            {(p.lunch_deducted_mins ?? 0) > 0 && <div className="flex justify-between gap-4 text-gray-400"><span>Lunch</span><span>−{p.lunch_deducted_mins}m</span></div>}
+                            <div className="border-t border-gray-100 pt-1 flex justify-between gap-4 font-bold"><span>Total</span><span>{punchHrsStr}</span></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {showLaborCost && (
                       <div className="hidden sm:block w-28 shrink-0 text-right">
                         {emp.default_pay_rate ? (
