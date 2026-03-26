@@ -331,9 +331,9 @@ export default function ReportsPage() {
   function exportCSV() {
     let csv = "";
     if (tab === "summary") {
-      csv = "Team Member,Job Title,Reg Hrs,OT Hrs,Total Hrs\n";
+      csv = "Team Member,Reg Hrs,OT Hrs,Total Hrs,Total Cost\n";
       for (const r of sortedSummary) {
-        csv += `"${r.name}","${r.jobTitle}",${h(r.reg)},${h(r.ot)},${h(r.total)}\n`;
+        csv += `"${r.name}",${h(r.reg)},${h(r.ot)},${h(r.total)},${r.cost != null ? r.cost.toFixed(2) : ""}\n`;
       }
     } else {
       csv = "Team Member,Date,Clock In,Clock Out,Reg Hrs,OT Hrs,Total Hrs,Punch Item,QB Class,Status,Manual,Note\n";
