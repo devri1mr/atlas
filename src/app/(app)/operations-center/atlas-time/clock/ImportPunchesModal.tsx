@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-// ─── CSV / time helpers ───────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
@@ -51,37 +51,41 @@ function parseMMDDYYYY(d: string): string {
 }
 
 function localIso(dateStr: string, timeStr: string): string {
-  const off = new Date().getTimezoneOffset();
+  const off  = new Date().getTimezoneOffset();
   const sign = off <= 0 ? "+" : "-";
-  const abs = Math.abs(off);
-  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
-  const mm = String(abs % 60).padStart(2, "0");
+  const abs  = Math.abs(off);
+  const hh   = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm   = String(abs % 60).padStart(2, "0");
   return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
 }
 
-function fmtTime(iso: string): string {
+function extractHHMM(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-  } catch {
-    return iso;
-  }
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  } catch { return ""; }
 }
 
-function fmtDate(dateStr: string): string {
-  // dateStr is YYYY-MM-DD
-  const [y, mo, d] = dateStr.split("-");
-  return `${parseInt(mo)}/${parseInt(d)}/${y}`;
+function fmtTime(iso: string): string {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
+  catch { return iso; }
+}
+
+function fmtDate(d: string): string {
+  const [y, mo, day] = d.split("-");
+  return `${parseInt(mo)}/${parseInt(day)}/${y}`;
+}
+
+function calcRawHours(inIso: string, outIso: string): number | null {
+  try {
+    const diff = (new Date(outIso).getTime() - new Date(inIso).getTime()) / 3_600_000;
+    return isNaN(diff) || diff <= 0 ? null : Math.round(diff * 100) / 100;
+  } catch { return null; }
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ParsedRow = {
-  csv_name: string;
-  date: string;
-  clock_in_at: string;
-  clock_out_at: string;
-  punch_item: string;
-};
+type ParsedRow = { csv_name: string; date: string; clock_in_at: string; clock_out_at: string; punch_item: string };
 
 type PreviewRow = ParsedRow & {
   status: "ready" | "no_employee" | "no_punch_item" | "duplicate";
@@ -93,94 +97,83 @@ type PreviewRow = ParsedRow & {
   raw_hours: number | null;
 };
 
-type Stage = "upload" | "preview" | "done";
-
-type DoneResult = {
-  imported: number;
-  skipped: number;
-  skipped_reasons: Record<string, number>;
-};
+type AvailableItem = { label: string; division_id: string | null; at_division_id: string | null };
+type AvailableEmp  = { id: string; name: string };
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function ImportPunchesModal({
-  onClose,
-  onImported,
-}: {
-  onClose: () => void;
-  onImported: () => void;
-}) {
-  const [stage, setStage] = useState<Stage>("upload");
-  const [dragging, setDragging] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+export default function ImportPunchesModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [stage, setStage]               = useState<"upload" | "preview" | "done">("upload");
+  const [dragging, setDragging]         = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState("");
+  const [previewRows, setPreviewRows]   = useState<PreviewRow[]>([]);
+  const [availItems, setAvailItems]     = useState<AvailableItem[]>([]);
+  const [availEmps, setAvailEmps]       = useState<AvailableEmp[]>([]);
+  const [doneCount, setDoneCount]       = useState(0);
 
-  // Parsed / preview data
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
-  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
-  const [lunchSkipped, setLunchSkipped] = useState(0);
-  const [invalidSkipped, setInvalidSkipped] = useState(0);
-
-  // Done
-  const [doneResult, setDoneResult] = useState<DoneResult | null>(null);
+  // Inline edit state
+  const [editIdx, setEditIdx]           = useState<number | null>(null);
+  const [editEmpId, setEditEmpId]       = useState("");
+  const [editItemKey, setEditItemKey]   = useState(""); // "d:UUID" or "a:UUID"
+  const [editInTime, setEditInTime]     = useState("");
+  const [editOutTime, setEditOutTime]   = useState("");
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // ── File handling ─────────────────────────────────────────────────────────
+  // ── Item key encoding ──────────────────────────────────────────────────────
+
+  function itemKey(item: AvailableItem): string {
+    return item.at_division_id ? `a:${item.at_division_id}` : `d:${item.division_id}`;
+  }
+
+  function itemFromKey(key: string): AvailableItem | undefined {
+    if (key.startsWith("a:")) return availItems.find(i => i.at_division_id === key.slice(2));
+    if (key.startsWith("d:")) return availItems.find(i => !i.at_division_id && i.division_id === key.slice(2));
+    return undefined;
+  }
+
+  function rowItemKey(row: PreviewRow): string {
+    if (row.at_division_id) return `a:${row.at_division_id}`;
+    if (row.division_id)    return `d:${row.division_id}`;
+    return "";
+  }
+
+  // ── File handling ──────────────────────────────────────────────────────────
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
     setError("");
     setLoading(true);
     try {
-      const text = await file.text();
+      const text    = await file.text();
       const allRows = parseCSV(text);
-
-      // Skip header row
-      const dataRows = allRows.slice(1);
-
-      let lunch = 0;
-      let invalid = 0;
       const valid: ParsedRow[] = [];
 
-      for (const cells of dataRows) {
-        const type = (cells[8] ?? "").trim();
-        if (type.toLowerCase() === "lunch") { lunch++; continue; }
-
-        const inRaw = (cells[4] ?? "").trim();
+      for (const cells of allRows.slice(1)) {
+        const type   = (cells[8] ?? "").trim();
+        if (type.toLowerCase() === "lunch") continue;
+        const inRaw  = (cells[4] ?? "").trim();
         const outRaw = (cells[5] ?? "").trim();
-        if (inRaw === "-" || outRaw === "-") { invalid++; continue; }
-
-        const inTime = parseTime12(inRaw);
+        if (inRaw === "-" || outRaw === "-") continue;
+        const inTime  = parseTime12(inRaw);
         const outTime = parseTime12(outRaw);
-        if (!inTime || !outTime) { invalid++; continue; }
-
+        if (!inTime || !outTime) continue;
         const date = parseMMDDYYYY((cells[3] ?? "").trim());
-
-        valid.push({
-          csv_name: (cells[0] ?? "").trim(),
-          date,
-          clock_in_at: localIso(date, inTime),
-          clock_out_at: localIso(date, outTime),
-          punch_item: type,
-        });
+        valid.push({ csv_name: (cells[0] ?? "").trim(), date, clock_in_at: localIso(date, inTime), clock_out_at: localIso(date, outTime), punch_item: type });
       }
 
-      setLunchSkipped(lunch);
-      setInvalidSkipped(invalid);
-      setParsedRows(valid);
-
-      // Send to API for preview
-      const res = await fetch("/api/atlas-time/import/punches", {
+      const res  = await fetch("/api/atlas-time/import/punches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dry_run: true, rows: valid }),
       });
-
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Preview failed");
 
       setPreviewRows(json.rows ?? []);
+      setAvailItems(json.available_items ?? []);
+      setAvailEmps(json.available_employees ?? []);
       setStage("preview");
     } catch (e: any) {
       setError(e?.message ?? "Failed to process file");
@@ -189,22 +182,73 @@ export default function ImportPunchesModal({
     }
   }
 
-  // ── Import ────────────────────────────────────────────────────────────────
+  // ── Inline editing ─────────────────────────────────────────────────────────
+
+  function startEdit(idx: number) {
+    const row = previewRows[idx];
+    setEditIdx(idx);
+    setEditEmpId(row.employee_id ?? "");
+    setEditItemKey(rowItemKey(row));
+    setEditInTime(extractHHMM(row.clock_in_at));
+    setEditOutTime(extractHHMM(row.clock_out_at));
+  }
+
+  function cancelEdit() {
+    setEditIdx(null);
+  }
+
+  function applyEdit() {
+    if (editIdx === null) return;
+    const row     = previewRows[editIdx];
+    const emp     = availEmps.find(e => e.id === editEmpId);
+    const item    = itemFromKey(editItemKey);
+    const newIn   = editInTime  ? localIso(row.date, editInTime)  : row.clock_in_at;
+    const newOut  = editOutTime ? localIso(row.date, editOutTime) : row.clock_out_at;
+    const newStatus: PreviewRow["status"] = !emp ? "no_employee" : !item ? "no_punch_item" : "ready";
+
+    const updated = [...previewRows];
+    updated[editIdx] = {
+      ...row,
+      clock_in_at:       newIn,
+      clock_out_at:      newOut,
+      employee_id:       emp?.id ?? null,
+      employee_name:     emp?.name ?? null,
+      division_id:       item?.division_id ?? null,
+      at_division_id:    item?.at_division_id ?? null,
+      matched_item_name: item?.label ?? null,
+      raw_hours:         calcRawHours(newIn, newOut),
+      status:            newStatus,
+    };
+    setPreviewRows(updated);
+    setEditIdx(null);
+  }
+
+  // ── Import ─────────────────────────────────────────────────────────────────
 
   async function handleImport() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/atlas-time/import/punches", {
+      const resolved = previewRows
+        .filter(r => r.status === "ready")
+        .map(r => ({
+          employee_id:   r.employee_id!,
+          date:          r.date,
+          clock_in_at:   r.clock_in_at,
+          clock_out_at:  r.clock_out_at,
+          division_id:   r.division_id,
+          at_division_id: r.at_division_id,
+        }));
+
+      const res  = await fetch("/api/atlas-time/import/punches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dry_run: false, rows: parsedRows }),
+        body: JSON.stringify({ dry_run: false, resolved_rows: resolved }),
       });
-
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Import failed");
 
-      setDoneResult(json);
+      setDoneCount(json.imported ?? resolved.length);
       setStage("done");
       onImported();
     } catch (e: any) {
@@ -214,133 +258,86 @@ export default function ImportPunchesModal({
     }
   }
 
-  // ── Derived counts ────────────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────────
 
-  const readyCount = previewRows.filter(r => r.status === "ready").length;
-  const noEmpRows = previewRows.filter(r => r.status === "no_employee");
-  const noPunchRows = previewRows.filter(r => r.status === "no_punch_item");
-  const dupRows = previewRows.filter(r => r.status === "duplicate");
-
+  const readyCount       = previewRows.filter(r => r.status === "ready").length;
+  const noEmpRows        = previewRows.filter(r => r.status === "no_employee");
+  const noPunchRows      = previewRows.filter(r => r.status === "no_punch_item");
+  const dupRows          = previewRows.filter(r => r.status === "duplicate");
   const uniqueNoEmpNames = [...new Set(noEmpRows.map(r => r.csv_name))];
-  const uniqueNoPunchNames = [...new Set(noPunchRows.map(r => r.punch_item))];
+  const uniqueNoItem     = [...new Set(noPunchRows.map(r => r.punch_item))];
 
-  // ── Status dot ────────────────────────────────────────────────────────────
-
-  function StatusDot({ status }: { status: PreviewRow["status"] }) {
-    const color =
-      status === "ready" ? "bg-green-500" :
-      status === "no_punch_item" ? "bg-amber-400" :
-      "bg-red-500";
-    return <span className={`inline-block w-2 h-2 rounded-full ${color} flex-shrink-0`} />;
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl border border-gray-100 shadow-lg flex flex-col" style={{ width: "100%", maxWidth: 960, maxHeight: "88vh" }}>
 
-      {/* Card */}
-      <div
-        className="relative bg-white rounded-2xl border border-gray-100 shadow-lg flex flex-col"
-        style={{ width: "100%", maxWidth: 920, maxHeight: "85vh" }}
-      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">Import Time Punches</h2>
             <p className="text-xs text-gray-400 mt-0.5">Upload a time clock CSV export</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ── Stage: Upload ─────────────────────────────────────────── */}
+          {/* Upload */}
           {stage === "upload" && (
             <div className="p-6">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={e => handleFile(e.target.files?.[0])}
-              />
+              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
                 onClick={() => fileRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
-                  dragging ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${dragging ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-gray-300"}`}
               >
                 {loading ? (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 border-2 border-[#123b1f] border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-gray-500">Processing file…</p>
+                    <p className="text-sm text-gray-500">Processing…</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
+                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-700">Drop your CSV file here</p>
                       <p className="text-xs text-gray-400 mt-1">or click to browse</p>
                     </div>
-                    <p className="text-xs text-gray-400">Time clock export CSV format</p>
                   </div>
                 )}
               </div>
-
-              {error && (
-                <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>
-              )}
+              {error && <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>}
             </div>
           )}
 
-          {/* ── Stage: Preview ────────────────────────────────────────── */}
+          {/* Preview */}
           {stage === "preview" && (
             <div className="flex flex-col">
-              {/* Summary badges */}
-              <div className="px-6 py-4 border-b border-gray-50 flex flex-col gap-3">
+
+              {/* Summary */}
+              <div className="px-6 py-3 border-b border-gray-50 flex flex-col gap-2">
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-green-100 text-green-800">
-                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                    {readyCount} ready
+                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{readyCount} ready
                   </span>
                   {noEmpRows.length > 0 && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-700">
-                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                      {noEmpRows.length} unmatched {noEmpRows.length === 1 ? "employee" : "employees"}
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{noEmpRows.length} unmatched {noEmpRows.length === 1 ? "employee" : "employees"}
                     </span>
                   )}
                   {noPunchRows.length > 0 && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                      {noPunchRows.length} unmatched punch {noPunchRows.length === 1 ? "item" : "items"}
-                    </span>
-                  )}
-                  {lunchSkipped > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600">
-                      {lunchSkipped} lunch {lunchSkipped === 1 ? "row" : "rows"} skipped
-                    </span>
-                  )}
-                  {invalidSkipped > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600">
-                      {invalidSkipped} invalid {invalidSkipped === 1 ? "row" : "rows"} skipped
+                      <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{noPunchRows.length} unmatched punch {noPunchRows.length === 1 ? "item" : "items"}
                     </span>
                   )}
                   {dupRows.length > 0 && (
@@ -349,121 +346,127 @@ export default function ImportPunchesModal({
                     </span>
                   )}
                 </div>
-
-                {/* Unmatched lists */}
                 {uniqueNoEmpNames.length > 0 && (
-                  <div className="text-xs text-red-600">
-                    <span className="font-semibold">Unmatched employees: </span>
-                    {uniqueNoEmpNames.join(", ")}
-                  </div>
+                  <p className="text-xs text-red-600"><span className="font-semibold">Unmatched employees:</span> {uniqueNoEmpNames.join(", ")}</p>
                 )}
-                {uniqueNoPunchNames.length > 0 && (
-                  <div className="text-xs text-amber-700">
-                    <span className="font-semibold">Unmatched punch items: </span>
-                    {uniqueNoPunchNames.join(", ")}
-                  </div>
+                {uniqueNoItem.length > 0 && (
+                  <p className="text-xs text-amber-700"><span className="font-semibold">Unmatched punch items:</span> {uniqueNoItem.join(", ")}</p>
                 )}
               </div>
 
-              {error && (
-                <div className="px-6 py-2">
-                  <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>
-                </div>
-              )}
+              {error && <div className="px-6 py-2"><p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p></div>}
 
               {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-50 z-10">
                     <tr className="border-b border-gray-100">
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500 w-6"></th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500">Employee</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500">Date</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500">In</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500">Out</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-gray-500">Punch Item</th>
-                      <th className="px-4 py-2.5 text-right font-semibold text-gray-500">Hours</th>
+                      <th className="px-3 py-2.5 w-6"></th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Employee</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Date</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">In</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Out</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-500">Punch Item</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-gray-500">Hrs</th>
+                      <th className="px-3 py-2.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {previewRows.map((row, i) => (
-                      <tr
-                        key={i}
-                        className={`border-b border-gray-50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
-                      >
-                        <td className="px-4 py-2.5">
-                          <StatusDot status={row.status} />
-                        </td>
-                        <td className="px-4 py-2.5 font-medium">
-                          {row.employee_name ? (
-                            <span className="text-gray-800">{row.employee_name}</span>
-                          ) : (
-                            <span className="text-red-500">? {row.csv_name}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-600">{fmtDate(row.date)}</td>
-                        <td className="px-4 py-2.5 text-gray-600">{fmtTime(row.clock_in_at)}</td>
-                        <td className="px-4 py-2.5 text-gray-600">{fmtTime(row.clock_out_at)}</td>
-                        <td className="px-4 py-2.5">
-                          {row.matched_item_name ? (
-                            <span className="text-gray-700">{row.matched_item_name}</span>
-                          ) : (
-                            <span className="text-amber-600">? {row.punch_item}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">
-                          {row.raw_hours != null ? row.raw_hours.toFixed(2) : "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {previewRows.map((row, i) => {
+                      const isEditing = editIdx === i;
+                      const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
+
+                      if (isEditing) {
+                        return (
+                          <tr key={i} className="border-b border-gray-100 bg-blue-50/40">
+                            <td className="px-3 py-2"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
+                            <td className="px-3 py-2">
+                              <select value={editEmpId} onChange={e => setEditEmpId(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                                <option value="">— Select —</option>
+                                {availEmps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2 text-gray-500">{fmtDate(row.date)}</td>
+                            <td className="px-3 py-2">
+                              <input type="time" value={editInTime} onChange={e => setEditInTime(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 w-28" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input type="time" value={editOutTime} onChange={e => setEditOutTime(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 w-28" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <select value={editItemKey} onChange={e => setEditItemKey(e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                                <option value="">— Select —</option>
+                                {availItems.map((item, j) => <option key={j} value={itemKey(item)}>{item.label}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-500 tabular-nums">
+                              {editInTime && editOutTime ? calcRawHours(localIso(row.date, editInTime), localIso(row.date, editOutTime))?.toFixed(2) ?? "—" : "—"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex gap-1">
+                                <button onClick={applyEdit} className="text-[10px] font-semibold text-white bg-[#123b1f] hover:bg-[#1a5c2e] px-2 py-1 rounded-md transition-colors">OK</button>
+                                <button onClick={cancelEdit} className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors">✕</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return (
+                        <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50/50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                          <td className="px-3 py-2.5"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
+                          <td className="px-3 py-2.5 font-medium">
+                            {row.employee_name
+                              ? <span className="text-gray-800">{row.employee_name}</span>
+                              : <span className="text-red-500">? {row.csv_name}</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.date)}</td>
+                          <td className="px-3 py-2.5 text-gray-600">{fmtTime(row.clock_in_at)}</td>
+                          <td className="px-3 py-2.5 text-gray-600">{fmtTime(row.clock_out_at)}</td>
+                          <td className="px-3 py-2.5">
+                            {row.matched_item_name
+                              ? <span className="text-gray-700">{row.matched_item_name}</span>
+                              : <span className="text-amber-600">? {row.punch_item}</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-600 tabular-nums">{row.raw_hours != null ? row.raw_hours.toFixed(2) : "—"}</td>
+                          <td className="px-3 py-2.5">
+                            <button onClick={() => startEdit(i)} className="text-gray-300 hover:text-gray-500 transition-colors p-0.5 rounded">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* ── Stage: Done ───────────────────────────────────────────── */}
-          {stage === "done" && doneResult && (
+          {/* Done */}
+          {stage === "done" && (
             <div className="p-8 flex flex-col items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-                <svg className="w-7 h-7 text-[#1a5c2a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <svg className="w-7 h-7 text-[#1a5c2a]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               </div>
               <div className="text-center">
                 <p className="text-base font-bold text-gray-900">Import Complete</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {doneResult.imported} {doneResult.imported === 1 ? "punch" : "punches"} imported successfully
-                </p>
+                <p className="text-sm text-gray-500 mt-1">{doneCount} {doneCount === 1 ? "punch" : "punches"} imported successfully</p>
               </div>
-              {doneResult.skipped > 0 && (
-                <div className="bg-gray-50 rounded-xl p-4 w-full max-w-sm text-sm">
-                  <p className="font-semibold text-gray-700 mb-2">{doneResult.skipped} rows skipped</p>
-                  <ul className="space-y-1">
-                    {Object.entries(doneResult.skipped_reasons).map(([reason, count]) => (
-                      <li key={reason} className="text-xs text-gray-500 flex justify-between">
-                        <span className="capitalize">{reason.replace(/_/g, " ")}</span>
-                        <span className="font-semibold text-gray-700">{count}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <button
-                onClick={onClose}
-                className="mt-2 bg-[#123b1f] hover:bg-[#0d2616] text-white rounded-xl px-6 py-2.5 text-sm font-semibold transition-colors"
-              >
-                Close
-              </button>
+              <button onClick={onClose} className="mt-2 bg-[#123b1f] hover:bg-[#0d2616] text-white rounded-xl px-6 py-2.5 text-sm font-semibold transition-colors">Close</button>
             </div>
           )}
         </div>
 
-        {/* Footer (preview stage only) */}
+        {/* Footer */}
         {stage === "preview" && (
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
             <button
-              onClick={() => { setStage("upload"); setParsedRows([]); setPreviewRows([]); setError(""); if (fileRef.current) fileRef.current.value = ""; }}
+              onClick={() => { setStage("upload"); setPreviewRows([]); setError(""); if (fileRef.current) fileRef.current.value = ""; }}
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
             >
               ← Choose different file
@@ -473,9 +476,7 @@ export default function ImportPunchesModal({
               disabled={readyCount === 0 || loading}
               className="bg-[#123b1f] hover:bg-[#0d2616] text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {loading && (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              )}
+              {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               Import {readyCount} {readyCount === 1 ? "Punch" : "Punches"}
             </button>
           </div>

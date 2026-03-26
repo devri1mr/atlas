@@ -14,12 +14,34 @@ function normalize(s: string): string {
   return (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// Word-prefix fuzzy match: "Holiday Lighting" ↔ "Holiday Lights"
+// Each word in A must share a 4-char prefix with the corresponding word in B
+function wordPrefixMatch(a: string, b: string): boolean {
+  const wordsA = a.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+  const wordsB = b.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+  if (wordsA.length !== wordsB.length) return false;
+  return wordsA.every((wa, i) => {
+    const wb = wordsB[i];
+    const len = Math.min(wa.length, wb.length, 4);
+    return wa.slice(0, len) === wb.slice(0, len);
+  });
+}
+
 type ParsedRow = {
   csv_name: string;
   date: string;
   clock_in_at: string;
   clock_out_at: string;
   punch_item: string;
+};
+
+type ResolvedRow = {
+  employee_id: string;
+  date: string;
+  clock_in_at: string;
+  clock_out_at: string;
+  division_id: string | null;
+  at_division_id: string | null;
 };
 
 type PreviewRow = ParsedRow & {
@@ -40,96 +62,98 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const dryRun: boolean = body.dry_run ?? true;
-    const rows: ParsedRow[] = body.rows ?? [];
 
+    // ── Actual import (pre-resolved rows from client) ──────────────────────
+    if (!dryRun) {
+      const resolvedRows: ResolvedRow[] = body.resolved_rows ?? [];
+      if (!resolvedRows.length) return NextResponse.json({ imported: 0, skipped: 0, skipped_reasons: {} });
+
+      const toInsert = resolvedRows.map(r => ({
+        company_id:       companyId,
+        employee_id:      r.employee_id,
+        clock_in_at:      r.clock_in_at,
+        clock_out_at:     r.clock_out_at,
+        date_for_payroll: r.date,
+        punch_method:     "import",
+        is_manual:        true,
+        division_id:      r.division_id ?? null,
+        at_division_id:   r.at_division_id ?? null,
+        status:           "pending",
+      }));
+
+      const { error: insertErr } = await sb.from("at_punches").insert(toInsert);
+      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+
+      // Recalc lunch/OT for each unique employee+date pair
+      const pairs = new Set(resolvedRows.map(r => `${r.employee_id}|${r.date}`));
+      await Promise.all([...pairs].map(pair => {
+        const [empId, date] = pair.split("|");
+        return recalcDayLunch(sb, companyId, empId, date);
+      }));
+
+      return NextResponse.json({ imported: resolvedRows.length, skipped: 0, skipped_reasons: {} });
+    }
+
+    // ── Dry run (preview + matching) ───────────────────────────────────────
+    const rows: ParsedRow[] = body.rows ?? [];
     if (!rows.length) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-    // Load all employees
-    const { data: employees, error: empErr } = await sb
-      .from("at_employees")
-      .select("id, first_name, last_name")
-      .eq("company_id", companyId);
-    if (empErr) return NextResponse.json({ error: empErr.message }, { status: 500 });
+    const [empRes, divRes, atDivRes] = await Promise.all([
+      sb.from("at_employees").select("id, first_name, last_name").eq("company_id", companyId),
+      sb.from("divisions").select("id, name").eq("active", true),
+      sb.from("at_divisions").select("id, name, division_id").eq("active", true),
+    ]);
 
-    // Load active divisions
-    const { data: divisions, error: divErr } = await sb
-      .from("divisions")
-      .select("id, name")
-      .eq("active", true);
-    if (divErr) return NextResponse.json({ error: divErr.message }, { status: 500 });
+    if (empRes.error)   return NextResponse.json({ error: empRes.error.message }, { status: 500 });
+    if (divRes.error)   return NextResponse.json({ error: divRes.error.message }, { status: 500 });
+    if (atDivRes.error) return NextResponse.json({ error: atDivRes.error.message }, { status: 500 });
 
-    // Load active at_divisions
-    const { data: atDivisions, error: atDivErr } = await sb
-      .from("at_divisions")
-      .select("id, name, division_id, active")
-      .eq("active", true);
-    if (atDivErr) return NextResponse.json({ error: atDivErr.message }, { status: 500 });
+    const empList   = empRes.data   ?? [];
+    const divList   = divRes.data   ?? [];
+    const atDivList = atDivRes.data ?? [];
 
-    const empList = employees ?? [];
-    const divList = divisions ?? [];
-    const atDivList = atDivisions ?? [];
-
-    function matchEmployee(csvName: string): { id: string; name: string } | null {
-      // "Last, First" format
+    function matchEmployee(csvName: string) {
       const parts = csvName.split(",");
       if (parts.length < 2) return null;
-      const last = normalize(parts[0].trim());
+      const last  = normalize(parts[0].trim());
       const first = normalize(parts.slice(1).join(",").trim());
-      const found = empList.find(
-        e => normalize(e.last_name) === last && normalize(e.first_name) === first
-      );
+      const found = empList.find(e => normalize(e.last_name) === last && normalize(e.first_name) === first);
       if (found) return { id: found.id, name: `${found.first_name} ${found.last_name}` };
       return null;
     }
 
-    function matchPunchItem(punchItem: string): {
-      division_id: string | null;
-      at_division_id: string | null;
-      matched_item_name: string | null;
-    } | null {
+    function matchPunchItem(punchItem: string) {
       const n = normalize(punchItem);
 
-      // Check at_divisions first (exact)
+      // 1. Exact match — at_divisions first
       let atDiv = atDivList.find(d => normalize(d.name) === n);
-      if (atDiv) {
-        return {
-          division_id: atDiv.division_id ?? null,
-          at_division_id: atDiv.id,
-          matched_item_name: atDiv.name,
-        };
-      }
+      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
-      // Check divisions (exact)
       let div = divList.find(d => normalize(d.name) === n);
-      if (div) {
-        return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
-      }
+      if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
-      // Fuzzy starts-with for at_divisions
+      // 2. Starts-with either direction
       atDiv = atDivList.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
-      if (atDiv) {
-        return {
-          division_id: atDiv.division_id ?? null,
-          at_division_id: atDiv.id,
-          matched_item_name: atDiv.name,
-        };
-      }
+      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
-      // Fuzzy starts-with for divisions
       div = divList.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
-      if (div) {
-        return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
-      }
+      if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
+
+      // 3. Word-prefix fuzzy ("Holiday Lighting" → "Holiday Lights")
+      atDiv = atDivList.find(d => wordPrefixMatch(d.name, punchItem));
+      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
+
+      div = divList.find(d => wordPrefixMatch(d.name, punchItem));
+      if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
       return null;
     }
 
     async function checkDuplicate(employeeId: string, date: string, clockInAt: string): Promise<boolean> {
-      const clockInMs = new Date(clockInAt).getTime();
-      const windowMs = 5 * 60 * 1000; // 5 minutes
+      const clockInMs  = new Date(clockInAt).getTime();
+      const windowMs   = 5 * 60 * 1000;
       const windowStart = new Date(clockInMs - windowMs).toISOString();
-      const windowEnd = new Date(clockInMs + windowMs).toISOString();
-
+      const windowEnd   = new Date(clockInMs + windowMs).toISOString();
       const { data } = await sb
         .from("at_punches")
         .select("id")
@@ -138,129 +162,54 @@ export async function POST(req: NextRequest) {
         .gte("clock_in_at", windowStart)
         .lte("clock_in_at", windowEnd)
         .limit(1);
-
       return (data ?? []).length > 0;
     }
 
     function calcRawHours(clockInAt: string, clockOutAt: string): number | null {
       try {
-        const inMs = new Date(clockInAt).getTime();
+        const inMs  = new Date(clockInAt).getTime();
         const outMs = new Date(clockOutAt).getTime();
         if (isNaN(inMs) || isNaN(outMs)) return null;
         return Math.round(((outMs - inMs) / 3_600_000) * 100) / 100;
-      } catch {
-        return null;
-      }
+      } catch { return null; }
     }
 
-    // Process each row
     const preview: PreviewRow[] = [];
 
     for (const row of rows) {
-      const empMatch = matchEmployee(row.csv_name);
-      if (!empMatch) {
-        preview.push({
-          ...row,
-          status: "no_employee",
-          employee_id: null,
-          employee_name: null,
-          division_id: null,
-          at_division_id: null,
-          matched_item_name: null,
-          raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at),
-        });
-        continue;
-      }
-
+      const empMatch  = matchEmployee(row.csv_name);
       const itemMatch = matchPunchItem(row.punch_item);
+
+      if (!empMatch) {
+        preview.push({ ...row, status: "no_employee", employee_id: null, employee_name: null, division_id: null, at_division_id: null, matched_item_name: itemMatch?.matched_item_name ?? null, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
+        continue;
+      }
+
       if (!itemMatch) {
-        preview.push({
-          ...row,
-          status: "no_punch_item",
-          employee_id: empMatch.id,
-          employee_name: empMatch.name,
-          division_id: null,
-          at_division_id: null,
-          matched_item_name: null,
-          raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at),
-        });
+        preview.push({ ...row, status: "no_punch_item", employee_id: empMatch.id, employee_name: empMatch.name, division_id: null, at_division_id: null, matched_item_name: null, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
         continue;
       }
 
-      const isDuplicate = await checkDuplicate(empMatch.id, row.date, row.clock_in_at);
-      if (isDuplicate) {
-        preview.push({
-          ...row,
-          status: "duplicate",
-          employee_id: empMatch.id,
-          employee_name: empMatch.name,
-          division_id: itemMatch.division_id,
-          at_division_id: itemMatch.at_division_id,
-          matched_item_name: itemMatch.matched_item_name,
-          raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at),
-        });
+      const isDup = await checkDuplicate(empMatch.id, row.date, row.clock_in_at);
+      if (isDup) {
+        preview.push({ ...row, status: "duplicate", employee_id: empMatch.id, employee_name: empMatch.name, ...itemMatch, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
         continue;
       }
 
-      preview.push({
-        ...row,
-        status: "ready",
-        employee_id: empMatch.id,
-        employee_name: empMatch.name,
-        division_id: itemMatch.division_id,
-        at_division_id: itemMatch.at_division_id,
-        matched_item_name: itemMatch.matched_item_name,
-        raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at),
-      });
+      preview.push({ ...row, status: "ready", employee_id: empMatch.id, employee_name: empMatch.name, ...itemMatch, raw_hours: calcRawHours(row.clock_in_at, row.clock_out_at) });
     }
 
-    if (dryRun) {
-      return NextResponse.json({ rows: preview });
-    }
+    // Build available lists for the client's edit dropdowns
+    const available_items = [
+      ...atDivList.map(d => ({ label: d.name, division_id: d.division_id ?? null, at_division_id: d.id })),
+      ...divList.map(d => ({ label: d.name, division_id: d.id, at_division_id: null as string | null })),
+    ].sort((a, b) => a.label.localeCompare(b.label));
 
-    // Insert all ready rows
-    const readyRows = preview.filter(r => r.status === "ready");
-    const skippedRows = preview.filter(r => r.status !== "ready");
+    const available_employees = empList
+      .map(e => ({ id: e.id, name: `${e.first_name} ${e.last_name}` }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    const skippedReasons: Record<string, number> = {};
-    for (const r of skippedRows) {
-      skippedReasons[r.status] = (skippedReasons[r.status] ?? 0) + 1;
-    }
-
-    if (readyRows.length === 0) {
-      return NextResponse.json({ imported: 0, skipped: skippedRows.length, skipped_reasons: skippedReasons });
-    }
-
-    const toInsert = readyRows.map(row => ({
-      company_id: companyId,
-      employee_id: row.employee_id!,
-      clock_in_at: row.clock_in_at,
-      clock_out_at: row.clock_out_at,
-      date_for_payroll: row.date,
-      punch_method: "import",
-      is_manual: true,
-      division_id: row.division_id ?? null,
-      at_division_id: row.at_division_id ?? null,
-      status: "pending",
-    }));
-
-    const { error: insertErr } = await sb.from("at_punches").insert(toInsert);
-    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
-
-    // Recalc for each unique employee_id + date pair
-    const pairs = new Set(readyRows.map(r => `${r.employee_id}|${r.date}`));
-    await Promise.all(
-      [...pairs].map(pair => {
-        const [empId, date] = pair.split("|");
-        return recalcDayLunch(sb, companyId, empId, date);
-      })
-    );
-
-    return NextResponse.json({
-      imported: readyRows.length,
-      skipped: skippedRows.length,
-      skipped_reasons: skippedReasons,
-    });
+    return NextResponse.json({ rows: preview, available_items, available_employees });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
