@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     // Load active divisions
     const { data: divisions, error: divErr } = await sb
       .from("divisions")
-      .select("id, name, source")
+      .select("id, name")
       .eq("active", true);
     if (divErr) return NextResponse.json({ error: divErr.message }, { status: 500 });
 
