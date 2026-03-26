@@ -53,6 +53,8 @@ type AtSettings = {
   pay_period_start_day: number;
   pay_period_anchor_date: string | null;
   ot_weekly_threshold: number;
+  ot_multiplier: number;
+  dt_multiplier: number;
   labor_overhead_rate: number;
 };
 
@@ -78,8 +80,18 @@ const DEFAULT_SETTINGS: AtSettings = {
   pay_period_start_day: 1,
   pay_period_anchor_date: null,
   ot_weekly_threshold: 40,
+  ot_multiplier: 1.5,
+  dt_multiplier: 2,
   labor_overhead_rate: 15,
 };
+
+function calcLaborCost(
+  reg: number, ot: number, dt: number,
+  rate: number, s: AtSettings
+): number {
+  return (reg * rate + ot * rate * s.ot_multiplier + dt * rate * s.dt_multiplier)
+    * (1 + s.labor_overhead_rate / 100);
+}
 
 function getWeekStart(dateStr: string, startDay = 1): string {
   const d = new Date(dateStr + "T12:00:00");
@@ -344,6 +356,8 @@ function ClockPageInner() {
         pay_period_start_day:     s.pay_period_start_day     ?? 1,
         pay_period_anchor_date:   s.pay_period_anchor_date   ?? null,
         ot_weekly_threshold:      s.ot_weekly_threshold      ?? 40,
+        ot_multiplier:            s.ot_multiplier            ?? 1.5,
+        dt_multiplier:            s.dt_multiplier            ?? 2,
         labor_overhead_rate:      s.labor_overhead_rate      ?? 15,
       };
       setAtSettings(freshSettings);
@@ -1228,9 +1242,8 @@ function ClockPageInner() {
                               )}
                             </div>
                             {showLaborCost && (group.length === 1 ? (() => {
-                              const hrsNum = hrs ? Number(hrs) : null;
-                              const cost = hrsNum != null && emp.default_pay_rate
-                                ? hrsNum * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100) : null;
+                              const cost = hrs != null && emp.default_pay_rate
+                                ? calcLaborCost(p.regular_hours ?? Number(hrs), p.ot_hours ?? 0, p.dt_hours ?? 0, emp.default_pay_rate, atSettings) : null;
                               return (
                                 <div className="text-right">
                                   {emp.default_pay_rate ? (
@@ -1299,8 +1312,9 @@ function ClockPageInner() {
                       });
                       const emp0 = group[0].at_employees;
                       const dayTotal = group.reduce((sum, p) => sum + (p.clock_out_at ? punchTotalHrs(p) : 0), 0);
+                      const dayDt    = group.reduce((sum, p) => sum + (p.dt_hours ?? 0), 0);
                       const dayCost = showLaborCost && emp0?.default_pay_rate
-                        ? dayTotal * emp0.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
+                        ? calcLaborCost(dayReg, dayOt, dayDt, emp0.default_pay_rate, atSettings)
                         : null;
                       const dayReg   = group.reduce((sum, p) => sum + (p.regular_hours ?? 0), 0);
                       const dayOt    = group.reduce((sum, p) => sum + (p.ot_hours ?? 0), 0);
@@ -1437,7 +1451,7 @@ function ClockPageInner() {
                 const punchHrs = p.clock_out_at ? punchTotalHrs(p) : null;
                 const punchHrsStr = punchHrs != null ? punchHrs.toFixed(2) : null;
                 const laborCost = showLaborCost && punchHrs != null && emp.default_pay_rate
-                  ? punchHrs * emp.default_pay_rate * (1 + atSettings.labor_overhead_rate / 100)
+                  ? calcLaborCost(p.regular_hours ?? punchHrs, p.ot_hours ?? 0, p.dt_hours ?? 0, emp.default_pay_rate, atSettings)
                   : null;
                 const showBDC = breakdownId === `c_${p.id}`;
                 if (isEditing) return (
