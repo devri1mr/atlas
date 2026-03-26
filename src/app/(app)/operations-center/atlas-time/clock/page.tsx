@@ -1312,12 +1312,12 @@ function ClockPageInner() {
                       });
                       const emp0 = group[0].at_employees;
                       const dayTotal = group.reduce((sum, p) => sum + (p.clock_out_at ? punchTotalHrs(p) : 0), 0);
+                      const dayReg   = group.reduce((sum, p) => sum + (p.regular_hours ?? 0), 0);
+                      const dayOt    = group.reduce((sum, p) => sum + (p.ot_hours ?? 0), 0);
                       const dayDt    = group.reduce((sum, p) => sum + (p.dt_hours ?? 0), 0);
                       const dayCost = showLaborCost && emp0?.default_pay_rate
                         ? calcLaborCost(dayReg, dayOt, dayDt, emp0.default_pay_rate, atSettings)
                         : null;
-                      const dayReg   = group.reduce((sum, p) => sum + (p.regular_hours ?? 0), 0);
-                      const dayOt    = group.reduce((sum, p) => sum + (p.ot_hours ?? 0), 0);
                       const dayTotalRow = group.length > 1 ? (
                         <div key={`total_${group[0].employee_id}`} className={`px-5 py-2 bg-[#123b1f]/5 border-t border-[#123b1f]/10 grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
                           <span className="text-[10px] font-semibold text-[#123b1f] uppercase tracking-wide pl-9">Day Total</span>
