@@ -261,7 +261,23 @@ export default function EmployeesPage() {
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Team Members</h1>
               <p className="text-white/50 text-sm mt-1">{counts.active} active · {employees.length} total</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              <Link
+                href="/operations-center/atlas-time/employees/photo-round"
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors border border-white/20"
+                title="Photo Round"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span className="hidden sm:inline">Photos</span>
+              </Link>
+              <Link
+                href="/operations-center/atlas-time/employees/rate-setup"
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors border border-white/20"
+                title="Rate Setup"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <span className="hidden sm:inline">Rates</span>
+              </Link>
               <Link
                 href="/operations-center/atlas-time/employees/new"
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors border border-white/20"
@@ -269,7 +285,8 @@ export default function EmployeesPage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
-                Add Team Member
+                <span className="hidden sm:inline">Add Team Member</span>
+                <span className="sm:hidden">Add</span>
               </Link>
             </div>
           </div>
