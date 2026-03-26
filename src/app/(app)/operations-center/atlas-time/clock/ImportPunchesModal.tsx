@@ -51,13 +51,18 @@ function parseMMDDYYYY(d: string): string {
 }
 
 function localIso(dateStr: string, timeStr: string): string {
-  // Use the offset for the specific date (not today) to handle DST correctly
-  const off  = new Date(`${dateStr}T12:00:00`).getTimezoneOffset();
-  const sign = off <= 0 ? "+" : "-";
-  const abs  = Math.abs(off);
-  const hh   = String(Math.floor(abs / 60)).padStart(2, "0");
-  const mm   = String(abs % 60).padStart(2, "0");
-  return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
+  // Always treat times as America/New_York (EST = -05:00, EDT = -04:00).
+  // Determine which offset applies on this specific date using Intl,
+  // so this works correctly regardless of the browser's own timezone.
+  const utcNoon  = new Date(`${dateStr}T12:00:00Z`);
+  const nyHour   = parseInt(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }).format(utcNoon),
+    10,
+  );
+  // noon UTC - NY hour = offset in hours (7 → EST -05:00, 8 → EDT -04:00)
+  const offsetH  = 12 - nyHour;
+  const offset   = `-${String(offsetH).padStart(2, "0")}:00`;
+  return `${dateStr}T${timeStr}:00${offset}`;
 }
 
 function addDays(dateStr: string, n: number): string {
