@@ -77,10 +77,10 @@ const NAV: NavItem[] = [
       { label: "Profile Settings", href: "/operations-center/atlas-time/profile-settings" },
       { label: "Time Clock Settings", href: "/operations-center/atlas-time/settings", permKey: "hr_settings" },
       { label: "Import", href: "/operations-center/atlas-time/import", permKey: "hr_import" },
-      { label: "Timesheets", href: "/operations-center/atlas-time/timesheets", permKey: "hr_timesheets_view", badge: "P3" },
+      { label: "Timesheets", href: "/operations-center/atlas-time/timesheets", permKey: "hr_timesheets_view" },
       { label: "PTO & Time Off", href: "/operations-center/atlas-time/pto", permKey: "hr_pto_view", badge: "P4" },
       { label: "Payroll & Export", href: "/operations-center/atlas-time/payroll", permKey: "hr_payroll_view", badge: "P4" },
-      { label: "Reports", href: "/operations-center/atlas-time/reports", permKey: "hr_reports", badge: "P5" },
+      { label: "Reports", href: "/operations-center/atlas-time/reports", permKey: "hr_reports" },
     ],
   },
   {

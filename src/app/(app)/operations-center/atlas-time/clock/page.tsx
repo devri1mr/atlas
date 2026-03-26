@@ -26,6 +26,17 @@ type Punch = {
   divisions: { id: string; name: string } | null;
 };
 
+type Division = { id: string; name: string };
+
+const EMPTY_MANUAL = {
+  employee_id: "",
+  date: new Date().toISOString().slice(0, 10),
+  clock_in_time: "09:00",
+  clock_out_time: "",
+  division_id: "",
+  note: "",
+};
+
 function elapsed(clockIn: string): string {
   const ms = Date.now() - new Date(clockIn).getTime();
   const totalMins = Math.floor(ms / 60000);
@@ -77,11 +88,19 @@ export default function ClockPage() {
   const [now, setNow] = useState(new Date());
   const [punches, setPunches] = useState<Punch[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [acting, setActing] = useState<string | null>(null);
   const cols = useClockCols();
+
+  // Manual punch drawer
+  const [showManual, setShowManual] = useState(false);
+  const [manualForm, setManualForm] = useState(EMPTY_MANUAL);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [manualSuccess, setManualSuccess] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -94,19 +113,63 @@ export default function ClockPage() {
     try {
       setLoading(true);
       setError("");
-      const [punchRes, empRes] = await Promise.all([
+      const [punchRes, empRes, divRes] = await Promise.all([
         fetch("/api/atlas-time/punches", { cache: "no-store" }),
         fetch("/api/atlas-time/employees", { cache: "no-store" }),
+        fetch("/api/atlas-time/divisions", { cache: "no-store" }),
       ]);
       const punchJson = await punchRes.json().catch(() => null);
       const empJson = await empRes.json().catch(() => null);
+      const divJson = await divRes.json().catch(() => null);
       if (!punchRes.ok) throw new Error(punchJson?.error ?? "Failed to load");
       setPunches(punchJson.punches ?? []);
       setEmployees(empJson.employees ?? []);
+      setDivisions(divJson.divisions ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitManualPunch() {
+    setManualError("");
+    if (!manualForm.employee_id) { setManualError("Please select a team member."); return; }
+    if (!manualForm.clock_in_time) { setManualError("Clock-in time is required."); return; }
+
+    const clockInISO  = `${manualForm.date}T${manualForm.clock_in_time}:00`;
+    const clockOutISO = manualForm.clock_out_time ? `${manualForm.date}T${manualForm.clock_out_time}:00` : null;
+
+    if (clockOutISO && clockOutISO <= clockInISO) {
+      setManualError("Clock-out must be after clock-in.");
+      return;
+    }
+
+    try {
+      setManualSaving(true);
+      const res = await fetch("/api/atlas-time/punches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id:   manualForm.employee_id,
+          is_manual:     true,
+          clock_in_at:   clockInISO,
+          clock_out_at:  clockOutISO,
+          date_for_payroll: manualForm.date,
+          division_id:   manualForm.division_id || null,
+          note:          manualForm.note || null,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save punch");
+      setManualSuccess(true);
+      setManualForm({ ...EMPTY_MANUAL, date: manualForm.date });
+      setTimeout(() => setManualSuccess(false), 3000);
+      await load();
+    } catch (e: any) {
+      setManualError(e?.message ?? "Failed to save punch");
+    } finally {
+      setManualSaving(false);
     }
   }
 
@@ -172,6 +235,130 @@ export default function ClockPage() {
 
   return (
     <div className="min-h-screen bg-[#f0f4f0]">
+      {/* Manual Punch Drawer */}
+      {showManual && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div className="flex-1 bg-black/40" onClick={() => { setShowManual(false); setManualError(""); }} />
+          {/* Panel */}
+          <div className="w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-y-auto">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Manual Punch</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Add a punch for any date and time</p>
+              </div>
+              <button onClick={() => { setShowManual(false); setManualError(""); }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5 flex-1">
+              {manualSuccess && (
+                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                  Punch saved successfully.
+                </div>
+              )}
+              {manualError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  {manualError}
+                </div>
+              )}
+
+              {/* Employee */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Team Member <span className="text-red-500">*</span></label>
+                <select
+                  value={manualForm.employee_id}
+                  onChange={e => setManualForm(f => ({ ...f, employee_id: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">— Select team member —</option>
+                  {employees.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.preferred_name ? `${e.preferred_name} ${e.last_name}` : `${e.first_name} ${e.last_name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Date <span className="text-red-500">*</span></label>
+                <input
+                  type="date"
+                  value={manualForm.date}
+                  onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              {/* Clock-in / Clock-out times */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Clock In <span className="text-red-500">*</span></label>
+                  <input
+                    type="time"
+                    value={manualForm.clock_in_time}
+                    onChange={e => setManualForm(f => ({ ...f, clock_in_time: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Clock Out <span className="text-gray-400">(optional)</span></label>
+                  <input
+                    type="time"
+                    value={manualForm.clock_out_time}
+                    onChange={e => setManualForm(f => ({ ...f, clock_out_time: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+
+              {/* Division */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Division</label>
+                <select
+                  value={manualForm.division_id}
+                  onChange={e => setManualForm(f => ({ ...f, division_id: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">— None —</option>
+                  {divisions.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Note</label>
+                <textarea
+                  value={manualForm.note}
+                  onChange={e => setManualForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="Optional note about this punch…"
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => { setShowManual(false); setManualError(""); }}
+                className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitManualPunch}
+                disabled={manualSaving}
+                className="flex-1 bg-[#123b1f] hover:bg-[#0d2616] text-white rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {manualSaving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</> : "Save Punch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 md:px-8 py-6 md:py-8" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
         <div className="max-w-6xl mx-auto">
@@ -193,6 +380,12 @@ export default function ClockPage() {
               <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tight">
                 {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
               </div>
+              <button
+                onClick={() => { setManualForm({ ...EMPTY_MANUAL, date: new Date().toISOString().slice(0, 10) }); setManualError(""); setManualSuccess(false); setShowManual(true); }}
+                className="mt-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition-colors"
+              >
+                + Manual Punch
+              </button>
             </div>
           </div>
           <div className="mt-5 flex gap-4 flex-wrap">
