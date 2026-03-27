@@ -708,6 +708,7 @@ export default function MaterialsCatalogPage() {
                         <th className="text-left px-4 py-3">Vendor</th>
                         <th className="text-center px-4 py-3">Inventory</th>
                         <th className="text-center px-4 py-3">Status</th>
+                        <th className="px-4 py-3"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -750,6 +751,21 @@ export default function MaterialsCatalogPage() {
                               <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                                 {m.is_active ? "Active" : "Inactive"}
                               </span>
+                            </td>
+                            <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              {m.source_pricing_book_id && (
+                                <a
+                                  href={`/api/materials-catalog/pricing-books/${m.source_pricing_book_id}/view${m.source_page && m.source_page > 1 ? `#page=${m.source_page}` : ""}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="View in pricing book"
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                </a>
+                              )}
                             </td>
                           </tr>
                         );
