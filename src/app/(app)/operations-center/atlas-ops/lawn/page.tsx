@@ -45,7 +45,7 @@ type Report = {
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-const hrs = (n: number) => n == null ? "—" : `${Number(n).toFixed(2)}h`;
+const hrs = (n: number) => n == null ? "—" : Number(n).toFixed(2);
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const varColor = (v: number) => v >= 0 ? "text-emerald-700" : "text-red-600";
 
@@ -108,7 +108,7 @@ function JobRow({ job, expanded, onToggle }: { job: Job; expanded: boolean; onTo
         <td className={`px-3 py-2.5 text-sm text-right font-medium ${varColor(variance)}`}>
           {variance >= 0 ? "+" : ""}{hrs(variance)}
         </td>
-        <td className="px-3 py-2.5 text-sm text-right text-gray-700">{money.format(job.actual_amount)}</td>
+        <td className="px-3 py-2.5 text-sm text-right text-gray-700">{money.format(job.budgeted_amount)}</td>
         <td className="px-3 py-2.5 text-right">
           <div className="flex items-center justify-end gap-1">
             {hasUnmatched && (
@@ -307,7 +307,7 @@ export default function LawnPage() {
                     <th className="px-3 py-2.5 text-right">Budg Hrs</th>
                     <th className="px-3 py-2.5 text-right">Act Hrs</th>
                     <th className="px-3 py-2.5 text-right">Variance</th>
-                    <th className="px-3 py-2.5 text-right">Act $</th>
+                    <th className="px-3 py-2.5 text-right">Revenue</th>
                     <th className="px-3 py-2.5 text-right">Members</th>
                   </tr>
                 </thead>
@@ -329,7 +329,7 @@ export default function LawnPage() {
                     <td className={`px-3 py-2.5 text-sm text-right ${varColor(previewJobs.reduce((s, j) => s + j.variance_hours, 0))}`}>
                       {(() => { const v = previewJobs.reduce((s, j) => s + j.variance_hours, 0); return `${v >= 0 ? "+" : ""}${hrs(v)}`; })()}
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-right">{money.format(previewJobs.reduce((s, j) => s + j.actual_amount, 0))}</td>
+                    <td className="px-3 py-2.5 text-sm text-right">{money.format(previewJobs.reduce((s, j) => s + j.budgeted_amount, 0))}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -358,7 +358,7 @@ export default function LawnPage() {
                     <th className="px-3 py-2.5 text-right">Budg Hrs</th>
                     <th className="px-3 py-2.5 text-right">Act Hrs</th>
                     <th className="px-3 py-2.5 text-right">Variance</th>
-                    <th className="px-3 py-2.5 text-right">Act $</th>
+                    <th className="px-3 py-2.5 text-right">Revenue</th>
                     <th className="px-3 py-2.5" />
                   </tr>
                 </thead>
@@ -388,7 +388,7 @@ export default function LawnPage() {
                           <td className={`px-3 py-2.5 text-right font-medium ${varColor(variance)}`}>
                             {variance >= 0 ? "+" : ""}{hrs(variance)}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-gray-700">{money.format(r.total_actual_amount)}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</td>
                           <td className="px-3 py-2.5 text-right">
                             <button
                               onClick={() => deleteReport(r.id)}

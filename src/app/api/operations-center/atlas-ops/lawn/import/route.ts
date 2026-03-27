@@ -101,15 +101,23 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
     variance_hours:  parseNum(summary[11]),
     budgeted_amount: parseNum(summary[12]),
     actual_amount:   parseNum(summary[13]),
-    members: members.map(m => {
-      const { name, code } = parseResource(String(m[17] ?? ""));
-      return {
-        resource_name: name,
-        resource_code: code,
-        actual_hours:  parseNum(m[10]),
-        earned_amount: parseNum(m[13]),
-      };
-    }),
+    members: (() => {
+      const budgetedAmount = parseNum(summary[12]);
+      const totalActHrs = members.reduce((s, m) => s + parseNum(m[10]), 0);
+      return members.map(m => {
+        const { name, code } = parseResource(String(m[17] ?? ""));
+        const memberHrs = parseNum(m[10]);
+        const earnedAmt = totalActHrs > 0
+          ? Math.round((memberHrs / totalActHrs) * budgetedAmount * 100) / 100
+          : 0;
+        return {
+          resource_name: name,
+          resource_code: code,
+          actual_hours:  memberHrs,
+          earned_amount: earnedAmt,
+        };
+      });
+    })(),
   };
 }
 
