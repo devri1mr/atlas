@@ -74,15 +74,18 @@ export async function recalcDayLunch(
 
   if (!weekPunches?.length) return;
 
-  // A punch is a "manual no-lunch override" only when:
-  //   lunch_deducted_mins === 0  (explicit zero)
-  //   AND regular_hours is already set (punch has been through at least one recalc)
-  //   AND we are NOT running a forced backfill (which should override everything)
-  // New/imported punches with regular_hours=null have lunch_deducted_mins=0 from
-  // the DB default — that is NOT an override.
+  // Classify each punch:
+  //   • brand-new (regular_hours=null): treat as fresh, no overrides apply
+  //   • manager removed lunch: lunch_deducted_mins=0, regular_hours set → no_lunch=true
+  //   • manager forced lunch: lunch_deducted_mins>0, regular_hours set → forced_lunch_mins=N
+  //   • backfill mode (lunchOverrides set): ignore all manual overrides, recompute from scratch
+  const alreadyCalced = (p: typeof weekPunches[0]) => p.regular_hours !== null;
   const punchesWithOverride = weekPunches.map(p => ({
     ...p,
-    no_lunch: !lunchOverrides && p.lunch_deducted_mins === 0 && p.regular_hours !== null,
+    no_lunch: !lunchOverrides && alreadyCalced(p) && p.lunch_deducted_mins === 0,
+    forced_lunch_mins: (!lunchOverrides && alreadyCalced(p) && (p.lunch_deducted_mins ?? 0) > 0)
+      ? (p.lunch_deducted_mins ?? undefined)
+      : undefined,
   }));
 
   // computeWeekPunches handles lunch deduction, daily OT, and weekly OT accumulation
@@ -93,8 +96,9 @@ export async function recalcDayLunch(
   await Promise.all(weekPunches.map(p => {
     const r = resultMap.get(p.id);
     if (!r) return Promise.resolve();
-    // Preserve manual "no lunch" override only when NOT running a forced backfill.
-    const isManualOverride = !lunchOverrides && p.lunch_deducted_mins === 0 && p.regular_hours !== null;
+    // no-lunch override: manager explicitly removed deduction (stored as 0, punch already calculated)
+    // forced-lunch is handled by computeWeekPunches via forced_lunch_mins; result flows through naturally.
+    const isManualOverride = !lunchOverrides && p.regular_hours !== null && p.lunch_deducted_mins === 0;
     return sb.from("at_punches").update({
       regular_hours:       r2(r.regular_hours),
       ot_hours:            r2(r.ot_hours),
