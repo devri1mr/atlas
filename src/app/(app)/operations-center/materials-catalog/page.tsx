@@ -710,7 +710,7 @@ export default function MaterialsCatalogPage() {
                         <th className="text-left px-4 py-3">Vendor</th>
                         <th className="text-center px-4 py-3">Inventory</th>
                         <th className="text-center px-4 py-3">Status</th>
-                        <th className="text-center px-4 py-3">Pricing</th>
+                        <th className="text-center px-4 py-3">View Pricing Book</th>
                       </tr>
                     </thead>
                     <tbody>
