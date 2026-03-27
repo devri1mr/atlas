@@ -302,6 +302,15 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     return { ...row, clock_in_at: newIn, clock_out_at: newOut, employee_id: emp?.id ?? null, employee_name: emp?.name ?? null, division_id: item?.division_id ?? null, at_division_id: item?.at_division_id ?? null, matched_item_name: item?.label ?? null, raw_hours: calcRawHours(newIn, newOut), status: newStatus };
   }
 
+  function saveNameMap(csvName: string, employeeId: string) {
+    // Fire-and-forget: save the csv_name → employee mapping for future imports
+    fetch("/api/atlas-time/import/name-maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv_name: csvName, employee_id: employeeId }),
+    }).catch(() => {/* non-critical */});
+  }
+
   function applyEdit() {
     if (editIdx === null) return;
     const row  = previewRows[editIdx];
@@ -310,6 +319,8 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     const updated = [...previewRows];
     updated[editIdx] = buildEditedRow(row, emp, item, editInTime, editOutTime);
     setPreviewRows(updated);
+    // Save name mapping if employee was resolved for an unmatched row
+    if (emp && row.status === "no_employee") saveNameMap(row.csv_name, emp.id);
     setEditIdx(null);
   }
 
@@ -332,6 +343,8 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
       return r;
     });
     setPreviewRows(updated);
+    // Save name mapping if employee was resolved
+    if (emp && row.status === "no_employee") saveNameMap(row.csv_name, emp.id);
     setEditIdx(null);
   }
 
@@ -505,7 +518,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </thead>
                   <tbody>
                     {previewRows.map((row, i) => {
-                      if (row.status === "duplicate") return null;
+                      if (row.status === "duplicate" || row.status === "ready") return null;
                       const isEditing  = editIdx === i;
                       const isNavFocus = navQueue.length > 0 && navQueue[navPos] === i;
                       const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";

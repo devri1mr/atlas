@@ -109,10 +109,11 @@ export async function POST(req: NextRequest) {
     const rows: ParsedRow[] = body.rows ?? [];
     if (!rows.length) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-    const [empRes, divRes, atDivRes] = await Promise.all([
+    const [empRes, divRes, atDivRes, nameMapsRes] = await Promise.all([
       sb.from("at_employees").select("id, first_name, last_name").eq("company_id", companyId),
       sb.from("divisions").select("id, name").eq("active", true),
       sb.from("at_divisions").select("id, name, division_id").eq("active", true),
+      sb.from("at_import_name_maps").select("csv_name, employee_id").eq("company_id", companyId),
     ]);
 
     if (empRes.error)   return NextResponse.json({ error: empRes.error.message }, { status: 500 });
@@ -122,8 +123,19 @@ export async function POST(req: NextRequest) {
     const empList   = empRes.data   ?? [];
     const divList   = divRes.data   ?? [];
     const atDivList = atDivRes.data ?? [];
+    // csv_name → employee_id saved from previous imports
+    const nameMapLookup = new Map<string, string>(
+      (nameMapsRes.data ?? []).map(m => [m.csv_name.toLowerCase(), m.employee_id])
+    );
 
     function matchEmployee(csvName: string) {
+      // 1. Check saved name-map aliases first
+      const mappedId = nameMapLookup.get(csvName.toLowerCase());
+      if (mappedId) {
+        const emp = empList.find(e => e.id === mappedId);
+        if (emp) return { id: emp.id, name: `${emp.last_name}, ${emp.first_name}` };
+      }
+      // 2. Exact normalized first/last match
       const parts = csvName.split(",");
       if (parts.length < 2) return null;
       const last  = normalize(parts[0].trim());
