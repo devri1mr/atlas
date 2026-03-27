@@ -64,13 +64,17 @@ function parseXLS(buffer: Buffer): RawJob[] {
 
   const jobs: RawJob[] = [];
   let cur: { summary: unknown[]; members: unknown[][] } | null = null;
+  let grandTotalHrs: number | null = null;
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
     const col0 = String(row[0] ?? "").trim();
     const col17 = String(row[17] ?? "").trim();
 
-    if (col0 === "Total") continue;
+    if (col0 === "Total") {
+      grandTotalHrs = parseNum(row[10]); // capture SAP grand total actual hours
+      continue;
+    }
 
     const isSummary = col0 === "" && /^LC-\d+$/.test(col17);
 
@@ -82,6 +86,27 @@ function parseXLS(buffer: Buffer): RawJob[] {
     }
   }
   if (cur) jobs.push(buildJob(cur.summary, cur.members));
+
+  // Normalize job actual_hours to sum exactly to SAP grand total
+  if (grandTotalHrs !== null && jobs.length > 0) {
+    const jobHrs = lrm(jobs.map(j => j.actual_hours), grandTotalHrs, 4);
+    jobs.forEach((j, i) => {
+      const diff = jobHrs[i] - j.actual_hours;
+      j.actual_hours = jobHrs[i];
+      // Re-normalize member hours to match the adjusted job total
+      if (j.members.length > 0) {
+        const mHrs = lrm(j.members.map(m => m.actual_hours), jobHrs[i], 4);
+        const mRev = lrm(mHrs, j.budgeted_amount, 2);
+        j.members.forEach((m, k) => {
+          m.actual_hours = mHrs[k];
+          m.earned_amount = mRev[k];
+        });
+      }
+      // Adjust variance to reflect updated actual_hours
+      j.variance_hours = Math.round((j.budgeted_hours - j.actual_hours) * 10000) / 10000;
+    });
+  }
+
   return jobs;
 }
 
