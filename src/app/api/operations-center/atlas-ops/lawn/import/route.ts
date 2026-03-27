@@ -85,13 +85,35 @@ function parseXLS(buffer: Buffer): RawJob[] {
   return jobs;
 }
 
+// Largest-remainder distribution: split `total` across `weights` using given decimal precision
+function lrm(weights: number[], total: number, decimals: number): number[] {
+  const factor = Math.pow(10, decimals);
+  const weightSum = weights.reduce((s, w) => s + w, 0);
+  if (weightSum === 0) return weights.map(() => 0);
+  const exact = weights.map(w => (w / weightSum) * total);
+  const floored = exact.map(v => Math.floor(v * factor) / factor);
+  const remainder = Math.round((total - floored.reduce((s, v) => s + v, 0)) * factor);
+  const order = exact
+    .map((v, i) => ({ i, frac: (v * factor) % 1 }))
+    .sort((a, b) => b.frac - a.frac);
+  const unit = 1 / factor;
+  order.slice(0, remainder).forEach(({ i }) => { floored[i] = Math.round((floored[i] + unit) * factor) / factor; });
+  return floored;
+}
+
 function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   const first = members[0] ?? [];
   const serialDate = parseNum((first as unknown[])[6]);
   const serviceDate = serialDate ? excelSerialToISO(serialDate) : "";
 
   const budgetedAmount = parseNum(summary[12]);
-  const totalActHrs = members.reduce((s, m) => s + parseNum((m as unknown[])[10]), 0);
+  const jobActualHrs   = parseNum(summary[10]); // authoritative from SAP summary row
+  const rawHrs = members.map(m => parseNum((m as unknown[])[10]));
+
+  // Normalize member hours to exactly equal job summary total (4 decimal places)
+  const memberHrs = lrm(rawHrs, jobActualHrs, 4);
+  // Distribute revenue proportionally to normalized hours (2 decimal places)
+  const memberRevenue = lrm(memberHrs, budgetedAmount, 2);
 
   return {
     work_order:      String((first as unknown[])[3] ?? ""),
@@ -101,32 +123,14 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
     service_date:    serviceDate,
     crew_code:       String(summary[17] ?? ""),
     budgeted_hours:  parseNum(summary[8]),
-    actual_hours:    parseNum(summary[10]),
+    actual_hours:    jobActualHrs,
     variance_hours:  parseNum(summary[11]),
     budgeted_amount: budgetedAmount,
     actual_amount:   parseNum(summary[13]),
-    members: (() => {
-      const parsed = members.map(m => {
-        const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
-        const memberHrs = parseNum((m as unknown[])[10]);
-        const exact = totalActHrs > 0 ? (memberHrs / totalActHrs) * budgetedAmount : 0;
-        return { resource_name: name, resource_code: code, actual_hours: memberHrs, _exact: exact };
-      });
-      // Distribute rounding remainder to the member with the largest fractional part
-      const floored = parsed.map(p => Math.floor(p._exact * 100) / 100);
-      const remainder = Math.round((budgetedAmount - floored.reduce((s, v) => s + v, 0)) * 100);
-      const indices = parsed
-        .map((p, i) => ({ i, frac: (p._exact * 100) % 1 }))
-        .sort((a, b) => b.frac - a.frac);
-      const adjustments = new Array(parsed.length).fill(0);
-      for (let k = 0; k < remainder; k++) adjustments[indices[k].i] = 0.01;
-      return parsed.map((p, i) => ({
-        resource_name: p.resource_name,
-        resource_code: p.resource_code,
-        actual_hours: p.actual_hours,
-        earned_amount: Math.round((floored[i] + adjustments[i]) * 100) / 100,
-      }));
-    })(),
+    members: members.map((m, i) => {
+      const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
+      return { resource_name: name, resource_code: code, actual_hours: memberHrs[i], earned_amount: memberRevenue[i] };
+    }),
   };
 }
 
