@@ -521,7 +521,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                       if (row.status === "duplicate" || row.status === "ready") return null;
                       const isEditing  = editIdx === i;
                       const isNavFocus = navQueue.length > 0 && navQueue[navPos] === i;
-                      const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
+                      const dot = row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
 
                       if (isEditing) {
                         const sameNameCount = previewRows.filter((r, j) => j !== i && r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")).length;
