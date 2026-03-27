@@ -66,7 +66,7 @@ function MemberRow({ m }: { m: Member }) {
           {!matched && <span className="text-gray-400 font-normal">(unmatched)</span>}
         </span>
       </td>
-      <td className="px-3 py-2 text-xs text-gray-500">{m.crew_code ?? m.resource_code ?? ""}</td>
+      <td className="px-3 py-2 text-xs text-gray-500">{m.resource_code ?? ""}</td>
       <td className="px-3 py-2 text-xs text-gray-700 text-right">{hrs(m.actual_hours)}</td>
       <td className="px-3 py-2 text-xs text-gray-700 text-right" colSpan={4}>{money.format(m.earned_amount)}</td>
     </tr>
