@@ -135,6 +135,14 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
   const [navQueue, setNavQueue] = useState<number[]>([]);
   const [navPos, setNavPos]     = useState(0);
 
+  // Quick-add employee state
+  const [quickAddOpen,   setQuickAddOpen]   = useState(false);
+  const [quickAddFirst,  setQuickAddFirst]  = useState("");
+  const [quickAddLast,   setQuickAddLast]   = useState("");
+  const [quickAddRate,   setQuickAddRate]   = useState("");
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddError,  setQuickAddError]  = useState("");
+
   const fileRef   = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -239,10 +247,52 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     setEditItemKey(rowItemKey(row));
     setEditInTime(extractHHMM(row.clock_in_at));
     setEditOutTime(extractHHMM(row.clock_out_at));
+    setQuickAddOpen(false);
+    setQuickAddFirst("");
+    setQuickAddLast("");
+    setQuickAddRate("");
+    setQuickAddError("");
   }
 
   function cancelEdit() {
     setEditIdx(null);
+    setQuickAddOpen(false);
+  }
+
+  async function submitQuickAdd() {
+    const first = quickAddFirst.trim();
+    const last  = quickAddLast.trim();
+    if (!first || !last) { setQuickAddError("First and last name required"); return; }
+    setQuickAddSaving(true);
+    setQuickAddError("");
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await fetch("/api/atlas-time/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: first,
+          last_name: last,
+          hire_date: today,
+          default_pay_rate: quickAddRate ? Number(quickAddRate) : null,
+          pay_type: "hourly",
+          status: "active",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to create employee");
+      const newEmp: AvailableEmp = { id: json.employee.id, name: `${last}, ${first}` };
+      setAvailEmps(prev => [...prev, newEmp].sort((a, b) => a.name.localeCompare(b.name)));
+      setEditEmpId(emp.id);
+      setQuickAddOpen(false);
+      setQuickAddFirst("");
+      setQuickAddLast("");
+      setQuickAddRate("");
+    } catch (e: any) {
+      setQuickAddError(e?.message ?? "Failed to create employee");
+    } finally {
+      setQuickAddSaving(false);
+    }
   }
 
   function buildEditedRow(row: PreviewRow, emp: AvailableEmp | undefined, item: AvailableItem | undefined, inTime: string, outTime: string): PreviewRow {
@@ -465,11 +515,41 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                           <tr id={`import-row-${i}`} key={i} className="border-b border-gray-100 bg-blue-50/40">
                             <td className="px-3 py-2"><span className={`inline-block w-2 h-2 rounded-full ${dot}`} /></td>
                             <td className="px-3 py-2">
-                              <select value={editEmpId} onChange={e => setEditEmpId(e.target.value)}
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
-                                <option value="">— Select —</option>
-                                {availEmps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                              </select>
+                              <div className="flex flex-col gap-1">
+                                <select value={editEmpId} onChange={e => setEditEmpId(e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                                  <option value="">— Select —</option>
+                                  {availEmps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                </select>
+                                {!quickAddOpen ? (
+                                  <button onClick={() => setQuickAddOpen(true)}
+                                    className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold text-left transition-colors">
+                                    + Quick Add Employee
+                                  </button>
+                                ) : (
+                                  <div className="border border-blue-200 rounded-lg p-2 bg-blue-50 space-y-1.5">
+                                    <div className="flex gap-1">
+                                      <input placeholder="First" value={quickAddFirst} onChange={e => setQuickAddFirst(e.target.value)}
+                                        className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" />
+                                      <input placeholder="Last" value={quickAddLast} onChange={e => setQuickAddLast(e.target.value)}
+                                        className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" />
+                                    </div>
+                                    <input placeholder="Pay rate ($/hr)" type="number" step="0.01" value={quickAddRate} onChange={e => setQuickAddRate(e.target.value)}
+                                      className="w-full border border-gray-200 rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" />
+                                    {quickAddError && <p className="text-[10px] text-red-600">{quickAddError}</p>}
+                                    <div className="flex gap-1">
+                                      <button onClick={submitQuickAdd} disabled={quickAddSaving}
+                                        className="flex-1 text-[10px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded px-2 py-1 transition-colors disabled:opacity-60">
+                                        {quickAddSaving ? "Adding…" : "Add"}
+                                      </button>
+                                      <button onClick={() => { setQuickAddOpen(false); setQuickAddError(""); }}
+                                        className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 rounded px-2 py-1 hover:bg-gray-100 transition-colors">
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2 text-gray-500">{fmtDate(row.date)}</td>
                             <td className="px-3 py-2">
