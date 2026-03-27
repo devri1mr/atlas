@@ -24,7 +24,7 @@ export async function GET() {
       .from("pricing_books")
       .select("id, name, vendor, file_path, file_type, file_size, logo_path, created_at")
       .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

@@ -161,7 +161,7 @@ export default function PricingBooksPage() {
       const confirmJson = await confirmRes.json();
       if (!confirmRes.ok) throw new Error(confirmJson.error || "Failed to save record");
 
-      setBooks(prev => [confirmJson.data, ...prev]);
+      setBooks(prev => [...prev, confirmJson.data].sort((a, b) => a.name.localeCompare(b.name)));
       closeUploadModal();
     } catch (e: any) {
       setUploadError(e.message);
