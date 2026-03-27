@@ -327,11 +327,10 @@ export default function TimesheetsPage() {
             {employees.map(([empId, eps]) => {
               const emp     = eps[0]?.at_employees;
               const compMap = computed.get(empId) ?? new Map<string, PunchOut>();
-              // Prefer stored DB values (correctly computed server-side per employee);
-              // fall back to client-side computed for punches not yet recalced.
-              const totReg  = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.regular_hours ?? compMap.get(p.id)?.regular_hours ?? 0), 0);
-              const totOT   = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.ot_hours      ?? compMap.get(p.id)?.ot_hours      ?? 0), 0);
-              const totDT   = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.dt_hours      ?? compMap.get(p.id)?.dt_hours      ?? 0), 0);
+              // Use DB-stored values when recalced (regular_hours non-null), else computed fallback.
+              const totReg  = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.regular_hours !== null ? (p.regular_hours ?? 0) : (compMap.get(p.id)?.regular_hours ?? 0)), 0);
+              const totOT   = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.regular_hours !== null ? (p.ot_hours      ?? 0) : (compMap.get(p.id)?.ot_hours      ?? 0)), 0);
+              const totDT   = eps.filter(p => p.clock_out_at).reduce((s, p) => s + (p.regular_hours !== null ? (p.dt_hours      ?? 0) : (compMap.get(p.id)?.dt_hours      ?? 0)), 0);
               const totHrs  = totReg + totOT + totDT;
               const isOpen  = expanded.has(empId);
               const allApproved = eps.filter(p => p.clock_out_at).every(p => p.status === "approved" || p.locked);
@@ -411,10 +410,14 @@ export default function TimesheetsPage() {
                             const c      = compMap.get(p.id);
                             const isEdit = p.id in editing;
                             const draft  = editing[p.id] ?? {};
-                            const reg    = p.regular_hours        ?? c?.regular_hours        ?? 0;
-                            const ot     = p.ot_hours             ?? c?.ot_hours             ?? 0;
-                            const dt     = p.dt_hours             ?? c?.dt_hours             ?? 0;
-                            const lunch  = p.lunch_deducted_mins  ?? c?.lunch_deducted_mins  ?? 0;
+                            // If regular_hours is stored, the punch has been recalced — trust DB values
+                            // (null lunch_deducted_mins means no deduction, not "unknown").
+                            // Only fall back to client-computed values for unrecalced punches.
+                            const recalced = p.regular_hours !== null;
+                            const reg    = recalced ? (p.regular_hours ?? 0) : (c?.regular_hours ?? 0);
+                            const ot     = recalced ? (p.ot_hours     ?? 0) : (c?.ot_hours     ?? 0);
+                            const dt     = recalced ? (p.dt_hours     ?? 0) : (c?.dt_hours     ?? 0);
+                            const lunch  = recalced ? (p.lunch_deducted_mins ?? 0) : (c?.lunch_deducted_mins ?? 0);
                             const total  = reg + ot + dt;
 
                             if (isEdit) return (
