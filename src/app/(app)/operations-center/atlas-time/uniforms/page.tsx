@@ -29,11 +29,8 @@ type LedgerEntry = {
 };
 
 type SummaryRow = {
-  item_option_id: string;
   item_name: string;
-  size_variant_id: string | null;
   size_label: string | null;
-  color_variant_id: string | null;
   color_label: string | null;
   qty_on_hand: number;
   avg_unit_cost: number | null;
