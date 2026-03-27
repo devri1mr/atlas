@@ -768,7 +768,7 @@ export default function MaterialsCatalogPage() {
                                     "width=900,height=750,resizable=yes,scrollbars=yes"
                                   )}
                                 >
-                                  <svg width="28" height="34" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <svg width="16" height="20" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <rect width="28" height="34" rx="3" fill="#E8E8E8"/>
                                     <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
                                     <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
