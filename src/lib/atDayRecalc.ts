@@ -52,10 +52,10 @@ export async function recalcDayLunch(
   const weekEndStr   = we.toISOString().slice(0, 10);
 
   // All completed punches for this employee in this week
-  // Also fetch lunch_deducted_mins so we can detect manual "no lunch" overrides (stored as 0)
+  // Also fetch lunch_deducted_mins and regular_hours so we can detect manual "no lunch" overrides.
   const { data: weekPunches } = await sb
     .from("at_punches")
-    .select("id, clock_in_at, clock_out_at, date_for_payroll, lunch_deducted_mins")
+    .select("id, clock_in_at, clock_out_at, date_for_payroll, lunch_deducted_mins, regular_hours")
     .eq("employee_id", employeeId)
     .eq("company_id", companyId)
     .not("clock_out_at", "is", null)
@@ -64,11 +64,12 @@ export async function recalcDayLunch(
 
   if (!weekPunches?.length) return;
 
-  // lunch_deducted_mins === 0 (explicit integer zero, not null) means a manager manually
-  // removed the lunch deduction — preserve that override across recalculations.
+  // lunch_deducted_mins === 0 AND regular_hours is already set means a manager explicitly
+  // removed the lunch deduction after a prior recalculation — preserve that override.
+  // If regular_hours is null the punch is brand-new (DB default = 0) and is NOT an override.
   const punchesWithOverride = weekPunches.map(p => ({
     ...p,
-    no_lunch: p.lunch_deducted_mins === 0,
+    no_lunch: p.lunch_deducted_mins === 0 && p.regular_hours !== null,
   }));
 
   // computeWeekPunches handles lunch deduction, daily OT, and weekly OT accumulation

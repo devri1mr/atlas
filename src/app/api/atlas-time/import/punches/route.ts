@@ -173,17 +173,12 @@ export async function POST(req: NextRequest) {
     }
 
     async function checkDuplicate(employeeId: string, date: string, clockInAt: string): Promise<boolean> {
-      const clockInMs  = new Date(clockInAt).getTime();
-      const windowMs   = 5 * 60 * 1000;
-      const windowStart = new Date(clockInMs - windowMs).toISOString();
-      const windowEnd   = new Date(clockInMs + windowMs).toISOString();
       const { data } = await sb
         .from("at_punches")
         .select("id")
         .eq("employee_id", employeeId)
         .eq("date_for_payroll", date)
-        .gte("clock_in_at", windowStart)
-        .lte("clock_in_at", windowEnd)
+        .eq("clock_in_at", clockInAt)
         .limit(1);
       return (data ?? []).length > 0;
     }

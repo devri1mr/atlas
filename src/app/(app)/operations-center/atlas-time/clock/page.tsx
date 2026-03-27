@@ -322,6 +322,7 @@ function ClockPageInner() {
   const [editDivisionId, setEditDivisionId] = useState("");
   const [editLunchMins, setEditLunchMins] = useState<number>(0);
   const [editSaving, setEditSaving] = useState(false);
+  const [recalcRunning, setRecalcRunning] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -596,6 +597,43 @@ function ClockPageInner() {
       setError(e?.message ?? "Failed to save");
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  async function runBackfill() {
+    if (!confirm("Recalculate hours for all punches? This applies lunch deductions and OT based on current settings.")) return;
+    try {
+      setRecalcRunning(true);
+      const res = await fetch("/api/atlas-time/backfill", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Recalculation failed");
+      await load(); // Refresh punches on screen
+    } catch (e: any) {
+      setError(e?.message ?? "Recalculation failed");
+    } finally {
+      setRecalcRunning(false);
+    }
+  }
+
+  async function togglePunchLunch(p: Punch) {
+    const current = p.lunch_deducted_mins ?? 0;
+    const next = current > 0 ? 0 : (atSettings.lunch_deduct_minutes ?? 30);
+    // Optimistic update
+    setPunches(prev => prev.map(x => x.id === p.id ? { ...x, lunch_deducted_mins: next || null } : x));
+    const res = await fetch(`/api/atlas-time/punches/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lunch_deducted_mins: next }),
+    });
+    const json = await res.json().catch(() => null);
+    if (res.ok && json?.punch) {
+      setPunches(prev => prev.map(x => x.id === p.id
+        ? { ...x, regular_hours: json.punch.regular_hours, ot_hours: json.punch.ot_hours, dt_hours: json.punch.dt_hours, lunch_deducted_mins: json.punch.lunch_deducted_mins }
+        : x));
+    } else {
+      // Revert on error
+      setPunches(prev => prev.map(x => x.id === p.id ? { ...x, lunch_deducted_mins: current || null } : x));
+      setError(json?.error ?? "Failed to update lunch");
     }
   }
 
@@ -1160,7 +1198,12 @@ function ClockPageInner() {
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">{punches.length} punch{punches.length !== 1 ? "es" : ""}</p>
               </div>
-              <button onClick={() => setViewDate(todayStr)} className="text-xs text-[#123b1f] font-semibold hover:underline">← Back to Today</button>
+              <div className="flex items-center gap-3">
+                <button onClick={runBackfill} disabled={recalcRunning} className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
+                  {recalcRunning ? "Recalculating…" : "Recalculate Hours"}
+                </button>
+                <button onClick={() => setViewDate(todayStr)} className="text-xs text-[#123b1f] font-semibold hover:underline">← Back to Today</button>
+              </div>
             </div>
             {loading ? (
               <div className="p-5 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />)}</div>
@@ -1168,7 +1211,7 @@ function ClockPageInner() {
               <div className="px-5 py-12 text-center text-sm text-gray-400">No punches recorded for this date.</div>
             ) : (
               <>
-                <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                <div className={`sticky top-0 z-10 grid gap-2 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_80px]"}`}>
                   {[["name","Name"],["punch_item","Punch Item"],["clock_in","In"],["clock_out","Out"]].map(([col, label]) => (
                     <button key={col} onClick={() => handleSort(col)} className={`flex items-center gap-1 hover:text-gray-600 transition-colors ${col !== "name" ? "justify-center" : ""}`}>
                       {label}<SortIcon col={col} />
@@ -1176,6 +1219,7 @@ function ClockPageInner() {
                   ))}
                   <span className="text-center">Reg</span>
                   <span className="text-center">OT</span>
+                  <span className="text-center">Lunch</span>
                   <button onClick={() => handleSort("hours")} className="flex items-center justify-center gap-1 hover:text-gray-600 transition-colors">Total<SortIcon col="hours" /></button>
                   {showLaborCost && <span className="text-right">Rate / Cost</span>}
                   <span className="text-right">Actions</span>
@@ -1200,7 +1244,7 @@ function ClockPageInner() {
                         return (
                           <div key={p.id} className={`px-5 py-3 ${isEditing ? "bg-blue-50/30" : group.length > 1 ? "bg-gray-50/30" : ""}`}>
                             {!isEditing ? (
-                              <div className={`grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                              <div className={`grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_80px]"}`}>
                                 <div className="flex items-center gap-2 min-w-0">
                                   {isFirstInGroup ? (
                                     <>
@@ -1229,6 +1273,17 @@ function ClockPageInner() {
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{group.length === 1 ? (p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)) : <span className="text-gray-300">—</span>}</span>
                             <span className={`text-xs text-center tabular-nums font-semibold ${group.length === 1 && (p.ot_hours ?? 0) > 0 ? "text-amber-600" : "text-gray-300"}`}>{group.length === 1 && (p.ot_hours ?? 0) > 0 ? p.ot_hours!.toFixed(2) : "—"}</span>
+                            <div className="text-center">
+                              {atSettings.lunch_auto_deduct && group.length === 1 && p.clock_out_at ? (
+                                <button
+                                  onClick={() => togglePunchLunch(p)}
+                                  title={(p.lunch_deducted_mins ?? 0) > 0 ? "Click to remove lunch deduction" : "Click to add lunch deduction"}
+                                  className={`text-xs tabular-nums rounded px-1 py-0.5 transition-colors ${(p.lunch_deducted_mins ?? 0) > 0 ? "text-gray-500 hover:bg-red-50 hover:text-red-500" : "text-gray-300 hover:bg-green-50 hover:text-green-600"}`}
+                                >
+                                  {(p.lunch_deducted_mins ?? 0) > 0 ? `−${p.lunch_deducted_mins}m` : "—"}
+                                </button>
+                              ) : <span className="text-gray-300 text-xs">—</span>}
+                            </div>
                             <div className="relative text-center">
                               {group.length === 1 && hrs ? (
                                 <button onClick={() => setBreakdownId(showBD ? null : p.id)}
@@ -1339,11 +1394,12 @@ function ClockPageInner() {
                         ? calcLaborCost(dayReg, dayOt, dayDt, emp0.default_pay_rate, atSettings)
                         : null;
                       const dayTotalRow = group.length > 1 ? (
-                        <div key={`total_${group[0].employee_id}`} className={`px-5 py-2 bg-[#123b1f]/5 border-t border-[#123b1f]/10 grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_64px_80px]"}`}>
+                        <div key={`total_${group[0].employee_id}`} className={`px-5 py-2 bg-[#123b1f]/5 border-t border-[#123b1f]/10 grid gap-2 items-center ${showLaborCost ? "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_88px_80px]" : "grid-cols-[1fr_110px_100px_100px_56px_56px_50px_64px_80px]"}`}>
                           <span className="text-[10px] font-semibold text-[#123b1f] uppercase tracking-wide pl-9">Day Total</span>
                           <span /><span /><span />
                           <span className="text-xs text-gray-600 text-center tabular-nums">{dayReg.toFixed(2)}</span>
                           <span className={`text-xs text-center tabular-nums font-semibold ${dayOt > 0 ? "text-amber-600" : "text-gray-300"}`}>{dayOt > 0 ? dayOt.toFixed(2) : "—"}</span>
+                          {(() => { const dayLunch = group.reduce((s, p) => s + (p.lunch_deducted_mins ?? 0), 0); return <span className={`text-xs text-center tabular-nums ${dayLunch > 0 ? "text-gray-500" : "text-gray-300"}`}>{dayLunch > 0 ? `−${dayLunch}m` : "—"}</span>; })()}
                           <span className="text-xs font-bold text-[#123b1f] text-center tabular-nums">{dayTotal.toFixed(2)}</span>
                           {showLaborCost && <span className="text-[10px] font-semibold text-emerald-700 text-right tabular-nums">{dayCost != null ? `$${dayCost.toFixed(2)}` : ""}</span>}
                           <span />
@@ -1353,7 +1409,10 @@ function ClockPageInner() {
                     })
                   })()}
                 </div>
-                <div className="px-5 py-3 border-t border-gray-50 flex justify-end">
+                <div className="px-5 py-3 border-t border-gray-50 flex items-center justify-between">
+                  <button onClick={runBackfill} disabled={recalcRunning} className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
+                    {recalcRunning ? "Recalculating…" : "Recalculate Hours"}
+                  </button>
                   <span className="text-xs text-gray-500">Total: <strong>{totalHoursToday.toFixed(2)} hrs</strong></span>
                 </div>
               </>
