@@ -1,7 +1,7 @@
-type Props = { params: { division: string } };
+type Props = { params: Promise<{ division: string }> };
 
-export default function AtlasOpsDivisionPage({ params }: Props) {
-  const divisionSlug = params.division;
+export default async function AtlasOpsDivisionPage({ params }: Props) {
+  const { division: divisionSlug } = await params;
   const divisionName = divisionSlug
     .split("-")
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
