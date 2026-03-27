@@ -29,6 +29,7 @@ type Material = {
   created_at: string;
   source_pricing_book_id: string | null;
   source_page: number | null;
+  taxable: boolean;
   in_inventory?: boolean;
   inventory_material_id?: string | null;
 };
@@ -709,7 +710,9 @@ export default function MaterialsCatalogPage() {
                         <th className="text-left px-4 py-3">Name</th>
                         <th className="text-left px-4 py-3">Category</th>
                         <th className="text-left px-4 py-3">Unit</th>
-                        <th className="text-right px-4 py-3">Cost</th>
+                        <th className="text-right px-4 py-3">Base Cost</th>
+                        <th className="text-center px-4 py-3">+Tax</th>
+                        <th className="text-right px-4 py-3">With Tax</th>
                         <th className="text-left px-4 py-3">Vendor</th>
                         <th className="text-center px-4 py-3">Inventory</th>
                         <th className="text-center px-4 py-3">Status</th>
@@ -745,6 +748,27 @@ export default function MaterialsCatalogPage() {
                             <td className="px-4 py-3 text-gray-600">{m.default_unit}</td>
                             <td className="px-4 py-3 text-right font-medium text-gray-900">
                               {m.default_unit_cost > 0 ? `$${m.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={m.taxable}
+                                className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                onChange={async e => {
+                                  const checked = e.target.checked;
+                                  setMaterials(prev => prev.map(r => r.id === m.id ? { ...r, taxable: checked } : r));
+                                  await fetch(`/api/materials-catalog/${m.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ taxable: checked }),
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-900">
+                              {m.default_unit_cost > 0
+                                ? `$${(m.default_unit_cost * (m.taxable ? 1.06 : 1)).toFixed(2)}`
+                                : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-4 py-3 text-gray-500 text-xs">{m.vendor || <span className="text-gray-300">—</span>}</td>
                             <td className="px-4 py-3 text-center">
