@@ -26,6 +26,7 @@ type Material = {
   sku: string | null;
   is_active: boolean;
   category_id: string | null;
+  created_at: string;
   in_inventory?: boolean;
   inventory_material_id?: string | null;
 };
@@ -373,6 +374,7 @@ export default function MaterialsCatalogPage() {
   const [matError, setMatError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "recent">("name");
 
   // ── drawer
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; material: Partial<Material> } | null>(null);
@@ -556,6 +558,10 @@ export default function MaterialsCatalogPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const totalMats = allMaterials.length;
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const displayMaterials = sortBy === "recent"
+    ? [...materials].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    : materials; // API already returns A–Z
 
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
@@ -624,6 +630,20 @@ export default function MaterialsCatalogPage() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
+              <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shrink-0 text-sm">
+                <button
+                  onClick={() => setSortBy("name")}
+                  className={`px-3 py-2 transition-colors ${sortBy === "name" ? "bg-green-600 text-white font-semibold" : "text-gray-500 hover:bg-gray-50"}`}
+                >
+                  A–Z
+                </button>
+                <button
+                  onClick={() => setSortBy("recent")}
+                  className={`px-3 py-2 transition-colors ${sortBy === "recent" ? "bg-green-600 text-white font-semibold" : "text-gray-500 hover:bg-gray-50"}`}
+                >
+                  Recent
+                </button>
+              </div>
               <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer select-none shrink-0">
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="rounded" />
                 Inactive only
@@ -668,15 +688,21 @@ export default function MaterialsCatalogPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {materials.map((m, i) => {
+                      {displayMaterials.map((m, i) => {
                         const cat = m.category_id ? catById.get(m.category_id) : null;
+                        const isNew = new Date(m.created_at).getTime() > sevenDaysAgo;
                         return (
                           <tr
                             key={m.id}
                             className={`border-b last:border-0 cursor-pointer hover:bg-green-50 transition-colors ${i % 2 === 0 ? "" : "bg-gray-50/50"}`}
                             onClick={() => setDrawer({ mode: "edit", material: m })}
                           >
-                            <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              <span className="flex items-center gap-2">
+                                {m.name}
+                                {isNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                               {cat ? (
                                 <span className="inline-flex items-center gap-1 text-xs text-gray-600">
@@ -708,8 +734,9 @@ export default function MaterialsCatalogPage() {
                     </tbody>
                   </table>
                   <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-400 text-right">
-                    {materials.length} item{materials.length !== 1 ? "s" : ""}
+                    {displayMaterials.length} item{displayMaterials.length !== 1 ? "s" : ""}
                     {selectedCatId || search ? " (filtered)" : ""}
+                    {sortBy === "recent" && " · sorted by newest"}
                   </div>
                 </div>
               )}
