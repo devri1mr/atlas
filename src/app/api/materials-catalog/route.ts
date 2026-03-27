@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     else query = query.eq("is_active", true);
     if (division_id && isUuid(division_id)) query = query.eq("division_id", division_id);
     if (category_id && isUuid(category_id)) query = query.eq("category_id", category_id);
-    if (q) query = query.ilike("name", `%${q}%`);
+    if (q) query = query.or(`name.ilike.%${q}%,vendor.ilike.%${q}%`);
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
