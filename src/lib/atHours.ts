@@ -121,7 +121,9 @@ export function computePeriodPunches(punches: PunchIn[], s: HRSettings): PunchOu
   const byWeek = new Map<string, PunchIn[]>();
   for (const p of punches) {
     if (!p.clock_out_at) continue;
-    const ws  = weekStart(new Date(p.date_for_payroll), s.pay_period_start_day);
+    // Parse date at local noon so setHours(0,0,0,0) stays on the correct calendar day
+    // in any timezone (avoids UTC-midnight date strings rolling back one day in e.g. EST)
+    const ws  = weekStart(new Date(p.date_for_payroll + "T12:00:00"), s.pay_period_start_day);
     const key = ws.toISOString().slice(0, 10);
     if (!byWeek.has(key)) byWeek.set(key, []);
     byWeek.get(key)!.push(p);
