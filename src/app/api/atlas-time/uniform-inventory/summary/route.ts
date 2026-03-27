@@ -57,6 +57,8 @@ export async function GET(_req: NextRequest) {
       qty_on_hand: number;
       total_receipt_qty: number;
       total_receipt_cost: number;
+      legacy_total_qty: number;   // qty from employee JSONB (no inventory_id)
+      legacy_total_cost: number;  // cost from employee JSONB (fallback when no receipts)
     }>();
 
     for (const row of ledgerRes.data ?? []) {
@@ -70,7 +72,7 @@ export async function GET(_req: NextRequest) {
       const key = `${item_name}|${size_label ?? ""}|${color_label ?? ""}`;
 
       if (!map.has(key)) {
-        map.set(key, { item_name, size_label, color_label, qty_on_hand: 0, total_receipt_qty: 0, total_receipt_cost: 0 });
+        map.set(key, { item_name, size_label, color_label, qty_on_hand: 0, total_receipt_qty: 0, total_receipt_cost: 0, legacy_total_qty: 0, legacy_total_cost: 0 });
       }
 
       const entry = map.get(key)!;
@@ -95,11 +97,18 @@ export async function GET(_req: NextRequest) {
         const qty         = Number(ui.qty ?? 1);
         if (!item_name) continue;
 
+        const cost = ui.cost != null ? Number(ui.cost) : null;
+
         const key = `${item_name}|${size_label ?? ""}|${color_label ?? ""}`;
         if (!map.has(key)) {
-          map.set(key, { item_name, size_label, color_label, qty_on_hand: 0, total_receipt_qty: 0, total_receipt_cost: 0 });
+          map.set(key, { item_name, size_label, color_label, qty_on_hand: 0, total_receipt_qty: 0, total_receipt_cost: 0, legacy_total_qty: 0, legacy_total_cost: 0 });
         }
-        map.get(key)!.qty_on_hand -= qty; // issued out, no receipt → deficit
+        const entry = map.get(key)!;
+        entry.qty_on_hand -= qty; // issued out, no receipt → deficit
+        if (cost != null) {
+          entry.legacy_total_qty  += qty;
+          entry.legacy_total_cost += qty * cost;
+        }
       }
     }
 
@@ -109,12 +118,23 @@ export async function GET(_req: NextRequest) {
       size_label:      e.size_label,
       color_label:     e.color_label,
       qty_on_hand:     e.qty_on_hand,
-      avg_unit_cost:   e.total_receipt_qty > 0
-        ? Math.round((e.total_receipt_cost / e.total_receipt_qty) * 100) / 100
-        : null,
-      inventory_value: e.qty_on_hand > 0 && e.total_receipt_qty > 0
-        ? Math.round(e.qty_on_hand * (e.total_receipt_cost / e.total_receipt_qty) * 100) / 100
-        : null,
+      avg_unit_cost: (() => {
+        if (e.total_receipt_qty > 0)
+          return Math.round((e.total_receipt_cost / e.total_receipt_qty) * 100) / 100;
+        if (e.legacy_total_qty > 0)
+          return Math.round((e.legacy_total_cost / e.legacy_total_qty) * 100) / 100;
+        return null;
+      })(),
+      inventory_value: (() => {
+        const avgCost = e.total_receipt_qty > 0
+          ? e.total_receipt_cost / e.total_receipt_qty
+          : e.legacy_total_qty > 0
+            ? e.legacy_total_cost / e.legacy_total_qty
+            : null;
+        return avgCost != null
+          ? Math.round(e.qty_on_hand * avgCost * 100) / 100
+          : null;
+      })(),
     })).sort((a, b) =>
       a.item_name.localeCompare(b.item_name) ||
       (a.size_label ?? "").localeCompare(b.size_label ?? "") ||
