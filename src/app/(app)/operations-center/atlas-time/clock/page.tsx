@@ -323,7 +323,7 @@ function ClockPageInner() {
   const [editLunchMins, setEditLunchMins] = useState<number>(0);
   const [editSaving, setEditSaving] = useState(false);
   const [recalcRunning, setRecalcRunning] = useState(false);
-  const [recalcProgress, setRecalcProgress] = useState<{ done: number; total: number } | null>(null);
+  const [recalcProgress, setRecalcProgress] = useState<{ done: number; total: number; lunchOn?: boolean } | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -606,7 +606,17 @@ function ClockPageInner() {
     try {
       setRecalcRunning(true);
       setRecalcProgress(null);
-      const res = await fetch("/api/atlas-time/backfill", { method: "POST" });
+      // Pass frontend atSettings as overrides so the backfill uses the confirmed values
+      // even if the DB row is stale or null.
+      const res = await fetch("/api/atlas-time/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          force_lunch_auto_deduct:   atSettings.lunch_auto_deduct,
+          force_lunch_minutes:       atSettings.lunch_deduct_minutes,
+          force_lunch_after_hours:   atSettings.lunch_deduct_after_hours,
+        }),
+      });
       if (!res.ok || !res.body) throw new Error("Recalculation failed");
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -621,7 +631,11 @@ function ClockPageInner() {
           if (!line.trim()) continue;
           try {
             const msg = JSON.parse(line);
-            if (msg.total != null) setRecalcProgress({ done: msg.done, total: msg.total });
+            if (msg.total != null) setRecalcProgress({
+              done: msg.done,
+              total: msg.total,
+              lunchOn: msg.settings?.lunch_auto_deduct ?? atSettings.lunch_auto_deduct,
+            });
           } catch { /* skip malformed line */ }
         }
       }
@@ -1218,17 +1232,22 @@ function ClockPageInner() {
                 <p className="text-xs text-gray-400 mt-0.5">{punches.length} punch{punches.length !== 1 ? "es" : ""}</p>
               </div>
               <div className="flex items-center gap-3">
-                {recalcRunning && recalcProgress ? (
+                {recalcRunning ? (
                   <div className="flex items-center gap-2">
                     <div className="w-28 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#123b1f] rounded-full transition-all duration-200"
-                        style={{ width: `${recalcProgress.total > 0 ? Math.round((recalcProgress.done / recalcProgress.total) * 100) : 0}%` }}
+                        style={{ width: recalcProgress && recalcProgress.total > 0 ? `${Math.round((recalcProgress.done / recalcProgress.total) * 100)}%` : "0%" }}
                       />
                     </div>
                     <span className="text-xs text-gray-500 tabular-nums">
-                      {recalcProgress.total > 0 ? Math.round((recalcProgress.done / recalcProgress.total) * 100) : 0}%
+                      {recalcProgress && recalcProgress.total > 0 ? `${Math.round((recalcProgress.done / recalcProgress.total) * 100)}%` : "…"}
                     </span>
+                    {recalcProgress?.lunchOn != null && (
+                      <span className={`text-[10px] font-medium ${recalcProgress.lunchOn ? "text-emerald-600" : "text-amber-500"}`}>
+                        lunch {recalcProgress.lunchOn ? "on" : "off"}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <button onClick={runBackfill} disabled={recalcRunning} className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
