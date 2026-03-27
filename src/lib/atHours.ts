@@ -20,6 +20,8 @@ export type PunchIn = {
   clock_in_at: string;
   clock_out_at: string | null;
   date_for_payroll: string;
+  /** When true, skip lunch auto-deduction for this punch (manual override). */
+  no_lunch?: boolean;
 };
 
 export type PunchOut = {
@@ -57,7 +59,7 @@ export function computeWeekPunches(punches: PunchIn[], s: HRSettings): PunchOut[
     const rIn  = roundTime(new Date(p.clock_in_at),   s.punch_rounding_minutes);
     const rOut = roundTime(new Date(p.clock_out_at!),  s.punch_rounding_minutes);
     const rawH = r4(Math.max(0, (rOut.getTime() - rIn.getTime()) / 3_600_000));
-    const lunchMins = (s.lunch_auto_deduct && rawH >= s.lunch_deduct_after_hours)
+    const lunchMins = (!p.no_lunch && s.lunch_auto_deduct && rawH >= s.lunch_deduct_after_hours)
       ? s.lunch_deduct_minutes : 0;
     const grossH = r4(Math.max(0, rawH - lunchMins / 60));
     return { ...p, grossH, lunchMins };

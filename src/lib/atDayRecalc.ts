@@ -52,9 +52,10 @@ export async function recalcDayLunch(
   const weekEndStr   = we.toISOString().slice(0, 10);
 
   // All completed punches for this employee in this week
+  // Also fetch lunch_deducted_mins so we can detect manual "no lunch" overrides (stored as 0)
   const { data: weekPunches } = await sb
     .from("at_punches")
-    .select("id, clock_in_at, clock_out_at, date_for_payroll")
+    .select("id, clock_in_at, clock_out_at, date_for_payroll, lunch_deducted_mins")
     .eq("employee_id", employeeId)
     .eq("company_id", companyId)
     .not("clock_out_at", "is", null)
@@ -63,19 +64,28 @@ export async function recalcDayLunch(
 
   if (!weekPunches?.length) return;
 
+  // lunch_deducted_mins === 0 (explicit integer zero, not null) means a manager manually
+  // removed the lunch deduction — preserve that override across recalculations.
+  const punchesWithOverride = weekPunches.map(p => ({
+    ...p,
+    no_lunch: p.lunch_deducted_mins === 0,
+  }));
+
   // computeWeekPunches handles lunch deduction, daily OT, and weekly OT accumulation
-  const results   = computeWeekPunches(weekPunches, settings);
+  const results   = computeWeekPunches(punchesWithOverride, settings);
   const resultMap = new Map(results.map(r => [r.id, r]));
 
-  // Write all results back in parallel
+  // Write all results back in parallel, preserving manual lunch overrides
   await Promise.all(weekPunches.map(p => {
     const r = resultMap.get(p.id);
     if (!r) return Promise.resolve();
+    const isOverride = p.lunch_deducted_mins === 0;
     return sb.from("at_punches").update({
       regular_hours:       r2(r.regular_hours),
       ot_hours:            r2(r.ot_hours),
       dt_hours:            r2(r.dt_hours),
-      lunch_deducted_mins: r.lunch_deducted_mins || null,
+      // Explicit 0 = manual override: always write 0 back so it survives future recalcs
+      lunch_deducted_mins: isOverride ? 0 : (r.lunch_deducted_mins || null),
     }).eq("id", p.id);
   }));
 }
