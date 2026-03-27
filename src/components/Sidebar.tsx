@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 
-type Child = { label: string; href: string; badge?: string; permKey?: string };
+type Child = { label: string; href: string; badge?: string; permKey?: string; adminOnly?: boolean };
 type NavItem = {
   label: string;
   href: string;
@@ -79,7 +79,8 @@ const NAV: NavItem[] = [
       { label: "Import", href: "/operations-center/atlas-time/import", permKey: "hr_import" },
       { label: "Timesheets", href: "/operations-center/atlas-time/timesheets", permKey: "hr_timesheets_view" },
       { label: "PTO & Time Off", href: "/operations-center/atlas-time/pto", permKey: "hr_pto_view", badge: "P4" },
-      { label: "Payroll & Export", href: "/operations-center/atlas-time/payroll", permKey: "hr_payroll_view", badge: "P4" },
+      { label: "Payroll", href: "/operations-center/atlas-time/payroll", permKey: "hr_payroll_view" },
+      { label: "Uniforms", href: "/operations-center/atlas-time/uniforms", permKey: "hr_team_view" },
       { label: "Reports", href: "/operations-center/atlas-time/reports", permKey: "hr_reports" },
     ],
   },
@@ -95,7 +96,7 @@ const NAV: NavItem[] = [
     permKey: "users_view",
     children: [
       { label: "All Users", href: "/operations-center/users", permKey: "users_view" },
-      { label: "Roles & Permissions", href: "/operations-center/roles", permKey: "users_permissions" },
+      { label: "Roles & Permissions", href: "/operations-center/roles", permKey: "users_permissions", adminOnly: true },
     ],
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -173,11 +174,17 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   // For parent groups: visible only if at least one permKey-gated child passes.
   // Children with no permKey are always shown once the parent is visible, but
   // don't count toward making the parent visible on their own.
+  const isAdmin = user?.role_is_admin ?? false;
+  function childVisible(c: Child) {
+    if (c.adminOnly && !isAdmin) return false;
+    return !c.permKey || can(c.permKey);
+  }
+
   const visibleNav = loading
     ? []
     : NAV.filter(item => {
         if (item.children?.length) {
-          return item.children.some(c => c.permKey && can(c.permKey));
+          return item.children.some(c => c.permKey && childVisible(c));
         }
         return !item.permKey || can(item.permKey);
       });
@@ -211,7 +218,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Nav */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
         {visibleNav.map(item => {
-          const visibleChildren = item.children?.filter(c => !c.permKey || can(c.permKey));
+          const visibleChildren = item.children?.filter(c => childVisible(c));
           const hasChildren = !!visibleChildren?.length;
           const isOpen = openGroups.has(item.href);
           const childActive = visibleChildren?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"));

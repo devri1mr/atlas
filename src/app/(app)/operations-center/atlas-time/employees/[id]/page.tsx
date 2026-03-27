@@ -55,7 +55,7 @@ type Division = { id: string; name: string; active: boolean; time_clock_only: bo
 type PayRate = { id: string; division_id: string | null; division_name: string | null; qb_class: string | null; rate: number; effective_date: string; end_date: string | null; is_default: boolean };
 type Employee = Record<string, any>;
 type NavEmp = { id: string; first_name: string; last_name: string; photo_url: string | null };
-type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number; color?: string };
+type UniformItem = { key: string; item: string; cost: number | null; issued_date: string; issued_type: "company_issued" | "team_member_purchase"; subsection?: string; size?: string; qty?: number; color?: string; inventory_id?: string };
 type Variant = { id: string; item_option_id: string; variant_type: "size" | "color"; label: string; cost: number | null; sort_order: number; active: boolean };
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
 type FieldOpt = { id: string; label: string; cost?: number | null; is_default?: boolean; default_qty?: number | null; subsection?: string | null; requires_size?: boolean };
@@ -148,6 +148,9 @@ export default function EmployeeDetailPage() {
   const [uniformItems, setUniformItems] = useState<UniformItem[]>([]);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState("");
+  const [newItemOptionId, setNewItemOptionId] = useState("");
+  const [newItemSizeVariantId, setNewItemSizeVariantId] = useState("");
+  const [newItemColorVariantId, setNewItemColorVariantId] = useState("");
   const [newItemCost, setNewItemCost] = useState("");
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
   const [newItemType, setNewItemType] = useState<"company_issued" | "team_member_purchase">("company_issued");
@@ -155,6 +158,7 @@ export default function EmployeeDetailPage() {
   const [newItemSize, setNewItemSize] = useState("");
   const [newItemQty, setNewItemQty] = useState("1");
   const [newItemColor, setNewItemColor] = useState("");
+  const [newItemAdding, setNewItemAdding] = useState(false);
   const [uniformVariants, setUniformVariants] = useState<Record<string, { sizes: Variant[]; colors: Variant[] }>>({});
 
   const [addingRate, setAddingRate] = useState(false);
@@ -300,29 +304,88 @@ export default function EmployeeDetailPage() {
     }
   }
 
-  function addUniformItem() {
+  async function addUniformItem() {
     if (!newItemName.trim()) return;
+    setNewItemAdding(true);
+
+    let inventory_id: string | undefined;
+    let resolvedCost = newItemCost !== "" ? Number(newItemCost) : null;
+
+    // If item is linked to catalog, create inventory issuance + pay adjustments
+    if (newItemOptionId) {
+      try {
+        const res = await fetch("/api/atlas-time/uniform-inventory/issue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employee_id:       id,
+            item_option_id:    newItemOptionId,
+            size_variant_id:   newItemSizeVariantId  || null,
+            color_variant_id:  newItemColorVariantId || null,
+            quantity:          newItemQty !== "" ? Number(newItemQty) : 1,
+            issue_date:        newItemDate,
+            issued_type:       newItemType,
+            item_label:        newItemName.trim(),
+            size_label:        newItemSize  || null,
+            color_label:       newItemColor || null,
+          }),
+        });
+        const json = await res.json();
+        if (res.ok) {
+          inventory_id  = json.inventory_id;
+          // Use inventory avg cost if we don't have a manual cost override
+          if (resolvedCost === null && json.unit_cost != null) {
+            const qty = newItemQty !== "" ? Number(newItemQty) : 1;
+            resolvedCost = +(json.unit_cost * qty).toFixed(2);
+          }
+        }
+      } catch {
+        // Non-fatal — inventory wiring failed but still add item to profile
+      }
+    }
+
     setUniformItems(prev => [...prev, {
       key: `${Date.now()}`,
       item: newItemName.trim(),
-      cost: newItemCost !== "" ? Number(newItemCost) : null,
+      cost: resolvedCost,
       issued_date: newItemDate,
       issued_type: newItemType,
       subsection: newItemSubsection,
       size: newItemSize,
       qty: newItemQty !== "" ? Number(newItemQty) : 1,
       color: newItemColor,
+      inventory_id,
     }]);
-    setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued");
-    setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor(""); setAddingItem(false);
+
+    setNewItemName(""); setNewItemOptionId(""); setNewItemSizeVariantId(""); setNewItemColorVariantId("");
+    setNewItemCost(""); setNewItemType("company_issued");
+    setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor("");
+    setAddingItem(false);
+    setNewItemAdding(false);
   }
 
   function updateUniformItem(key: string, patch: Partial<UniformItem>) {
     setUniformItems(prev => prev.map(i => i.key === key ? { ...i, ...patch } : i));
   }
 
-  function removeUniformItem(key: string) {
+  async function removeUniformItem(key: string) {
+    const item = uniformItems.find(i => i.key === key);
     setUniformItems(prev => prev.filter(i => i.key !== key));
+
+    // If item had an inventory issuance, create a return entry + cancel pay adjustments
+    if (item?.inventory_id) {
+      try {
+        // Void the original issuance
+        await fetch(`/api/atlas-time/uniform-inventory/${item.inventory_id}`, { method: "DELETE" });
+        // Cancel any pending pay adjustments linked to this inventory entry
+        const adjRes = await fetch(`/api/atlas-time/pay-adjustments?employee_id=${id}`);
+        const adjJson = await adjRes.json();
+        const linked = (adjJson.adjustments ?? []).filter((a: any) => a.source_inventory_id === item.inventory_id && a.status === "pending");
+        await Promise.all(linked.map((a: any) => fetch(`/api/atlas-time/pay-adjustments/${a.id}`, { method: "DELETE" })));
+      } catch {
+        // Non-fatal
+      }
+    }
   }
 
   async function addPayRate() {
@@ -1377,6 +1440,11 @@ export default function EmployeeDetailPage() {
                         onChange={e => {
                           const opt = (fieldOpts["uniform_items"] ?? []).find(o => o.label === e.target.value);
                           setNewItemName(e.target.value);
+                          setNewItemOptionId(opt?.id ?? "");
+                          setNewItemSizeVariantId("");
+                          setNewItemColorVariantId("");
+                          setNewItemSize("");
+                          setNewItemColor("");
                           if (opt?.cost != null) setNewItemCost(String(opt.cost));
                           if (opt?.subsection) setNewItemSubsection(opt.subsection);
                         }}
@@ -1425,6 +1493,7 @@ export default function EmployeeDetailPage() {
                             <select value={newItemSize} onChange={e => {
                               setNewItemSize(e.target.value);
                               const sv = addSizeVars.find(v => v.label === e.target.value);
+                              setNewItemSizeVariantId(sv?.id ?? "");
                               if (sv?.cost != null) setNewItemCost(String(sv.cost));
                             }} className={inputCls}>
                               <option value="">— Select size —</option>
@@ -1438,7 +1507,11 @@ export default function EmployeeDetailPage() {
                       {addColorVars.length > 0 && (
                         <div>
                           <label className={labelCls}>Color</label>
-                          <select value={newItemColor} onChange={e => setNewItemColor(e.target.value)} className={inputCls}>
+                          <select value={newItemColor} onChange={e => {
+                            setNewItemColor(e.target.value);
+                            const cv = addColorVars.find(v => v.label === e.target.value);
+                            setNewItemColorVariantId(cv?.id ?? "");
+                          }} className={inputCls}>
                             <option value="">— Select color —</option>
                             {addColorVars.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
                           </select>
@@ -1464,11 +1537,14 @@ export default function EmployeeDetailPage() {
                     </select>
                   </div>
                 </TwoCol>
-                <div className="flex gap-2">
-                  <button onClick={addUniformItem} disabled={!newItemName.trim()}
-                    className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">Add Item</button>
-                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemCost(""); setNewItemType("company_issued"); setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor(""); }}
+                <div className="flex gap-2 items-center">
+                  <button onClick={addUniformItem} disabled={!newItemName.trim() || newItemAdding}
+                    className="bg-[#123b1f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors">
+                    {newItemAdding ? "Adding…" : "Add Item"}
+                  </button>
+                  <button onClick={() => { setAddingItem(false); setNewItemName(""); setNewItemOptionId(""); setNewItemSizeVariantId(""); setNewItemColorVariantId(""); setNewItemCost(""); setNewItemType("company_issued"); setNewItemSubsection(""); setNewItemSize(""); setNewItemQty("1"); setNewItemColor(""); }}
                     className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2">Cancel</button>
+                  {newItemAdding && <span className="text-[11px] text-gray-400">Creating inventory record…</span>}
                 </div>
               </div>
             )}

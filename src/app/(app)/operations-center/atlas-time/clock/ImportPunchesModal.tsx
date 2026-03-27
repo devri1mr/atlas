@@ -143,6 +143,9 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
   const [quickAddSaving, setQuickAddSaving] = useState(false);
   const [quickAddError,  setQuickAddError]  = useState("");
 
+  // Duplicate-check state (while applyEdit is running)
+  const [checking, setChecking] = useState(false);
+
   const fileRef   = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -311,37 +314,71 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     }).catch(() => {/* non-critical */});
   }
 
-  function applyEdit() {
+  async function checkDup(employeeId: string, date: string, clockInAt: string): Promise<boolean> {
+    try {
+      const res = await fetch("/api/atlas-time/import/check-duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_id: employeeId, date, clock_in_at: clockInAt }),
+      });
+      const json = await res.json();
+      return json.is_duplicate === true;
+    } catch { return false; }
+  }
+
+  async function applyEdit() {
     if (editIdx === null) return;
     const row  = previewRows[editIdx];
     const emp  = availEmps.find(e => e.id === editEmpId);
     const item = itemFromKey(editItemKey);
+    let built  = buildEditedRow(row, emp, item, editInTime, editOutTime);
+
+    // If the row went from no_employee → ready, check for existing DB punch
+    if (row.status === "no_employee" && built.status === "ready" && emp) {
+      setChecking(true);
+      const isDup = await checkDup(emp.id, built.date, built.clock_in_at);
+      setChecking(false);
+      if (isDup) built = { ...built, status: "duplicate" };
+      saveNameMap(row.csv_name, emp.id);
+    }
+
     const updated = [...previewRows];
-    updated[editIdx] = buildEditedRow(row, emp, item, editInTime, editOutTime);
+    updated[editIdx] = built;
     setPreviewRows(updated);
-    // Save name mapping if employee was resolved for an unmatched row
-    if (emp && row.status === "no_employee") saveNameMap(row.csv_name, emp.id);
     setEditIdx(null);
   }
 
-  function applyEditToAll() {
+  async function applyEditToAll() {
     if (editIdx === null) return;
     const row  = previewRows[editIdx];
     const emp  = availEmps.find(e => e.id === editEmpId);
     const item = editItemKey ? itemFromKey(editItemKey) : undefined;
 
-    const updated = previewRows.map((r, i) => {
-      // Always apply full edit to the row being edited
-      if (i === editIdx) return buildEditedRow(r, emp, item, editInTime, editOutTime);
-      // Apply to other unresolved rows with the same csv_name
-      if (r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")) {
-        // Keep the row's own punch item unless user explicitly picked one
+    // Build candidate rows (all same-name unresolved rows + the edited row)
+    const candidates: { i: number; built: PreviewRow }[] = [];
+    previewRows.forEach((r, i) => {
+      if (i === editIdx) {
+        candidates.push({ i, built: buildEditedRow(r, emp, item, editInTime, editOutTime) });
+      } else if (r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")) {
         const resolvedItem = item ?? (r.at_division_id ? availItems.find(x => x.at_division_id === r.at_division_id) : r.division_id ? availItems.find(x => !x.at_division_id && x.division_id === r.division_id) : undefined);
         const newStatus: PreviewRow["status"] = !emp ? "no_employee" : !resolvedItem ? "no_punch_item" : "ready";
-        return { ...r, employee_id: emp?.id ?? null, employee_name: emp?.name ?? null, division_id: resolvedItem?.division_id ?? null, at_division_id: resolvedItem?.at_division_id ?? null, matched_item_name: resolvedItem?.label ?? null, status: newStatus };
+        candidates.push({ i, built: { ...r, employee_id: emp?.id ?? null, employee_name: emp?.name ?? null, division_id: resolvedItem?.division_id ?? null, at_division_id: resolvedItem?.at_division_id ?? null, matched_item_name: resolvedItem?.label ?? null, status: newStatus } });
       }
-      return r;
     });
+
+    // Duplicate-check all newly-ready rows in parallel
+    const readyCandidates = candidates.filter(c => c.built.status === "ready" && emp);
+    if (readyCandidates.length > 0) {
+      setChecking(true);
+      const dupFlags = await Promise.all(readyCandidates.map(c => checkDup(emp!.id, c.built.date, c.built.clock_in_at)));
+      setChecking(false);
+      readyCandidates.forEach((c, k) => {
+        if (dupFlags[k]) c.built = { ...c.built, status: "duplicate" };
+      });
+    }
+
+    const updated = [...previewRows];
+    for (const { i, built } of candidates) updated[i] = built;
     setPreviewRows(updated);
     // Save name mapping if employee was resolved
     if (emp && row.status === "no_employee") saveNameMap(row.csv_name, emp.id);
@@ -587,12 +624,15 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                             <td className="px-3 py-2">
                               <div className="flex flex-col gap-1">
                                 <div className="flex gap-1">
-                                  <button onClick={applyEdit} className="text-[10px] font-semibold text-white bg-[#123b1f] hover:bg-[#1a5c2e] px-2 py-1 rounded-md transition-colors">OK</button>
-                                  <button onClick={cancelEdit} className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors">✕</button>
+                                  <button onClick={applyEdit} disabled={checking}
+                                    className="text-[10px] font-semibold text-white bg-[#123b1f] hover:bg-[#1a5c2e] px-2 py-1 rounded-md transition-colors disabled:opacity-60">
+                                    {checking ? "…" : "OK"}
+                                  </button>
+                                  <button onClick={cancelEdit} disabled={checking} className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-60">✕</button>
                                 </div>
                                 {sameNameCount > 0 && (
-                                  <button onClick={applyEditToAll}
-                                    className="text-[9px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors whitespace-nowrap">
+                                  <button onClick={applyEditToAll} disabled={checking}
+                                    className="text-[9px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors whitespace-nowrap disabled:opacity-60">
                                     Apply to all {sameNameCount}
                                   </button>
                                 )}

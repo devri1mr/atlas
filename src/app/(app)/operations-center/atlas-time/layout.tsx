@@ -12,6 +12,7 @@ const TABS = [
   { label: "Timesheets", href: "/operations-center/atlas-time/timesheets" },
   { label: "PTO & Time Off", href: "/operations-center/atlas-time/pto" },
   { label: "Payroll", href: "/operations-center/atlas-time/payroll" },
+  { label: "Uniforms", href: "/operations-center/atlas-time/uniforms" },
   { label: "Import", href: "/operations-center/atlas-time/import" },
   { label: "Reports", href: "/operations-center/atlas-time/reports" },
   { label: "Settings", href: "/operations-center/atlas-time/settings" },
