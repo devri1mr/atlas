@@ -35,6 +35,11 @@ type ParsedMember = {
   employee_id: string | null;
   employee_name: string | null;
   punch_status: PunchStatus;
+  reg_hours: number | null;
+  ot_hours: number | null;
+  total_payroll_hours: number | null;
+  pay_rate: number | null;
+  payroll_cost: number | null;
 };
 
 type ParsedJob = {
@@ -52,7 +57,7 @@ type ParsedJob = {
   members: ParsedMember[];
 };
 
-type RawMember = Omit<ParsedMember, "employee_id" | "employee_name" | "punch_status">;
+type RawMember = Omit<ParsedMember, "employee_id" | "employee_name" | "punch_status" | "reg_hours" | "ot_hours" | "total_payroll_hours" | "pay_rate" | "payroll_cost">;
 type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
 
 // ── XLS parser ────────────────────────────────────────────────────────────────
@@ -74,7 +79,7 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
 
     if (col0 === "Total") {
       totalRowRaw = row;
-      grandTotalHrs = parseNum(row[10]); // capture SAP grand total actual hours
+      grandTotalHrs = parseNum(row[10]);
       continue;
     }
 
@@ -91,12 +96,10 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
 
   const sumJobHrs = jobs.reduce((s, j) => s + j.actual_hours, 0);
 
-  // Normalize job actual_hours to sum exactly to SAP grand total
   if (grandTotalHrs !== null && jobs.length > 0) {
     const jobHrs = lrm(jobs.map(j => j.actual_hours), grandTotalHrs, 4);
     jobs.forEach((j, i) => {
       j.actual_hours = jobHrs[i];
-      // Re-normalize member hours to match the adjusted job total
       if (j.members.length > 0) {
         const mHrs = lrm(j.members.map(m => m.actual_hours), jobHrs[i], 4);
         const mRev = lrm(mHrs, j.budgeted_amount, 2);
@@ -120,7 +123,7 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
   };
 }
 
-// Largest-remainder distribution: split `total` across `weights` using given decimal precision
+// Largest-remainder distribution
 function lrm(weights: number[], total: number, decimals: number): number[] {
   const factor = Math.pow(10, decimals);
   const weightSum = weights.reduce((s, w) => s + w, 0);
@@ -142,12 +145,10 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   const serviceDate = serialDate ? excelSerialToISO(serialDate) : "";
 
   const budgetedAmount = parseNum(summary[12]);
-  const jobActualHrs   = parseNum(summary[10]); // authoritative from SAP summary row
+  const jobActualHrs   = parseNum(summary[10]);
   const rawHrs = members.map(m => parseNum((m as unknown[])[10]));
 
-  // Normalize member hours to exactly equal job summary total (4 decimal places)
-  const memberHrs = lrm(rawHrs, jobActualHrs, 4);
-  // Distribute revenue proportionally to normalized hours (2 decimal places)
+  const memberHrs     = lrm(rawHrs, jobActualHrs, 4);
   const memberRevenue = lrm(memberHrs, budgetedAmount, 2);
 
   return {
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
     // ── Employee matching ────────────────────────────────────────────────────
     const { data: employees } = await sb
       .from("at_employees")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, default_pay_rate")
       .eq("company_id", companyId);
 
     const empList = employees ?? [];
@@ -207,8 +208,7 @@ export async function POST(req: NextRequest) {
       return found ? { id: found.id, name: `${found.first_name} ${found.last_name}` } : null;
     }
 
-    // ── Punch checking (employee + date + Lawn division) ─────────────────────
-    // Find Lawn at_divisions
+    // ── Lawn divisions ───────────────────────────────────────────────────────
     const { data: lawnDivs } = await sb
       .from("at_divisions")
       .select("id")
@@ -216,38 +216,104 @@ export async function POST(req: NextRequest) {
       .eq("active", true);
     const lawnDivIds = (lawnDivs ?? []).map(d => d.id);
 
-    let punchedEmpIds = new Set<string>();
+    // ── Punch data (hours + times + match check) ─────────────────────────────
+    type PunchRow = {
+      employee_id: string;
+      clock_in_at: string | null;
+      clock_out_at: string | null;
+      regular_hours: number | null;
+      ot_hours: number | null;
+      dt_hours: number | null;
+    };
+    let punchRows: PunchRow[] = [];
     if (reportDate) {
-      let punchQuery = sb
+      let q = sb
         .from("at_punches")
-        .select("employee_id")
+        .select("employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours")
         .eq("company_id", companyId)
         .eq("date_for_payroll", reportDate);
-
-      if (lawnDivIds.length > 0) {
-        punchQuery = punchQuery.in("at_division_id", lawnDivIds);
-      }
-
-      const { data: punches } = await punchQuery;
-      punchedEmpIds = new Set((punches ?? []).map((p: any) => p.employee_id));
+      if (lawnDivIds.length > 0) q = q.in("at_division_id", lawnDivIds);
+      const { data } = await q;
+      punchRows = (data ?? []) as PunchRow[];
     }
+
+    // Sum punch hours per employee; keep all individual punch records
+    const punchMap = new Map<string, { reg: number; ot: number; dt: number }>();
+    for (const p of punchRows) {
+      const cur = punchMap.get(p.employee_id) ?? { reg: 0, ot: 0, dt: 0 };
+      cur.reg += p.regular_hours ?? 0;
+      cur.ot  += p.ot_hours      ?? 0;
+      cur.dt  += p.dt_hours      ?? 0;
+      punchMap.set(p.employee_id, cur);
+    }
+    const punchedEmpIds = new Set(punchMap.keys());
+
+    // ── Pay rates (Lawn division preferred, fallback to default) ─────────────
+    const matchedEmpIds = [...new Set(
+      rawJobs.flatMap(j => j.members.map(m => matchEmp(m.resource_name)?.id).filter(Boolean) as string[])
+    )];
+
+    let payRateRows: { employee_id: string; division_id: string | null; rate: number; is_default: boolean }[] = [];
+    if (matchedEmpIds.length > 0) {
+      const { data } = await sb
+        .from("at_pay_rates")
+        .select("employee_id, division_id, rate, is_default")
+        .in("employee_id", matchedEmpIds);
+      payRateRows = (data ?? []) as typeof payRateRows;
+    }
+
+    function getPayRate(empId: string): number | null {
+      const rates = payRateRows.filter(r => r.employee_id === empId);
+      // Prefer Lawn division-specific rate
+      const lawnRate = rates.find(r => r.division_id && lawnDivIds.includes(r.division_id));
+      if (lawnRate) return lawnRate.rate;
+      // Fall back to marked-default rate
+      const defRate = rates.find(r => r.is_default);
+      if (defRate) return defRate.rate;
+      // Fall back to at_employees.default_pay_rate
+      return empList.find(e => e.id === empId)?.default_pay_rate ?? null;
+    }
+
+    // ── OT settings ─────────────────────────────────────────────────────────
+    const { data: atSettings } = await sb
+      .from("at_settings")
+      .select("ot_multiplier, dt_multiplier")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    const otMult = atSettings?.ot_multiplier ?? 1.5;
+    const dtMult = atSettings?.dt_multiplier ?? 2.0;
 
     function getPunchStatus(empId: string | null): PunchStatus {
       if (!empId) return "unrecognized";
       return punchedEmpIds.has(empId) ? "matched" : "no_punch";
     }
 
-    // ── Attach employee + punch status ────────────────────────────────────────
+    // ── Attach payroll data ──────────────────────────────────────────────────
     const resolvedJobs: ParsedJob[] = rawJobs.map(j => ({
       ...j,
       members: j.members.map(m => {
         const match = matchEmp(m.resource_name);
         const empId = match?.id ?? null;
+        const hrs   = empId ? punchMap.get(empId) ?? null : null;
+        const rate  = empId ? getPayRate(empId) : null;
+
+        const reg_hours           = hrs ? Math.round(hrs.reg * 10000) / 10000 : null;
+        const ot_hours            = hrs ? Math.round(hrs.ot * 10000) / 10000 : null;
+        const total_payroll_hours = hrs ? Math.round((hrs.reg + hrs.ot + hrs.dt) * 10000) / 10000 : null;
+        const payroll_cost        = (hrs && rate)
+          ? Math.round((hrs.reg * rate + hrs.ot * rate * otMult + hrs.dt * rate * dtMult) * 100) / 100
+          : null;
+
         return {
           ...m,
-          employee_id:   empId,
-          employee_name: match?.name ?? null,
-          punch_status:  getPunchStatus(empId),
+          employee_id:         empId,
+          employee_name:       match?.name ?? null,
+          punch_status:        getPunchStatus(empId),
+          reg_hours,
+          ot_hours,
+          total_payroll_hours,
+          pay_rate:            rate,
+          payroll_cost,
         };
       }),
     }));
@@ -303,16 +369,44 @@ export async function POST(req: NextRequest) {
       if (j.members.length) {
         await sb.from("lawn_production_members").insert(
           j.members.map(m => ({
-            job_id:        job.id,
-            resource_name: m.resource_name,
-            resource_code: m.resource_code || null,
-            employee_id:   m.employee_id ?? null,
-            actual_hours:  m.actual_hours,
-            earned_amount: m.earned_amount,
-            punch_status:  m.punch_status,
+            job_id:              job.id,
+            resource_name:       m.resource_name,
+            resource_code:       m.resource_code || null,
+            employee_id:         m.employee_id ?? null,
+            actual_hours:        m.actual_hours,
+            earned_amount:       m.earned_amount,
+            punch_status:        m.punch_status,
+            reg_hours:           m.reg_hours,
+            ot_hours:            m.ot_hours,
+            total_payroll_hours: m.total_payroll_hours,
+            pay_rate:            m.pay_rate,
+            payroll_cost:        m.payroll_cost,
           }))
         );
       }
+    }
+
+    // ── Save individual punch records (clock in/out times per employee) ──────
+    if (punchRows.length > 0) {
+      // Build a map of employee_id → resource_name for labeling
+      const empNameMap = new Map<string, string>();
+      for (const j of resolvedJobs) {
+        for (const m of j.members) {
+          if (m.employee_id) empNameMap.set(m.employee_id, m.resource_name);
+        }
+      }
+      await sb.from("lawn_report_punches").insert(
+        punchRows.map(p => ({
+          report_id:     report.id,
+          employee_id:   p.employee_id,
+          resource_name: empNameMap.get(p.employee_id) ?? "",
+          clock_in_at:   p.clock_in_at,
+          clock_out_at:  p.clock_out_at,
+          regular_hours: p.regular_hours,
+          ot_hours:      p.ot_hours,
+          dt_hours:      p.dt_hours,
+        }))
+      );
     }
 
     return NextResponse.json({ ok: true, report_id: report.id });

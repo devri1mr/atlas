@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
             id, work_order, client_name, client_address, service, service_date,
             crew_code, budgeted_hours, actual_hours, variance_hours, budgeted_amount, actual_amount,
             lawn_production_members (
-              id, resource_name, resource_code, employee_id, actual_hours, earned_amount, punch_status
+              id, resource_name, resource_code, employee_id, actual_hours, earned_amount, punch_status,
+              reg_hours, ot_hours, total_payroll_hours, pay_rate, payroll_cost
             )
           )
         `)
@@ -32,7 +33,15 @@ export async function GET(req: NextRequest) {
         .eq("company_id", company.id)
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ data: report });
+
+      // Fetch punch records for this report (clock in/out times per employee)
+      const { data: punches } = await sb
+        .from("lawn_report_punches")
+        .select("employee_id, resource_name, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours")
+        .eq("report_id", reportId)
+        .order("clock_in_at", { ascending: true });
+
+      return NextResponse.json({ data: report, punches: punches ?? [] });
     }
 
     // List of reports (summary only)

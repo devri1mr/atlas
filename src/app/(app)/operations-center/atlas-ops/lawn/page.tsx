@@ -10,10 +10,15 @@ type Member = {
   resource_name: string;
   resource_code: string;
   employee_id: string | null;
-  employee_name: string | null;
   punch_status?: PunchStatus;
   actual_hours: number;
   earned_amount: number;
+  reg_hours?: number | null;
+  ot_hours?: number | null;
+  total_payroll_hours?: number | null;
+  pay_rate?: number | null;
+  payroll_cost?: number | null;
+  lawn_production_members?: Member[];
 };
 
 type Job = {
@@ -30,6 +35,16 @@ type Job = {
   actual_amount: number;
   members: Member[];
   lawn_production_members?: Member[];
+};
+
+type ReportPunch = {
+  employee_id: string | null;
+  resource_name: string;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
+  regular_hours: number | null;
+  ot_hours: number | null;
+  dt_hours: number | null;
 };
 
 type Report = {
@@ -57,14 +72,23 @@ type PersonEntry = {
   punch_status: PunchStatus;
   total_hours: number;
   total_revenue: number;
+  reg_hours: number | null;
+  ot_hours: number | null;
+  total_payroll_hours: number | null;
+  payroll_cost: number | null;
+  punches: ReportPunch[];
   jobs: PersonJob[];
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-const dec2 = (n: number) => Number(n ?? 0).toFixed(2);
+const dec2 = (n: number | null | undefined) => Number(n ?? 0).toFixed(2);
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const fmtTime = (iso: string | null | undefined) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+};
 
 // "First Last" → "Last, First"
 function formatName(raw: string): string {
@@ -75,28 +99,48 @@ function formatName(raw: string): string {
   return `${last}, ${first}`;
 }
 
-function buildPersonView(jobs: Job[]): PersonEntry[] {
+function buildPersonView(jobs: Job[], punches: ReportPunch[]): PersonEntry[] {
   const map = new Map<string, PersonEntry>();
+
   for (const job of jobs) {
     const members: Member[] = job.members?.length ? job.members : (job.lawn_production_members ?? []);
     for (const m of members) {
       const key = m.resource_name;
       if (!map.has(key)) {
         map.set(key, {
-          resource_name: m.resource_name,
-          employee_id:   m.employee_id ?? null,
-          punch_status:  (m.punch_status as PunchStatus) ?? (m.employee_id ? "matched" : "unrecognized"),
-          total_hours:   0,
-          total_revenue: 0,
-          jobs: [],
+          resource_name:       m.resource_name,
+          employee_id:         m.employee_id ?? null,
+          punch_status:        (m.punch_status as PunchStatus) ?? (m.employee_id ? "matched" : "unrecognized"),
+          total_hours:         0,
+          total_revenue:       0,
+          reg_hours:           m.reg_hours ?? null,
+          ot_hours:            m.ot_hours ?? null,
+          total_payroll_hours: m.total_payroll_hours ?? null,
+          payroll_cost:        m.payroll_cost ?? null,
+          punches:             [],
+          jobs:                [],
         });
       }
       const p = map.get(key)!;
       p.total_hours   = Math.round((p.total_hours   + m.actual_hours)  * 10000) / 10000;
       p.total_revenue = Math.round((p.total_revenue + m.earned_amount) * 100)   / 100;
+      // Payroll data is day-level — take from first occurrence
+      if (p.reg_hours === null && m.reg_hours != null) p.reg_hours = m.reg_hours;
+      if (p.ot_hours === null && m.ot_hours != null)   p.ot_hours = m.ot_hours;
+      if (p.total_payroll_hours === null && m.total_payroll_hours != null) p.total_payroll_hours = m.total_payroll_hours;
+      if (p.payroll_cost === null && m.payroll_cost != null) p.payroll_cost = m.payroll_cost;
       p.jobs.push({ client_name: job.client_name, service: job.service, actual_hours: m.actual_hours, earned_amount: m.earned_amount });
     }
   }
+
+  // Attach punch records to each person
+  for (const punch of punches) {
+    const entry = punch.employee_id
+      ? [...map.values()].find(p => p.employee_id === punch.employee_id)
+      : map.get(punch.resource_name);
+    if (entry) entry.punches.push(punch);
+  }
+
   return [...map.values()].sort((a, b) => formatName(a.resource_name).localeCompare(formatName(b.resource_name)));
 }
 
@@ -122,8 +166,8 @@ function StatusBadge({ status }: { status: PunchStatus }) {
 
 // ── Person table ──────────────────────────────────────────────────────────────
 
-function PersonTable({ jobs }: { jobs: Job[] }) {
-  const persons = buildPersonView(jobs);
+function PersonTable({ jobs, punches }: { jobs: Job[]; punches: ReportPunch[] }) {
+  const persons = buildPersonView(jobs, punches);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   function toggle(name: string) {
@@ -134,8 +178,10 @@ function PersonTable({ jobs }: { jobs: Job[] }) {
     });
   }
 
-  const totalHrs = persons.reduce((s, p) => s + p.total_hours, 0);
-  const totalRev = persons.reduce((s, p) => s + p.total_revenue, 0);
+  const totalProdHrs  = persons.reduce((s, p) => s + p.total_hours, 0);
+  const totalRev      = persons.reduce((s, p) => s + p.total_revenue, 0);
+  const totalPayHrs   = persons.reduce((s, p) => s + (p.total_payroll_hours ?? 0), 0);
+  const totalPayCost  = persons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0);
   const unmatchedCount = persons.filter(p => p.punch_status !== "matched").length;
 
   return (
@@ -156,66 +202,115 @@ function PersonTable({ jobs }: { jobs: Job[] }) {
           )}
         </div>
       )}
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
-            <th className="px-4 py-2.5">Team Member</th>
-            <th className="px-3 py-2.5 text-right">Hrs</th>
-            <th className="px-3 py-2.5 text-right">Revenue</th>
-          </tr>
-        </thead>
-        <tbody>
-          {persons.map(p => {
-            const isOpen = expanded.has(p.resource_name);
-            return (
-              <React.Fragment key={p.resource_name}>
-                <tr
-                  className="border-t border-emerald-100 hover:bg-emerald-50/30 cursor-pointer"
-                  onClick={() => toggle(p.resource_name)}
-                >
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                        strokeLinecap="round" strokeLinejoin="round"
-                        className={`shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                      <StatusBadge status={p.punch_status} />
-                      <span className="font-medium text-emerald-950">{formatName(p.resource_name)}</span>
-                      {p.punch_status === "no_punch" && (
-                        <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No punch</span>
-                      )}
-                      {p.punch_status === "unrecognized" && (
-                        <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">Unrecognized</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{dec2(p.total_hours)}</td>
-                  <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{money.format(p.total_revenue)}</td>
-                </tr>
-                {isOpen && p.jobs.map((j, i) => (
-                  <tr key={i} className="border-t border-gray-100 bg-gray-50/50">
-                    <td className="pl-12 pr-3 py-2 text-xs text-gray-700">
-                      <span className="font-medium">{j.client_name}</span>
-                      <span className="text-gray-400 mx-1.5">·</span>
-                      <span>{j.service}</span>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse min-w-[900px]">
+          <thead>
+            <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
+              <th className="px-4 py-2.5">Team Member</th>
+              <th className="px-3 py-2.5 text-right">Prod Hrs</th>
+              <th className="px-3 py-2.5 text-right">Revenue</th>
+              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Clock In</th>
+              <th className="px-3 py-2.5 text-right">Clock Out</th>
+              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Reg Hrs</th>
+              <th className="px-3 py-2.5 text-right">OT Hrs</th>
+              <th className="px-3 py-2.5 text-right">Total Hrs</th>
+              <th className="px-3 py-2.5 text-right">Pay Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {persons.map(p => {
+              const isOpen = expanded.has(p.resource_name);
+              // For clock times: show earliest in / latest out across all punches
+              const clockIns  = p.punches.map(x => x.clock_in_at).filter(Boolean) as string[];
+              const clockOuts = p.punches.map(x => x.clock_out_at).filter(Boolean) as string[];
+              const firstIn   = clockIns.length  ? clockIns.sort()[0]                        : null;
+              const lastOut   = clockOuts.length ? clockOuts.sort().reverse()[0]              : null;
+              const multiPunch = p.punches.length > 1;
+
+              return (
+                <React.Fragment key={p.resource_name}>
+                  <tr
+                    className="border-t border-emerald-100 hover:bg-emerald-50/30 cursor-pointer"
+                    onClick={() => toggle(p.resource_name)}
+                  >
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                          strokeLinecap="round" strokeLinejoin="round"
+                          className={`shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <StatusBadge status={p.punch_status} />
+                        <span className="font-medium text-emerald-950">{formatName(p.resource_name)}</span>
+                        {p.punch_status === "no_punch" && (
+                          <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No punch</span>
+                        )}
+                        {p.punch_status === "unrecognized" && (
+                          <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">Unrecognized</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-xs text-right text-gray-600">{dec2(j.actual_hours)}</td>
-                    <td className="px-3 py-2 text-xs text-right text-gray-600">{money.format(j.earned_amount)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{dec2(p.total_hours)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{money.format(p.total_revenue)}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-600 border-l border-emerald-100">
+                      <span>{fmtTime(firstIn)}</span>
+                      {multiPunch && <span className="ml-1 text-xs text-gray-400">+{p.punches.length - 1}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-600">{fmtTime(lastOut)}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 border-l border-emerald-100">{p.reg_hours != null ? dec2(p.reg_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">{p.ot_hours != null ? dec2(p.ot_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>
                   </tr>
-                ))}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-emerald-200 bg-emerald-50/60 font-semibold text-emerald-950">
-            <td className="px-4 py-2.5 text-sm">Total — {persons.length} team members</td>
-            <td className="px-3 py-2.5 text-sm text-right">{dec2(totalHrs)}</td>
-            <td className="px-3 py-2.5 text-sm text-right">{money.format(totalRev)}</td>
-          </tr>
-        </tfoot>
-      </table>
+                  {isOpen && (
+                    <>
+                      {/* Individual punch rows if multiple */}
+                      {multiPunch && p.punches.map((punch, pi) => (
+                        <tr key={`punch-${pi}`} className="border-t border-blue-50 bg-blue-50/30">
+                          <td className="pl-12 pr-3 py-1.5 text-xs text-blue-600" colSpan={2}>
+                            Punch {pi + 1}
+                          </td>
+                          <td className="px-3 py-1.5" />
+                          <td className="px-3 py-1.5 text-xs text-right text-blue-600 border-l border-emerald-100">{fmtTime(punch.clock_in_at)}</td>
+                          <td className="px-3 py-1.5 text-xs text-right text-blue-600">{fmtTime(punch.clock_out_at)}</td>
+                          <td className="px-3 py-1.5 text-xs text-right text-blue-600 border-l border-emerald-100">{dec2(punch.regular_hours)}</td>
+                          <td className="px-3 py-1.5 text-xs text-right text-blue-600">{dec2(punch.ot_hours)}</td>
+                          <td className="px-3 py-1.5" colSpan={2} />
+                        </tr>
+                      ))}
+                      {/* Job sub-rows */}
+                      {p.jobs.map((j, i) => (
+                        <tr key={`job-${i}`} className="border-t border-gray-100 bg-gray-50/50">
+                          <td className="pl-12 pr-3 py-2 text-xs text-gray-700">
+                            <span className="font-medium">{j.client_name}</span>
+                            <span className="text-gray-400 mx-1.5">·</span>
+                            <span>{j.service}</span>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-right text-gray-600">{dec2(j.actual_hours)}</td>
+                          <td className="px-3 py-2 text-xs text-right text-gray-600">{money.format(j.earned_amount)}</td>
+                          <td colSpan={6} />
+                        </tr>
+                      ))}
+                    </>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-emerald-200 bg-emerald-50/60 font-semibold text-emerald-950">
+              <td className="px-4 py-2.5 text-sm">Total — {persons.length} team members</td>
+              <td className="px-3 py-2.5 text-sm text-right">{dec2(totalProdHrs)}</td>
+              <td className="px-3 py-2.5 text-sm text-right">{money.format(totalRev)}</td>
+              <td className="px-3 py-2.5 border-l border-emerald-100" colSpan={2} />
+              <td className="px-3 py-2.5 border-l border-emerald-100" />
+              <td className="px-3 py-2.5" />
+              <td className="px-3 py-2.5 text-sm text-right">{dec2(totalPayHrs)}</td>
+              <td className="px-3 py-2.5 text-sm text-right">{money.format(totalPayCost)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
@@ -232,7 +327,7 @@ export default function LawnPage() {
   const [saving, setSaving]           = useState(false);
   const [saveFile, setSaveFile]       = useState<File | null>(null);
   const [expandedRep, setExpandedRep] = useState<string | null>(null);
-  const [repDetail, setRepDetail]     = useState<Report | null>(null);
+  const [repDetail, setRepDetail]     = useState<{ report: Report; punches: ReportPunch[] } | null>(null);
   const [loadingRep, setLoadingRep]   = useState(false);
 
   async function loadReports() {
@@ -296,7 +391,7 @@ export default function LawnPage() {
     setLoadingRep(true);
     const res = await fetch(`/api/operations-center/atlas-ops/lawn/reports?id=${id}`, { cache: "no-store" });
     const d = await res.json();
-    setRepDetail(d.data ?? null);
+    setRepDetail(d.data ? { report: d.data, punches: d.punches ?? [] } : null);
     setLoadingRep(false);
   }
 
@@ -308,14 +403,14 @@ export default function LawnPage() {
   }
 
   const previewJobs = preview?.jobs ?? [];
-  const repJobs: Job[] = (repDetail?.lawn_production_jobs ?? []).map(j => ({
+  const repJobs: Job[] = (repDetail?.report.lawn_production_jobs ?? []).map(j => ({
     ...j,
     members: (j.lawn_production_members ?? []) as Member[],
   }));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
-      <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 md:py-8">
+      <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8">
 
         {/* Header */}
         <div className="flex items-end justify-between mb-6">
@@ -365,7 +460,7 @@ export default function LawnPage() {
                 </button>
               </div>
             </div>
-            <PersonTable jobs={previewJobs} />
+            <PersonTable jobs={previewJobs} punches={[]} />
             {preview.debug && (
               <div className="px-5 py-3 border-t border-emerald-100 bg-gray-50 text-xs font-mono text-gray-500 space-y-0.5">
                 <div>Total row found: <strong>{String(preview.debug.totalRowFound)}</strong></div>
@@ -427,7 +522,7 @@ export default function LawnPage() {
                             {loadingRep ? (
                               <div className="px-6 py-4 text-sm text-emerald-900/50">Loading…</div>
                             ) : repDetail ? (
-                              <PersonTable jobs={repJobs} />
+                              <PersonTable jobs={repJobs} punches={repDetail.punches} />
                             ) : null}
                           </td>
                         </tr>
