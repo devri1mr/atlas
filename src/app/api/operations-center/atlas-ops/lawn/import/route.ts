@@ -57,7 +57,7 @@ type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
 
 // ── XLS parser ────────────────────────────────────────────────────────────────
 
-function parseXLS(buffer: Buffer): RawJob[] {
+function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unknown> } {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const sh = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
@@ -65,6 +65,7 @@ function parseXLS(buffer: Buffer): RawJob[] {
   const jobs: RawJob[] = [];
   let cur: { summary: unknown[]; members: unknown[][] } | null = null;
   let grandTotalHrs: number | null = null;
+  let totalRowRaw: unknown[] | null = null;
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
@@ -72,6 +73,7 @@ function parseXLS(buffer: Buffer): RawJob[] {
     const col17 = String(row[17] ?? "").trim();
 
     if (col0 === "Total") {
+      totalRowRaw = row;
       grandTotalHrs = parseNum(row[10]); // capture SAP grand total actual hours
       continue;
     }
@@ -87,11 +89,12 @@ function parseXLS(buffer: Buffer): RawJob[] {
   }
   if (cur) jobs.push(buildJob(cur.summary, cur.members));
 
+  const sumJobHrs = jobs.reduce((s, j) => s + j.actual_hours, 0);
+
   // Normalize job actual_hours to sum exactly to SAP grand total
   if (grandTotalHrs !== null && jobs.length > 0) {
     const jobHrs = lrm(jobs.map(j => j.actual_hours), grandTotalHrs, 4);
     jobs.forEach((j, i) => {
-      const diff = jobHrs[i] - j.actual_hours;
       j.actual_hours = jobHrs[i];
       // Re-normalize member hours to match the adjusted job total
       if (j.members.length > 0) {
@@ -102,12 +105,19 @@ function parseXLS(buffer: Buffer): RawJob[] {
           m.earned_amount = mRev[k];
         });
       }
-      // Adjust variance to reflect updated actual_hours
       j.variance_hours = Math.round((j.budgeted_hours - j.actual_hours) * 10000) / 10000;
     });
   }
 
-  return jobs;
+  return {
+    jobs,
+    debug: {
+      grandTotalHrs,
+      sumJobHrs,
+      totalRowCols: totalRowRaw ? totalRowRaw.slice(0, 20) : null,
+      totalRowFound: totalRowRaw !== null,
+    },
+  };
 }
 
 // Largest-remainder distribution: split `total` across `weights` using given decimal precision
@@ -175,7 +185,7 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const rawJobs = parseXLS(buffer);
+    const { jobs: rawJobs, debug: parseDebug } = parseXLS(buffer);
     if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
     const reportDate = rawJobs[0]?.service_date;
@@ -243,7 +253,7 @@ export async function POST(req: NextRequest) {
     }));
 
     if (dryRun) {
-      return NextResponse.json({ jobs: resolvedJobs, file_name: file.name });
+      return NextResponse.json({ jobs: resolvedJobs, file_name: file.name, debug: parseDebug });
     }
 
     // ── Save to DB ────────────────────────────────────────────────────────────
