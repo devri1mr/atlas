@@ -5,6 +5,8 @@ import * as XLSX from "xlsx";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const PAYROLL_BURDEN = 1.15; // 15% burden on all payroll costs, always
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseNum(v: unknown): number {
@@ -123,7 +125,6 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
   };
 }
 
-// Largest-remainder distribution
 function lrm(weights: number[], total: number, decimals: number): number[] {
   const factor = Math.pow(10, decimals);
   const weightSum = weights.reduce((s, w) => s + w, 0);
@@ -170,6 +171,146 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   };
 }
 
+// ── Dispatch board parser (Report 2: SchedulingViewExport) ───────────────────
+
+type DispatchJob = {
+  work_order: string | null;
+  client_name: string;
+  address: string;
+  city: string;
+  zip: string;
+  service: string;
+  crew_code: string;
+  personnel_count: number | null;
+  report_date: string;
+  start_time: string | null;  // ISO string or null
+  end_time: string | null;
+  time_varies: boolean;
+};
+
+function parseTimeString(timeVal: unknown, dateISO: string): string | null {
+  const s = String(timeVal ?? "").trim();
+  if (!s || s.toLowerCase() === "varies") return null;
+  // Excel may give a decimal fraction for time (0..1 = 0..24h)
+  if (typeof timeVal === "number") {
+    const totalMins = Math.round(timeVal * 24 * 60);
+    const h = Math.floor(totalMins / 60), m = totalMins % 60;
+    return `${dateISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  }
+  // String like "7:53 AM"
+  const match = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return null;
+  let h = parseInt(match[1]), m = parseInt(match[2]);
+  const ampm = match[3]?.toUpperCase();
+  if (ampm === "PM" && h < 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return `${dateISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+}
+
+function parseDispatchXLS(buffer: Buffer): DispatchJob[] {
+  const wb = XLSX.read(buffer, { type: "buffer" });
+  const sh = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
+
+  // Row 0 is header, data starts at row 1
+  const jobs: DispatchJob[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i] as unknown[];
+    const clientName = String(row[0] ?? "").trim();
+    if (!clientName) continue;
+
+    // ScheduleDate: col N (index 13) — may be Excel serial or string like "3/25/2026"
+    let reportDate = "";
+    const dateVal = row[13];
+    if (typeof dateVal === "number" && dateVal > 40000) {
+      reportDate = excelSerialToISO(dateVal);
+    } else if (typeof dateVal === "string" && dateVal.includes("/")) {
+      const parts = dateVal.split("/");
+      if (parts.length === 3) {
+        const [m, d, y] = parts;
+        reportDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+    }
+
+    const timeVaries = String(row[14] ?? "").toLowerCase().includes("varies")
+      || String(row[15] ?? "").toLowerCase().includes("varies");
+
+    jobs.push({
+      work_order:       String(row[10] ?? "").trim() || null,
+      client_name:      clientName,
+      address:          String(row[3] ?? "").trim(),
+      city:             String(row[4] ?? "").trim(),
+      zip:              String(row[5] ?? "").trim(),
+      service:          String(row[12] ?? "").trim(),
+      crew_code:        String(row[28] ?? "").trim(),
+      personnel_count:  parseInt(String(row[16] ?? "")) || null,
+      report_date:      reportDate,
+      start_time:       timeVaries ? null : parseTimeString(row[14], reportDate),
+      end_time:         timeVaries ? null : parseTimeString(row[15], reportDate),
+      time_varies:      timeVaries,
+    });
+  }
+
+  return jobs;
+}
+
+// ── Dispatch import handler ───────────────────────────────────────────────────
+
+async function handleDispatchImport(
+  sb: ReturnType<typeof supabaseAdmin>,
+  companyId: string,
+  buffer: Buffer,
+  fileName: string,
+  dryRun: boolean,
+): Promise<NextResponse> {
+  const jobs = parseDispatchXLS(buffer);
+  if (!jobs.length) return NextResponse.json({ error: "No jobs found in dispatch file" }, { status: 400 });
+
+  const reportDate = jobs.find(j => j.report_date)?.report_date ?? null;
+  const variesCount = jobs.filter(j => j.time_varies).length;
+
+  if (dryRun) {
+    return NextResponse.json({
+      report_type: "dispatch",
+      file_name: fileName,
+      report_date: reportDate,
+      jobs,
+      varies_count: variesCount,
+    });
+  }
+
+  // Delete any existing dispatch jobs for this date (re-import replaces)
+  if (reportDate) {
+    await sb.from("lawn_dispatch_jobs")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("report_date", reportDate);
+  }
+
+  const { error } = await sb.from("lawn_dispatch_jobs").insert(
+    jobs.map(j => ({
+      company_id:      companyId,
+      report_date:     j.report_date || reportDate,
+      work_order:      j.work_order,
+      client_name:     j.client_name,
+      address:         j.address || null,
+      city:            j.city || null,
+      zip:             j.zip || null,
+      service:         j.service || null,
+      crew_code:       j.crew_code || null,
+      personnel_count: j.personnel_count,
+      start_time:      j.start_time,
+      end_time:        j.end_time,
+      time_varies:     j.time_varies,
+    }))
+  );
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true, report_type: "dispatch", jobs_saved: jobs.length, varies_count: variesCount });
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -186,6 +327,16 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // ── Detect report type by sheet name ────────────────────────────────────
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const sheetName = wb.SheetNames[0];
+    const isDispatch = sheetName === "SchedulingViewExport";
+
+    if (isDispatch) {
+      return handleDispatchImport(sb, companyId, buffer, file.name, dryRun);
+    }
+
     const { jobs: rawJobs, debug: parseDebug } = parseXLS(buffer);
     if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
@@ -208,6 +359,17 @@ export async function POST(req: NextRequest) {
       return found ? { id: found.id, name: `${found.first_name} ${found.last_name}` } : null;
     }
 
+    // Pre-match all resource names upfront to get employee IDs
+    const matchCache = new Map<string, { id: string; name: string } | null>();
+    for (const j of rawJobs) {
+      for (const m of j.members) {
+        if (!matchCache.has(m.resource_name)) matchCache.set(m.resource_name, matchEmp(m.resource_name));
+      }
+    }
+    const matchedEmpIds = [...new Set(
+      [...matchCache.values()].filter(Boolean).map(v => v!.id)
+    )];
+
     // ── Lawn divisions ───────────────────────────────────────────────────────
     const { data: lawnDivs } = await sb
       .from("at_divisions")
@@ -216,7 +378,8 @@ export async function POST(req: NextRequest) {
       .eq("active", true);
     const lawnDivIds = (lawnDivs ?? []).map(d => d.id);
 
-    // ── Punch data (hours + times + match check) ─────────────────────────────
+    // ── Punch data: query by employee ID for the day ─────────────────────────
+    // (more reliable than at_division_id filter; these employees are in the SAP lawn report)
     type PunchRow = {
       employee_id: string;
       clock_in_at: string | null;
@@ -226,18 +389,18 @@ export async function POST(req: NextRequest) {
       dt_hours: number | null;
     };
     let punchRows: PunchRow[] = [];
-    if (reportDate) {
-      let q = sb
+    if (reportDate && matchedEmpIds.length > 0) {
+      const { data, error: punchErr } = await sb
         .from("at_punches")
         .select("employee_id, clock_in_at, clock_out_at, regular_hours, ot_hours, dt_hours")
         .eq("company_id", companyId)
-        .eq("date_for_payroll", reportDate);
-      if (lawnDivIds.length > 0) q = q.in("at_division_id", lawnDivIds);
-      const { data } = await q;
-      punchRows = (data ?? []) as PunchRow[];
+        .eq("date_for_payroll", reportDate)
+        .in("employee_id", matchedEmpIds)
+        .order("clock_in_at", { ascending: true });
+      if (!punchErr) punchRows = (data ?? []) as PunchRow[];
     }
 
-    // Sum punch hours per employee; keep all individual punch records
+    // Sum punch hours per employee; keep all individual punch records for times
     const punchMap = new Map<string, { reg: number; ot: number; dt: number }>();
     for (const p of punchRows) {
       const cur = punchMap.get(p.employee_id) ?? { reg: 0, ot: 0, dt: 0 };
@@ -246,13 +409,22 @@ export async function POST(req: NextRequest) {
       cur.dt  += p.dt_hours      ?? 0;
       punchMap.set(p.employee_id, cur);
     }
-    const punchedEmpIds = new Set(punchMap.keys());
+
+    // Punch status: matched = has a Lawn-division punch on the report date
+    let punchedEmpIds = new Set<string>();
+    if (reportDate && matchedEmpIds.length > 0) {
+      let q = sb
+        .from("at_punches")
+        .select("employee_id")
+        .eq("company_id", companyId)
+        .eq("date_for_payroll", reportDate)
+        .in("employee_id", matchedEmpIds);
+      if (lawnDivIds.length > 0) q = q.in("at_division_id", lawnDivIds);
+      const { data } = await q;
+      punchedEmpIds = new Set((data ?? []).map((p: any) => p.employee_id));
+    }
 
     // ── Pay rates (Lawn division preferred, fallback to default) ─────────────
-    const matchedEmpIds = [...new Set(
-      rawJobs.flatMap(j => j.members.map(m => matchEmp(m.resource_name)?.id).filter(Boolean) as string[])
-    )];
-
     let payRateRows: { employee_id: string; division_id: string | null; rate: number; is_default: boolean }[] = [];
     if (matchedEmpIds.length > 0) {
       const { data } = await sb
@@ -264,13 +436,10 @@ export async function POST(req: NextRequest) {
 
     function getPayRate(empId: string): number | null {
       const rates = payRateRows.filter(r => r.employee_id === empId);
-      // Prefer Lawn division-specific rate
       const lawnRate = rates.find(r => r.division_id && lawnDivIds.includes(r.division_id));
       if (lawnRate) return lawnRate.rate;
-      // Fall back to marked-default rate
       const defRate = rates.find(r => r.is_default);
       if (defRate) return defRate.rate;
-      // Fall back to at_employees.default_pay_rate
       return empList.find(e => e.id === empId)?.default_pay_rate ?? null;
     }
 
@@ -292,7 +461,7 @@ export async function POST(req: NextRequest) {
     const resolvedJobs: ParsedJob[] = rawJobs.map(j => ({
       ...j,
       members: j.members.map(m => {
-        const match = matchEmp(m.resource_name);
+        const match = matchCache.get(m.resource_name) ?? null;
         const empId = match?.id ?? null;
         const hrs   = empId ? punchMap.get(empId) ?? null : null;
         const rate  = empId ? getPayRate(empId) : null;
@@ -300,8 +469,11 @@ export async function POST(req: NextRequest) {
         const reg_hours           = hrs ? Math.round(hrs.reg * 10000) / 10000 : null;
         const ot_hours            = hrs ? Math.round(hrs.ot * 10000) / 10000 : null;
         const total_payroll_hours = hrs ? Math.round((hrs.reg + hrs.ot + hrs.dt) * 10000) / 10000 : null;
-        const payroll_cost        = (hrs && rate)
-          ? Math.round((hrs.reg * rate + hrs.ot * rate * otMult + hrs.dt * rate * dtMult) * 100) / 100
+        const baseCost            = (hrs && rate)
+          ? hrs.reg * rate + hrs.ot * rate * otMult + hrs.dt * rate * dtMult
+          : null;
+        const payroll_cost        = baseCost !== null
+          ? Math.round(baseCost * PAYROLL_BURDEN * 100) / 100
           : null;
 
         return {
@@ -319,7 +491,11 @@ export async function POST(req: NextRequest) {
     }));
 
     if (dryRun) {
-      return NextResponse.json({ jobs: resolvedJobs, file_name: file.name, debug: parseDebug });
+      return NextResponse.json({
+        jobs: resolvedJobs,
+        file_name: file.name,
+        debug: { ...parseDebug, punchRowsFound: punchRows.length, matchedEmpIds: matchedEmpIds.length },
+      });
     }
 
     // ── Save to DB ────────────────────────────────────────────────────────────
@@ -388,7 +564,6 @@ export async function POST(req: NextRequest) {
 
     // ── Save individual punch records (clock in/out times per employee) ──────
     if (punchRows.length > 0) {
-      // Build a map of employee_id → resource_name for labeling
       const empNameMap = new Map<string, string>();
       for (const j of resolvedJobs) {
         for (const m of j.members) {
@@ -404,7 +579,7 @@ export async function POST(req: NextRequest) {
           clock_out_at:  p.clock_out_at,
           regular_hours: p.regular_hours,
           ot_hours:      p.ot_hours,
-          dt_hours:      p.dt_hours,
+          dt_hours:      null,
         }))
       );
     }
