@@ -323,6 +323,7 @@ function ClockPageInner() {
   const [editLunchMins, setEditLunchMins] = useState<number>(0);
   const [editSaving, setEditSaving] = useState(false);
   const [recalcRunning, setRecalcRunning] = useState(false);
+  const [recalcProgress, setRecalcProgress] = useState<{ done: number; total: number } | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -604,14 +605,32 @@ function ClockPageInner() {
     if (!confirm("Recalculate hours for all punches? This applies lunch deductions and OT based on current settings.")) return;
     try {
       setRecalcRunning(true);
+      setRecalcProgress(null);
       const res = await fetch("/api/atlas-time/backfill", { method: "POST" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error ?? "Recalculation failed");
-      await load(); // Refresh punches on screen
+      if (!res.ok || !res.body) throw new Error("Recalculation failed");
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.total != null) setRecalcProgress({ done: msg.done, total: msg.total });
+          } catch { /* skip malformed line */ }
+        }
+      }
+      await load();
     } catch (e: any) {
       setError(e?.message ?? "Recalculation failed");
     } finally {
       setRecalcRunning(false);
+      setRecalcProgress(null);
     }
   }
 
@@ -1199,9 +1218,23 @@ function ClockPageInner() {
                 <p className="text-xs text-gray-400 mt-0.5">{punches.length} punch{punches.length !== 1 ? "es" : ""}</p>
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={runBackfill} disabled={recalcRunning} className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
-                  {recalcRunning ? "Recalculating…" : "Recalculate Hours"}
-                </button>
+                {recalcRunning && recalcProgress ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-28 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#123b1f] rounded-full transition-all duration-200"
+                        style={{ width: `${recalcProgress.total > 0 ? Math.round((recalcProgress.done / recalcProgress.total) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      {recalcProgress.total > 0 ? Math.round((recalcProgress.done / recalcProgress.total) * 100) : 0}%
+                    </span>
+                  </div>
+                ) : (
+                  <button onClick={runBackfill} disabled={recalcRunning} className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
+                    Recalculate Hours
+                  </button>
+                )}
                 <button onClick={() => setViewDate(todayStr)} className="text-xs text-[#123b1f] font-semibold hover:underline">← Back to Today</button>
               </div>
             </div>
