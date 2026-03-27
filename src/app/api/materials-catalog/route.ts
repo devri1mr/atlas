@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("materials_catalog")
-      .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at")
+      .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
       .order("name", { ascending: true });
 
     if (include_inactive === "true") query = query.eq("is_active", false);
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("materials_catalog")
       .insert({ name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, division_id })
-      .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at")
+      .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

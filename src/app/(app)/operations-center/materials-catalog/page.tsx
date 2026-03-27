@@ -27,6 +27,8 @@ type Material = {
   is_active: boolean;
   category_id: string | null;
   created_at: string;
+  source_pricing_book_id: string | null;
+  source_page: number | null;
   in_inventory?: boolean;
   inventory_material_id?: string | null;
 };
@@ -285,6 +287,27 @@ function MaterialDrawer({
             </button>
             <span className="text-sm text-gray-600">{form.is_active !== false ? "Active" : "Inactive"}</span>
           </div>
+
+          {/* Pricing book quick-view — edit mode only, when source is linked */}
+          {mode === "edit" && material.source_pricing_book_id && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing Book</div>
+              <a
+                href={`/api/materials-catalog/pricing-books/${material.source_pricing_book_id}/view${material.source_page && material.source_page > 1 ? `#page=${material.source_page}` : ""}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline"
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                View in pricing book
+                {material.source_page && material.source_page > 1 && (
+                  <span className="text-xs text-blue-400">p.{material.source_page}</span>
+                )}
+              </a>
+            </div>
+          )}
 
           {/* Inventory section — edit mode only */}
           {mode === "edit" && (

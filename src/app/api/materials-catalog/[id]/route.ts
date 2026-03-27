@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const supabase = supabaseAdmin();
   const body = await req.json().catch(() => ({}));
 
-  const allowed = ["name", "default_unit", "default_unit_cost", "vendor", "sku", "is_active", "category_id"];
+  const allowed = ["name", "default_unit", "default_unit_cost", "vendor", "sku", "is_active", "category_id", "source_pricing_book_id", "source_page"];
   const patch: Record<string, any> = {};
   for (const key of allowed) {
     if (key in body) patch[key] = body[key];
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from("materials_catalog")
     .update(patch)
     .eq("id", id)
-    .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at")
+    .select("id, name, default_unit, default_unit_cost, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
