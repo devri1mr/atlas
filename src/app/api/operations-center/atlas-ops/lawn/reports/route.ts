@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
             id, work_order, client_name, client_address, service, service_date,
             crew_code, budgeted_hours, actual_hours, variance_hours, budgeted_amount, actual_amount,
             lawn_production_members (
-              id, resource_name, resource_code, employee_id, actual_hours, earned_amount
+              id, resource_name, resource_code, employee_id, actual_hours, earned_amount, punch_status
             )
           )
         `)

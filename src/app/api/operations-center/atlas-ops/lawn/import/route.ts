@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseNum(v: unknown): number {
   if (typeof v === "number") return v;
@@ -14,7 +14,6 @@ function parseNum(v: unknown): number {
 }
 
 function excelSerialToISO(serial: number): string {
-  // Excel serial 25569 = 1970-01-01 (Unix epoch)
   return new Date((serial - 25569) * 86400 * 1000).toISOString().slice(0, 10);
 }
 
@@ -26,6 +25,8 @@ function parseResource(s: string): { name: string; code: string } {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type PunchStatus = "matched" | "no_punch" | "unrecognized";
+
 type ParsedMember = {
   resource_name: string;
   resource_code: string;
@@ -33,6 +34,7 @@ type ParsedMember = {
   earned_amount: number;
   employee_id: string | null;
   employee_name: string | null;
+  punch_status: PunchStatus;
 };
 
 type ParsedJob = {
@@ -50,7 +52,10 @@ type ParsedJob = {
   members: ParsedMember[];
 };
 
-// ── XLS parser ───────────────────────────────────────────────────────────────
+type RawMember = Omit<ParsedMember, "employee_id" | "employee_name" | "punch_status">;
+type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
+
+// ── XLS parser ────────────────────────────────────────────────────────────────
 
 function parseXLS(buffer: Buffer): RawJob[] {
   const wb = XLSX.read(buffer, { type: "buffer" });
@@ -65,9 +70,8 @@ function parseXLS(buffer: Buffer): RawJob[] {
     const col0 = String(row[0] ?? "").trim();
     const col17 = String(row[17] ?? "").trim();
 
-    if (col0 === "Total") continue; // totals row
+    if (col0 === "Total") continue;
 
-    // Summary row: blank client, crew code like LC-3
     const isSummary = col0 === "" && /^LC-\d+$/.test(col17);
 
     if (isSummary) {
@@ -78,16 +82,16 @@ function parseXLS(buffer: Buffer): RawJob[] {
     }
   }
   if (cur) jobs.push(buildJob(cur.summary, cur.members));
-
   return jobs;
 }
-
-type RawJob = Omit<ParsedJob, "members"> & { members: Omit<ParsedMember, "employee_id" | "employee_name">[] };
 
 function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   const first = members[0] ?? [];
   const serialDate = parseNum((first as unknown[])[6]);
   const serviceDate = serialDate ? excelSerialToISO(serialDate) : "";
+
+  const budgetedAmount = parseNum(summary[12]);
+  const totalActHrs = members.reduce((s, m) => s + parseNum((m as unknown[])[10]), 0);
 
   return {
     work_order:      String((first as unknown[])[3] ?? ""),
@@ -99,25 +103,16 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
     budgeted_hours:  parseNum(summary[8]),
     actual_hours:    parseNum(summary[10]),
     variance_hours:  parseNum(summary[11]),
-    budgeted_amount: parseNum(summary[12]),
+    budgeted_amount: budgetedAmount,
     actual_amount:   parseNum(summary[13]),
-    members: (() => {
-      const budgetedAmount = parseNum(summary[12]);
-      const totalActHrs = members.reduce((s, m) => s + parseNum(m[10]), 0);
-      return members.map(m => {
-        const { name, code } = parseResource(String(m[17] ?? ""));
-        const memberHrs = parseNum(m[10]);
-        const earnedAmt = totalActHrs > 0
-          ? Math.round((memberHrs / totalActHrs) * budgetedAmount * 100) / 100
-          : 0;
-        return {
-          resource_name: name,
-          resource_code: code,
-          actual_hours:  memberHrs,
-          earned_amount: earnedAmt,
-        };
-      });
-    })(),
+    members: members.map(m => {
+      const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
+      const memberHrs = parseNum((m as unknown[])[10]);
+      const earnedAmt = totalActHrs > 0
+        ? Math.round((memberHrs / totalActHrs) * budgetedAmount * 100) / 100
+        : 0;
+      return { resource_name: name, resource_code: code, actual_hours: memberHrs, earned_amount: earnedAmt };
+    }),
   };
 }
 
@@ -138,10 +133,11 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const rawJobs = parseXLS(buffer);
-
     if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
-    // Load employees for matching
+    const reportDate = rawJobs[0]?.service_date;
+
+    // ── Employee matching ────────────────────────────────────────────────────
     const { data: employees } = await sb
       .from("at_employees")
       .select("id, first_name, last_name")
@@ -153,20 +149,53 @@ export async function POST(req: NextRequest) {
     function matchEmp(name: string): { id: string; name: string } | null {
       const parts = name.trim().split(/\s+/);
       if (parts.length < 2) return null;
-      const first = parts[0];
-      const last = parts.slice(1).join(" ");
-      const found = empList.find(
-        e => norm(e.first_name) === norm(first) && norm(e.last_name) === norm(last)
-      );
+      const first = parts[0], last = parts.slice(1).join(" ");
+      const found = empList.find(e => norm(e.first_name) === norm(first) && norm(e.last_name) === norm(last));
       return found ? { id: found.id, name: `${found.first_name} ${found.last_name}` } : null;
     }
 
-    // Attach employee matches
-    const resolvedJobs = rawJobs.map(j => ({
+    // ── Punch checking (employee + date + Lawn division) ─────────────────────
+    // Find Lawn at_divisions
+    const { data: lawnDivs } = await sb
+      .from("at_divisions")
+      .select("id")
+      .ilike("name", "%lawn%")
+      .eq("active", true);
+    const lawnDivIds = (lawnDivs ?? []).map(d => d.id);
+
+    let punchedEmpIds = new Set<string>();
+    if (reportDate) {
+      let punchQuery = sb
+        .from("at_punches")
+        .select("employee_id")
+        .eq("company_id", companyId)
+        .eq("date_for_payroll", reportDate);
+
+      if (lawnDivIds.length > 0) {
+        punchQuery = punchQuery.in("at_division_id", lawnDivIds);
+      }
+
+      const { data: punches } = await punchQuery;
+      punchedEmpIds = new Set((punches ?? []).map((p: any) => p.employee_id));
+    }
+
+    function getPunchStatus(empId: string | null): PunchStatus {
+      if (!empId) return "unrecognized";
+      return punchedEmpIds.has(empId) ? "matched" : "no_punch";
+    }
+
+    // ── Attach employee + punch status ────────────────────────────────────────
+    const resolvedJobs: ParsedJob[] = rawJobs.map(j => ({
       ...j,
       members: j.members.map(m => {
         const match = matchEmp(m.resource_name);
-        return { ...m, employee_id: match?.id ?? null, employee_name: match?.name ?? null };
+        const empId = match?.id ?? null;
+        return {
+          ...m,
+          employee_id:   empId,
+          employee_name: match?.name ?? null,
+          punch_status:  getPunchStatus(empId),
+        };
       }),
     }));
 
@@ -174,8 +203,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ jobs: resolvedJobs, file_name: file.name });
     }
 
-    // ── Import ────────────────────────────────────────────────────────────────
-    const reportDate = resolvedJobs[0]?.service_date ?? new Date().toISOString().slice(0, 10);
+    // ── Save to DB ────────────────────────────────────────────────────────────
     const totalBudgHrs  = resolvedJobs.reduce((s, j) => s + j.budgeted_hours,  0);
     const totalActHrs   = resolvedJobs.reduce((s, j) => s + j.actual_hours,    0);
     const totalBudgAmt  = resolvedJobs.reduce((s, j) => s + j.budgeted_amount, 0);
@@ -185,7 +213,7 @@ export async function POST(req: NextRequest) {
       .from("lawn_production_reports")
       .insert({
         company_id:            companyId,
-        report_date:           reportDate,
+        report_date:           reportDate ?? new Date().toISOString().slice(0, 10),
         file_name:             file.name,
         total_budgeted_hours:  totalBudgHrs,
         total_actual_hours:    totalActHrs,
@@ -228,6 +256,7 @@ export async function POST(req: NextRequest) {
             employee_id:   m.employee_id ?? null,
             actual_hours:  m.actual_hours,
             earned_amount: m.earned_amount,
+            punch_status:  m.punch_status,
           }))
         );
       }
