@@ -52,12 +52,12 @@ type ParsedJob = {
 
 // ── XLS parser ───────────────────────────────────────────────────────────────
 
-function parseXLS(buffer: Buffer): ParsedJob[] {
+function parseXLS(buffer: Buffer): RawJob[] {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const sh = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
 
-  const jobs: ParsedJob[] = [];
+  const jobs: RawJob[] = [];
   let cur: { summary: unknown[]; members: unknown[][] } | null = null;
 
   for (let i = 1; i < rows.length; i++) {
@@ -82,7 +82,9 @@ function parseXLS(buffer: Buffer): ParsedJob[] {
   return jobs;
 }
 
-function buildJob(summary: unknown[], members: unknown[][]): Omit<ParsedJob, "members"> & { members: Omit<ParsedMember, "employee_id" | "employee_name">[] } {
+type RawJob = Omit<ParsedJob, "members"> & { members: Omit<ParsedMember, "employee_id" | "employee_name">[] };
+
+function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   const first = members[0] ?? [];
   const serialDate = parseNum((first as unknown[])[6]);
   const serviceDate = serialDate ? excelSerialToISO(serialDate) : "";
@@ -127,9 +129,9 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const jobs = parseXLS(buffer);
+    const rawJobs = parseXLS(buffer);
 
-    if (!jobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
+    if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
     // Load employees for matching
     const { data: employees } = await sb
@@ -152,7 +154,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Attach employee matches
-    const resolvedJobs: ParsedJob[] = jobs.map(j => ({
+    const resolvedJobs = rawJobs.map(j => ({
       ...j,
       members: j.members.map(m => {
         const match = matchEmp(m.resource_name);
