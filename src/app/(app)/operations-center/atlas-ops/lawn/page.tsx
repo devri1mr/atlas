@@ -227,7 +227,7 @@ export default function LawnPage() {
   const [reports, setReports]         = useState<Report[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
-  const [preview, setPreview]         = useState<{ jobs: Job[]; file_name: string } | null>(null);
+  const [preview, setPreview]         = useState<{ jobs: Job[]; file_name: string; debug?: Record<string, unknown> } | null>(null);
   const [parsing, setParsing]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [saveFile, setSaveFile]       = useState<File | null>(null);
@@ -366,6 +366,14 @@ export default function LawnPage() {
               </div>
             </div>
             <PersonTable jobs={previewJobs} />
+            {preview.debug && (
+              <div className="px-5 py-3 border-t border-emerald-100 bg-gray-50 text-xs font-mono text-gray-500 space-y-0.5">
+                <div>Total row found: <strong>{String(preview.debug.totalRowFound)}</strong></div>
+                <div>SAP grand total hrs: <strong>{String(preview.debug.grandTotalHrs)}</strong></div>
+                <div>Sum of job summary hrs: <strong>{String(preview.debug.sumJobHrs)}</strong></div>
+                <div>Total row cols: <strong>{JSON.stringify(preview.debug.totalRowCols)}</strong></div>
+              </div>
+            )}
           </div>
         )}
 
