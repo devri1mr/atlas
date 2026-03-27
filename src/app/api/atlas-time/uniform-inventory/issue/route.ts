@@ -109,13 +109,14 @@ export async function POST(req: NextRequest) {
       // Fetch pay period settings
       const { data: gs } = await sb
         .from("at_settings")
-        .select("pay_cycle, payday_day_of_week, pay_period_anchor_date")
+        .select("pay_cycle, payday_day_of_week, pay_period_start_day, pay_period_anchor_date")
         .eq("company_id", companyId)
         .maybeSingle();
 
       const paySettings = {
         pay_cycle:              gs?.pay_cycle              ?? "weekly",
         payday_day_of_week:     gs?.payday_day_of_week     ?? 5,
+        pay_period_start_day:   gs?.pay_period_start_day   ?? 1,
         pay_period_anchor_date: gs?.pay_period_anchor_date ?? null,
       };
 

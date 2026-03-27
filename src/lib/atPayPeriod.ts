@@ -7,46 +7,62 @@
  */
 
 export type PayPeriodSettings = {
-  pay_cycle: string;               // "weekly" | "biweekly"
-  payday_day_of_week: number;      // 0–6
-  pay_period_anchor_date: string | null; // ISO date, used for biweekly
+  pay_cycle: string;                   // "weekly" | "biweekly"
+  payday_day_of_week: number;          // 0–6 (0=Sun, 5=Fri, etc.)
+  pay_period_start_day?: number;       // 0–6, day the pay period starts (default 1 = Mon)
+  pay_period_anchor_date: string | null; // ISO date of a known pay period START, used for biweekly
 };
 
 /**
  * Returns the Nth next paycheck date from `fromDate`.
- *   skip=0 → the very next upcoming payday
+ *   skip=0 → the very next upcoming payday (on or after fromDate)
  *   skip=1 → the one after that
+ *
+ * For biweekly: pay_period_anchor_date is the START of a known pay period.
+ * The actual payday = period_start + (payday_day_of_week - pay_period_start_day) days.
  */
 export function nextPaycheckDate(
   settings: PayPeriodSettings,
   fromDate: Date = new Date(),
   skip = 0,
 ): string {
-  const { pay_cycle, payday_day_of_week, pay_period_anchor_date } = settings;
+  const {
+    pay_cycle,
+    payday_day_of_week,
+    pay_period_start_day = 1,
+    pay_period_anchor_date,
+  } = settings;
 
   if (pay_cycle === "biweekly" && pay_period_anchor_date) {
     const anchor = new Date(pay_period_anchor_date + "T12:00:00");
     const base   = new Date(fromDate);
     base.setHours(12, 0, 0, 0);
 
-    // How many days from anchor to base?
-    const diffMs   = base.getTime() - anchor.getTime();
-    const diffDays = diffMs / 86_400_000;
+    // Days from period start → payday within the same period
+    const paydayOffset = ((payday_day_of_week - pay_period_start_day) + 7) % 7;
 
-    // Periods elapsed (ceiling so we land on or after base)
-    const periodsElapsed = Math.ceil(diffDays / 14);
+    // How many 14-day cycles from anchor to base, accounting for where the
+    // payday falls within the cycle
+    const diffDays     = (base.getTime() - anchor.getTime()) / 86_400_000;
+    const periodsElapsed = Math.ceil((diffDays - paydayOffset) / 14);
 
-    const result = new Date(anchor);
-    result.setDate(anchor.getDate() + (periodsElapsed + skip) * 14);
-    return result.toISOString().slice(0, 10);
+    // Period start for the Nth cycle
+    const periodStart = new Date(anchor);
+    periodStart.setDate(anchor.getDate() + (periodsElapsed + skip) * 14);
+
+    // Payday = period start + offset
+    const payday = new Date(periodStart);
+    payday.setDate(periodStart.getDate() + paydayOffset);
+    return payday.toISOString().slice(0, 10);
   }
 
-  // Default: weekly
+  // Weekly (or biweekly with no anchor set): next occurrence of payday_day_of_week
+  const interval = pay_cycle === "biweekly" ? 14 : 7;
   const d = new Date(fromDate);
   d.setHours(12, 0, 0, 0);
-  const day         = d.getDay();
-  const daysUntil   = ((payday_day_of_week - day + 7) % 7) || 7; // never 0 — always forward
-  d.setDate(d.getDate() + daysUntil + skip * 7);
+  const day       = d.getDay();
+  const daysUntil = ((payday_day_of_week - day + 7) % 7) || interval;
+  d.setDate(d.getDate() + daysUntil + skip * interval);
   return d.toISOString().slice(0, 10);
 }
 

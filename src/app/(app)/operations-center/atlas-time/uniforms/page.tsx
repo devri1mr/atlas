@@ -68,10 +68,20 @@ function typeBadge(type: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+type IssuedRow = {
+  item: string;
+  size: string | null;
+  color: string | null;
+  qty: number;
+  total_cost: number;
+  employee_count: number;
+};
+
 export default function UniformsPage() {
-  const [view, setView]           = useState<"ledger" | "summary">("summary");
+  const [view, setView]           = useState<"issued" | "inventory" | "ledger">("issued");
   const [ledger, setLedger]       = useState<LedgerEntry[]>([]);
   const [summary, setSummary]     = useState<SummaryRow[]>([]);
+  const [issued, setIssued]       = useState<IssuedRow[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
 
@@ -108,15 +118,17 @@ export default function UniformsPage() {
     setLoading(true);
     setError("");
     try {
-      const [ledgerRes, summaryRes, optsRes, varRes] = await Promise.all([
+      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes] = await Promise.all([
         fetch("/api/atlas-time/uniform-inventory"),
         fetch("/api/atlas-time/uniform-inventory/summary"),
+        fetch("/api/atlas-time/uniform-inventory/issued-summary"),
         fetch("/api/atlas-time/field-options?field_key=uniform_items"),
         fetch("/api/atlas-time/uniform-variants"),
       ]);
-      const [lj, sj, oj, vj] = await Promise.all([ledgerRes.json(), summaryRes.json(), optsRes.json(), varRes.json()]);
+      const [lj, sj, ij, oj, vj] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json()]);
       setLedger(lj.entries ?? []);
       setSummary(sj.summary ?? []);
+      setIssued(ij.summary ?? []);
       setItems(oj.options ?? []);
 
       // Build variant map: item_option_id → {sizes, colors}
@@ -345,9 +357,9 @@ export default function UniformsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Items in Catalog", value: String(items.length) },
+              { label: "Total Issued to Employees", value: String(issued.reduce((s, r) => s + r.qty, 0)) },
               { label: "Units on Hand", value: String(totalUnits) },
               { label: "Inventory Value", value: fmt$(totalValue) },
-              { label: "Ledger Entries", value: String(ledger.length) },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
                 <p className="text-xs text-gray-400 font-medium">{s.label}</p>
@@ -359,10 +371,14 @@ export default function UniformsPage() {
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-xl border border-gray-100 shadow-sm p-1 w-fit">
-          {(["summary", "ledger"] as const).map(v => (
-            <button key={v} onClick={() => setView(v)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${view === v ? "bg-[#123b1f] text-white" : "text-gray-500 hover:text-gray-700"}`}>
-              {v}
+          {([
+            { key: "issued",    label: "Issued to Employees" },
+            { key: "inventory", label: "On Hand" },
+            { key: "ledger",    label: "Ledger" },
+          ] as const).map(v => (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${view === v.key ? "bg-[#123b1f] text-white" : "text-gray-500 hover:text-gray-700"}`}>
+              {v.label}
             </button>
           ))}
         </div>
@@ -377,8 +393,53 @@ export default function UniformsPage() {
           </div>
         )}
 
-        {/* ── SUMMARY view ── */}
-        {!loading && view === "summary" && (
+        {/* ── ISSUED TO EMPLOYEES view ── */}
+        {!loading && view === "issued" && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty Issued</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Cost</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Employees</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {issued.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-gray-400">No uniform items found in employee profiles.</td></tr>
+                  )}
+                  {issued.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-medium text-gray-800">{row.item}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.size ?? <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.color ?? <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">{row.qty}</td>
+                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{row.total_cost > 0 ? fmt$(row.total_cost) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.employee_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {issued.length > 0 && (
+                  <tfoot className="border-t border-gray-200 bg-gray-50">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{issued.reduce((s, r) => s + r.qty, 0)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{fmt$(issued.reduce((s, r) => s + r.total_cost, 0))}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── ON HAND (inventory) view ── */}
+        {!loading && view === "inventory" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

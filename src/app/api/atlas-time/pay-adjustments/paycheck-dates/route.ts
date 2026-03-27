@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest) {
 
     const [settingsRes, existingRes] = await Promise.all([
       sb.from("at_settings")
-        .select("pay_cycle, payday_day_of_week, pay_period_anchor_date")
+        .select("pay_cycle, payday_day_of_week, pay_period_start_day, pay_period_anchor_date")
         .eq("company_id", companyId)
         .maybeSingle(),
       sb.from("at_pay_adjustments")
@@ -36,6 +36,7 @@ export async function GET(_req: NextRequest) {
     const settings = {
       pay_cycle:               settingsRes.data?.pay_cycle               ?? "weekly",
       payday_day_of_week:      settingsRes.data?.payday_day_of_week      ?? 5,
+      pay_period_start_day:    settingsRes.data?.pay_period_start_day    ?? 1,
       pay_period_anchor_date:  settingsRes.data?.pay_period_anchor_date  ?? null,
     };
 
