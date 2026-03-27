@@ -66,6 +66,15 @@ const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD
 const dec2 = (n: number) => Number(n ?? 0).toFixed(2);
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
+// "First Last" → "Last, First"
+function formatName(raw: string): string {
+  const parts = raw.trim().split(/\s+/);
+  if (parts.length < 2) return raw;
+  const last = parts[parts.length - 1];
+  const first = parts.slice(0, -1).join(" ");
+  return `${last}, ${first}`;
+}
+
 function buildPersonView(jobs: Job[]): PersonEntry[] {
   const map = new Map<string, PersonEntry>();
   for (const job of jobs) {
@@ -88,7 +97,7 @@ function buildPersonView(jobs: Job[]): PersonEntry[] {
       p.jobs.push({ client_name: job.client_name, service: job.service, actual_hours: m.actual_hours, earned_amount: m.earned_amount });
     }
   }
-  return [...map.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
+  return [...map.values()].sort((a, b) => formatName(a.resource_name).localeCompare(formatName(b.resource_name)));
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -172,7 +181,7 @@ function PersonTable({ jobs }: { jobs: Job[] }) {
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
                       <StatusBadge status={p.punch_status} />
-                      <span className="font-medium text-emerald-950">{p.resource_name}</span>
+                      <span className="font-medium text-emerald-950">{formatName(p.resource_name)}</span>
                       {p.punch_status === "no_punch" && (
                         <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No punch</span>
                       )}
