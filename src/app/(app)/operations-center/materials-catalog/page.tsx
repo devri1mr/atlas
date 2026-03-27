@@ -300,8 +300,11 @@ function MaterialDrawer({
                   "width=900,height=750,resizable=yes,scrollbars=yes"
                 )}
               >
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                <svg width="18" height="22" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                  <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
+                  <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
+                  <rect x="2" y="17" width="24" height="11" rx="1.5" fill="#E02020"/>
+                  <text x="14" y="25.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="700" fontFamily="Arial, sans-serif" letterSpacing="0.5">PDF</text>
                 </svg>
                 View in pricing book
                 {material.source_page && material.source_page > 1 && (
@@ -758,15 +761,19 @@ export default function MaterialsCatalogPage() {
                               {m.source_pricing_book_id && (
                                 <button
                                   title="View in pricing book"
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                  className="inline-flex items-center justify-center rounded hover:opacity-75 transition-opacity"
                                   onClick={() => window.open(
                                     `/api/materials-catalog/pricing-books/${m.source_pricing_book_id}/view${m.source_page && m.source_page > 1 ? `#page=${m.source_page}` : ""}`,
                                     "pricingbook",
                                     "width=900,height=750,resizable=yes,scrollbars=yes"
                                   )}
                                 >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  <svg width="28" height="34" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="28" height="34" rx="3" fill="#E8E8E8"/>
+                                    <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
+                                    <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
+                                    <rect x="2" y="17" width="24" height="11" rx="1.5" fill="#E02020"/>
+                                    <text x="14" y="25.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="700" fontFamily="Arial, sans-serif" letterSpacing="0.5">PDF</text>
                                   </svg>
                                 </button>
                               )}
