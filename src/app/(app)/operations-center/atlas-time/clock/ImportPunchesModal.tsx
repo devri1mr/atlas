@@ -283,7 +283,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
       if (!res.ok) throw new Error(json.error ?? "Failed to create employee");
       const newEmp: AvailableEmp = { id: json.employee.id, name: `${last}, ${first}` };
       setAvailEmps(prev => [...prev, newEmp].sort((a, b) => a.name.localeCompare(b.name)));
-      setEditEmpId(emp.id);
+      setEditEmpId(newEmp.id);
       setQuickAddOpen(false);
       setQuickAddFirst("");
       setQuickAddLast("");
@@ -505,6 +505,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </thead>
                   <tbody>
                     {previewRows.map((row, i) => {
+                      if (row.status === "duplicate") return null;
                       const isEditing  = editIdx === i;
                       const isNavFocus = navQueue.length > 0 && navQueue[navPos] === i;
                       const dot = row.status === "ready" ? "bg-green-500" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
