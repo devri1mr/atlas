@@ -105,14 +105,28 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
     variance_hours:  parseNum(summary[11]),
     budgeted_amount: budgetedAmount,
     actual_amount:   parseNum(summary[13]),
-    members: members.map(m => {
-      const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
-      const memberHrs = parseNum((m as unknown[])[10]);
-      const earnedAmt = totalActHrs > 0
-        ? Math.round((memberHrs / totalActHrs) * budgetedAmount * 100) / 100
-        : 0;
-      return { resource_name: name, resource_code: code, actual_hours: memberHrs, earned_amount: earnedAmt };
-    }),
+    members: (() => {
+      const parsed = members.map(m => {
+        const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
+        const memberHrs = parseNum((m as unknown[])[10]);
+        const exact = totalActHrs > 0 ? (memberHrs / totalActHrs) * budgetedAmount : 0;
+        return { resource_name: name, resource_code: code, actual_hours: memberHrs, _exact: exact };
+      });
+      // Distribute rounding remainder to the member with the largest fractional part
+      const floored = parsed.map(p => Math.floor(p._exact * 100) / 100);
+      const remainder = Math.round((budgetedAmount - floored.reduce((s, v) => s + v, 0)) * 100);
+      const indices = parsed
+        .map((p, i) => ({ i, frac: (p._exact * 100) % 1 }))
+        .sort((a, b) => b.frac - a.frac);
+      const adjustments = new Array(parsed.length).fill(0);
+      for (let k = 0; k < remainder; k++) adjustments[indices[k].i] = 0.01;
+      return parsed.map((p, i) => ({
+        resource_name: p.resource_name,
+        resource_code: p.resource_code,
+        actual_hours: p.actual_hours,
+        earned_amount: Math.round((floored[i] + adjustments[i]) * 100) / 100,
+      }));
+    })(),
   };
 }
 
