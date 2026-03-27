@@ -77,11 +77,12 @@ export async function recalcDayLunch(
   // A punch is a "manual no-lunch override" only when:
   //   lunch_deducted_mins === 0  (explicit zero)
   //   AND regular_hours is already set (punch has been through at least one recalc)
+  //   AND we are NOT running a forced backfill (which should override everything)
   // New/imported punches with regular_hours=null have lunch_deducted_mins=0 from
   // the DB default — that is NOT an override.
   const punchesWithOverride = weekPunches.map(p => ({
     ...p,
-    no_lunch: p.lunch_deducted_mins === 0 && p.regular_hours !== null,
+    no_lunch: !lunchOverrides && p.lunch_deducted_mins === 0 && p.regular_hours !== null,
   }));
 
   // computeWeekPunches handles lunch deduction, daily OT, and weekly OT accumulation
@@ -92,9 +93,8 @@ export async function recalcDayLunch(
   await Promise.all(weekPunches.map(p => {
     const r = resultMap.get(p.id);
     if (!r) return Promise.resolve();
-    // Preserve manual "no lunch" override: lunch_deducted_mins was 0 AND regular_hours
-    // was already set before this recalc (same condition used above for no_lunch).
-    const isManualOverride = p.lunch_deducted_mins === 0 && p.regular_hours !== null;
+    // Preserve manual "no lunch" override only when NOT running a forced backfill.
+    const isManualOverride = !lunchOverrides && p.lunch_deducted_mins === 0 && p.regular_hours !== null;
     return sb.from("at_punches").update({
       regular_hours:       r2(r.regular_hours),
       ot_hours:            r2(r.ot_hours),
