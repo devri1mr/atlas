@@ -312,6 +312,41 @@ export default function PricingBooksPage() {
     setImportError(null);
   }
 
+  // ── Edit ─────────────────────────────────────────────────────────────────────
+  const [editBook, setEditBook] = useState<PricingBook | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editVendor, setEditVendor] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEdit(book: PricingBook) {
+    setEditBook(book);
+    setEditName(book.name);
+    setEditVendor(book.vendor ?? "");
+    setEditError(null);
+  }
+
+  async function handleEditSave() {
+    if (!editBook) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/materials-catalog/pricing-books/${editBook.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim(), vendor: editVendor.trim() || null }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save");
+      setBooks(prev => prev.map(b => b.id === editBook.id ? { ...b, name: json.data.name, vendor: json.data.vendor } : b));
+      setEditBook(null);
+    } catch (e: any) {
+      setEditError(e.message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   // ── Logo upload ───────────────────────────────────────────────────────────────
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoTargetId, setLogoTargetId] = useState<string | null>(null);
@@ -443,6 +478,7 @@ export default function PricingBooksPage() {
                         Import
                       </button>
                     )}
+                    <button className={btnGhost} onClick={() => openEdit(book)}>Edit</button>
                     <button className={`${btnDanger} ml-auto`} onClick={() => handleDelete(book)}>Delete</button>
                   </div>
                 </div>
@@ -554,6 +590,50 @@ export default function PricingBooksPage() {
             className="flex-1 w-full"
             title={viewingName}
           />
+        </div>
+      )}
+
+      {/* ── Edit Modal ────────────────────────────────────────────────────────── */}
+      {editBook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Edit Pricing Book</h2>
+              <button onClick={() => setEditBook(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Book Name</label>
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="e.g. Kluck Spring 2026 Pricing"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Vendor (optional)</label>
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  value={editVendor}
+                  onChange={e => setEditVendor(e.target.value)}
+                  placeholder="e.g. Kluck Nursery"
+                />
+              </div>
+              {editError && <p className="text-red-600 text-sm">{editError}</p>}
+              <div className="flex gap-3 justify-end pt-1">
+                <button className={btnGhost} onClick={() => setEditBook(null)}>Cancel</button>
+                <button
+                  className={btnPrimary}
+                  disabled={!editName.trim() || editSaving}
+                  onClick={handleEditSave}
+                >
+                  {editSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
