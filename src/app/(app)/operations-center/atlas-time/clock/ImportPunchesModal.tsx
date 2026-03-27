@@ -555,10 +555,39 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
                   </thead>
                   <tbody>
                     {previewRows.map((row, i) => {
-                      if (row.status === "duplicate" || row.status === "ready") return null;
                       const isEditing  = editIdx === i;
                       const isNavFocus = navQueue.length > 0 && navQueue[navPos] === i;
-                      const dot = row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
+                      const dot = row.status === "ready" ? "bg-green-500" : row.status === "duplicate" ? "bg-gray-300" : row.status === "no_punch_item" ? "bg-amber-400" : "bg-red-500";
+
+                      if (row.status === "duplicate") {
+                        return (
+                          <tr key={i} className="border-b border-gray-50 bg-gray-50/50 opacity-50">
+                            <td className="px-3 py-2.5"><span className="inline-block w-2 h-2 rounded-full bg-gray-300" /></td>
+                            <td className="px-3 py-2.5 font-medium text-gray-400 line-through">{row.employee_name ?? row.csv_name}</td>
+                            <td className="px-3 py-2.5 text-gray-400 line-through">{fmtDate(row.date)}</td>
+                            <td className="px-3 py-2.5 text-gray-400 line-through">{fmtTime(row.clock_in_at)}</td>
+                            <td className="px-3 py-2.5 text-gray-400 line-through">{fmtTime(row.clock_out_at)}</td>
+                            <td className="px-3 py-2.5 text-gray-400 line-through">{row.matched_item_name ?? row.punch_item}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-400 tabular-nums line-through">{row.raw_hours != null ? row.raw_hours.toFixed(2) : "—"}</td>
+                            <td className="px-3 py-2.5 text-[10px] text-gray-400 font-medium">skip</td>
+                          </tr>
+                        );
+                      }
+
+                      if (row.status === "ready") {
+                        return (
+                          <tr key={i} className={`border-b border-gray-50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                            <td className="px-3 py-2.5"><span className="inline-block w-2 h-2 rounded-full bg-green-500" /></td>
+                            <td className="px-3 py-2.5 font-medium text-gray-800">{row.employee_name}</td>
+                            <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.date)}</td>
+                            <td className="px-3 py-2.5 text-gray-600">{fmtTime(row.clock_in_at)}</td>
+                            <td className="px-3 py-2.5 text-gray-600">{fmtTime(row.clock_out_at)}</td>
+                            <td className="px-3 py-2.5 text-gray-700">{row.matched_item_name}</td>
+                            <td className="px-3 py-2.5 text-right text-gray-600 tabular-nums">{row.raw_hours != null ? row.raw_hours.toFixed(2) : "—"}</td>
+                            <td className="px-3 py-2.5" />
+                          </tr>
+                        );
+                      }
 
                       if (isEditing) {
                         const sameNameCount = previewRows.filter((r, j) => j !== i && r.csv_name === row.csv_name && (r.status === "no_employee" || r.status === "no_punch_item")).length;

@@ -17,18 +17,12 @@ export async function POST(req: NextRequest) {
     if (!employee_id || !date || !clock_in_at)
       return NextResponse.json({ error: "employee_id, date, clock_in_at required" }, { status: 400 });
 
-    const clockInMs   = new Date(clock_in_at).getTime();
-    const windowMs    = 5 * 60 * 1000;
-    const windowStart = new Date(clockInMs - windowMs).toISOString();
-    const windowEnd   = new Date(clockInMs + windowMs).toISOString();
-
     const { data } = await sb
       .from("at_punches")
       .select("id")
       .eq("employee_id", employee_id)
       .eq("date_for_payroll", date)
-      .gte("clock_in_at", windowStart)
-      .lte("clock_in_at", windowEnd)
+      .eq("clock_in_at", clock_in_at)
       .limit(1);
 
     return NextResponse.json({ is_duplicate: (data ?? []).length > 0 });
