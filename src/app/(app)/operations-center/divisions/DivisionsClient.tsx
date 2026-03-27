@@ -9,6 +9,7 @@ type Division = {
   target_gross_profit_percent: number;
   allow_overtime: boolean;
   active: boolean;
+  show_in_ops: boolean;
   created_at?: string;
   performance_sheet_url?: string | null;
   department_id?: string | null;
@@ -225,6 +226,22 @@ export default function DivisionsClient() {
     }
   }
 
+  async function setDivisionOps(row: Division, nextOps: boolean) {
+    setError(null);
+    try {
+      setBusyId(row.id);
+      const out = await api<{ data: Division }>("/api/operations-center/divisions", {
+        method: "PATCH",
+        body: JSON.stringify({ id: row.id, show_in_ops: nextOps }),
+      });
+      setRows((prev) => prev.map((r) => (r.id === row.id ? out.data : r)));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update Ops flag");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function deleteDivision(row: Division) {
     const ok = window.confirm(`Delete "${row.name}" permanently? (This cannot be undone.)`);
     if (!ok) return;
@@ -306,6 +323,7 @@ export default function DivisionsClient() {
                     <th className="px-4 py-3 font-semibold">Labor Rate</th>
                     <th className="px-4 py-3 font-semibold">Target GP%</th>
                     <th className="px-4 py-3 font-semibold">Allow OT</th>
+                    <th className="px-4 py-3 font-semibold">Show in Ops</th>
                     <th className="px-4 py-3 font-semibold">Active</th>
                     <th className="px-4 py-3 font-semibold">Actions</th>
                   </tr>
@@ -341,6 +359,19 @@ export default function DivisionsClient() {
                               onChange={(e) => setDivisionOt(r, e.target.checked)}
                             />
                             Allow OT
+                          </label>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-emerald-950">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-emerald-700"
+                              checked={Boolean(r.show_in_ops)}
+                              disabled={busy}
+                              onChange={(e) => setDivisionOps(r, e.target.checked)}
+                            />
+                            Show in Ops
                           </label>
                         </td>
 

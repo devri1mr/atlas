@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -126,17 +126,50 @@ const SETTINGS_ITEM: NavItem = {
   ],
 };
 
+type OpsDiv = { id: string; name: string };
+
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, can } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [opsDivisions, setOpsDivisions] = useState<OpsDiv[]>([]);
+
+  useEffect(() => {
+    fetch("/api/operations-center/divisions", { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => {
+        const ops = (d.data ?? []).filter((div: any) => div.show_in_ops && div.active) as OpsDiv[];
+        setOpsDivisions(ops);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fullNav = useMemo<NavItem[]>(() => {
+    if (!opsDivisions.length) return NAV;
+    const opsItem: NavItem = {
+      label: "Operations",
+      href: "/operations-center/atlas-ops",
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+      ),
+      children: opsDivisions.map(d => ({
+        label: d.name,
+        href: `/operations-center/atlas-ops/${d.name.toLowerCase().replace(/\s+/g, "-")}`,
+      })),
+    };
+    return [...NAV.slice(0, 4), opsItem, ...NAV.slice(4)];
+  }, [opsDivisions]);
 
   // Auto-expand groups whose children include the current path
   useEffect(() => {
     const toOpen = new Set<string>();
-    for (const item of NAV) {
+    for (const item of fullNav) {
       if (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + "/"))) {
         toOpen.add(item.href);
       }
@@ -146,7 +179,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       toOpen.forEach(h => next.add(h));
       return next;
     });
-  }, [pathname]);
+  }, [pathname, fullNav]);
 
   function toggleGroup(href: string) {
     setOpenGroups(prev => {
@@ -182,8 +215,11 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
   const visibleNav = loading
     ? []
-    : NAV.filter(item => {
+    : fullNav.filter(item => {
         if (item.children?.length) {
+          // Items with no permKey children (like Operations) are always visible
+          const hasGatedChild = item.children.some(c => c.permKey);
+          if (!hasGatedChild) return true;
           return item.children.some(c => c.permKey && childVisible(c));
         }
         return !item.permKey || can(item.permKey);
