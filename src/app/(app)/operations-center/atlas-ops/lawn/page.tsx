@@ -919,10 +919,10 @@ export default function LawnPage() {
               {/* Header — grid must match data row grid exactly */}
               <div className="grid grid-cols-[1fr_6rem_8rem_6rem_7rem_5rem] items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
                 <div>Date</div>
-                <div className="text-right">Total Hrs</div>
-                <div className="text-right">Revenue</div>
-                <div className="text-right">Labor %</div>
-                <div className="text-right">Efficiency</div>
+                <div className="text-center">Total Hrs</div>
+                <div className="text-center">Revenue</div>
+                <div className="text-center">Labor %</div>
+                <div className="text-center">Efficiency</div>
                 <div />
               </div>
               {reports.map(r => {
@@ -948,15 +948,15 @@ export default function LawnPage() {
                           <span className="font-medium text-emerald-950">{fmtDate(r.report_date)}</span>
                         </button>
                       </div>
-                      <div className="text-right text-gray-700">{dec2(r.total_actual_hours)}</div>
-                      <div className="text-right text-gray-700">{money.format(r.total_budgeted_amount)}</div>
-                      <div className="text-right">
+                      <div className="text-center text-gray-700">{dec2(r.total_actual_hours)}</div>
+                      <div className="text-center text-gray-700">{money.format(r.total_budgeted_amount)}</div>
+                      <div className="text-center">
                         {laborPct != null ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span> : "—"}
                       </div>
-                      <div className="text-right">
+                      <div className="text-center">
                         {effPct != null ? <span className={effPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(effPct)}</span> : "—"}
                       </div>
-                      <div className="text-right">
+                      <div className="text-center">
                         <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
                       </div>
                     </div>
