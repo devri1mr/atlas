@@ -867,7 +867,6 @@ export default function LawnPage() {
               <thead>
                 <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
                   <th className="px-4 py-2.5">Date</th>
-                  <th className="px-3 py-2.5">File</th>
                   <th className="px-3 py-2.5 text-right">Total Hrs</th>
                   <th className="px-3 py-2.5 text-right">Revenue</th>
                   <th className="px-3 py-2.5" />
@@ -889,7 +888,6 @@ export default function LawnPage() {
                             <span className="font-medium text-emerald-950">{fmtDate(r.report_date)}</span>
                           </button>
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-gray-500">{r.file_name ?? "—"}</td>
                         <td className="px-3 py-2.5 text-right text-gray-700">{dec2(r.total_actual_hours)}</td>
                         <td className="px-3 py-2.5 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</td>
                         <td className="px-3 py-2.5 text-right">
