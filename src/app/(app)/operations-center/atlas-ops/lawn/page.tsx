@@ -173,11 +173,12 @@ function WeekCard({ title, days, isCurrent }: { title: string; days: DayData[]; 
 
 // ── Monthly Table ─────────────────────────────────────────────────────────────
 
+const MONTHLY_BUDGET = 25_000;
+
 function MonthlyTable({ data }: { data: MonthData[] }) {
   const totalRev = data.reduce((s, m) => s + m.revenue, 0);
   const totalPay = data.reduce((s, m) => s + m.payroll_cost, 0);
   const curMonth = new Date().getMonth();
-  const maxRev = Math.max(...data.map(m => m.revenue), 1);
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
@@ -190,7 +191,7 @@ function MonthlyTable({ data }: { data: MonthData[] }) {
           <thead>
             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
               <th className="px-5 py-3 text-left">Month</th>
-              <th className="px-4 py-3 text-left w-40">Progress</th>
+              <th className="px-4 py-3 text-left w-48">Budget Progress</th>
               <th className="px-4 py-3 text-right">Revenue</th>
               <th className="px-4 py-3 text-center">Labor %</th>
               <th className="px-4 py-3 text-center">Efficiency</th>
@@ -199,7 +200,9 @@ function MonthlyTable({ data }: { data: MonthData[] }) {
           <tbody>
             {data.map((m, i) => {
               const isCur = i === curMonth;
-              const barW  = m.revenue > 0 ? (m.revenue / maxRev) * 100 : 0;
+              const fillPct  = Math.min((m.revenue / MONTHLY_BUDGET) * 100, 100);
+              const donePct  = Math.round(fillPct);
+              const exceeded = m.revenue >= MONTHLY_BUDGET;
               return (
                 <tr
                   key={m.month}
@@ -217,12 +220,21 @@ function MonthlyTable({ data }: { data: MonthData[] }) {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden w-36">
-                      <div
-                        className={`h-full rounded-full transition-all ${isCur ? "bg-emerald-500" : "bg-emerald-300"}`}
-                        style={{ width: `${barW}%` }}
-                      />
-                    </div>
+                    {m.revenue > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="relative h-2 rounded-full bg-gray-100 overflow-hidden flex-1 min-w-0">
+                          <div
+                            className={`h-full rounded-full transition-all ${exceeded ? "bg-emerald-500" : isCur ? "bg-emerald-500" : "bg-emerald-400"}`}
+                            style={{ width: `${fillPct}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-semibold shrink-0 ${exceeded ? "text-emerald-600" : isCur ? "text-emerald-700" : "text-gray-500"}`}>
+                          {donePct}%
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-2 rounded-full bg-gray-100 w-full" />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-800">
                     {m.revenue > 0 ? money.format(m.revenue) : "—"}
