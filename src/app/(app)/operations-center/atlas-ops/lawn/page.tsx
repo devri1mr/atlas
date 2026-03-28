@@ -117,7 +117,7 @@ const fmtTime = (iso: string | null | undefined) => {
 };
 const fmtHrs = (ms: number) => {
   const h = ms / 3600000;
-  return h < 0.02 ? "0:00" : `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
+  return h < 0.005 ? "0.00" : h.toFixed(2);
 };
 
 function formatName(raw: string): string {
