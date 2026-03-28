@@ -44,15 +44,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ data: report, punches: punches ?? [] });
     }
 
-    // List of reports (summary only)
+    // List of reports with payroll cost summed from members
     const { data, error } = await sb
       .from("lawn_production_reports")
-      .select("id, report_date, file_name, imported_at, total_budgeted_hours, total_actual_hours, total_budgeted_amount, total_actual_amount")
+      .select(`
+        id, report_date, file_name, imported_at,
+        total_budgeted_hours, total_actual_hours, total_budgeted_amount, total_actual_amount,
+        lawn_production_jobs ( lawn_production_members ( payroll_cost ) )
+      `)
       .eq("company_id", company.id)
       .order("report_date", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ data: data ?? [] });
+
+    const reports = (data ?? []).map((r: any) => {
+      const totalPayrollCost = (r.lawn_production_jobs ?? []).reduce((sum: number, j: any) =>
+        sum + (j.lawn_production_members ?? []).reduce((s: number, m: any) => s + (m.payroll_cost ?? 0), 0), 0);
+      const { lawn_production_jobs: _, ...rest } = r;
+      return { ...rest, total_payroll_cost: totalPayrollCost };
+    });
+
+    return NextResponse.json({ data: reports });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }

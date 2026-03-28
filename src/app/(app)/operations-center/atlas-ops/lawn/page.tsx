@@ -78,6 +78,7 @@ type Report = {
   imported_at: string;
   total_budgeted_hours: number;
   total_actual_hours: number;
+  total_payroll_cost?: number;
   total_budgeted_amount: number;
   total_actual_amount: number;
   lawn_production_jobs?: Job[];
@@ -910,15 +911,15 @@ export default function LawnPage() {
               <tbody>
                 {reports.map(r => {
                   const isOpen = expandedRep === r.id;
-                  const summaryDtCost = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
+                  const summaryPayCost = r.total_payroll_cost ?? 0;
+                  const summaryRev     = r.total_budgeted_amount ?? 0;
+                  const summaryLabor   = (summaryPayCost > 0 && summaryRev > 0) ? summaryPayCost / summaryRev : null;
+                  const summaryEff     = (summaryPayCost > 0 && summaryRev > 0) ? (summaryRev * 0.39) / summaryPayCost : null;
+                  const summaryDtCost  = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
                     const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
                     const downHrs = dr ? dr.totalMs / 3600000 : null;
                     return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
                   }, 0) : null;
-                  const summaryPayCost = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0) : null;
-                  const summaryRev     = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + p.total_revenue, 0) : null;
-                  const summaryLabor   = (summaryPayCost && summaryRev) ? summaryPayCost / summaryRev : null;
-                  const summaryEff     = (summaryPayCost && summaryRev) ? (summaryRev * 0.39) / summaryPayCost : null;
 
                   return (
                     <React.Fragment key={r.id}>
@@ -948,7 +949,7 @@ export default function LawnPage() {
                       </tr>
                       {isOpen && (
                         <tr>
-                          <td colSpan={5} className="px-0 pb-0 border-t border-emerald-100">
+                          <td colSpan={8} className="px-0 pb-0 border-t border-emerald-100">
                             {loadingRep ? (
                               <div className="px-6 py-4 text-sm text-emerald-900/50">Loading…</div>
                             ) : repDetail ? (
