@@ -173,8 +173,11 @@ function buildPersonView(jobs: Job[], punches: ReportPunch[]): PersonEntry[] {
   return [...map.values()].sort((a, b) => formatName(a.resource_name).localeCompare(formatName(b.resource_name)));
 }
 
+type DownSegment = { from: string; to: string; label: string; ms: number };
+type DownTimeResult = { totalMs: number; segments: DownSegment[] };
+
 // Calculate down time for a person given their crew's dispatch jobs
-function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): number | null {
+function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTimeResult | null {
   const crewJobs = dispatchJobs
     .filter(j => j.crew_code && person.crew_codes.includes(j.crew_code) && j.start_time && j.end_time && !j.time_varies)
     .sort((a, b) => new Date(a.start_time!).getTime() - new Date(b.start_time!).getTime());
@@ -186,27 +189,43 @@ function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): number 
   const firstIn   = clockIns.length  ? Math.min(...clockIns)  : null;
   const lastOut   = clockOuts.length ? Math.max(...clockOuts) : null;
 
-  let downMs = 0;
+  const segments: DownSegment[] = [];
 
   // Clock-in → first job start
   if (firstIn) {
     const gap = new Date(crewJobs[0].start_time!).getTime() - firstIn;
-    if (gap > 0) downMs += gap;
+    if (gap > 0) segments.push({
+      from:  new Date(firstIn).toISOString(),
+      to:    crewJobs[0].start_time!,
+      label: `Clock in → ${crewJobs[0].client_name}`,
+      ms:    gap,
+    });
   }
 
   // Between jobs
   for (let i = 0; i < crewJobs.length - 1; i++) {
     const gap = new Date(crewJobs[i + 1].start_time!).getTime() - new Date(crewJobs[i].end_time!).getTime();
-    if (gap > 0) downMs += gap;
+    if (gap > 0) segments.push({
+      from:  crewJobs[i].end_time!,
+      to:    crewJobs[i + 1].start_time!,
+      label: `${crewJobs[i].client_name} → ${crewJobs[i + 1].client_name}`,
+      ms:    gap,
+    });
   }
 
   // Last job end → clock-out
   if (lastOut) {
     const gap = lastOut - new Date(crewJobs[crewJobs.length - 1].end_time!).getTime();
-    if (gap > 0) downMs += gap;
+    if (gap > 0) segments.push({
+      from:  crewJobs[crewJobs.length - 1].end_time!,
+      to:    new Date(lastOut).toISOString(),
+      label: `${crewJobs[crewJobs.length - 1].client_name} → Clock out`,
+      ms:    gap,
+    });
   }
 
-  return downMs;
+  const totalMs = segments.reduce((s, g) => s + g.ms, 0);
+  return { totalMs, segments };
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -405,8 +424,10 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
 }) {
   const persons = buildPersonView(jobs, punches);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [downPopover, setDownPopover] = useState<string | null>(null);
 
   function toggle(name: string) {
+    setDownPopover(null);
     setExpanded(prev => {
       const next = new Set(prev);
       next.has(name) ? next.delete(name) : next.add(name);
@@ -465,7 +486,8 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
               const firstIn    = clockIns.length  ? [...clockIns].sort()[0]           : null;
               const lastOut    = clockOuts.length ? [...clockOuts].sort().reverse()[0] : null;
               const multiPunch = p.punches.length > 1;
-              const downMs     = hasDispatch ? calcDownTime(p, dispatchJobs) : null;
+              const downResult = hasDispatch ? calcDownTime(p, dispatchJobs) : null;
+              const downMs     = downResult?.totalMs ?? null;
 
               const laborPct      = (p.payroll_cost && p.total_revenue > 0) ? p.payroll_cost / p.total_revenue : null;
               const efficiencyPct = (p.payroll_cost && p.total_revenue > 0) ? (p.total_revenue * 0.39) / p.payroll_cost : null;
@@ -496,10 +518,24 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                     <td className="px-3 py-2.5 text-right text-gray-700">{p.ot_hours != null && p.ot_hours > 0 ? dec2(p.ot_hours) : "—"}</td>
                     <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
                     <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>
-                    <td className="px-3 py-2.5 text-right border-l border-emerald-100">
+                    <td className="px-3 py-2.5 text-right border-l border-emerald-100 relative" onClick={e => { e.stopPropagation(); setDownPopover(downResult ? (downPopover === p.resource_name ? null : p.resource_name) : null); }}>
                       {downMs !== null ? (
-                        <span className={downMs > 3600000 ? "text-amber-600 font-medium" : "text-gray-700"}>{fmtHrs(downMs)}</span>
+                        <span className={`cursor-pointer underline decoration-dotted ${downMs > 3600000 ? "text-amber-600 font-medium" : "text-gray-700"}`}>{fmtHrs(downMs)}</span>
                       ) : <span className="text-gray-300 text-xs italic">—</span>}
+                      {downPopover === p.resource_name && downResult && (
+                        <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-200 bg-white shadow-lg text-left text-xs">
+                          <div className="px-3 py-2 border-b border-gray-100 font-semibold text-gray-700">Down Time Breakdown</div>
+                          {downResult.segments.map((seg, si) => (
+                            <div key={si} className="px-3 py-2 border-b border-gray-50 last:border-0">
+                              <div className="font-medium text-gray-800">{seg.label}</div>
+                              <div className="text-gray-500 mt-0.5">{fmtTime(seg.from)} → {fmtTime(seg.to)} <span className="ml-2 text-gray-700 font-medium">{fmtHrs(seg.ms)} hrs</span></div>
+                            </div>
+                          ))}
+                          <div className="px-3 py-2 bg-gray-50 rounded-b-lg font-semibold text-gray-700 flex justify-between">
+                            <span>Total</span><span>{fmtHrs(downResult.totalMs)} hrs</span>
+                          </div>
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {laborPct != null ? (
