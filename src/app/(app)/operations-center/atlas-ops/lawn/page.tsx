@@ -695,14 +695,20 @@ export default function LawnPage() {
 
   // Cache DT cost per report once dispatch data is loaded
   useEffect(() => {
-    if (!repDetail || repPersons.length === 0) return;
-    const total = repPersons.reduce((s, p) => {
+    if (!repDetail) return;
+    const jobs: Job[] = (repDetail.report.lawn_production_jobs ?? []).map(j => ({
+      ...j,
+      members: (j.lawn_production_members ?? []) as Member[],
+    }));
+    const persons = buildPersonView(jobs, repDetail.punches);
+    if (persons.length === 0) return;
+    const total = persons.reduce((s, p) => {
       const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
       const downHrs = dr ? dr.totalMs / 3600000 : null;
       return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
     }, 0);
     setRepDtCache(prev => ({ ...prev, [repDetail.report.id]: total }));
-  }, [repDetail, repPersons]);
+  }, [repDetail]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
