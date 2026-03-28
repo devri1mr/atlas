@@ -252,12 +252,12 @@ type CalcRow = {
 
 function RevenueCalculator({ employees }: { employees: Employee[] }) {
   const [rows, setRows] = useState<CalcRow[]>(() =>
-    Array.from({ length: 4 }, (_, i) => ({ id: i, employee_id: "", pay_rate: "", revenue: "", time_in: "07:00" }))
+    Array.from({ length: 4 }, (_, i) => ({ id: i, employee_id: "", pay_rate: "", revenue: "", time_in: "07:30" }))
   );
   const nextId = React.useRef(4);
 
   function addRow() {
-    setRows(prev => [...prev, { id: nextId.current++, employee_id: "", pay_rate: "", revenue: "", time_in: "07:00" }]);
+    setRows(prev => [...prev, { id: nextId.current++, employee_id: "", pay_rate: "", revenue: "", time_in: "07:30" }]);
   }
 
   function removeRow(id: number) {
@@ -317,7 +317,6 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
           <thead>
             <tr className="text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
               <th className="px-5 py-2.5 text-left">Team Member</th>
-              <th className="px-3 py-2.5 text-center">Pay Rate</th>
               <th className="px-3 py-2.5 text-center">Target Revenue</th>
               <th className="px-3 py-2.5 text-center">Start Time</th>
               <th className="px-3 py-2.5 text-center">Hrs Needed</th>
@@ -340,22 +339,9 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                       {employees.map(e => (
                         <option key={e.id} value={String(e.id)}>
                           {e.last_name}, {e.first_name}
-                          {e.default_pay_rate ? ` ($${e.default_pay_rate}/hr)` : ""}
                         </option>
                       ))}
                     </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                      <input
-                        type="number"
-                        value={row.pay_rate}
-                        onChange={e => update(row.id, "pay_rate", e.target.value)}
-                        placeholder="0.00"
-                        className="w-20 border border-gray-200 rounded pl-5 pr-2 py-1.5 text-xs text-center"
-                      />
-                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <div className="relative">
