@@ -61,7 +61,7 @@ type ParsedJob = {
   members: ParsedMember[];
 };
 
-type RawMember = Omit<ParsedMember, "employee_id" | "employee_name" | "punch_status" | "reg_hours" | "ot_hours" | "total_payroll_hours" | "pay_rate" | "payroll_cost">;
+type RawMember = Omit<ParsedMember, "employee_id" | "employee_name" | "punch_status" | "reg_hours" | "ot_hours" | "total_payroll_hours" | "pay_rate" | "payroll_cost" | "clock_in_at" | "clock_out_at">;
 type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
 
 // ── XLS parser ────────────────────────────────────────────────────────────────
