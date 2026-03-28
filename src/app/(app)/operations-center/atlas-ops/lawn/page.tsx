@@ -178,11 +178,44 @@ type DownTimeResult = { totalMs: number; segments: DownSegment[] };
 
 // Calculate down time for a person given their crew's dispatch jobs
 function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTimeResult | null {
-  const crewJobs = dispatchJobs
-    .filter(j => j.crew_code && person.crew_codes.includes(j.crew_code) && j.start_time && j.end_time && !j.time_varies)
-    .sort((a, b) => new Date(a.start_time!).getTime() - new Date(b.start_time!).getTime());
+  const crewDispatch = dispatchJobs.filter(j => j.crew_code && person.crew_codes.includes(j.crew_code));
 
-  if (!crewJobs.length) return null;
+  // Build a flat list of time segments for this person
+  type Seg = { label: string; startMs: number; endMs: number; startISO: string; endISO: string };
+  const allSegs: Seg[] = [];
+
+  for (const j of crewDispatch) {
+    if (!j.time_varies && j.start_time && j.end_time) {
+      // Regular job — use the job's start/end
+      allSegs.push({
+        label: j.client_name,
+        startMs: new Date(j.start_time).getTime(),
+        endMs:   new Date(j.end_time).getTime(),
+        startISO: j.start_time,
+        endISO:   j.end_time,
+      });
+    } else if (j.time_varies && j.lawn_dispatch_job_times?.length) {
+      // Varies job — use this person's manual time entries
+      const myTimes = j.lawn_dispatch_job_times.filter(t =>
+        (person.employee_id && t.employee_id === person.employee_id) ||
+        (!person.employee_id && t.resource_name === person.resource_name)
+      );
+      for (const t of myTimes) {
+        if (t.start_time && t.end_time) {
+          allSegs.push({
+            label: j.client_name,
+            startMs: new Date(t.start_time).getTime(),
+            endMs:   new Date(t.end_time).getTime(),
+            startISO: t.start_time,
+            endISO:   t.end_time,
+          });
+        }
+      }
+    }
+  }
+
+  allSegs.sort((a, b) => a.startMs - b.startMs);
+  if (!allSegs.length) return null;
 
   const clockIns  = person.punches.map(p => p.clock_in_at).filter(Boolean).map(t => new Date(t!).getTime());
   const clockOuts = person.punches.map(p => p.clock_out_at).filter(Boolean).map(t => new Date(t!).getTime());
@@ -191,41 +224,23 @@ function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTim
 
   const segments: DownSegment[] = [];
 
-  // Clock-in → first job start
   if (firstIn) {
-    const gap = new Date(crewJobs[0].start_time!).getTime() - firstIn;
-    if (gap > 0) segments.push({
-      from:  new Date(firstIn).toISOString(),
-      to:    crewJobs[0].start_time!,
-      label: `Clock in → ${crewJobs[0].client_name}`,
-      ms:    gap,
-    });
+    const gap = allSegs[0].startMs - firstIn;
+    if (gap > 0) segments.push({ from: new Date(firstIn).toISOString(), to: allSegs[0].startISO, label: `Clock in → ${allSegs[0].label}`, ms: gap });
   }
 
-  // Between jobs
-  for (let i = 0; i < crewJobs.length - 1; i++) {
-    const gap = new Date(crewJobs[i + 1].start_time!).getTime() - new Date(crewJobs[i].end_time!).getTime();
-    if (gap > 0) segments.push({
-      from:  crewJobs[i].end_time!,
-      to:    crewJobs[i + 1].start_time!,
-      label: `${crewJobs[i].client_name} → ${crewJobs[i + 1].client_name}`,
-      ms:    gap,
-    });
+  for (let i = 0; i < allSegs.length - 1; i++) {
+    const gap = allSegs[i + 1].startMs - allSegs[i].endMs;
+    if (gap > 0) segments.push({ from: allSegs[i].endISO, to: allSegs[i + 1].startISO, label: `${allSegs[i].label} → ${allSegs[i + 1].label}`, ms: gap });
   }
 
-  // Last job end → clock-out
   if (lastOut) {
-    const gap = lastOut - new Date(crewJobs[crewJobs.length - 1].end_time!).getTime();
-    if (gap > 0) segments.push({
-      from:  crewJobs[crewJobs.length - 1].end_time!,
-      to:    new Date(lastOut).toISOString(),
-      label: `${crewJobs[crewJobs.length - 1].client_name} → Clock out`,
-      ms:    gap,
-    });
+    const gap = lastOut - allSegs[allSegs.length - 1].endMs;
+    if (gap > 0) segments.push({ from: allSegs[allSegs.length - 1].endISO, to: new Date(lastOut).toISOString(), label: `${allSegs[allSegs.length - 1].label} → Clock out`, ms: gap });
   }
 
   const totalMs = segments.reduce((s, g) => s + g.ms, 0);
-  return { totalMs, segments };
+  return totalMs > 0 ? { totalMs, segments } : null;
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
