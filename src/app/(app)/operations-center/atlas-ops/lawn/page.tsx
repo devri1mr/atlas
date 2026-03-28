@@ -771,7 +771,7 @@ export default function LawnPage() {
               </div>
             ) : (
               <>
-                <PersonTable jobs={previewJobs} punches={[]} dispatchJobs={[]} />
+                <PersonTable jobs={previewJobs} punches={preview.punches ?? []} dispatchJobs={[]} />
                 {preview.debug && (
                   <div className="px-5 py-3 border-t border-emerald-100 bg-gray-50 text-xs font-mono text-gray-500">
                     Punches found: <strong>{String(preview.debug.punchRowsFound ?? 0)}</strong> &nbsp;|&nbsp;

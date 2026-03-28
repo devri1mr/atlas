@@ -42,6 +42,8 @@ type ParsedMember = {
   total_payroll_hours: number | null;
   pay_rate: number | null;
   payroll_cost: number | null;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
 };
 
 type ParsedJob = {
@@ -476,6 +478,11 @@ export async function POST(req: NextRequest) {
           ? Math.round(baseCost * PAYROLL_BURDEN * 100) / 100
           : null;
 
+        // Clock in = earliest punch, clock out = latest punch for this employee
+        const empPunches = empId ? punchRows.filter(p => p.employee_id === empId) : [];
+        const clock_in_at  = empPunches.length ? empPunches[0].clock_in_at : null;
+        const clock_out_at = empPunches.length ? empPunches[empPunches.length - 1].clock_out_at : null;
+
         return {
           ...m,
           employee_id:         empId,
@@ -486,14 +493,31 @@ export async function POST(req: NextRequest) {
           total_payroll_hours,
           pay_rate:            rate,
           payroll_cost,
+          clock_in_at,
+          clock_out_at,
         };
       }),
     }));
 
     if (dryRun) {
+      // Build name map for punch records
+      const empNameMapDry = new Map<string, string>();
+      for (const j of resolvedJobs) {
+        for (const m of j.members) {
+          if (m.employee_id) empNameMapDry.set(m.employee_id, m.resource_name);
+        }
+      }
       return NextResponse.json({
         jobs: resolvedJobs,
         file_name: file.name,
+        punches: punchRows.map(p => ({
+          employee_id:   p.employee_id,
+          resource_name: empNameMapDry.get(p.employee_id) ?? "",
+          clock_in_at:   p.clock_in_at,
+          clock_out_at:  p.clock_out_at,
+          regular_hours: p.regular_hours,
+          ot_hours:      p.ot_hours,
+        })),
         debug: { ...parseDebug, punchRowsFound: punchRows.length, matchedEmpIds: matchedEmpIds.length },
       });
     }
