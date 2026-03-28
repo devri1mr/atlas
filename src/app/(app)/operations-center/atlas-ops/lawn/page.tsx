@@ -320,7 +320,7 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
       </div>
       <div className="space-y-4">
         {variesJobs.map(job => {
-          const crewPersons = persons;
+          const crewPersons = persons.filter(p => p.crew_codes.includes(job.crew_code ?? ""));
           const pendingRows = forms[job.id] ?? [];
           const savedTimes  = job.lawn_dispatch_job_times ?? [];
           return (
@@ -356,10 +356,10 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                         updateRow(job.id, idx, "employee_id", e.target.value);
                         if (p) updateRow(job.id, idx, "resource_name", p.resource_name);
                       }}
-                      className="border border-gray-200 rounded px-2 py-1 text-xs w-36"
+                      className="border border-gray-200 rounded px-2 py-1 text-xs w-44"
                     >
                       <option value="">— Person —</option>
-                      {crewPersons.map(p => (
+                      {persons.map(p => (
                         <option key={p.employee_id ?? p.resource_name} value={p.employee_id ?? ""}>
                           {formatName(p.resource_name)}
                         </option>
@@ -396,17 +396,32 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                     </button>
                   </div>
                 ))}
-                {/* Add row buttons per crew member */}
-                <div className="flex flex-wrap gap-2 pt-1">
+                {/* Add row buttons: crew members + anyone dropdown */}
+                <div className="flex flex-wrap gap-2 pt-1 items-center">
                   {crewPersons.map(p => (
                     <button
                       key={p.resource_name}
                       onClick={() => addRow(job.id, p.employee_id, p.resource_name)}
-                      className="text-xs rounded border border-emerald-200 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50"
+                      className="text-xs rounded border border-emerald-200 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
                     >
                       + {formatName(p.resource_name)}
                     </button>
                   ))}
+                  <select
+                    value=""
+                    onChange={e => {
+                      const p = persons.find(cp => cp.employee_id === e.target.value || cp.resource_name === e.target.value);
+                      if (p) addRow(job.id, p.employee_id, p.resource_name);
+                    }}
+                    className="text-xs rounded border border-gray-200 px-2 py-1 text-gray-500 hover:border-gray-300"
+                  >
+                    <option value="">+ Other member…</option>
+                    {persons.filter(p => !crewPersons.includes(p)).map(p => (
+                      <option key={p.employee_id ?? p.resource_name} value={p.employee_id ?? p.resource_name}>
+                        {formatName(p.resource_name)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
