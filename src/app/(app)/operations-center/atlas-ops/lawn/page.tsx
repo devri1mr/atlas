@@ -176,40 +176,25 @@ function buildPersonView(jobs: Job[], punches: ReportPunch[]): PersonEntry[] {
 type DownSegment = { from: string; to: string; label: string; ms: number };
 type DownTimeResult = { totalMs: number; segments: DownSegment[] };
 
-// Calculate down time for a person given their crew's dispatch jobs
+// Calculate down time for a person given their crew's dispatch jobs.
+// Works per-punch-period so punch-out gaps are never counted as down time.
 function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTimeResult | null {
   const crewDispatch = dispatchJobs.filter(j => j.crew_code && person.crew_codes.includes(j.crew_code));
 
-  // Build a flat list of time segments for this person
   type Seg = { label: string; startMs: number; endMs: number; startISO: string; endISO: string };
   const allSegs: Seg[] = [];
 
   for (const j of crewDispatch) {
     if (!j.time_varies && j.start_time && j.end_time) {
-      // Regular job — use the job's start/end
-      allSegs.push({
-        label: j.client_name,
-        startMs: new Date(j.start_time).getTime(),
-        endMs:   new Date(j.end_time).getTime(),
-        startISO: j.start_time,
-        endISO:   j.end_time,
-      });
+      allSegs.push({ label: j.client_name, startMs: new Date(j.start_time).getTime(), endMs: new Date(j.end_time).getTime(), startISO: j.start_time, endISO: j.end_time });
     } else if (j.time_varies && j.lawn_dispatch_job_times?.length) {
-      // Varies job — use this person's manual time entries
       const myTimes = j.lawn_dispatch_job_times.filter(t =>
         (person.employee_id && t.employee_id === person.employee_id) ||
         (!person.employee_id && t.resource_name === person.resource_name)
       );
       for (const t of myTimes) {
-        if (t.start_time && t.end_time) {
-          allSegs.push({
-            label: j.client_name,
-            startMs: new Date(t.start_time).getTime(),
-            endMs:   new Date(t.end_time).getTime(),
-            startISO: t.start_time,
-            endISO:   t.end_time,
-          });
-        }
+        if (t.start_time && t.end_time)
+          allSegs.push({ label: j.client_name, startMs: new Date(t.start_time).getTime(), endMs: new Date(t.end_time).getTime(), startISO: t.start_time, endISO: t.end_time });
       }
     }
   }
@@ -217,26 +202,38 @@ function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTim
   allSegs.sort((a, b) => a.startMs - b.startMs);
   if (!allSegs.length) return null;
 
-  const clockIns  = person.punches.map(p => p.clock_in_at).filter(Boolean).map(t => new Date(t!).getTime());
-  const clockOuts = person.punches.map(p => p.clock_out_at).filter(Boolean).map(t => new Date(t!).getTime());
-  const firstIn   = clockIns.length  ? Math.min(...clockIns)  : null;
-  const lastOut   = clockOuts.length ? Math.max(...clockOuts) : null;
+  // Build punch periods — down time only accumulates while clocked in
+  const punchPeriods = person.punches
+    .filter(p => p.clock_in_at && p.clock_out_at)
+    .map(p => ({ startMs: new Date(p.clock_in_at!).getTime(), endMs: new Date(p.clock_out_at!).getTime(), inISO: p.clock_in_at!, outISO: p.clock_out_at! }))
+    .sort((a, b) => a.startMs - b.startMs);
+
+  if (!punchPeriods.length) return null;
 
   const segments: DownSegment[] = [];
 
-  if (firstIn) {
-    const gap = allSegs[0].startMs - firstIn;
-    if (gap > 0) segments.push({ from: new Date(firstIn).toISOString(), to: allSegs[0].startISO, label: `Clock in → ${allSegs[0].label}`, ms: gap });
-  }
+  for (const punch of punchPeriods) {
+    // Job segments that overlap this punch window
+    const inWindow = allSegs.filter(s => s.endMs > punch.startMs && s.startMs < punch.endMs);
+    if (!inWindow.length) continue;
 
-  for (let i = 0; i < allSegs.length - 1; i++) {
-    const gap = allSegs[i + 1].startMs - allSegs[i].endMs;
-    if (gap > 0) segments.push({ from: allSegs[i].endISO, to: allSegs[i + 1].startISO, label: `${allSegs[i].label} → ${allSegs[i + 1].label}`, ms: gap });
-  }
+    // Clock in → first job
+    if (inWindow[0].startMs > punch.startMs) {
+      segments.push({ from: punch.inISO, to: inWindow[0].startISO, label: `Clock in → ${inWindow[0].label}`, ms: inWindow[0].startMs - punch.startMs });
+    }
 
-  if (lastOut) {
-    const gap = lastOut - allSegs[allSegs.length - 1].endMs;
-    if (gap > 0) segments.push({ from: allSegs[allSegs.length - 1].endISO, to: new Date(lastOut).toISOString(), label: `${allSegs[allSegs.length - 1].label} → Clock out`, ms: gap });
+    // Between consecutive jobs within this punch window
+    for (let i = 0; i < inWindow.length - 1; i++) {
+      const gapMs = inWindow[i + 1].startMs - inWindow[i].endMs;
+      if (gapMs > 0)
+        segments.push({ from: inWindow[i].endISO, to: inWindow[i + 1].startISO, label: `${inWindow[i].label} → ${inWindow[i + 1].label}`, ms: gapMs });
+    }
+
+    // Last job → clock out
+    const last = inWindow[inWindow.length - 1];
+    if (last.endMs < punch.endMs) {
+      segments.push({ from: last.endISO, to: punch.outISO, label: `${last.label} → Clock out`, ms: punch.endMs - last.endMs });
+    }
   }
 
   const totalMs = segments.reduce((s, g) => s + g.ms, 0);
