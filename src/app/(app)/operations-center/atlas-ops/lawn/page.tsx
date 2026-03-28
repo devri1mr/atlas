@@ -431,7 +431,7 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
         <table className="w-full text-sm border-collapse min-w-[540px]">
           <thead>
             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-              <th className="px-5 py-3 text-left">Team Member</th>
+              <th className="px-5 py-3 text-center">Team Member</th>
               <th className="px-4 py-3 text-center">Target Revenue</th>
               <th className="px-4 py-3 text-center">Start Time</th>
               <th className="px-4 py-3 text-center">Hrs Needed</th>
@@ -445,11 +445,11 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
               const hasResult = hours != null;
               return (
                 <tr key={row.id} className={`border-t border-gray-50 transition-colors ${hasResult ? "hover:bg-emerald-50/20" : ""}`}>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5 text-center">
                     <select
                       value={row.employee_id}
                       onChange={e => update(row.id, "employee_id", e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 focus:outline-none focus:border-emerald-400 bg-gray-50"
+                      className="w-full mx-auto border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 focus:outline-none focus:border-emerald-400 bg-gray-50"
                     >
                       <option value="">— Select person —</option>
                       {employees.map(e => (
@@ -459,8 +459,8 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center w-28 border border-gray-200 rounded-lg bg-gray-50 focus-within:border-emerald-400 overflow-hidden">
+                  <td className="px-3 py-2.5 text-center">
+                    <div className="inline-flex items-center w-28 border border-gray-200 rounded-lg bg-gray-50 focus-within:border-emerald-400 overflow-hidden">
                       <span className="pl-2.5 text-gray-400 text-xs select-none">$</span>
                       <input
                         type="number"
