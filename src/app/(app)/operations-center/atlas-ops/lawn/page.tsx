@@ -287,9 +287,11 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
   const [dismissed, setDismissed] = useState<Set<string>>(
     () => new Set(variesJobs.filter(j => (j.lawn_dispatch_job_times?.length ?? 0) > 0).map(j => j.id))
   );
+  const [showDismissed, setShowDismissed] = useState(false);
 
-  const visibleJobs = variesJobs.filter(j => !dismissed.has(j.id));
-  if (!visibleJobs.length) return null;
+  const dismissedJobs = variesJobs.filter(j => dismissed.has(j.id));
+  const visibleJobs   = variesJobs.filter(j => !dismissed.has(j.id) || showDismissed);
+  if (!visibleJobs.length && !dismissedJobs.length) return null;
 
   function addRow(jobId: string, empId: string | null, name: string) {
     setForms(prev => ({
@@ -343,9 +345,19 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
 
   return (
     <div className="border-t-2 border-amber-200 bg-amber-50/40 px-5 py-4">
-      <div className="flex items-center gap-2 mb-3">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span className="text-sm font-semibold text-amber-800">Time Entry Required — {variesJobs.length} job{variesJobs.length > 1 ? "s" : ""} show "Varies"</span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span className="text-sm font-semibold text-amber-800">Time Entry Required — {variesJobs.length} job{variesJobs.length > 1 ? "s" : ""} show "Varies"</span>
+        </div>
+        {dismissedJobs.length > 0 && (
+          <button
+            onClick={() => setShowDismissed(v => !v)}
+            className="text-xs text-amber-700 hover:text-amber-900 underline decoration-dotted"
+          >
+            {showDismissed ? "Hide" : `Show`} {dismissedJobs.length} closed job{dismissedJobs.length > 1 ? "s" : ""}
+          </button>
+        )}
       </div>
       <div className="space-y-4">
         {visibleJobs.map(job => {
@@ -360,12 +372,21 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                   {job.service && <span className="text-xs text-amber-700 ml-2">· {job.service}</span>}
                   <span className="text-xs text-amber-600 ml-2">Crew {job.crew_code}</span>
                 </div>
-                <button
-                  onClick={() => setDismissed(prev => new Set([...prev, job.id]))}
-                  className="text-xs rounded border border-amber-300 px-2.5 py-1 text-amber-700 hover:bg-amber-100 font-medium"
-                >
-                  Done
-                </button>
+                {dismissed.has(job.id) ? (
+                  <button
+                    onClick={() => setDismissed(prev => { const s = new Set(prev); s.delete(job.id); return s; })}
+                    className="text-xs rounded border border-emerald-300 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 font-medium"
+                  >
+                    Re-open
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setDismissed(prev => new Set([...prev, job.id]))}
+                    className="text-xs rounded border border-amber-300 px-2.5 py-1 text-amber-700 hover:bg-amber-100 font-medium"
+                  >
+                    Done
+                  </button>
+                )}
               </div>
               <div className="p-4 space-y-3">
                 {/* Saved entries */}
