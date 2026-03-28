@@ -79,6 +79,7 @@ type Report = {
   total_budgeted_hours: number;
   total_actual_hours: number;
   total_payroll_cost?: number;
+  total_earned_amount?: number;
   total_budgeted_amount: number;
   total_actual_amount: number;
   lawn_production_jobs?: Job[];
@@ -682,7 +683,6 @@ export default function LawnPage() {
   const [repDetail, setRepDetail]     = useState<{ report: Report; punches: ReportPunch[]; dispatchJobs: DispatchJob[] } | null>(null);
   const [loadingRep, setLoadingRep]   = useState(false);
   const [repDtCache, setRepDtCache]   = useState<Record<string, number>>({});
-  const [repMetricCache, setRepMetricCache] = useState<Record<string, { laborPct: number; effPct: number }>>({});
 
   async function loadReports() {
     setLoading(true);
@@ -694,7 +694,7 @@ export default function LawnPage() {
 
   useEffect(() => { loadReports(); }, []);
 
-  // Cache summary metrics per report once detail data is loaded — same formula as PersonTable tfoot
+  // Cache DT cost per report once dispatch data is loaded
   useEffect(() => {
     if (!repDetail) return;
     const jobs: Job[] = (repDetail.report.lawn_production_jobs ?? []).map(j => ({
@@ -703,13 +703,6 @@ export default function LawnPage() {
     }));
     const persons = buildPersonView(jobs, repDetail.punches);
     if (persons.length === 0) return;
-
-    const totalPayCost = persons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0);
-    const totalRev     = persons.reduce((s, p) => s + p.total_revenue, 0);
-    const laborPct     = (totalPayCost > 0 && totalRev > 0) ? totalPayCost / totalRev : 0;
-    const effPct       = (totalPayCost > 0 && totalRev > 0) ? (totalRev * 0.39) / totalPayCost : 0;
-    setRepMetricCache(prev => ({ ...prev, [repDetail.report.id]: { laborPct, effPct } }));
-
     const dtTotal = persons.reduce((s, p) => {
       const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
       const downHrs = dr ? dr.totalMs / 3600000 : null;
@@ -934,10 +927,12 @@ export default function LawnPage() {
               </div>
               {reports.map(r => {
                 const isOpen = expandedRep === r.id;
-                // Use cached metrics (populated from PersonTable tfoot formula when expanded)
-                const cached = repMetricCache[r.id];
-                const laborPct = cached?.laborPct ?? null;
-                const effPct   = cached?.effPct   ?? null;
+                // total_earned_amount = sum of all member earned_amounts (same as PersonTable totalRev)
+                // total_payroll_cost  = sum of distinct person payroll_costs (same as PersonTable totalPayCost)
+                const payCost = r.total_payroll_cost ?? 0;
+                const earnRev = r.total_earned_amount ?? 0;
+                const laborPct = (payCost > 0 && earnRev > 0) ? payCost / earnRev : null;
+                const effPct   = (payCost > 0 && earnRev > 0) ? (earnRev * 0.39) / payCost : null;
 
                 return (
                   <div key={r.id}>
