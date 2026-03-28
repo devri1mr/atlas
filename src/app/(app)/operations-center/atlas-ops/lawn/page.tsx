@@ -681,6 +681,7 @@ export default function LawnPage() {
   const [expandedRep, setExpandedRep] = useState<string | null>(null);
   const [repDetail, setRepDetail]     = useState<{ report: Report; punches: ReportPunch[]; dispatchJobs: DispatchJob[] } | null>(null);
   const [loadingRep, setLoadingRep]   = useState(false);
+  const [repDtCache, setRepDtCache]   = useState<Record<string, number>>({});
 
   async function loadReports() {
     setLoading(true);
@@ -691,6 +692,17 @@ export default function LawnPage() {
   }
 
   useEffect(() => { loadReports(); }, []);
+
+  // Cache DT cost per report once dispatch data is loaded
+  useEffect(() => {
+    if (!repDetail || repPersons.length === 0) return;
+    const total = repPersons.reduce((s, p) => {
+      const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
+      const downHrs = dr ? dr.totalMs / 3600000 : null;
+      return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
+    }, 0);
+    setRepDtCache(prev => ({ ...prev, [repDetail.report.id]: total }));
+  }, [repDetail, repPersons]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -897,34 +909,35 @@ export default function LawnPage() {
             <div className="px-5 py-10 text-center text-sm text-emerald-900/50">No reports imported yet.</div>
           ) : (
             <div className="divide-y divide-emerald-100">
-              {/* Header */}
-              <div className="flex items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
-                <div className="flex-1">Date</div>
-                <div className="w-20 text-right">Total Hrs</div>
-                <div className="w-28 text-right">Revenue</div>
-                <div className="w-24 text-right">DT Cost</div>
-                <div className="w-20 text-right">Labor %</div>
-                <div className="w-24 text-right">Efficiency</div>
-                <div className="w-16" />
+              {/* Header — grid must match data row grid exactly */}
+              <div className="grid grid-cols-[1fr_5rem_7rem_6rem_5rem_6rem_4rem] items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
+                <div>Date</div>
+                <div className="text-right">Total Hrs</div>
+                <div className="text-right">Revenue</div>
+                <div className="text-right">DT Cost</div>
+                <div className="text-right">Labor %</div>
+                <div className="text-right">Efficiency</div>
+                <div />
               </div>
               {reports.map(r => {
                 const isOpen = expandedRep === r.id;
-                // When open, use same values as PersonTable tfoot for accuracy
                 const payForMetrics = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0) : (r.total_payroll_cost ?? 0);
                 const revForMetrics = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + p.total_revenue, 0) : (r.total_budgeted_amount ?? 0);
                 const laborPct = (payForMetrics > 0 && revForMetrics > 0) ? payForMetrics / revForMetrics : null;
                 const effPct   = (payForMetrics > 0 && revForMetrics > 0) ? (revForMetrics * 0.39) / payForMetrics : null;
-                const dtCost   = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
+                // Live when expanded, cached after collapse
+                const liveDtCost = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
                   const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
                   const downHrs = dr ? dr.totalMs / 3600000 : null;
                   return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
                 }, 0) : null;
+                const dtCost = liveDtCost ?? repDtCache[r.id] ?? null;
 
                 return (
                   <div key={r.id}>
-                    {/* Summary row */}
-                    <div className={`flex items-center text-sm px-4 py-2.5 hover:bg-emerald-50/30 ${isOpen ? "bg-emerald-50/20" : ""}`}>
-                      <div className="flex-1 min-w-0">
+                    {/* Summary row — same grid as header */}
+                    <div className={`grid grid-cols-[1fr_5rem_7rem_6rem_5rem_6rem_4rem] items-center text-sm px-4 py-2.5 hover:bg-emerald-50/30 ${isOpen ? "bg-emerald-50/20" : ""}`}>
+                      <div className="min-w-0">
                         <button onClick={() => toggleReport(r.id, r.report_date)} className="flex items-center gap-2 text-left">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                             strokeLinecap="round" strokeLinejoin="round"
@@ -934,16 +947,16 @@ export default function LawnPage() {
                           <span className="font-medium text-emerald-950">{fmtDate(r.report_date)}</span>
                         </button>
                       </div>
-                      <div className="w-20 text-right text-gray-700">{dec2(r.total_actual_hours)}</div>
-                      <div className="w-28 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</div>
-                      <div className="w-24 text-right text-gray-700">{dtCost != null ? money.format(dtCost) : "—"}</div>
-                      <div className="w-20 text-right">
+                      <div className="text-right text-gray-700">{dec2(r.total_actual_hours)}</div>
+                      <div className="text-right text-gray-700">{money.format(r.total_budgeted_amount)}</div>
+                      <div className="text-right text-gray-700">{dtCost != null && dtCost > 0 ? money.format(dtCost) : "—"}</div>
+                      <div className="text-right">
                         {laborPct != null ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span> : "—"}
                       </div>
-                      <div className="w-24 text-right">
+                      <div className="text-right">
                         {effPct != null ? <span className={effPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(effPct)}</span> : "—"}
                       </div>
-                      <div className="w-16 text-right">
+                      <div className="text-right">
                         <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
                       </div>
                     </div>
