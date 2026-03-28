@@ -271,7 +271,10 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
   const variesJobs = dispatchJobs.filter(j => j.time_varies);
   const [forms, setForms] = useState<Record<string, { employee_id: string; resource_name: string; start: string; end: string; notes: string }[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  // Start jobs with existing time entries as dismissed — user already handled them
+  const [dismissed, setDismissed] = useState<Set<string>>(
+    () => new Set(variesJobs.filter(j => (j.lawn_dispatch_job_times?.length ?? 0) > 0).map(j => j.id))
+  );
 
   const visibleJobs = variesJobs.filter(j => !dismissed.has(j.id));
   if (!visibleJobs.length) return null;
@@ -477,6 +480,13 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
   const totalRev       = persons.reduce((s, p) => s + p.total_revenue, 0);
   const totalPayHrs    = persons.reduce((s, p) => s + (p.total_payroll_hours ?? 0), 0);
   const totalPayCost   = persons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0);
+  const totalDtCost    = persons.reduce((s, p) => {
+    const dr = hasDispatch ? calcDownTime(p, dispatchJobs) : null;
+    const downHrs = dr ? dr.totalMs / 3600000 : null;
+    const dtc = (p.payroll_cost && p.total_payroll_hours && downHrs != null)
+      ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0;
+    return s + dtc;
+  }, 0);
   const unmatchedCount = persons.filter(p => p.punch_status !== "matched").length;
 
   return (
@@ -640,7 +650,9 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
               <td className="px-3 py-2.5 text-sm text-right">{dec2(totalPayHrs)}</td>
               <td className="px-3 py-2.5 text-sm text-right">{money.format(totalPayCost)}</td>
               <td className="border-l border-emerald-100" />
-              <td className="px-3 py-2.5 text-sm text-right">
+              <td className="px-3 py-2.5 text-sm text-right">{totalDtCost > 0 ? money.format(totalDtCost) : "—"}</td>
+              <td />
+              <td className="px-3 py-2.5 text-sm text-right border-l border-emerald-100">
                 {totalRev > 0 ? <span className={totalPayCost / totalRev > 0.39 ? "text-red-600" : "text-emerald-700"}>{pct(totalPayCost / totalRev)}</span> : "—"}
               </td>
               <td className="px-3 py-2.5 text-sm text-right">
@@ -889,12 +901,25 @@ export default function LawnPage() {
                   <th className="px-4 py-2.5">Date</th>
                   <th className="px-3 py-2.5 text-right">Total Hrs</th>
                   <th className="px-3 py-2.5 text-right">Revenue</th>
+                  <th className="px-3 py-2.5 text-right">DT Cost</th>
+                  <th className="px-3 py-2.5 text-right">Labor %</th>
+                  <th className="px-3 py-2.5 text-right">Efficiency</th>
                   <th className="px-3 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {reports.map(r => {
                   const isOpen = expandedRep === r.id;
+                  const summaryDtCost = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
+                    const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
+                    const downHrs = dr ? dr.totalMs / 3600000 : null;
+                    return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
+                  }, 0) : null;
+                  const summaryPayCost = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0) : null;
+                  const summaryRev     = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + p.total_revenue, 0) : null;
+                  const summaryLabor   = (summaryPayCost && summaryRev) ? summaryPayCost / summaryRev : null;
+                  const summaryEff     = (summaryPayCost && summaryRev) ? (summaryRev * 0.39) / summaryPayCost : null;
+
                   return (
                     <React.Fragment key={r.id}>
                       <tr className="border-t border-emerald-100 hover:bg-emerald-50/30">
@@ -910,6 +935,13 @@ export default function LawnPage() {
                         </td>
                         <td className="px-3 py-2.5 text-right text-gray-700">{dec2(r.total_actual_hours)}</td>
                         <td className="px-3 py-2.5 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</td>
+                        <td className="px-3 py-2.5 text-right text-gray-700">{summaryDtCost ? money.format(summaryDtCost) : "—"}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          {summaryLabor != null ? <span className={summaryLabor > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(summaryLabor)}</span> : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {summaryEff != null ? <span className={summaryEff >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(summaryEff)}</span> : "—"}
+                        </td>
                         <td className="px-3 py-2.5 text-right">
                           <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
                         </td>
