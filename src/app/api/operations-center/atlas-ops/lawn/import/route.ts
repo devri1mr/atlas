@@ -66,7 +66,7 @@ type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
 
 // ── XLS parser ────────────────────────────────────────────────────────────────
 
-function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unknown> } {
+function parseXLS(buffer: Buffer): { jobs: RawJob[]; revenueOk: boolean; grandTotalAmt: number | null; sumJobAmt: number; debug: Record<string, unknown> } {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const sh = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
@@ -74,6 +74,7 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
   const jobs: RawJob[] = [];
   let cur: { summary: unknown[]; members: unknown[][] } | null = null;
   let grandTotalHrs: number | null = null;
+  let grandTotalAmt: number | null = null;
   let totalRowRaw: unknown[] | null = null;
 
   for (let i = 1; i < rows.length; i++) {
@@ -84,10 +85,12 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
     if (col0 === "Total") {
       totalRowRaw = row;
       grandTotalHrs = parseNum(row[10]);
+      grandTotalAmt = parseNum(row[12]);
       continue;
     }
 
-    const isSummary = col0 === "" && /^LC-\d+$/.test(col17);
+    // Summary row: col0 empty, col17 is a crew code (not a resource name — resource names contain parentheses)
+    const isSummary = col0 === "" && col17 !== "" && !col17.includes("(");
 
     if (isSummary) {
       if (cur) jobs.push(buildJob(cur.summary, cur.members));
@@ -99,6 +102,7 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
   if (cur) jobs.push(buildJob(cur.summary, cur.members));
 
   const sumJobHrs = jobs.reduce((s, j) => s + j.actual_hours, 0);
+  const sumJobAmt = jobs.reduce((s, j) => s + j.budgeted_amount, 0);
 
   if (grandTotalHrs !== null && jobs.length > 0) {
     const jobHrs = lrm(jobs.map(j => j.actual_hours), grandTotalHrs, 4);
@@ -116,11 +120,20 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; debug: Record<string, unkno
     });
   }
 
+  // Revenue check: warn if imported job totals don't match the XLS grand total row
+  const revenueOk = grandTotalAmt === null || Math.abs(sumJobAmt - grandTotalAmt) < 1;
+
   return {
     jobs,
+    revenueOk,
+    grandTotalAmt,
+    sumJobAmt,
     debug: {
       grandTotalHrs,
+      grandTotalAmt,
       sumJobHrs,
+      sumJobAmt,
+      revenueOk,
       totalRowCols: totalRowRaw ? totalRowRaw.slice(0, 20) : null,
       totalRowFound: totalRowRaw !== null,
     },
@@ -245,20 +258,25 @@ function parseDispatchXLS(buffer: Buffer, tzOffsetMins: number): DispatchJob[] {
     const timeVaries = String(row[14] ?? "").toLowerCase().includes("varies")
       || String(row[15] ?? "").toLowerCase().includes("varies");
 
-    jobs.push({
+    // crew_code may contain multiple crews (e.g. "LC-5, LC-4") — create one row per crew
+    const crewRaw  = String(row[28] ?? "").trim();
+    const crewCodes = crewRaw.split(/[,;]\s*/).map(c => c.trim()).filter(Boolean);
+    const baseJob = {
       work_order:       String(row[10] ?? "").trim() || null,
       client_name:      clientName,
       address:          String(row[3] ?? "").trim(),
       city:             String(row[4] ?? "").trim(),
       zip:              String(row[5] ?? "").trim(),
       service:          String(row[12] ?? "").trim(),
-      crew_code:        String(row[28] ?? "").trim(),
       personnel_count:  parseInt(String(row[16] ?? "")) || null,
       report_date:      reportDate,
       start_time:       timeVaries ? null : parseTimeString(row[14], reportDate, tzOffsetMins),
       end_time:         timeVaries ? null : parseTimeString(row[15], reportDate, tzOffsetMins),
       time_varies:      timeVaries,
-    });
+    };
+    for (const crew_code of crewCodes.length > 0 ? crewCodes : [crewRaw]) {
+      jobs.push({ ...baseJob, crew_code });
+    }
   }
 
   return jobs;
@@ -348,7 +366,7 @@ export async function POST(req: NextRequest) {
       return handleDispatchImport(sb, companyId, buffer, file.name, dryRun, tzOffsetMins);
     }
 
-    const { jobs: rawJobs, debug: parseDebug } = parseXLS(buffer);
+    const { jobs: rawJobs, debug: parseDebug, revenueOk, grandTotalAmt, sumJobAmt } = parseXLS(buffer);
     if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
     const reportDate = rawJobs[0]?.service_date;
@@ -519,6 +537,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         jobs: resolvedJobs,
         file_name: file.name,
+        revenue_ok: revenueOk,
+        revenue_imported: sumJobAmt,
+        revenue_expected: grandTotalAmt,
         punches: punchRows.map(p => ({
           employee_id:   p.employee_id,
           resource_name: empNameMapDry.get(p.employee_id) ?? "",

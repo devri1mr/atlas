@@ -902,6 +902,20 @@ export default function LawnPage() {
               </div>
             ) : (
               <>
+                {preview.revenue_ok === false && (
+                  <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                    <span className="text-amber-500 text-base leading-none mt-0.5">⚠</span>
+                    <div>
+                      <span className="font-semibold text-amber-900">Revenue mismatch — some jobs may be missing from this import.</span>
+                      <div className="mt-1 text-amber-800">
+                        Imported: <strong>{money.format(preview.revenue_imported ?? 0)}</strong> &nbsp;·&nbsp;
+                        Expected: <strong>{money.format(preview.revenue_expected ?? 0)}</strong> &nbsp;·&nbsp;
+                        Missing: <strong className="text-red-600">{money.format(Math.abs((preview.revenue_expected ?? 0) - (preview.revenue_imported ?? 0)))}</strong>
+                      </div>
+                      <div className="mt-1 text-xs text-amber-700">Check the XLS for jobs whose crew code format couldn&apos;t be detected, then re-import.</div>
+                    </div>
+                  </div>
+                )}
                 <PersonTable jobs={previewJobs} punches={preview.punches ?? []} dispatchJobs={[]} />
                 {preview.debug && (
                   <div className="px-5 py-3 border-t border-emerald-100 bg-gray-50 text-xs font-mono text-gray-500">
