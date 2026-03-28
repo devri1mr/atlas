@@ -460,14 +460,14 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                     </select>
                   </td>
                   <td className="px-3 py-2.5">
-                    <div className="relative flex items-center justify-center">
-                      <span className="absolute left-3 text-gray-400 text-xs pointer-events-none">$</span>
+                    <div className="flex items-center w-28 border border-gray-200 rounded-lg bg-gray-50 focus-within:border-emerald-400 overflow-hidden">
+                      <span className="pl-2.5 text-gray-400 text-xs select-none">$</span>
                       <input
                         type="number"
                         value={row.revenue}
                         onChange={e => update(row.id, "revenue", e.target.value)}
                         placeholder="0"
-                        className="w-28 border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-xs focus:outline-none focus:border-emerald-400 bg-gray-50"
+                        className="flex-1 min-w-0 pr-2 py-2 text-xs bg-transparent focus:outline-none"
                       />
                     </div>
                   </td>
