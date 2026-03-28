@@ -467,7 +467,7 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                         value={row.revenue}
                         onChange={e => update(row.id, "revenue", e.target.value)}
                         placeholder="0"
-                        className="w-28 border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-xs text-center focus:outline-none focus:border-emerald-400 bg-gray-50"
+                        className="w-28 border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-xs focus:outline-none focus:border-emerald-400 bg-gray-50"
                       />
                     </div>
                   </td>
