@@ -476,7 +476,9 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
               <th className="px-3 py-2.5 text-right">Pay Hrs</th>
               <th className="px-3 py-2.5 text-right">Pay Cost</th>
               <th className="px-3 py-2.5 text-right border-l border-emerald-100">Down Time</th>
-              <th className="px-3 py-2.5 text-right">Labor %</th>
+              <th className="px-3 py-2.5 text-right">DT Cost</th>
+              <th className="px-3 py-2.5 text-right">DT %</th>
+              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Labor %</th>
               <th className="px-3 py-2.5 text-right">Efficiency</th>
             </tr>
           </thead>
@@ -493,6 +495,12 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
 
               const laborPct      = (p.payroll_cost && p.total_revenue > 0) ? p.payroll_cost / p.total_revenue : null;
               const efficiencyPct = (p.payroll_cost && p.total_revenue > 0) ? (p.total_revenue * 0.39) / p.payroll_cost : null;
+              // DT cost = (payroll_cost / total_payroll_hours) * down_time_hrs — incorporates OT blended rate
+              const downHrs    = downMs != null ? downMs / 3600000 : null;
+              const dtCost     = (p.payroll_cost && p.total_payroll_hours && downHrs != null)
+                ? (p.payroll_cost / p.total_payroll_hours) * downHrs : null;
+              const dtPct      = (downHrs != null && p.total_payroll_hours)
+                ? downHrs / p.total_payroll_hours : null;
 
               return (
                 <React.Fragment key={p.resource_name}>
@@ -539,7 +547,13 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {dtCost != null ? money.format(dtCost) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {dtPct != null ? pct(dtPct) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right border-l border-emerald-100">
                       {laborPct != null ? (
                         <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span>
                       ) : "—"}
@@ -560,7 +574,7 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                           <td className="px-3 py-1.5 text-xs text-right text-blue-600">{fmtTime(punch.clock_out_at)}</td>
                           <td className="px-3 py-1.5 text-xs text-right text-blue-600 border-l border-emerald-100">{dec2(punch.regular_hours)}</td>
                           <td className="px-3 py-1.5 text-xs text-right text-blue-600">{dec2(punch.ot_hours)}</td>
-                          <td colSpan={5} />
+                          <td colSpan={7} />
                         </tr>
                       ))}
                       {p.jobs.map((j, i) => (
@@ -572,7 +586,7 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                           </td>
                           <td className="px-3 py-2 text-xs text-right text-gray-600">{dec2(j.actual_hours)}</td>
                           <td className="px-3 py-2 text-xs text-right text-gray-600">{money.format(j.earned_amount)}</td>
-                          <td colSpan={9} />
+                          <td colSpan={11} />
                         </tr>
                       ))}
                     </>
@@ -641,6 +655,7 @@ export default function LawnPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("dry_run", "true");
+      fd.append("tz_offset", String(new Date().getTimezoneOffset()));
       const res = await fetch("/api/operations-center/atlas-ops/lawn/import", { method: "POST", body: fd });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Parse failed");
@@ -661,6 +676,7 @@ export default function LawnPage() {
       const fd = new FormData();
       fd.append("file", saveFile);
       fd.append("dry_run", "false");
+      fd.append("tz_offset", String(new Date().getTimezoneOffset()));
       const res = await fetch("/api/operations-center/atlas-ops/lawn/import", { method: "POST", body: fd });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Import failed");

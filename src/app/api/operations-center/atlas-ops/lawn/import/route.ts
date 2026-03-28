@@ -190,26 +190,33 @@ type DispatchJob = {
   time_varies: boolean;
 };
 
-function parseTimeString(timeVal: unknown, dateISO: string): string | null {
+// tzOffsetMins: from client's new Date().getTimezoneOffset() — positive = behind UTC (e.g. EDT = 240)
+function parseTimeString(timeVal: unknown, dateISO: string, tzOffsetMins: number): string | null {
   const s = String(timeVal ?? "").trim();
   if (!s || s.toLowerCase() === "varies") return null;
-  // Excel may give a decimal fraction for time (0..1 = 0..24h)
+
+  let h: number, m: number;
+
   if (typeof timeVal === "number") {
     const totalMins = Math.round(timeVal * 24 * 60);
-    const h = Math.floor(totalMins / 60), m = totalMins % 60;
-    return `${dateISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+    h = Math.floor(totalMins / 60); m = totalMins % 60;
+  } else {
+    const match = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!match) return null;
+    h = parseInt(match[1]); m = parseInt(match[2]);
+    const ampm = match[3]?.toUpperCase();
+    if (ampm === "PM" && h < 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
   }
-  // String like "7:53 AM"
-  const match = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!match) return null;
-  let h = parseInt(match[1]), m = parseInt(match[2]);
-  const ampm = match[3]?.toUpperCase();
-  if (ampm === "PM" && h < 12) h += 12;
-  if (ampm === "AM" && h === 12) h = 0;
-  return `${dateISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+
+  // Treat parsed time as local, convert to UTC using client's offset
+  const [y, mo, d] = dateISO.split("-").map(Number);
+  const localMs = Date.UTC(y, mo - 1, d, h, m, 0);
+  const utcMs   = localMs + tzOffsetMins * 60 * 1000;
+  return new Date(utcMs).toISOString();
 }
 
-function parseDispatchXLS(buffer: Buffer): DispatchJob[] {
+function parseDispatchXLS(buffer: Buffer, tzOffsetMins: number): DispatchJob[] {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const sh = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
@@ -248,8 +255,8 @@ function parseDispatchXLS(buffer: Buffer): DispatchJob[] {
       crew_code:        String(row[28] ?? "").trim(),
       personnel_count:  parseInt(String(row[16] ?? "")) || null,
       report_date:      reportDate,
-      start_time:       timeVaries ? null : parseTimeString(row[14], reportDate),
-      end_time:         timeVaries ? null : parseTimeString(row[15], reportDate),
+      start_time:       timeVaries ? null : parseTimeString(row[14], reportDate, tzOffsetMins),
+      end_time:         timeVaries ? null : parseTimeString(row[15], reportDate, tzOffsetMins),
       time_varies:      timeVaries,
     });
   }
@@ -265,8 +272,9 @@ async function handleDispatchImport(
   buffer: Buffer,
   fileName: string,
   dryRun: boolean,
+  tzOffsetMins: number,
 ): Promise<NextResponse> {
-  const jobs = parseDispatchXLS(buffer);
+  const jobs = parseDispatchXLS(buffer, tzOffsetMins);
   if (!jobs.length) return NextResponse.json({ error: "No jobs found in dispatch file" }, { status: 400 });
 
   const reportDate = jobs.find(j => j.report_date)?.report_date ?? null;
@@ -325,6 +333,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const dryRun = formData.get("dry_run") !== "false";
+    const tzOffsetMins = parseInt(String(formData.get("tz_offset") ?? "0")) || 0;
 
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
@@ -336,7 +345,7 @@ export async function POST(req: NextRequest) {
     const isDispatch = sheetName === "SchedulingViewExport";
 
     if (isDispatch) {
-      return handleDispatchImport(sb, companyId, buffer, file.name, dryRun);
+      return handleDispatchImport(sb, companyId, buffer, file.name, dryRun, tzOffsetMins);
     }
 
     const { jobs: rawJobs, debug: parseDebug } = parseXLS(buffer);
