@@ -122,9 +122,19 @@ const fmtHrs = (ms: number) => {
   return h < 0.005 ? "0.00" : h.toFixed(2);
 };
 
+const NAME_SUFFIX = /^(I{1,3}|IV|VI{0,3}|IX|Jr\.?|Sr\.?)$/i;
+
 function formatName(raw: string): string {
   const parts = raw.trim().split(/\s+/);
   if (parts.length < 2) return raw;
+  // If last word is a generational suffix, use the word before it as the last name
+  const hasSuffix = parts.length >= 3 && NAME_SUFFIX.test(parts[parts.length - 1]);
+  if (hasSuffix) {
+    const suffix = parts[parts.length - 1];
+    const last   = parts[parts.length - 2];
+    const first  = parts.slice(0, -2).join(" ");
+    return `${last}, ${first} ${suffix}`;
+  }
   const last = parts[parts.length - 1];
   const first = parts.slice(0, -1).join(" ");
   return `${last}, ${first}`;
