@@ -39,6 +39,8 @@ export async function GET() {
     const yearEnd   = `${year}-12-31`;
 
     // Fetch all production reports for this year with jobs + members
+    // actual_hours = per-job hours for this member (correct for service breakdown)
+    // total_payroll_hours = member's total for the day (only count once per person per day)
     const { data: reports, error } = await sb
       .from("lawn_production_reports")
       .select(`
@@ -47,7 +49,7 @@ export async function GET() {
           service,
           lawn_production_members (
             employee_id, resource_name,
-            earned_amount, payroll_cost, ot_hours, total_payroll_hours
+            earned_amount, payroll_cost, ot_hours, actual_hours, total_payroll_hours
           )
         )
       `)
@@ -78,7 +80,9 @@ export async function GET() {
       const weekLabel = `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} – ${sun.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
       const weekKey = mon.toISOString().slice(0, 10); // YYYY-MM-DD of Monday
 
-      const seen = new Set<string>();
+      // Track per-person deduplication for day-level totals
+      const seenPerson = new Set<string>();
+
       for (const job of (r as any).lawn_production_jobs ?? []) {
         const service = (job.service as string) || "Other";
         const swKey: ServiceWeekKey = `${service}||${weekKey}`;
@@ -89,22 +93,31 @@ export async function GET() {
         const sw = byServiceWeek.get(swKey)!;
 
         for (const m of (job as any).lawn_production_members ?? []) {
+          const personKey = m.employee_id ?? m.resource_name ?? "";
+
+          // Revenue: correctly attributed per job-member row
           day.revenue += m.earned_amount ?? 0;
           sw.total_revenue += m.earned_amount ?? 0;
-          sw.ot_hrs += m.ot_hours ?? 0;
-          sw.total_hrs += m.total_payroll_hours ?? 0;
-          day.ot_hrs += m.ot_hours ?? 0;
-          day.total_hrs += m.total_payroll_hours ?? 0;
 
-          const personKey = m.employee_id ?? m.resource_name ?? "";
-          if (personKey && !seen.has(`${date}|${personKey}`)) {
-            seen.add(`${date}|${personKey}`);
+          // Hours for this service: use actual_hours (per-job), NOT total_payroll_hours (day total)
+          const jobActualHrs = m.actual_hours ?? 0;
+          const dayTotalHrs  = m.total_payroll_hours ?? 0;
+          sw.total_hrs += jobActualHrs;
+
+          // Prorate OT and payroll cost by fraction of day this job represents
+          const ratio = (dayTotalHrs > 0 && jobActualHrs > 0) ? jobActualHrs / dayTotalHrs : 0;
+          sw.ot_hrs   += (m.ot_hours ?? 0) * ratio;
+          if (m.payroll_cost) {
+            sw.total_payroll += m.payroll_cost * ratio;
+            sw.ot_cost       += (m.ot_hours ?? 0) > 0 ? m.payroll_cost * ratio * ((m.ot_hours ?? 0) / dayTotalHrs) : 0;
+          }
+
+          // Day-level totals: deduplicate per person so each person's daily totals count once
+          if (personKey && !seenPerson.has(personKey)) {
+            seenPerson.add(personKey);
             day.payroll_cost += m.payroll_cost ?? 0;
-            sw.total_payroll += m.payroll_cost ?? 0;
-            // OT cost: (payroll_cost / total_payroll_hours) * ot_hours
-            if (m.payroll_cost && m.total_payroll_hours && m.ot_hours) {
-              sw.ot_cost += (m.payroll_cost / m.total_payroll_hours) * m.ot_hours;
-            }
+            day.total_hrs    += dayTotalHrs;
+            day.ot_hrs       += m.ot_hours ?? 0;
           }
         }
       }
