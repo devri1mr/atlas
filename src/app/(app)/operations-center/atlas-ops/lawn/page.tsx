@@ -282,6 +282,8 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
     if (!row?.start) return;
     setSaving(`${jobId}-${idx}`);
     try {
+      // Build timestamps in local time so they store correctly as UTC in Supabase
+      const toISO = (t: string) => new Date(`${reportDate}T${t}:00`).toISOString();
       await fetch("/api/operations-center/atlas-ops/lawn/dispatch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,8 +291,8 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
           dispatch_job_id: jobId,
           employee_id: row.employee_id || null,
           resource_name: row.resource_name,
-          start_time: `${reportDate}T${row.start}:00`,
-          end_time: row.end ? `${reportDate}T${row.end}:00` : null,
+          start_time: toISO(row.start),
+          end_time: row.end ? toISO(row.end) : null,
           notes: row.notes || null,
         }),
       });
@@ -318,7 +320,7 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
       </div>
       <div className="space-y-4">
         {variesJobs.map(job => {
-          const crewPersons = persons.filter(p => p.crew_codes.includes(job.crew_code ?? ""));
+          const crewPersons = persons;
           const pendingRows = forms[job.id] ?? [];
           const savedTimes  = job.lawn_dispatch_job_times ?? [];
           return (
@@ -350,7 +352,7 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                     <select
                       value={row.employee_id}
                       onChange={e => {
-                        const p = crewPersons.find(cp => cp.employee_id === e.target.value);
+                        const p = persons.find(cp => cp.employee_id === e.target.value);
                         updateRow(job.id, idx, "employee_id", e.target.value);
                         if (p) updateRow(job.id, idx, "resource_name", p.resource_name);
                       }}
