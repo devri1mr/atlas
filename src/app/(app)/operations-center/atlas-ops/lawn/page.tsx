@@ -896,81 +896,79 @@ export default function LawnPage() {
           ) : reports.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-emerald-900/50">No reports imported yet.</div>
           ) : (
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
-                  <th className="px-4 py-2.5">Date</th>
-                  <th className="px-3 py-2.5 text-right">Total Hrs</th>
-                  <th className="px-3 py-2.5 text-right">Revenue</th>
-                  <th className="px-3 py-2.5 text-right">DT Cost</th>
-                  <th className="px-3 py-2.5 text-right">Labor %</th>
-                  <th className="px-3 py-2.5 text-right">Efficiency</th>
-                  <th className="px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map(r => {
-                  const isOpen = expandedRep === r.id;
-                  const summaryPayCost = r.total_payroll_cost ?? 0;
-                  const summaryRev     = r.total_budgeted_amount ?? 0;
-                  const summaryLabor   = (summaryPayCost > 0 && summaryRev > 0) ? summaryPayCost / summaryRev : null;
-                  const summaryEff     = (summaryPayCost > 0 && summaryRev > 0) ? (summaryRev * 0.39) / summaryPayCost : null;
-                  const summaryDtCost  = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
-                    const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
-                    const downHrs = dr ? dr.totalMs / 3600000 : null;
-                    return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
-                  }, 0) : null;
+            <div className="divide-y divide-emerald-100">
+              {/* Header */}
+              <div className="flex items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
+                <div className="flex-1">Date</div>
+                <div className="w-20 text-right">Total Hrs</div>
+                <div className="w-28 text-right">Revenue</div>
+                <div className="w-24 text-right">DT Cost</div>
+                <div className="w-20 text-right">Labor %</div>
+                <div className="w-24 text-right">Efficiency</div>
+                <div className="w-16" />
+              </div>
+              {reports.map(r => {
+                const isOpen = expandedRep === r.id;
+                // When open, use same values as PersonTable tfoot for accuracy
+                const payForMetrics = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + (p.payroll_cost ?? 0), 0) : (r.total_payroll_cost ?? 0);
+                const revForMetrics = (isOpen && repDetail) ? repPersons.reduce((s, p) => s + p.total_revenue, 0) : (r.total_budgeted_amount ?? 0);
+                const laborPct = (payForMetrics > 0 && revForMetrics > 0) ? payForMetrics / revForMetrics : null;
+                const effPct   = (payForMetrics > 0 && revForMetrics > 0) ? (revForMetrics * 0.39) / payForMetrics : null;
+                const dtCost   = (isOpen && repDetail) ? repPersons.reduce((s, p) => {
+                  const dr = repDetail.dispatchJobs.length ? calcDownTime(p, repDetail.dispatchJobs) : null;
+                  const downHrs = dr ? dr.totalMs / 3600000 : null;
+                  return s + ((p.payroll_cost && p.total_payroll_hours && downHrs != null) ? (p.payroll_cost / p.total_payroll_hours) * downHrs : 0);
+                }, 0) : null;
 
-                  return (
-                    <React.Fragment key={r.id}>
-                      <tr className="border-t border-emerald-100 hover:bg-emerald-50/30">
-                        <td className="px-4 py-2.5">
-                          <button onClick={() => toggleReport(r.id, r.report_date)} className="flex items-center gap-2 text-left">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                              strokeLinecap="round" strokeLinejoin="round"
-                              className={`shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                            <span className="font-medium text-emerald-950">{fmtDate(r.report_date)}</span>
-                          </button>
-                        </td>
-                        <td className="px-3 py-2.5 text-right text-gray-700">{dec2(r.total_actual_hours)}</td>
-                        <td className="px-3 py-2.5 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</td>
-                        <td className="px-3 py-2.5 text-right text-gray-700">{summaryDtCost ? money.format(summaryDtCost) : "—"}</td>
-                        <td className="px-3 py-2.5 text-right">
-                          {summaryLabor != null ? <span className={summaryLabor > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(summaryLabor)}</span> : "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          {summaryEff != null ? <span className={summaryEff >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(summaryEff)}</span> : "—"}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr>
-                          <td colSpan={8} className="px-0 pb-0 border-t border-emerald-100">
-                            {loadingRep ? (
-                              <div className="px-6 py-4 text-sm text-emerald-900/50">Loading…</div>
-                            ) : repDetail ? (
-                              <>
-                                <PersonTable jobs={repJobs} punches={repDetail.punches} dispatchJobs={repDetail.dispatchJobs} />
-                                <VariesPanel
-                                  dispatchJobs={repDetail.dispatchJobs}
-                                  persons={repPersons}
-                                  reportDate={repDetail.report.report_date}
-                                  onSaved={refreshDispatch}
-                                />
-                              </>
-                            ) : null}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                return (
+                  <div key={r.id}>
+                    {/* Summary row */}
+                    <div className={`flex items-center text-sm px-4 py-2.5 hover:bg-emerald-50/30 ${isOpen ? "bg-emerald-50/20" : ""}`}>
+                      <div className="flex-1 min-w-0">
+                        <button onClick={() => toggleReport(r.id, r.report_date)} className="flex items-center gap-2 text-left">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            className={`shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                          <span className="font-medium text-emerald-950">{fmtDate(r.report_date)}</span>
+                        </button>
+                      </div>
+                      <div className="w-20 text-right text-gray-700">{dec2(r.total_actual_hours)}</div>
+                      <div className="w-28 text-right text-gray-700">{money.format(r.total_budgeted_amount)}</div>
+                      <div className="w-24 text-right text-gray-700">{dtCost != null ? money.format(dtCost) : "—"}</div>
+                      <div className="w-20 text-right">
+                        {laborPct != null ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span> : "—"}
+                      </div>
+                      <div className="w-24 text-right">
+                        {effPct != null ? <span className={effPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(effPct)}</span> : "—"}
+                      </div>
+                      <div className="w-16 text-right">
+                        <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
+                      </div>
+                    </div>
+                    {/* Expanded detail */}
+                    {isOpen && (
+                      <div className="border-t border-emerald-100 overflow-x-auto">
+                        {loadingRep ? (
+                          <div className="px-6 py-4 text-sm text-emerald-900/50">Loading…</div>
+                        ) : repDetail ? (
+                          <>
+                            <PersonTable jobs={repJobs} punches={repDetail.punches} dispatchJobs={repDetail.dispatchJobs} />
+                            <VariesPanel
+                              dispatchJobs={repDetail.dispatchJobs}
+                              persons={repPersons}
+                              reportDate={repDetail.report.report_date}
+                              onSaved={refreshDispatch}
+                            />
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
