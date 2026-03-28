@@ -274,8 +274,10 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
   const variesJobs = dispatchJobs.filter(j => j.time_varies);
   const [forms, setForms] = useState<Record<string, { employee_id: string; resource_name: string; start: string; end: string; notes: string }[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-  if (!variesJobs.length) return null;
+  const visibleJobs = variesJobs.filter(j => !dismissed.has(j.id));
+  if (!visibleJobs.length) return null;
 
   function addRow(jobId: string, empId: string | null, name: string) {
     setForms(prev => ({
@@ -334,7 +336,7 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
         <span className="text-sm font-semibold text-amber-800">Time Entry Required — {variesJobs.length} job{variesJobs.length > 1 ? "s" : ""} show "Varies"</span>
       </div>
       <div className="space-y-4">
-        {variesJobs.map(job => {
+        {visibleJobs.map(job => {
           const crewPersons = persons.filter(p => p.crew_codes.includes(job.crew_code ?? ""));
           const pendingRows = forms[job.id] ?? [];
           const savedTimes  = job.lawn_dispatch_job_times ?? [];
@@ -346,6 +348,12 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                   {job.service && <span className="text-xs text-amber-700 ml-2">· {job.service}</span>}
                   <span className="text-xs text-amber-600 ml-2">Crew {job.crew_code}</span>
                 </div>
+                <button
+                  onClick={() => setDismissed(prev => new Set([...prev, job.id]))}
+                  className="text-xs rounded border border-amber-300 px-2.5 py-1 text-amber-700 hover:bg-amber-100 font-medium"
+                >
+                  Done
+                </button>
               </div>
               <div className="p-4 space-y-3">
                 {/* Saved entries */}
