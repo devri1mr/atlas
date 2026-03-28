@@ -524,19 +524,19 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
           <thead>
             <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
               <th className="px-4 py-2.5">Team Member</th>
-              <th className="px-3 py-2.5 text-right">Prod Hrs</th>
-              <th className="px-3 py-2.5 text-right">Revenue</th>
-              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Clock In</th>
-              <th className="px-3 py-2.5 text-right">Clock Out</th>
-              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Reg Hrs</th>
-              <th className="px-3 py-2.5 text-right">OT Hrs</th>
-              <th className="px-3 py-2.5 text-right">Pay Hrs</th>
-              <th className="px-3 py-2.5 text-right">Pay Cost</th>
-              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Down Time</th>
-              <th className="px-3 py-2.5 text-right">DT Cost</th>
-              <th className="px-3 py-2.5 text-right">DT %</th>
-              <th className="px-3 py-2.5 text-right border-l border-emerald-100">Labor %</th>
-              <th className="px-3 py-2.5 text-right">Efficiency</th>
+              <th className="px-3 py-2.5 text-center">Prod Hrs</th>
+              <th className="px-3 py-2.5 text-center">Revenue</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Clock In</th>
+              <th className="px-3 py-2.5 text-center">Clock Out</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Reg Hrs</th>
+              <th className="px-3 py-2.5 text-center">OT Hrs</th>
+              <th className="px-3 py-2.5 text-center">Pay Hrs</th>
+              <th className="px-3 py-2.5 text-center">Pay Cost</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Down Time</th>
+              <th className="px-3 py-2.5 text-center">DT Cost</th>
+              <th className="px-3 py-2.5 text-center">DT %</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Labor %</th>
+              <th className="px-3 py-2.5 text-center">Efficiency</th>
             </tr>
           </thead>
           <tbody>
@@ -575,17 +575,17 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         {p.punch_status === "unrecognized" && <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">Unrecognized</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{dec2(p.total_hours)}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{money.format(p.total_revenue)}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-600 border-l border-emerald-100">
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{dec2(p.total_hours)}</td>
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{money.format(p.total_revenue)}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-600 border-l border-emerald-100">
                       {fmtTime(firstIn)}{multiPunch && <span className="ml-1 text-xs text-gray-400">+{p.punches.length - 1}</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-600">{fmtTime(lastOut)}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 border-l border-emerald-100">{p.reg_hours != null ? dec2(p.reg_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">{p.ot_hours != null && p.ot_hours > 0 ? dec2(p.ot_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-emerald-950">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>
-                    <td className="px-3 py-2.5 text-right border-l border-emerald-100 relative" onClick={e => { e.stopPropagation(); setDownPopover(downResult ? (downPopover === p.resource_name ? null : p.resource_name) : null); }}>
+                    <td className="px-3 py-2.5 text-center text-gray-600">{fmtTime(lastOut)}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-700 border-l border-emerald-100">{p.reg_hours != null ? dec2(p.reg_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-700">{p.ot_hours != null && p.ot_hours > 0 ? dec2(p.ot_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center border-l border-emerald-100 relative" onClick={e => { e.stopPropagation(); setDownPopover(downResult ? (downPopover === p.resource_name ? null : p.resource_name) : null); }}>
                       {downMs !== null ? (
                         <span className={`cursor-pointer underline decoration-dotted ${downMs > 3600000 ? "text-amber-600 font-medium" : "text-gray-700"}`}>{fmtHrs(downMs)}</span>
                       ) : <span className="text-gray-300 text-xs italic">—</span>}
@@ -604,18 +604,18 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">
+                    <td className="px-3 py-2.5 text-center text-gray-700">
                       {dtCost != null ? money.format(dtCost) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-gray-700">
+                    <td className="px-3 py-2.5 text-center text-gray-700">
                       {dtPct != null ? pct(dtPct) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right border-l border-emerald-100">
+                    <td className="px-3 py-2.5 text-center border-l border-emerald-100">
                       {laborPct != null ? (
                         <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 text-center">
                       {efficiencyPct != null ? (
                         <span className={efficiencyPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(efficiencyPct)}</span>
                       ) : "—"}
@@ -627,10 +627,10 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         <tr key={`punch-${pi}`} className="border-t border-blue-50 bg-blue-50/30">
                           <td className="pl-12 pr-3 py-1.5 text-xs text-blue-600" colSpan={2}>Punch {pi + 1}</td>
                           <td />
-                          <td className="px-3 py-1.5 text-xs text-right text-blue-600 border-l border-emerald-100">{fmtTime(punch.clock_in_at)}</td>
-                          <td className="px-3 py-1.5 text-xs text-right text-blue-600">{fmtTime(punch.clock_out_at)}</td>
-                          <td className="px-3 py-1.5 text-xs text-right text-blue-600 border-l border-emerald-100">{dec2(punch.regular_hours)}</td>
-                          <td className="px-3 py-1.5 text-xs text-right text-blue-600">{dec2(punch.ot_hours)}</td>
+                          <td className="px-3 py-1.5 text-xs text-center text-blue-600 border-l border-emerald-100">{fmtTime(punch.clock_in_at)}</td>
+                          <td className="px-3 py-1.5 text-xs text-center text-blue-600">{fmtTime(punch.clock_out_at)}</td>
+                          <td className="px-3 py-1.5 text-xs text-center text-blue-600 border-l border-emerald-100">{dec2(punch.regular_hours)}</td>
+                          <td className="px-3 py-1.5 text-xs text-center text-blue-600">{dec2(punch.ot_hours)}</td>
                           <td colSpan={7} />
                         </tr>
                       ))}
@@ -641,8 +641,8 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                             <span className="text-gray-400 mx-1.5">·</span>
                             <span>{j.service}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-right text-gray-600">{dec2(j.actual_hours)}</td>
-                          <td className="px-3 py-2 text-xs text-right text-gray-600">{money.format(j.earned_amount)}</td>
+                          <td className="px-3 py-2 text-xs text-center text-gray-600">{dec2(j.actual_hours)}</td>
+                          <td className="px-3 py-2 text-xs text-center text-gray-600">{money.format(j.earned_amount)}</td>
                           <td colSpan={11} />
                         </tr>
                       ))}
@@ -655,19 +655,19 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
           <tfoot>
             <tr className="border-t-2 border-emerald-200 bg-emerald-50/60 font-semibold text-emerald-950">
               <td className="px-4 py-2.5 text-sm">Total — {persons.length} team members</td>
-              <td className="px-3 py-2.5 text-sm text-right">{dec2(totalProdHrs)}</td>
-              <td className="px-3 py-2.5 text-sm text-right">{money.format(totalRev)}</td>
+              <td className="px-3 py-2.5 text-sm text-center">{dec2(totalProdHrs)}</td>
+              <td className="px-3 py-2.5 text-sm text-center">{money.format(totalRev)}</td>
               <td className="border-l border-emerald-100" colSpan={2} />
               <td className="border-l border-emerald-100" /><td />
-              <td className="px-3 py-2.5 text-sm text-right">{dec2(totalPayHrs)}</td>
-              <td className="px-3 py-2.5 text-sm text-right">{money.format(totalPayCost)}</td>
+              <td className="px-3 py-2.5 text-sm text-center">{dec2(totalPayHrs)}</td>
+              <td className="px-3 py-2.5 text-sm text-center">{money.format(totalPayCost)}</td>
               <td className="border-l border-emerald-100" />
-              <td className="px-3 py-2.5 text-sm text-right">{totalDtCost > 0 ? money.format(totalDtCost) : "—"}</td>
+              <td className="px-3 py-2.5 text-sm text-center">{totalDtCost > 0 ? money.format(totalDtCost) : "—"}</td>
               <td />
-              <td className="px-3 py-2.5 text-sm text-right border-l border-emerald-100">
+              <td className="px-3 py-2.5 text-sm text-center border-l border-emerald-100">
                 {totalRev > 0 ? <span className={totalPayCost / totalRev > 0.39 ? "text-red-600" : "text-emerald-700"}>{pct(totalPayCost / totalRev)}</span> : "—"}
               </td>
-              <td className="px-3 py-2.5 text-sm text-right">
+              <td className="px-3 py-2.5 text-sm text-center">
                 {totalPayCost > 0 ? <span className={(totalRev * 0.39) / totalPayCost >= 1 ? "text-emerald-700" : "text-red-600"}>{pct((totalRev * 0.39) / totalPayCost)}</span> : "—"}
               </td>
             </tr>
