@@ -122,6 +122,7 @@ const SETTINGS_ITEM: NavItem = {
   ),
   children: [
     { label: "All Settings", href: "/operations-center", permKey: "settings_view" },
+    { label: "Budgets",      href: "/operations-center/settings/budgets", permKey: "settings_view" },
     { label: "Sports Ticker", href: "/operations-center/sports-ticker", permKey: "settings_view" },
   ],
 };
