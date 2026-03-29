@@ -294,8 +294,8 @@ export default function CogsPage() {
                             className="py-3 text-center"
                             style={{ background: BG, minWidth: 86, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
                           >
-                            <span className={`text-xs font-bold uppercase tracking-wider ${isCurr ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
-                            {isCurr && <span className="block text-[8px] text-emerald-400/60 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
+                            <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
+                            {isCurr && <span className="block text-xs text-emerald-400 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
                           </th>
                         );
                       })}
@@ -370,7 +370,7 @@ export default function CogsPage() {
                                       onClear={() => handleSave(r.month, row.apiField, null)}
                                     />
                                     {budgetVal > 0 && (
-                                      <span className="text-xs text-gray-500 font-medium">Bgt: {fmt.format(budgetVal)}</span>
+                                      <span className="text-xs text-gray-500 font-medium">Budg: {fmt.format(budgetVal)}</span>
                                     )}
                                     {actualVal > 0 && budgetVal > 0 && (
                                       <DeltaBadge actual={actualVal} budget={budgetVal} favorable={row.favorable} />
@@ -394,7 +394,7 @@ export default function CogsPage() {
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
                               {ytdBud > 0 && (
-                                <span className="text-xs text-gray-500 font-medium">Bgt: {fmt.format(ytdBud)}</span>
+                                <span className="text-xs text-gray-500 font-medium">Budg: {fmt.format(ytdBud)}</span>
                               )}
                               {ytdVal > 0 && ytdBud > 0 && (
                                 <DeltaBadge actual={ytdVal} budget={ytdBud} favorable={row.favorable} />
@@ -409,44 +409,10 @@ export default function CogsPage() {
                   {/* ── Footer ── */}
                   <tfoot>
 
-                    {/* COGS Total */}
-                    <tr>
-                      <td className="px-4 py-3" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
-                        <span className="text-xs font-black text-white/60 uppercase tracking-wider">Total COGS</span>
-                      </td>
-                      {data.map(r => {
-                        const future    = isFuture(r.month, year);
-                        const cogs      = r.labor + r.job_materials + r.fuel + r.equipment;
-                        const bCOGS     = r.budget_labor + r.budget_job_materials + r.budget_fuel + r.budget_equipment;
-                        return (
-                          <td
-                            key={r.month}
-                            className="px-1.5 py-3 text-center"
-                            style={{ background: BG_FOOT, borderTop: "2px solid rgba(255,255,255,0.08)", opacity: future ? 0.35 : 1 }}
-                          >
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className={`text-xs font-black ${cogs > 0 ? "text-white/70" : "text-white/20"}`}>
-                                {cogs > 0 ? fmt.format(cogs) : future && bCOGS > 0 ? "" : "—"}
-                              </span>
-                              {bCOGS > 0 && <span className="text-xs text-white/40 font-medium">Bgt: {fmt.format(bCOGS)}</span>}
-                            </div>
-                          </td>
-                        );
-                      })}
-                      <td className="px-2 py-3 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-xs font-black text-white/70">{fmt.format(ytdCOGS)}</span>
-                          {(ytd.bLabor + ytd.bMat + ytd.bFuel + ytd.bEquip) > 0 && (
-                            <span className="text-xs text-white/40">Bgt: {fmt.format(ytd.bLabor + ytd.bMat + ytd.bFuel + ytd.bEquip)}</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-
                     {/* Gross Profit */}
                     <tr>
-                      <td className="px-4 py-3" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
-                        <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+                      <td className="px-4 py-4" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                        <span className="text-sm font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
                       </td>
                       {data.map(r => {
                         const future = isFuture(r.month, year);
@@ -455,26 +421,26 @@ export default function CogsPage() {
                         return (
                           <td
                             key={r.month}
-                            className="px-1.5 py-3 text-center"
-                            style={{ background: BG_FOOT, opacity: future ? 0.35 : 1 }}
+                            className="px-2 py-4 text-center"
+                            style={{ background: BG_FOOT, opacity: future ? 0.35 : 1, borderTop: "2px solid rgba(255,255,255,0.08)" }}
                           >
-                            <div className="flex flex-col items-center gap-0.5">
+                            <div className="flex flex-col items-center gap-1">
                               {!future && (
-                                <span className={`text-xs font-black ${r.gross_profit > 0 ? "text-emerald-300" : r.gross_profit < 0 ? "text-red-400" : "text-white/20"}`}>
+                                <span className={`text-sm font-black ${r.gross_profit > 0 ? "text-emerald-300" : r.gross_profit < 0 ? "text-red-400" : "text-white/20"}`}>
                                   {hasAny ? fmt.format(r.gross_profit) : "—"}
                                 </span>
                               )}
-                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium">Bgt: {fmt.format(bGP)}</span>}
+                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium">Budg: {fmt.format(bGP)}</span>}
                             </div>
                           </td>
                         );
                       })}
-                      <td className="px-2 py-3 text-center" style={{ background: BG_FOOT_TOT }}>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className={`text-xs font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
+                      <td className="px-2 py-4 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
                           </span>
-                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">Bgt: {fmt.format(ytdBudgetGP)}</span>}
+                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">Budg: {fmt.format(ytdBudgetGP)}</span>}
                         </div>
                       </td>
                     </tr>
@@ -504,7 +470,7 @@ export default function CogsPage() {
                                 </span>
                               )}
                               {bMgn !== null && (
-                                <span className="text-xs text-white/40 font-medium">Bgt: {fmtPct(bMgn)}</span>
+                                <span className="text-xs text-white/40 font-medium">Budg: {fmtPct(bMgn)}</span>
                               )}
                             </div>
                           </td>
@@ -521,7 +487,7 @@ export default function CogsPage() {
                             </span>
                           )}
                           {ytdBudgetMgn !== null && (
-                            <span className="text-xs text-white/40">Bgt: {fmtPct(ytdBudgetMgn)}</span>
+                            <span className="text-xs text-white/40">Budg: {fmtPct(ytdBudgetMgn)}</span>
                           )}
                         </div>
                       </td>
