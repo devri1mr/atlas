@@ -78,23 +78,14 @@ function ActualCell({ value, isAuto, isOverridden, isRevenue, onSave, onClear }:
   }
 
   return (
-    <div className="relative group">
-      <button
-        onClick={startEdit} onFocus={startEdit}
-        className={`w-full text-center text-xs rounded py-0.5 transition-colors ${
-          value > 0
-            ? `font-semibold hover:bg-emerald-50 ${isRevenue ? (isOverridden ? "text-amber-600" : "text-sky-700") : (isOverridden ? "text-amber-600" : "text-gray-800")}`
-            : "text-gray-300 hover:bg-gray-50 hover:text-gray-500"
-        }`}
-      >
-        {value > 0 ? fmt.format(value) : "—"}
-      </button>
-      {isAuto && !isOverridden && value > 0 &&
-        <span className="absolute top-0 right-0.5 text-[8px] text-gray-300 pointer-events-none">auto</span>}
-      {isOverridden &&
-        <button onMouseDown={e => { e.stopPropagation(); onClear(); }}
-          className="absolute top-0 right-0.5 text-[9px] text-amber-400 hover:text-amber-600" title="Revert">↺</button>}
-    </div>
+    <button
+      onClick={startEdit} onFocus={startEdit}
+      className={`w-full text-center text-xs rounded py-0.5 transition-colors ${
+        value > 0 ? "font-semibold text-gray-900 hover:bg-gray-50" : "text-gray-300 hover:bg-gray-50"
+      }`}
+    >
+      {value > 0 ? fmt.format(value) : "—"}
+    </button>
   );
 }
 
@@ -172,13 +163,8 @@ export default function COGSPage() {
   const totalMargin       = totals.revenue > 0 ? totals.gross_profit / totals.revenue : null;
   const totalBudgetMargin = totals.budget_revenue > 0 ? totalBudgetGP / totals.budget_revenue : null;
 
-  function profitColor(p: number) {
-    if (p > 0) return "text-emerald-300"; if (p < 0) return "text-red-400"; return "text-white/20";
-  }
-  function marginColor(m: number | null) {
-    if (m === null) return "text-white/20";
-    if (m >= 0.35) return "text-emerald-400"; if (m >= 0.20) return "text-yellow-400"; return "text-red-400";
-  }
+  function profitColor(_p: number) { return "text-white"; }
+  function marginColor(_m: number | null) { return "text-white"; }
 
   const isCurYear = year === curYear;
 
@@ -271,7 +257,7 @@ export default function COGSPage() {
                             <td rowSpan={rowCount} className={`px-3 py-2 border-r border-gray-200 align-middle ${sepBorder}`} style={{ background: bg }}>
                               <div className="flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
-                                <span className={`text-[11px] font-bold ${isRevenue ? "text-sky-700" : "text-gray-700"}`}>{f.label}</span>
+                                <span className="text-[11px] font-bold text-gray-900">{f.label}</span>
                               </div>
                               {f.key === "fuel" && (
                                 <div className="text-[9px] text-gray-400 mt-0.5 pl-3">formula est.</div>
@@ -298,13 +284,13 @@ export default function COGSPage() {
                               );
                             })}
                             <td className={`px-2 py-1 text-center ${tdBase}`} style={{ background: "#f0fdf4" }}>
-                              <span className={`text-xs font-bold ${annualActual > 0 ? (isRevenue ? "text-sky-700" : "text-gray-800") : "text-gray-300"}`}>
+                              <span className={`text-xs font-bold ${annualActual > 0 ? "text-gray-900" : "text-gray-300"}`}>
                                 {annualActual > 0 ? fmt.format(annualActual) : "—"}
                               </span>
                             </td>
                             <td className="px-2 py-1 text-center" style={{ background: "#f0fdf4" }}>
                               {!isRevenue && annualPct !== null && (
-                                <span className="text-xs font-semibold text-gray-600">{fmtPct(annualPct)}</span>
+                                <span className="text-xs font-semibold text-gray-900">{fmtPct(annualPct)}</span>
                               )}
                             </td>
                           </tr>
@@ -319,14 +305,14 @@ export default function COGSPage() {
                               const bg2    = cellBg(row.month) ?? bg;
                               return (
                                 <td key={row.month} className={`px-1 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: bg2 }}>
-                                  <span className={`text-[11px] ${budget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-400") : "text-gray-200"}`}>
+                                  <span className={`text-[11px] ${budget > 0 ? "text-gray-400" : "text-gray-200"}`}>
                                     {budget > 0 ? fmt.format(budget) : ""}
                                   </span>
                                 </td>
                               );
                             })}
                             <td className={`px-2 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: "#f0fdf4" }}>
-                              <span className={`text-[11px] ${annualBudget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-400") : "text-gray-200"}`}>
+                              <span className={`text-[11px] ${annualBudget > 0 ? "text-gray-400" : "text-gray-200"}`}>
                                 {annualBudget > 0 ? fmt.format(annualBudget) : "—"}
                               </span>
                             </td>
@@ -350,7 +336,7 @@ export default function COGSPage() {
                                 const bg2    = cellBg(row.month) ?? bg;
                                 return (
                                   <td key={row.month} className={`px-1 py-0.5 text-center ${tdLast}`} style={{ background: bg2 }}>
-                                    {p !== null && <span className="text-[10px] text-gray-500">{fmtPct(p)}</span>}
+                                    {p !== null && <span className="text-[10px] text-gray-900">{fmtPct(p)}</span>}
                                   </td>
                                 );
                               })}
@@ -413,15 +399,13 @@ export default function COGSPage() {
                           <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
                             {budgetGP !== 0 && (
-                              <span className={`text-[11px] ${budgetGP > 0 ? "text-emerald-400/50" : "text-red-400/50"}`}>
-                                {fmt.format(budgetGP)}
-                              </span>
+                              <span className="text-[11px] text-white/50">{fmt.format(budgetGP)}</span>
                             )}
                           </td>
                         );
                       })}
                       <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className={`text-[11px] ${totalBudgetGP > 0 ? "text-emerald-400/50" : totalBudgetGP < 0 ? "text-red-400/50" : "text-white/10"}`}>
+                        <span className="text-[11px] text-white/50">
                           {totalBudgetGP !== 0 ? fmt.format(totalBudgetGP) : "—"}
                         </span>
                       </td>
