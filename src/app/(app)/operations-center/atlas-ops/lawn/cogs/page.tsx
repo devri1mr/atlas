@@ -260,7 +260,7 @@ export default function CogsPage() {
           <>
             <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ minWidth: 800, borderCollapse: "collapse" }}>
+                <table className="w-full" style={{ minWidth: 740, borderCollapse: "collapse" }}>
 
                   {/* ── Month headers ── */}
                   <thead>
@@ -275,7 +275,7 @@ export default function CogsPage() {
                           <th
                             key={m}
                             className="py-3 text-center"
-                            style={{ background: BG, minWidth: 58, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
+                            style={{ background: BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
                             {isCurr && <span className="block text-xs text-emerald-400 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
@@ -354,7 +354,7 @@ export default function CogsPage() {
                                       onClear={() => handleSave(r.month, row.apiField, null)}
                                     />
                                     {budgetVal > 0 && (
-                                      <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(budgetVal)}</span>
+                                      <span className="text-xs text-gray-400 font-medium">{fmt.format(budgetVal)}</span>
                                     )}
                                     {row.showRevPct && (
                                       <RevPctBadge value={actualVal} revenue={r.revenue} />
@@ -378,7 +378,7 @@ export default function CogsPage() {
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
                               {ytdBud > 0 && (
-                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(ytdBud)}</span>
+                                <span className="text-xs text-gray-400 font-medium">{fmt.format(ytdBud)}</span>
                               )}
                               {row.showRevPct && (
                                 <RevPctBadge value={ytdVal} revenue={ytd.revenue} />
@@ -414,7 +414,7 @@ export default function CogsPage() {
                                   {hasAny ? fmt.format(r.gross_profit) : "—"}
                                 </span>
                               )}
-                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium whitespace-nowrap">Budg: {fmt.format(bGP)}</span>}
+                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium">{fmt.format(bGP)}</span>}
                             </div>
                           </td>
                         );
@@ -424,7 +424,7 @@ export default function CogsPage() {
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
                           </span>
-                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40 whitespace-nowrap">Budg: {fmt.format(ytdBudgetGP)}</span>}
+                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">{fmt.format(ytdBudgetGP)}</span>}
                         </div>
                       </td>
                     </tr>
@@ -477,7 +477,7 @@ export default function CogsPage() {
             </div>
 
             <p className="text-center text-xs text-gray-400 mt-3">
-              Click any actual value to edit · Leave blank on auto-calculated fields to revert to auto · Δ% = actual vs budgeted
+              Click any actual value to edit · Leave blank on auto-calculated fields to revert to auto · Gray = budget · % = cost as % of revenue
             </p>
           </>
         )}
