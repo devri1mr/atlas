@@ -117,17 +117,12 @@ export default function BudgetsPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleSave(month: number, field: Field, value: number) {
-    let rowToSave = emptyRow(month);
-    setRows(prev => prev.map(r => {
-      if (r.month !== month) return r;
-      rowToSave = { ...r, [field]: value };
-      return rowToSave;
-    }));
+    setRows(prev => prev.map(r => r.month !== month ? r : { ...r, [field]: value }));
     setSaving(prev => new Set(prev).add(month));
     await fetch("/api/settings/budgets", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ division, year, ...rowToSave }),
+      body: JSON.stringify({ division, year, month, field, value }),
     });
     setSaving(prev => { const s = new Set(prev); s.delete(month); return s; });
   }
