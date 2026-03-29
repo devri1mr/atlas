@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST — push current month projection + this week's rows to Google Sheets
+// POST { month } — compute projection server-side, return the Apps Script URL for the browser to call
 export async function POST(req: NextRequest) {
   const webhookUrl = process.env.SHEETS_WEBHOOK_URL;
   if (!webhookUrl) {
@@ -16,16 +16,13 @@ export async function POST(req: NextRequest) {
     const { data: company } = await sb.from("companies").select("id").limit(1).single();
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-    const body = await req.json().catch(() => ({}));
+    const body  = await req.json().catch(() => ({}));
     const { month } = body as { month?: string };
-    if (!month) {
-      return NextResponse.json({ error: "month required" }, { status: 400 });
-    }
+    if (!month) return NextResponse.json({ error: "month required" }, { status: 400 });
 
     const monthStart = `${month}-01`;
     const monthEnd   = `${month}-31`;
 
-    // Fetch month actuals + planned in parallel
     const [{ data: reports }, { data: planned }] = await Promise.all([
       sb
         .from("lawn_production_reports")
@@ -64,31 +61,12 @@ export async function POST(req: NextRequest) {
 
     const projection = actual + plannedTotal;
 
-    // Use GET with query params — avoids Apps Script POST redirect body-loss issue
+    // Return the Apps Script URL for the browser to call (server can't auth with Google)
     const url = new URL(webhookUrl);
     url.searchParams.set("month",      month);
     url.searchParams.set("projection", String(projection));
 
-    const sheetRes = await fetch(url.toString(), {
-      method: "GET",
-      redirect: "follow",
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-
-    const text = await sheetRes.text();
-    let sheetJson: any = {};
-    try { sheetJson = JSON.parse(text); } catch { sheetJson = { raw: text.slice(0, 300) }; }
-
-    // Apps Script returns 200 on success; treat any JSON with ok:true as success
-    const succeeded = sheetRes.ok || sheetJson?.ok === true;
-    if (!succeeded) {
-      return NextResponse.json(
-        { error: `Sheets webhook failed (HTTP ${sheetRes.status})`, detail: sheetJson },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json({ ok: true, month, projection, sheets: sheetJson });
+    return NextResponse.json({ ok: true, month, projection, scriptUrl: url.toString() });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }

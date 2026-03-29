@@ -223,24 +223,25 @@ export default function UpcomingRevenuePage() {
   const curMonthLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   async function handleSyncSheets() {
-    const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL;
-    if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); return; }
     setSyncState("syncing");
     try {
       const ym = dates[0].slice(0, 7);
-      // Fetch projection from Atlas
-      const res = await fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`);
-      if (!res.ok) throw new Error("Failed to fetch projection");
-      const { actual, planned } = await res.json();
-      const projection = actual + planned;
-      // Call Apps Script via hidden iframe — full browser redirect + Google session
-      const url = new URL(webhookUrl);
-      url.searchParams.set("month", ym);
-      url.searchParams.set("projection", String(projection));
+      // Server computes correct projection and returns Apps Script URL
+      const syncRes = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: ym }),
+      });
+      if (!syncRes.ok) {
+        const j = await syncRes.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${syncRes.status}`);
+      }
+      const { scriptUrl } = await syncRes.json();
+      // Open in hidden iframe — browser's Google session handles Apps Script auth
       await new Promise<void>(resolve => {
         const iframe = document.createElement("iframe");
         iframe.style.display = "none";
-        iframe.src = url.toString();
+        iframe.src = scriptUrl;
         iframe.onload = () => { document.body.removeChild(iframe); resolve(); };
         document.body.appendChild(iframe);
         setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); resolve(); }, 8000);
