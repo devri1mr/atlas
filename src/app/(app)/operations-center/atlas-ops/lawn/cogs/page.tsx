@@ -243,7 +243,7 @@ export default function CogsPage() {
                 : "#9ca3af",
             },
           ].map(chip => (
-            <div key={chip.label} className="bg-white/10 rounded-xl px-4 py-3">
+            <div key={chip.label} className="bg-white/10 rounded-xl px-4 py-3 text-center">
               <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">{chip.label}</div>
               <div className="text-2xl font-black" style={{ color: chip.color }}>{chip.value}</div>
               {chip.budget && <div className="text-xs text-white/40 mt-0.5">{chip.budget}</div>}
