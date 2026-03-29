@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // POST { month } — compute projection server-side, return the Apps Script URL for the browser to call
 export async function POST(req: NextRequest) {
-  const webhookUrl = process.env.SHEETS_WEBHOOK_URL?.trim();
+  const webhookUrl = process.env.SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
   if (!webhookUrl) {
     return NextResponse.json({ error: "SHEETS_WEBHOOK_URL not configured" }, { status: 503 });
   }
