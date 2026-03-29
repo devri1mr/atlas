@@ -23,31 +23,28 @@ type FieldDef = {
 };
 
 const FIELDS: FieldDef[] = [
-  { key: "revenue",       apiField: "revenue_override",  label: "Revenue",      isAuto: true,  overrideKey: "revenue_overridden" },
-  { key: "labor",         apiField: "labor_override",    label: "Labor",        isAuto: true,  overrideKey: "labor_overridden" },
-  { key: "job_materials", apiField: "job_materials",     label: "Job Materials",isAuto: false },
-  { key: "fuel",          apiField: "fuel_override",     label: "Fuel",         isAuto: true,  overrideKey: "fuel_overridden" },
-  { key: "equipment",     apiField: "equipment",         label: "Equipment",    isAuto: false },
+  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       isAuto: true,  overrideKey: "revenue_overridden" },
+  { key: "labor",         apiField: "labor_override",   label: "Labor",         isAuto: true,  overrideKey: "labor_overridden" },
+  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", isAuto: false },
+  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          isAuto: true,  overrideKey: "fuel_overridden" },
+  { key: "equipment",     apiField: "equipment",        label: "Equipment",     isAuto: false },
 ];
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt    = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
-const BG      = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
-const BG_FOOT = "#0f3a1e";
+const BG           = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
+const BG_FOOT      = "#0f3a1e";
 const BG_FOOT_TOTAL = "#0a2010";
 
 // ── Editable cell ─────────────────────────────────────────────────────────────
 
-function COGSCell({
-  actual, budget, actualPct, budgetPct,
-  isAuto, isOverridden, isRevenue,
+function EditCell({
+  value, isAuto, isOverridden, isRevenue,
   onSave, onClear,
 }: {
-  actual: number; budget: number;
-  actualPct: number | null; budgetPct: number | null;
-  isAuto: boolean; isOverridden: boolean; isRevenue: boolean;
+  value: number; isAuto: boolean; isOverridden: boolean; isRevenue: boolean;
   onSave: (v: number) => void; onClear: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -55,7 +52,7 @@ function COGSCell({
   const inputRef = useRef<HTMLInputElement>(null);
 
   function startEdit() {
-    setDraft(actual === 0 ? "" : String(actual));
+    setDraft(value === 0 ? "" : String(value));
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   }
@@ -66,68 +63,46 @@ function COGSCell({
     setEditing(false);
   }
 
-  // % chip color
-  function pctColor() {
-    if (actualPct === null) return "text-white/30 bg-white/5";
-    if (isRevenue) {
-      if (budgetPct && actualPct >= budgetPct) return "text-emerald-300 bg-emerald-900/40";
-      if (budgetPct && actualPct >= budgetPct * 0.9) return "text-yellow-300 bg-yellow-900/30";
-      return "text-red-400 bg-red-900/30";
-    }
-    // COGS: lower % is better
-    if (budgetPct == null || budgetPct === 0) return "text-white/50 bg-white/5";
-    if (actualPct <= budgetPct) return "text-emerald-300 bg-emerald-900/40";
-    if (actualPct <= budgetPct * 1.1) return "text-yellow-300 bg-yellow-900/30";
-    return "text-red-400 bg-red-900/30";
-  }
-
   if (editing) {
     return (
-      <div className="px-1 py-1">
-        <input
-          ref={inputRef}
-          type="number"
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          placeholder={isAuto ? "blank = auto" : "0"}
-          className="w-full text-center text-[11px] font-semibold bg-white border border-emerald-400 rounded px-1 py-0.5 focus:outline-none"
-          autoFocus
-        />
-      </div>
+      <input
+        ref={inputRef}
+        type="number"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        placeholder={isAuto ? "blank = auto" : "0"}
+        className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+        autoFocus
+      />
     );
   }
 
   return (
-    <button onClick={startEdit} onFocus={startEdit}
-      className="w-full text-left px-2 py-1 group hover:bg-white/5 transition-colors rounded">
-      {/* Actual value */}
-      <div className="flex items-center justify-between gap-1">
-        <span className={`text-[11px] font-bold leading-tight ${
-          isRevenue
-            ? (isOverridden ? "text-amber-300" : "text-sky-300")
-            : (isOverridden ? "text-amber-300" : actual > 0 ? "text-white" : "text-white/20")
-        }`}>
-          {actual > 0 ? fmt.format(actual) : "—"}
-        </span>
-        {isAuto && !isOverridden && actual > 0 &&
-          <span className="text-[8px] text-white/25 leading-none">auto</span>}
-        {isOverridden &&
-          <button onMouseDown={e => { e.stopPropagation(); onClear(); }}
-            className="text-[9px] text-amber-400/60 hover:text-amber-300 leading-none">↺</button>}
-      </div>
-      {/* Budget */}
-      <div className="text-[9px] text-white/25 leading-tight mt-0.5">
-        {budget > 0 ? fmt.format(budget) : <span className="text-white/10">no budget</span>}
-      </div>
-      {/* % chip */}
-      {actualPct !== null && (
-        <div className={`mt-0.5 inline-block text-[9px] font-semibold px-1 py-0.5 rounded leading-none ${pctColor()}`}>
-          {fmtPct(actualPct)}
-        </div>
+    <div className="relative group">
+      <button
+        onClick={startEdit}
+        onFocus={startEdit}
+        className={`w-full text-center text-xs rounded py-1.5 transition-colors ${
+          value > 0
+            ? `font-semibold hover:bg-emerald-50 ${isRevenue ? (isOverridden ? "text-amber-600" : "text-sky-700") : (isOverridden ? "text-amber-600" : "text-gray-800")}`
+            : "text-gray-300 hover:bg-gray-50 hover:text-gray-500"
+        }`}
+      >
+        {value > 0 ? fmt.format(value) : "—"}
+      </button>
+      {isAuto && !isOverridden && value > 0 && (
+        <span className="absolute top-0.5 right-1 text-[8px] text-gray-300 leading-none pointer-events-none">auto</span>
       )}
-    </button>
+      {isOverridden && (
+        <button
+          onMouseDown={e => { e.stopPropagation(); onClear(); }}
+          className="absolute top-0.5 right-1 text-[9px] text-amber-400 hover:text-amber-600 leading-none"
+          title="Revert to auto"
+        >↺</button>
+      )}
+    </div>
   );
 }
 
@@ -148,22 +123,19 @@ export default function COGSPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleSave(month: number, field: FieldDef, value: number | null) {
-    // Optimistic update
     setRows(prev => prev.map(r => {
       if (r.month !== month) return r;
       const updated = { ...r };
       if (value === null) {
-        // Revert to auto
-        if (field.key === "revenue") { updated.revenue = r.revenue_auto; updated.revenue_overridden = false; }
-        if (field.key === "labor")   { updated.labor   = r.labor_auto;   updated.labor_overridden   = false; }
-        if (field.key === "fuel")    { updated.fuel     = r.fuel_auto;    updated.fuel_overridden     = false; }
+        if (field.key === "revenue")       { updated.revenue       = r.revenue_auto; updated.revenue_overridden = false; }
+        if (field.key === "labor")         { updated.labor         = r.labor_auto;   updated.labor_overridden   = false; }
+        if (field.key === "fuel")          { updated.fuel          = r.fuel_auto;    updated.fuel_overridden    = false; }
         if (field.key === "job_materials") { updated.job_materials = 0; }
         if (field.key === "equipment")     { updated.equipment     = 0; }
       } else {
         (updated as any)[field.key] = value;
         if (field.overrideKey) (updated as any)[field.overrideKey] = true;
       }
-      // Recompute derived
       updated.gross_profit = updated.revenue - updated.labor - updated.job_materials - updated.fuel - updated.equipment;
       updated.margin_pct   = updated.revenue > 0 ? updated.gross_profit / updated.revenue : null;
       return updated;
@@ -175,7 +147,6 @@ export default function COGSPage() {
       body: JSON.stringify({ division: "lawn", year, month, field: field.apiField, value }),
     });
 
-    // Reload fuel formula-dependent months if labor changed
     if (field.key === "labor" || field.key === "revenue") load();
   }
 
@@ -214,102 +185,100 @@ export default function COGSPage() {
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
 
-      {/* Header */}
-      <div className="px-5 py-4" style={{ background: BG }}>
-        <div className="flex items-center justify-between">
+      {/* ── Hero ── */}
+      <div className="px-6 py-5" style={{ background: BG }}>
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">Lawn</span>
-            <div className="text-xl font-black text-white mt-0.5">COGS</div>
+            <div className="flex items-center gap-2 mb-1">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">Lawn</span>
+            </div>
+            <div className="text-2xl font-black text-white">Cost of Goods Sold</div>
           </div>
           <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-            <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white">‹</button>
+            <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
             <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white">›</button>
+            <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
           </div>
         </div>
       </div>
 
-      <div className="p-3">
+      <div className="p-4">
         {loading ? (
-          <div className="text-center py-12 text-sm text-gray-400">Loading…</div>
+          <div className="text-center py-16 text-sm text-gray-400">Loading…</div>
         ) : (
           <>
-            <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.15)" }}>
+            <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ minWidth: 860, borderCollapse: "collapse" }}>
+                <table className="w-full" style={{ minWidth: 900, borderCollapse: "collapse" }}>
 
-                  {/* Month header */}
+                  {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-3 py-2.5 text-left border border-emerald-900/50" style={{ background: BG, width: 110 }}>
-                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Category</span>
+                      <th className="px-4 py-3 text-left border border-emerald-900/50" style={{ background: BG, width: 130 }}>
+                        <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
                         const isCur = i + 1 === curMonth;
                         return (
-                          <th key={m} className="py-2.5 text-center border border-emerald-900/50"
-                            style={{ background: isCur ? "#0f4a25" : BG, minWidth: 72 }}>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/60"}`}>{m}</span>
+                          <th key={m} className="px-2 py-3 text-center border border-emerald-900/50"
+                            style={{ background: isCur ? "#0f4a25" : BG, minWidth: 76 }}>
+                            <span className={`text-xs font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
                             {isCur && <span className="block w-1 h-1 rounded-full bg-emerald-400 mx-auto mt-0.5" />}
                           </th>
                         );
                       })}
-                      <th className="px-2 py-2.5 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, minWidth: 80 }}>
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Annual</span>
+                      <th className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, minWidth: 84 }}>
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Annual</span>
                       </th>
                     </tr>
                   </thead>
 
-                  {/* Data rows */}
+                  {/* ── Data rows ── */}
                   <tbody>
                     {FIELDS.map((f, fi) => {
-                      const isRevenue = f.key === "revenue";
-                      const bg = fi % 2 === 0 ? "#1a3a22" : "#162f1c";
-                      const totalActual = totals[f.key as keyof typeof totals] as number;
-                      const totalBudget = totals[`budget_${f.key}` as keyof typeof totals] as number;
-                      const totalPct    = totals.revenue > 0 ? (totalActual as number) / totals.revenue : null;
-                      const totalBPct   = totals.budget_revenue > 0 ? (totalBudget as number) / totals.budget_revenue : null;
-
+                      const isRevenue  = f.key === "revenue";
+                      const bg         = fi % 2 === 0 ? "#fff" : "#f9fafb";
+                      const annualVal  = totals[f.key as keyof typeof totals] as number;
+                      const annualBud  = totals[`budget_${f.key}` as keyof typeof totals] as number;
                       return (
                         <tr key={f.key}>
-                          <td className="px-3 py-1.5 border border-emerald-900/30" style={{ background: bg }}>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-500"}`} />
-                              <span className={`text-[11px] font-semibold ${isRevenue ? "text-sky-300" : "text-emerald-200"}`}>{f.label}</span>
+                          <td className="px-4 py-2 border border-gray-200" style={{ background: bg }}>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
+                              <span className={`text-xs font-semibold ${isRevenue ? "text-sky-700" : "text-gray-600"}`}>{f.label}</span>
                             </div>
-                            {f.key === "fuel" && <div className="text-[8px] text-white/25 mt-0.5 pl-3">formula est.</div>}
+                            {f.key === "fuel" && (
+                              <div className="text-[10px] text-gray-400 mt-0.5 pl-3.5">formula est.</div>
+                            )}
                           </td>
                           {rows.map(row => {
-                            const isCur    = row.month === curMonth;
-                            const actual   = row[f.key] as number;
-                            const budget   = row[`budget_${f.key}` as keyof MonthCOGS] as number;
-                            const actualPct  = row.revenue > 0 ? actual / row.revenue : null;
-                            const budgetPct  = row.budget_revenue > 0 ? budget / row.budget_revenue : null;
-                            const isOver   = row[f.overrideKey as keyof MonthCOGS] as boolean | undefined;
+                            const isCur     = row.month === curMonth;
+                            const actual    = row[f.key] as number;
+                            const isOver    = f.overrideKey ? (row[f.overrideKey] as boolean) : false;
                             return (
-                              <td key={row.month} className="border border-emerald-900/30 p-0"
-                                style={{ background: isCur ? "#0f4a25" : bg }}>
-                                <COGSCell
-                                  actual={actual} budget={budget}
-                                  actualPct={isRevenue ? (row.budget_revenue > 0 ? actual / row.budget_revenue : null) : actualPct}
-                                  budgetPct={isRevenue ? 1 : budgetPct}
-                                  isAuto={f.isAuto} isOverridden={!!isOver} isRevenue={isRevenue}
+                              <td key={row.month} className="px-1.5 py-1 border border-gray-200"
+                                style={{ background: isCur ? "#f0fdf4" : bg }}>
+                                <EditCell
+                                  value={actual}
+                                  isAuto={f.isAuto}
+                                  isOverridden={isOver}
+                                  isRevenue={isRevenue}
                                   onSave={v => handleSave(row.month, f, v)}
                                   onClear={() => handleSave(row.month, f, null)}
                                 />
                               </td>
                             );
                           })}
-                          {/* Annual total cell */}
-                          <td className="px-2 py-1.5 text-center border border-emerald-900/30" style={{ background: BG_FOOT_TOTAL }}>
-                            <div className={`text-[11px] font-bold ${isRevenue ? "text-sky-300" : totalActual > 0 ? "text-white" : "text-white/20"}`}>
-                              {totalActual > 0 ? fmt.format(totalActual) : "—"}
-                            </div>
-                            <div className="text-[9px] text-white/25">
-                              {totalBudget > 0 ? fmt.format(totalBudget) : ""}
-                            </div>
-                            {totalPct !== null && (
-                              <div className="text-[9px] text-white/40">{fmtPct(totalPct)}</div>
+                          {/* Annual total */}
+                          <td className="px-3 py-2 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
+                            <span className={`text-xs font-bold ${annualVal > 0 ? (isRevenue ? "text-sky-700" : "text-gray-700") : "text-gray-300"}`}>
+                              {annualVal > 0 ? fmt.format(annualVal) : "—"}
+                            </span>
+                            {annualBud > 0 && (
+                              <div className="text-[10px] text-gray-400 mt-0.5">{fmt.format(annualBud)}</div>
                             )}
                           </td>
                         </tr>
@@ -317,67 +286,92 @@ export default function COGSPage() {
                     })}
                   </tbody>
 
-                  {/* Footer: Gross Profit + Margin % */}
+                  {/* ── Calculated footer ── */}
                   <tfoot>
+                    {/* % of Revenue */}
                     <tr>
-                      <td className="px-3 py-2 border border-emerald-900/50" style={{ background: BG_FOOT }}>
-                        <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+                      <td className="px-4 py-2 border border-emerald-900/50" style={{ background: BG_FOOT }}>
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">% of Revenue</span>
                       </td>
                       {rows.map(row => {
                         const isCur = row.month === curMonth;
-                        const budgetGP = row.budget_revenue - row.budget_labor - row.budget_job_materials - row.budget_fuel - row.budget_equipment;
+                        const cogs  = row.labor + row.job_materials + row.fuel + row.equipment;
+                        const p     = row.revenue > 0 ? cogs / row.revenue : null;
                         return (
                           <td key={row.month} className="px-2 py-2 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
-                            <div className={`text-[11px] font-bold ${profitColor(row.revenue > 0 || row.gross_profit !== 0 ? row.gross_profit : 1)}`}>
-                              {row.revenue > 0 || row.gross_profit !== 0 ? fmt.format(row.gross_profit) : "—"}
-                            </div>
-                            <div className="text-[9px] text-white/25">
-                              {budgetGP !== 0 ? fmt.format(budgetGP) : ""}
-                            </div>
+                            <span className={`text-xs font-semibold ${p === null ? "text-white/20" : p <= 0.65 ? "text-emerald-300" : "text-yellow-300"}`}>
+                              {p !== null ? fmtPct(p) : "—"}
+                            </span>
                           </td>
                         );
                       })}
-                      <td className="px-2 py-2 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className={`text-[11px] font-bold ${profitColor(totals.revenue > 0 ? totals.gross_profit : 1)}`}>
+                      <td className="px-3 py-2 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        {(() => {
+                          const c = totals.labor + totals.job_materials + totals.fuel + totals.equipment;
+                          const p = totals.revenue > 0 ? c / totals.revenue : null;
+                          return (
+                            <span className={`text-xs font-semibold ${p === null ? "text-white/20" : p <= 0.65 ? "text-emerald-300" : "text-yellow-300"}`}>
+                              {p !== null ? fmtPct(p) : "—"}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+
+                    {/* Gross Profit */}
+                    <tr>
+                      <td className="px-4 py-2.5 border border-emerald-900/50" style={{ background: BG_FOOT }}>
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+                      </td>
+                      {rows.map(row => {
+                        const isCur = row.month === curMonth;
+                        return (
+                          <td key={row.month} className="px-2 py-2.5 text-center border border-emerald-900/50"
+                            style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
+                            <span className={`text-xs font-bold ${profitColor(row.revenue > 0 || row.gross_profit !== 0 ? row.gross_profit : 1)}`}>
+                              {row.revenue > 0 || row.gross_profit !== 0 ? fmt.format(row.gross_profit) : "—"}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2.5 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className={`text-xs font-bold ${profitColor(totals.revenue > 0 ? totals.gross_profit : 1)}`}>
                           {totals.revenue > 0 ? fmt.format(totals.gross_profit) : "—"}
                         </span>
                       </td>
                     </tr>
+
+                    {/* Margin % */}
                     <tr>
-                      <td className="px-3 py-2 border border-emerald-900/50" style={{ background: BG_FOOT }}>
-                        <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Margin %</span>
+                      <td className="px-4 py-2.5 border border-emerald-900/50" style={{ background: BG_FOOT }}>
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Margin %</span>
                       </td>
                       {rows.map(row => {
                         const isCur = row.month === curMonth;
-                        const bMargin = row.budget_revenue > 0
-                          ? (row.budget_revenue - row.budget_labor - row.budget_job_materials - row.budget_fuel - row.budget_equipment) / row.budget_revenue
-                          : null;
                         return (
-                          <td key={row.month} className="px-2 py-2 text-center border border-emerald-900/50"
+                          <td key={row.month} className="px-2 py-2.5 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
-                            <div className={`text-[11px] font-semibold ${marginColor(row.margin_pct)}`}>
+                            <span className={`text-xs font-semibold ${marginColor(row.margin_pct)}`}>
                               {row.margin_pct !== null ? fmtPct(row.margin_pct) : "—"}
-                            </div>
-                            <div className="text-[9px] text-white/25">
-                              {bMargin !== null ? fmtPct(bMargin) : ""}
-                            </div>
+                            </span>
                           </td>
                         );
                       })}
-                      <td className="px-2 py-2 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className={`text-[11px] font-semibold ${marginColor(totalMargin)}`}>
+                      <td className="px-3 py-2.5 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className={`text-xs font-semibold ${marginColor(totalMargin)}`}>
                           {totalMargin !== null ? fmtPct(totalMargin) : "—"}
                         </span>
                       </td>
                     </tr>
                   </tfoot>
+
                 </table>
               </div>
             </div>
 
-            <p className="text-center text-[10px] text-gray-400 mt-2">
-              Click any cell to edit · Blank on auto fields reverts to auto · Amber = manual override · ↺ = revert to auto · Fuel estimated from labor ratio
+            <p className="text-center text-xs text-gray-400 mt-3">
+              Click any cell to edit · Blank on auto fields reverts to auto · Amber = manual override · ↺ revert · Fuel estimated from labor ratio
             </p>
           </>
         )}
