@@ -418,7 +418,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
 
                     {/* GP Margin */}
                     <tr>
-                      <td className="px-3 py-2" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+                      <td className="px-3 py-2" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.25)" }}>
                         <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">GP Margin</span>
                       </td>
                       {data.map(r => {
@@ -428,7 +428,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           <td
                             key={r.month}
                             className="px-1.5 py-3 text-center"
-                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)" }}
+                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.25)" }}
                           >
                             {!future && r.margin_pct !== null && (
                               <span
@@ -441,7 +441,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           </td>
                         );
                       })}
-                      <td className="px-1 py-2 text-center" style={{ background: BG_FOOT_TOT }}>
+                      <td className="px-1 py-2 text-center" style={{ background: BG_FOOT_TOT, borderTop: "1px solid rgba(255,255,255,0.25)" }}>
                         {ytdMargin !== null && (
                           <span
                             className={`inline-block text-xs font-black px-2 py-0.5 rounded-full ${marginTextColor(ytdMargin)}`}
