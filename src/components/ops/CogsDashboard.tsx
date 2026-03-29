@@ -393,7 +393,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           <td
                             key={r.month}
                             className="px-2 py-2.5 text-center"
-                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderTop: "2px solid rgba(255,255,255,0.08)" }}
+                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderTop: "2px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.2)" }}
                           >
                             <div className="flex flex-col items-center gap-1">
                               {!future && (
@@ -428,7 +428,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           <td
                             key={r.month}
                             className="px-1.5 py-3 text-center"
-                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1 }}
+                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)" }}
                           >
                             {!future && r.margin_pct !== null && (
                               <span
