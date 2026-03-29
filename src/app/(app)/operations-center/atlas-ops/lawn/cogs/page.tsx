@@ -275,7 +275,7 @@ export default function CogsPage() {
                           <th
                             key={m}
                             className="py-3 text-center"
-                            style={{ background: BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
+                            style={{ background: BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)", borderBottom: "2px solid rgba(255,255,255,0.15)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
                             {isCurr && <span className="block text-xs text-emerald-400 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
@@ -304,8 +304,8 @@ export default function CogsPage() {
                             className="px-3 py-3"
                             style={{
                               background: row.accentBg,
-                              borderRight: "1px solid #e5e7eb",
-                              borderBottom: "1px solid #e5e7eb",
+                              borderRight: "1px solid #d1d5db",
+                              borderBottom: "1px solid #d1d5db",
                             }}
                           >
                             <div className="flex items-center gap-2">
@@ -329,8 +329,8 @@ export default function CogsPage() {
                                 className="px-1 py-3 text-center"
                                 style={{
                                   background: cellBg,
-                                  borderBottom: "1px solid #f0f0f0",
-                                  borderRight: "1px solid #f0f0f0",
+                                  borderBottom: "1px solid #d1d5db",
+                                  borderRight: "1px solid #d1d5db",
                                   opacity: future ? 0.35 : 1,
                                   verticalAlign: "top",
                                 }}
@@ -368,7 +368,7 @@ export default function CogsPage() {
                           {/* YTD */}
                           <td
                             className="px-2 py-2 text-center"
-                            style={{ background: "#f0fdf4", borderBottom: "1px solid #e0ede4" }}
+                            style={{ background: "#f0fdf4", borderBottom: "1px solid #d1d5db", borderLeft: "1px solid #d1d5db" }}
                           >
                             <div className="flex flex-col items-center gap-1">
                               <span
