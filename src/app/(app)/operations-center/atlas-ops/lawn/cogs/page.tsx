@@ -105,10 +105,10 @@ function ActualCell({
 
 function RevPctBadge({ value, revenue }: { value: number; revenue: number }) {
   if (revenue === 0 || value === 0) return null;
-  const pct = (value / revenue) * 100;
+  const pct = Math.round((value / revenue) * 100);
   return (
     <span className="inline-block text-xs font-bold text-gray-500 whitespace-nowrap">
-      {pct.toFixed(1)}%
+      {pct}%
     </span>
   );
 }
