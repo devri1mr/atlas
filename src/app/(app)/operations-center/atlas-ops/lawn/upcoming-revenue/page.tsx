@@ -209,8 +209,8 @@ export default function UpcomingRevenuePage() {
         load();
         return;
       }
-      // Refresh month summary after successful save
-      const ym = today.slice(0, 7);
+      // Refresh month summary after successful save (use viewed month, not today)
+      const ym = dates[0].slice(0, 7);
       fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`)
         .then(r => r.ok ? r.json() : null)
         .then(d => d && setMonthSummary(d));
