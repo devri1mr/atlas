@@ -102,7 +102,7 @@ function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: numb
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); } }}
         className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded px-1 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-300"
         autoFocus
       />
@@ -111,6 +111,7 @@ function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: numb
   return (
     <button
       onClick={startEdit}
+      onFocus={startEdit}
       disabled={disabled}
       className={`w-full text-center text-xs rounded py-1.5 transition-colors ${
         disabled
@@ -181,21 +182,28 @@ export default function UpcomingRevenuePage() {
   }, [today]);
 
   async function handleSave(date: string, cat: Category, value: number) {
+    // Capture the fully-merged row inside the updater to avoid stale closure
+    let rowToSave: DayRow = { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
     setData(prev => {
       const next = new Map(prev);
       const ex = next.get(date) ?? { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
-      next.set(date, { ...ex, [cat]: value });
+      rowToSave = { ...ex, [cat]: value };
+      next.set(date, rowToSave);
       return next;
     });
     setSaving(prev => new Set(prev).add(date));
     try {
-      const row = data.get(date) ?? { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
-      await fetch("/api/operations-center/atlas-ops/lawn/upcoming-revenue", {
+      const res = await fetch("/api/operations-center/atlas-ops/lawn/upcoming-revenue", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...row, [cat]: value, date }),
+        body: JSON.stringify({ ...rowToSave, date }),
       });
-      // Refresh month summary after save
+      if (!res.ok) {
+        // Save failed — reload from DB so UI reflects truth
+        load();
+        return;
+      }
+      // Refresh month summary after successful save
       const ym = today.slice(0, 7);
       fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`)
         .then(r => r.ok ? r.json() : null)
