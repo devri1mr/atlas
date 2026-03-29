@@ -18,6 +18,7 @@ type MonthCOGS = {
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt    = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const fmtK   = (n: number) => Math.abs(n) >= 10000 ? `$${Math.round(n / 1000)}k` : fmt.format(n);
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
 const BG           = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
@@ -214,75 +215,33 @@ export default function CogsPage() {
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
 
-      {/* ── Hero ── */}
-      <div className="px-6 py-5" style={{ background: BG }}>
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
-          <div>
-            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-1">Lawn Division</div>
-            <div className="text-2xl font-black text-white">Cost of Goods Sold</div>
-          </div>
-          <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-            <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
-            <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
-          </div>
+      {/* ── Header ── */}
+      <div className="px-6 py-4 flex items-center justify-between" style={{ background: BG }}>
+        <div>
+          <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">Lawn Division</div>
+          <div className="text-xl font-black text-white">Cost of Goods Sold</div>
         </div>
-
-        {/* KPI chips */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            {
-              label: "YTD Revenue",
-              value: fmt.format(ytd.revenue),
-              budget: ytd.bRevenue > 0 ? `Budget ${fmt.format(ytd.bRevenue)}` : null,
-              color: "#7dd3fc",
-            },
-            {
-              label: "YTD COGS",
-              value: fmt.format(ytdCOGS),
-              budget: null,
-              color: "#fca5a5",
-            },
-            {
-              label: "Gross Profit",
-              value: fmt.format(ytd.gp),
-              budget: ytdBudgetGP !== 0 ? `Budget ${fmt.format(ytdBudgetGP)}` : null,
-              color: ytd.gp >= 0 ? "#6ee7b7" : "#fca5a5",
-            },
-            {
-              label: "GP Margin",
-              value: ytdMargin !== null ? fmtPct(ytdMargin) : "—",
-              budget: ytdBudgetMgn !== null ? `Budget ${fmtPct(ytdBudgetMgn)}` : null,
-              color: ytdMargin !== null
-                ? ytdMargin >= 0.35 ? "#6ee7b7"
-                : ytdMargin >= 0.20 ? "#fde68a"
-                : "#fca5a5"
-                : "#9ca3af",
-            },
-          ].map(chip => (
-            <div key={chip.label} className="bg-white/10 rounded-xl px-4 py-3">
-              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">{chip.label}</div>
-              <div className="text-2xl font-black" style={{ color: chip.color }}>{chip.value}</div>
-              {chip.budget && <div className="text-xs text-white/40 mt-0.5">{chip.budget}</div>}
-            </div>
-          ))}
+        <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
+          <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+          <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
+          <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
         </div>
       </div>
 
       {/* ── Table ── */}
-      <div className="p-4">
+      <div className="p-3">
         {loading ? (
           <div className="text-center py-16 text-sm text-gray-400">Loading…</div>
         ) : (
           <>
             <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ minWidth: 1180, borderCollapse: "collapse" }}>
+                <table className="w-full" style={{ minWidth: 900, borderCollapse: "collapse" }}>
 
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left" style={{ background: BG, width: 136, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th className="px-4 py-3 text-left" style={{ background: BG, width: 120, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
@@ -292,7 +251,7 @@ export default function CogsPage() {
                           <th
                             key={m}
                             className="py-3 text-center"
-                            style={{ background: BG, minWidth: 86, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
+                            style={{ background: BG, minWidth: 68, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
                             {isCurr && <span className="block text-xs text-emerald-400 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
@@ -349,6 +308,7 @@ export default function CogsPage() {
                                   borderBottom: "1px solid #f0f0f0",
                                   borderRight: "1px solid #f0f0f0",
                                   opacity: future ? 0.35 : 1,
+                                  verticalAlign: "top",
                                 }}
                               >
                                 {future ? (
@@ -370,7 +330,7 @@ export default function CogsPage() {
                                       onClear={() => handleSave(r.month, row.apiField, null)}
                                     />
                                     {budgetVal > 0 && (
-                                      <span className="text-xs text-gray-500 font-medium">Budg: {fmt.format(budgetVal)}</span>
+                                      <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmtK(budgetVal)}</span>
                                     )}
                                     {actualVal > 0 && budgetVal > 0 && (
                                       <DeltaBadge actual={actualVal} budget={budgetVal} favorable={row.favorable} />
@@ -394,7 +354,7 @@ export default function CogsPage() {
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
                               {ytdBud > 0 && (
-                                <span className="text-xs text-gray-500 font-medium">Budg: {fmt.format(ytdBud)}</span>
+                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmtK(ytdBud)}</span>
                               )}
                               {ytdVal > 0 && ytdBud > 0 && (
                                 <DeltaBadge actual={ytdVal} budget={ytdBud} favorable={row.favorable} />
@@ -430,7 +390,7 @@ export default function CogsPage() {
                                   {hasAny ? fmt.format(r.gross_profit) : "—"}
                                 </span>
                               )}
-                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium">Budg: {fmt.format(bGP)}</span>}
+                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium whitespace-nowrap">Budg: {fmtK(bGP)}</span>}
                             </div>
                           </td>
                         );
@@ -440,7 +400,7 @@ export default function CogsPage() {
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
                           </span>
-                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">Budg: {fmt.format(ytdBudgetGP)}</span>}
+                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40 whitespace-nowrap">Budg: {fmtK(ytdBudgetGP)}</span>}
                         </div>
                       </td>
                     </tr>
