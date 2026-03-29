@@ -249,23 +249,26 @@ export default function COGSPage() {
                   {/* ── Data rows ── */}
                   <tbody>
                     {FIELDS.map((f, fi) => {
-                      const isRevenue  = f.key === "revenue";
-                      const rowCount   = f.hasPercent ? 3 : 2;
-                      const evenBg     = fi % 2 === 0;
-                      const bg         = evenBg ? "#fff" : "#f9fafb";
-                      const bgBudget   = evenBg ? "#fafafa" : "#f6f8f6";
-                      const bgPct      = evenBg ? "#f7f7f7" : "#f4f6f4";
-                      const annualActual  = totals[f.key as keyof typeof totals] as number;
-                      const annualBudget  = totals[`budget_${f.key}` as keyof typeof totals] as number;
-                      const annualPct     = !isRevenue && totals.revenue > 0 ? annualActual / totals.revenue : null;
-                      const annualBudPct  = !isRevenue && totals.budget_revenue > 0 ? annualBudget / totals.budget_revenue : null;
+                      const isRevenue = f.key === "revenue";
+                      const rowCount  = f.hasPercent ? 3 : 2;
+                      const bg        = fi % 2 === 0 ? "#fff" : "#f9fafb";
+                      const isLast    = fi === FIELDS.length - 1;
+                      const sepBorder = `border-b ${isLast ? "border-gray-300" : "border-gray-200"}`;
+                      const annualActual = totals[f.key as keyof typeof totals] as number;
+                      const annualBudget = totals[`budget_${f.key}` as keyof typeof totals] as number;
+                      const annualPct    = !isRevenue && totals.revenue > 0 ? annualActual / totals.revenue : null;
+                      const annualBudPct = !isRevenue && totals.budget_revenue > 0 ? annualBudget / totals.budget_revenue : null;
+
+                      // Shared cell style — right border only for column sep, bottom only on last sub-row
+                      const tdBase   = "border-r border-gray-100";
+                      const tdLast   = `border-r border-gray-100 ${sepBorder}`;
 
                       return (
                         <React.Fragment key={f.key}>
 
                           {/* ── ACTUAL row ── */}
                           <tr style={{ background: bg }}>
-                            <td rowSpan={rowCount} className="px-3 py-2 border border-gray-200 align-middle" style={{ background: bg }}>
+                            <td rowSpan={rowCount} className={`px-3 py-2 border-r border-gray-200 align-middle ${sepBorder}`} style={{ background: bg }}>
                               <div className="flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
                                 <span className={`text-[11px] font-bold ${isRevenue ? "text-sky-700" : "text-gray-700"}`}>{f.label}</span>
@@ -274,7 +277,7 @@ export default function COGSPage() {
                                 <div className="text-[9px] text-gray-400 mt-0.5 pl-3">formula est.</div>
                               )}
                             </td>
-                            <td className="px-2 py-1 border border-gray-200 text-[10px] font-semibold text-gray-500 whitespace-nowrap" style={{ background: bg }}>
+                            <td className={`px-2 py-1 ${tdBase} text-[10px] font-semibold text-gray-500`} style={{ background: bg }}>
                               Actual
                             </td>
                             {rows.map(row => {
@@ -283,8 +286,8 @@ export default function COGSPage() {
                               const isOver = f.overrideKey ? (row[f.overrideKey] as boolean) : false;
                               const bg2    = cellBg(row.month) ?? bg;
                               return (
-                                <td key={row.month} className="px-1 py-0.5 border border-gray-200" style={{ background: bg2 }}>
-                                  {future ? null : (
+                                <td key={row.month} className={`px-1 py-0.5 ${tdBase}`} style={{ background: bg2 }}>
+                                  {!future && (
                                     <ActualCell
                                       value={actual} isAuto={f.isAuto} isOverridden={isOver} isRevenue={isRevenue}
                                       onSave={v => handleSave(row.month, f, v)}
@@ -294,12 +297,12 @@ export default function COGSPage() {
                                 </td>
                               );
                             })}
-                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                            <td className={`px-2 py-1 text-center ${tdBase}`} style={{ background: "#f0fdf4" }}>
                               <span className={`text-xs font-bold ${annualActual > 0 ? (isRevenue ? "text-sky-700" : "text-gray-800") : "text-gray-300"}`}>
                                 {annualActual > 0 ? fmt.format(annualActual) : "—"}
                               </span>
                             </td>
-                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                            <td className="px-2 py-1 text-center" style={{ background: "#f0fdf4" }}>
                               {!isRevenue && annualPct !== null && (
                                 <span className="text-xs font-semibold text-gray-600">{fmtPct(annualPct)}</span>
                               )}
@@ -307,27 +310,27 @@ export default function COGSPage() {
                           </tr>
 
                           {/* ── BUDGETED row ── */}
-                          <tr style={{ background: bgBudget }}>
-                            <td className="px-2 py-1 border border-gray-200 text-[10px] text-gray-400 italic" style={{ background: bgBudget }}>
+                          <tr style={{ background: bg }}>
+                            <td className={`px-2 py-0.5 ${f.hasPercent ? tdBase : tdLast} text-[10px] text-gray-400 italic`} style={{ background: bg }}>
                               Budgeted
                             </td>
                             {rows.map(row => {
                               const budget = row[`budget_${f.key}` as keyof MonthCOGS] as number;
-                              const bg2    = cellBg(row.month) ?? bgBudget;
+                              const bg2    = cellBg(row.month) ?? bg;
                               return (
-                                <td key={row.month} className="px-1 py-0.5 border border-gray-200 text-center" style={{ background: bg2 }}>
-                                  <span className={`text-[11px] ${budget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-500") : "text-gray-200"}`}>
+                                <td key={row.month} className={`px-1 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: bg2 }}>
+                                  <span className={`text-[11px] ${budget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-400") : "text-gray-200"}`}>
                                     {budget > 0 ? fmt.format(budget) : ""}
                                   </span>
                                 </td>
                               );
                             })}
-                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
-                              <span className={`text-[11px] ${annualBudget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-500") : "text-gray-200"}`}>
+                            <td className={`px-2 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: "#f0fdf4" }}>
+                              <span className={`text-[11px] ${annualBudget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-400") : "text-gray-200"}`}>
                                 {annualBudget > 0 ? fmt.format(annualBudget) : "—"}
                               </span>
                             </td>
-                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                            <td className={`px-2 py-0.5 text-center ${f.hasPercent ? "" : sepBorder}`} style={{ background: "#f0fdf4" }}>
                               {!isRevenue && annualBudPct !== null && (
                                 <span className="text-[10px] text-gray-400">{fmtPct(annualBudPct)}</span>
                               )}
@@ -336,23 +339,23 @@ export default function COGSPage() {
 
                           {/* ── % row ── */}
                           {f.hasPercent && (
-                            <tr style={{ background: bgPct }}>
-                              <td className="px-2 py-0.5 border border-gray-200 text-[10px] text-gray-400" style={{ background: bgPct }}>
+                            <tr style={{ background: bg }}>
+                              <td className={`px-2 py-0.5 ${tdLast} text-[10px] text-gray-400`} style={{ background: bg }}>
                                 %
                               </td>
                               {rows.map(row => {
                                 const future = isFuture(row.month);
                                 const actual = row[f.key] as number;
                                 const p      = !future && row.revenue > 0 ? actual / row.revenue : null;
-                                const bg2    = cellBg(row.month) ?? bgPct;
+                                const bg2    = cellBg(row.month) ?? bg;
                                 return (
-                                  <td key={row.month} className="px-1 py-0.5 border border-gray-200 text-center" style={{ background: bg2 }}>
+                                  <td key={row.month} className={`px-1 py-0.5 text-center ${tdLast}`} style={{ background: bg2 }}>
                                     {p !== null && <span className="text-[10px] text-gray-500">{fmtPct(p)}</span>}
                                   </td>
                                 );
                               })}
-                              <td className="border border-gray-100" style={{ background: "#f0fdf4" }} />
-                              <td className="border border-gray-100" style={{ background: "#f0fdf4" }} />
+                              <td className={`px-2 py-0.5 ${tdLast}`} style={{ background: "#f0fdf4" }} />
+                              <td className={`px-2 py-0.5 ${sepBorder}`} style={{ background: "#f0fdf4" }} />
                             </tr>
                           )}
 
