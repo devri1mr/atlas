@@ -228,11 +228,7 @@ export default function UpcomingRevenuePage() {
       const res = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          month: dates[0].slice(0, 7),
-          start: dates[0],
-          end:   dates[6],
-        }),
+        body: JSON.stringify({ month: dates[0].slice(0, 7) }),
       });
       if (res.ok) {
         setSyncState("ok");

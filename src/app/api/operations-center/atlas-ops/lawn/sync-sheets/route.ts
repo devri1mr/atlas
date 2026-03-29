@@ -17,16 +17,16 @@ export async function POST(req: NextRequest) {
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const body = await req.json().catch(() => ({}));
-    const { month, start, end } = body as { month?: string; start?: string; end?: string };
-    if (!month || !start || !end) {
-      return NextResponse.json({ error: "month, start, end required" }, { status: 400 });
+    const { month } = body as { month?: string };
+    if (!month) {
+      return NextResponse.json({ error: "month required" }, { status: 400 });
     }
 
     const monthStart = `${month}-01`;
     const monthEnd   = `${month}-31`;
 
-    // Fetch month summary + week rows in parallel
-    const [{ data: reports }, { data: planned }, { data: weekRows }] = await Promise.all([
+    // Fetch month actuals + planned in parallel
+    const [{ data: reports }, { data: planned }] = await Promise.all([
       sb
         .from("lawn_production_reports")
         .select("report_date, lawn_production_jobs(lawn_production_members(earned_amount))")
@@ -40,13 +40,6 @@ export async function POST(req: NextRequest) {
         .eq("company_id", company.id)
         .gte("date", monthStart)
         .lte("date", monthEnd),
-      sb
-        .from("lawn_upcoming_revenue")
-        .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
-        .eq("company_id", company.id)
-        .gte("date", start)
-        .lte("date", end)
-        .order("date"),
     ]);
 
     const completedDates = new Set((reports ?? []).map((r: any) => r.report_date as string));
