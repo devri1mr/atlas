@@ -76,6 +76,7 @@ type Report = {
   report_date: string;
   file_name: string | null;
   imported_at: string;
+  is_complete: boolean;
   total_budgeted_hours: number;
   total_actual_hours: number;
   total_payroll_cost?: number;
@@ -811,6 +812,15 @@ export default function LawnPage() {
     setLoadingRep(false);
   }
 
+  async function toggleComplete(id: string, current: boolean) {
+    setReports(prev => prev.map(r => r.id === id ? { ...r, is_complete: !current } : r));
+    await fetch("/api/operations-center/atlas-ops/lawn/reports", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, is_complete: !current }),
+    });
+  }
+
   async function deleteReport(id: string) {
     if (!confirm("Delete this report? This cannot be undone.")) return;
     await fetch(`/api/operations-center/atlas-ops/lawn/reports?id=${id}`, { method: "DELETE" });
@@ -962,12 +972,13 @@ export default function LawnPage() {
           ) : (
             <div className="divide-y divide-emerald-100">
               {/* Header — grid must match data row grid exactly */}
-              <div className="grid grid-cols-[1fr_6rem_8rem_6rem_7rem_5rem] items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
+              <div className="grid grid-cols-[1fr_6rem_8rem_6rem_7rem_7rem_4rem] items-center text-xs font-semibold text-emerald-900/60 bg-emerald-50/40 px-4 py-2.5">
                 <div>Date</div>
                 <div className="text-center">Total Hrs</div>
                 <div className="text-center">Revenue</div>
                 <div className="text-center">Labor %</div>
                 <div className="text-center">Efficiency</div>
+                <div className="text-center">Status</div>
                 <div />
               </div>
               {reports.map(r => {
@@ -982,7 +993,7 @@ export default function LawnPage() {
                 return (
                   <div key={r.id}>
                     {/* Summary row — same grid as header */}
-                    <div className={`grid grid-cols-[1fr_6rem_8rem_6rem_7rem_5rem] items-center text-sm px-4 py-2.5 hover:bg-emerald-50/30 ${isOpen ? "bg-emerald-50/20" : ""}`}>
+                    <div className={`grid grid-cols-[1fr_6rem_8rem_6rem_7rem_7rem_4rem] items-center text-sm px-4 py-2.5 hover:bg-emerald-50/30 ${isOpen ? "bg-emerald-50/20" : ""}`}>
                       <div className="min-w-0">
                         <button onClick={() => toggleReport(r.id, r.report_date)} className="flex items-center gap-2 text-left">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -1000,6 +1011,23 @@ export default function LawnPage() {
                       </div>
                       <div className="text-center">
                         {effPct != null ? <span className={effPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(effPct)}</span> : "—"}
+                      </div>
+                      {/* Complete toggle */}
+                      <div className="flex items-center justify-center">
+                        <button
+                          onClick={() => toggleComplete(r.id, r.is_complete)}
+                          title={r.is_complete ? "Mark as incomplete (unlock upcoming revenue)" : "Mark as complete (lock upcoming revenue, use actual)"}
+                          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+                            r.is_complete
+                              ? "bg-emerald-500 border-emerald-500 text-white shadow-sm"
+                              : "bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-600"
+                          }`}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          {r.is_complete ? "Official" : "Complete"}
+                        </button>
                       </div>
                       <div className="text-center">
                         <button onClick={() => deleteReport(r.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>

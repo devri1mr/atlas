@@ -22,13 +22,14 @@ export async function GET(req: NextRequest) {
       const monthEnd   = `${summaryMonth}-31`;
 
       const [{ data: reports }, { data: planned }] = await Promise.all([
-        // Actual revenue from completed production reports (through yesterday)
+        // Actual revenue from completed (is_complete=true) production reports only
         sb
           .from("lawn_production_reports")
           .select("lawn_production_jobs(lawn_production_members(earned_amount))")
           .eq("company_id", company.id)
+          .eq("is_complete", true)
           .gte("report_date", monthStart)
-          .lt("report_date", today),
+          .lte("report_date", monthEnd),
         // Planned revenue from today onwards in the month
         sb
           .from("lawn_upcoming_revenue")
@@ -55,6 +56,31 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json({ actual, planned: plannedTotal });
+    }
+
+    // ── Locked dates (completed imports) for a date range ──────────────────────
+    // Returns [{ date, actual_revenue }] for is_complete = true reports
+    const lockedStart = searchParams.get("locked_start");
+    const lockedEnd   = searchParams.get("locked_end");
+    if (lockedStart && lockedEnd) {
+      const { data: reports } = await sb
+        .from("lawn_production_reports")
+        .select("report_date, lawn_production_jobs(lawn_production_members(earned_amount))")
+        .eq("company_id", company.id)
+        .eq("is_complete", true)
+        .gte("report_date", lockedStart)
+        .lte("report_date", lockedEnd);
+
+      const locked = (reports ?? []).map((r: any) => {
+        let actual = 0;
+        for (const job of r.lawn_production_jobs ?? []) {
+          for (const m of job.lawn_production_members ?? []) {
+            actual += Number(m.earned_amount ?? 0);
+          }
+        }
+        return { date: r.report_date as string, actual_revenue: actual };
+      });
+      return NextResponse.json(locked);
     }
 
     // ── Week planned rows ───────────────────────────────────────────────────────

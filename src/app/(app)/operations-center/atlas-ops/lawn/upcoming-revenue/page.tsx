@@ -23,6 +23,7 @@ type DayRow = {
 };
 
 type MonthSummary = { actual: number; planned: number };
+type LockedDate  = { date: string; actual_revenue: number };
 
 // ── Date helpers (local time — avoids UTC-shift bug) ──────────────────────────
 
@@ -131,6 +132,7 @@ export default function UpcomingRevenuePage() {
   const [data, setData]                 = useState<Map<string, DayRow>>(new Map());
   const [saving, setSaving]             = useState<Set<string>>(new Set());
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
+  const [lockedDates, setLockedDates]   = useState<Map<string, number>>(new Map()); // date → actual_revenue
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -144,19 +146,27 @@ export default function UpcomingRevenuePage() {
     return months.join(" / ");
   })();
 
-  // Load week planned revenue
+  // Load week planned revenue + locked dates (completed imports)
   const load = useCallback(async () => {
     const start = dates[0];
     const end   = dates[6];
-    const res = await fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?start=${start}&end=${end}`);
-    if (!res.ok) return;
-    const rows: DayRow[] = await res.json();
-    setData(prev => {
-      const next = new Map(prev);
-      for (const d of dates) next.delete(d);
-      for (const r of rows) next.set(r.date, r);
-      return next;
-    });
+    const [plannedRes, lockedRes] = await Promise.all([
+      fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?start=${start}&end=${end}`),
+      fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?locked_start=${start}&locked_end=${end}`),
+    ]);
+    if (plannedRes.ok) {
+      const rows: DayRow[] = await plannedRes.json();
+      setData(prev => {
+        const next = new Map(prev);
+        for (const d of dates) next.delete(d);
+        for (const r of rows) next.set(r.date, r);
+        return next;
+      });
+    }
+    if (lockedRes.ok) {
+      const locked: LockedDate[] = await lockedRes.json();
+      setLockedDates(new Map(locked.map(l => [l.date, l.actual_revenue])));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset]);
 
@@ -195,7 +205,8 @@ export default function UpcomingRevenuePage() {
     }
   }
 
-  const weekRev     = weekTotal(data, dates);
+  const weekRev = dates.reduce((s, d) =>
+    s + (lockedDates.has(d) ? lockedDates.get(d)! : dayTotal(data.get(d) ?? {} as DayRow)), 0);
   const projection  = monthSummary ? monthSummary.actual + monthSummary.planned : null;
   const curMonthLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
@@ -256,19 +267,25 @@ export default function UpcomingRevenuePage() {
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                   </th>
                   {dates.map(date => {
-                    const isToday = date === today;
-                    const isPast  = date < today;
+                    const isToday  = date === today;
+                    const isPast   = date < today;
+                    const isLocked = lockedDates.has(date);
                     return (
                       <th key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ minWidth: 100, background: isToday ? BG_TODAY_H : BG_HEADER }}>
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : isPast ? "text-white/30" : "text-white/60"}`}>
+                          <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : isPast ? "text-white/40" : "text-white/60"}`}>
                             {dayLabel(date)}
                           </span>
-                          <span className={`text-sm font-semibold ${isToday ? "text-white" : isPast ? "text-white/30" : "text-white/80"}`}>
+                          <span className={`text-sm font-semibold ${isToday ? "text-white" : isPast ? "text-white/50" : "text-white/80"}`}>
                             {dateLabel(date)}
                           </span>
                           {isToday && <span className="w-1 h-1 rounded-full bg-emerald-400 mt-0.5" />}
+                          {isLocked && (
+                            <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                              Official
+                            </span>
+                          )}
                         </div>
                       </th>
                     );
@@ -284,14 +301,14 @@ export default function UpcomingRevenuePage() {
                     <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Lawn Total</span>
                   </td>
                   {dates.map(date => {
-                    const row     = data.get(date);
-                    const total   = row ? dayTotal(row) : 0;
-                    const isToday = date === today;
-                    const isPast  = date < today;
+                    const row      = data.get(date);
+                    const isLocked = lockedDates.has(date);
+                    const total    = isLocked ? lockedDates.get(date)! : (row ? dayTotal(row) : 0);
+                    const isToday  = date === today;
                     return (
                       <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ background: isToday ? BG_TODAY_H : BG_TOTAL }}>
-                        <span className={`text-sm font-bold ${total > 0 ? (isPast ? "text-white/40" : isToday ? "text-emerald-300" : "text-white") : "text-white/20"}`}>
+                        <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/20"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
                         {saving.has(date) && <span className="block text-[10px] text-emerald-400/60 mt-0.5">saving…</span>}
@@ -319,14 +336,14 @@ export default function UpcomingRevenuePage() {
                         </div>
                       </td>
                       {dates.map(date => {
-                        const row     = data.get(date);
-                        const val     = row?.[cat.key] ?? 0;
-                        const isToday = date === today;
-                        const isPast  = date < today;
+                        const row      = data.get(date);
+                        const val      = row?.[cat.key] ?? 0;
+                        const isToday  = date === today;
+                        const isLocked = lockedDates.has(date);
+                        const bgColor  = isToday ? "#ecfdf5" : isLocked ? "#f0fdf4" : ci % 2 === 0 ? "#fff" : "#f9fafb";
                         return (
-                          <td key={date} className="px-2 py-1.5 border border-gray-200"
-                            style={{ background: isToday ? "#ecfdf5" : isPast ? "#f9fafb" : ci % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                            <EditCell value={val} disabled={isPast} onSave={v => handleSave(date, cat.key, v)} />
+                          <td key={date} className="px-2 py-1.5 border border-gray-200" style={{ background: bgColor }}>
+                            <EditCell value={val} disabled={isLocked} onSave={v => handleSave(date, cat.key, v)} />
                           </td>
                         );
                       })}
@@ -345,14 +362,14 @@ export default function UpcomingRevenuePage() {
                 <tr>
                   <td className="px-5 py-3 text-xs font-bold text-white border border-emerald-900/50" style={{ background: BG_HEADER }}>Daily Total</td>
                   {dates.map(date => {
-                    const row     = data.get(date);
-                    const total   = row ? dayTotal(row) : 0;
-                    const isToday = date === today;
-                    const isPast  = date < today;
+                    const row      = data.get(date);
+                    const isLocked = lockedDates.has(date);
+                    const total    = isLocked ? lockedDates.get(date)! : (row ? dayTotal(row) : 0);
+                    const isToday  = date === today;
                     return (
                       <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ background: isToday ? BG_TODAY_H : BG_HEADER }}>
-                        <span className={`text-xs font-bold ${total > 0 ? (isPast ? "text-white/40" : "text-emerald-300") : "text-white/20"}`}>
+                        <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/20"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
                       </td>
@@ -399,7 +416,7 @@ export default function UpcomingRevenuePage() {
         )}
 
         <p className="text-center text-xs text-gray-400">
-          Click any cell to enter planned revenue · Saves automatically · Past days are read-only
+          Click any cell to enter planned revenue · Saves automatically · Official days (completed imports) are locked
         </p>
       </div>
     </div>

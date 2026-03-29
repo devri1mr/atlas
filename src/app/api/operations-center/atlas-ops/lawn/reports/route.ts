@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       const { data: report, error } = await sb
         .from("lawn_production_reports")
         .select(`
-          id, report_date, file_name, imported_at,
+          id, report_date, file_name, imported_at, is_complete,
           total_budgeted_hours, total_actual_hours, total_budgeted_amount, total_actual_amount,
           lawn_production_jobs (
             id, work_order, client_name, client_address, service, service_date,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await sb
       .from("lawn_production_reports")
       .select(`
-        id, report_date, file_name, imported_at,
+        id, report_date, file_name, imported_at, is_complete,
         total_budgeted_hours, total_actual_hours, total_budgeted_amount, total_actual_amount,
         lawn_production_jobs ( lawn_production_members ( employee_id, resource_name, payroll_cost, earned_amount ) )
       `)
@@ -96,6 +96,30 @@ export async function DELETE(req: NextRequest) {
     const { error } = await sb
       .from("lawn_production_reports")
       .delete()
+      .eq("id", id)
+      .eq("company_id", company.id);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
+// PATCH — toggle is_complete on a report
+// body: { id, is_complete }
+export async function PATCH(req: NextRequest) {
+  try {
+    const sb = supabaseAdmin();
+    const { data: company } = await sb.from("companies").select("id").limit(1).single();
+    if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+    const { id, is_complete } = await req.json();
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    const { error } = await sb
+      .from("lawn_production_reports")
+      .update({ is_complete: !!is_complete })
       .eq("id", id)
       .eq("company_id", company.id);
 
