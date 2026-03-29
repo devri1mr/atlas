@@ -278,10 +278,9 @@ export default function UpcomingRevenuePage() {
                   </th>
                   {dates.map(date => {
                     const isToday = date === today;
-                    const weekend = isWeekend(date);
-                    return (
+                                        return (
                       <th key={date} className="px-2 py-3 text-center" style={{ minWidth: 90 }}>
-                        <div className={`flex flex-col items-center gap-0.5 ${weekend ? "opacity-40" : ""}`}>
+                        <div className="flex flex-col items-center gap-0.5">
                           <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : "text-white/50"}`}>
                             {dayLabel(date)}
                           </span>
@@ -310,7 +309,7 @@ export default function UpcomingRevenuePage() {
                     const weekend = isWeekend(date);
                     const isToday = date === today;
                     return (
-                      <td key={date} className={`px-2 py-3 text-center ${weekend ? "opacity-40" : ""}`}>
+                      <td key={date} className={`px-2 py-3 text-center `}>
                         <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
@@ -355,7 +354,6 @@ export default function UpcomingRevenuePage() {
                           >
                             <EditCell
                               value={val}
-                              disabled={weekend}
                               onSave={v => handleSave(date, cat.key, v)}
                             />
                           </td>
@@ -380,7 +378,7 @@ export default function UpcomingRevenuePage() {
                     const total = row ? dayTotal(row) : 0;
                     const weekend = isWeekend(date);
                     return (
-                      <td key={date} className={`px-2 py-3 text-center ${weekend ? "opacity-40" : ""}`}>
+                      <td key={date} className={`px-2 py-3 text-center `}>
                         <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
@@ -401,7 +399,7 @@ export default function UpcomingRevenuePage() {
 
         {/* Tip */}
         <p className="text-center text-xs text-gray-400 mt-4">
-          Click any cell to enter planned revenue · Saves automatically · Weekends are read-only
+          Click any cell to enter planned revenue · Saves automatically
         </p>
       </div>
     </div>
