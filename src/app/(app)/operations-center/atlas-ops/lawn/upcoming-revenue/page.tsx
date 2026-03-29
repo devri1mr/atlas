@@ -225,15 +225,16 @@ export default function UpcomingRevenuePage() {
   const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   async function handleSyncSheets() {
+    if (!monthSummary) return;
     setSyncState("syncing");
-    // Open tab immediately (synchronous = popup blocker won't fire)
     const win = window.open("about:blank", "_blank");
     try {
       const ym = dates[0].slice(0, 7);
+      const proj = monthSummary.actual + monthSummary.planned;
       const syncRes = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: ym }),
+        body: JSON.stringify({ month: ym, projection: proj }),
       });
       if (!syncRes.ok) {
         win?.close();
@@ -241,7 +242,6 @@ export default function UpcomingRevenuePage() {
         throw new Error(j.error ?? `HTTP ${syncRes.status}`);
       }
       const { scriptUrl } = await syncRes.json();
-      // Navigate the tab to Apps Script URL — full browser nav uses your Google session
       if (win) win.location.href = scriptUrl;
       setTimeout(() => win?.close(), 4000);
       setSyncState("ok");
