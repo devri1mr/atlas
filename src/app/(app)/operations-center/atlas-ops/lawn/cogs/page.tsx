@@ -215,16 +215,52 @@ export default function CogsPage() {
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
 
-      {/* ── Header ── */}
-      <div className="px-6 py-4 flex items-center justify-between" style={{ background: BG }}>
-        <div>
-          <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">Lawn Division</div>
-          <div className="text-xl font-black text-white">Cost of Goods Sold</div>
+      {/* ── Hero ── */}
+      <div className="px-6 py-5" style={{ background: BG }}>
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
+          <div>
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-1">Lawn Division</div>
+            <div className="text-2xl font-black text-white">Cost of Goods Sold</div>
+          </div>
+          <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
+            <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+            <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
+            <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
+          </div>
         </div>
-        <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-          <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
-          <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
-          <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
+
+        {/* KPI chips */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: "YTD Revenue",
+              value: fmt.format(ytd.revenue),
+              budget: ytd.bRevenue > 0 ? `Budget ${fmtK(ytd.bRevenue)}` : null,
+              color: "#7dd3fc",
+            },
+            {
+              label: "Gross Profit",
+              value: fmt.format(ytd.gp),
+              budget: ytdBudgetGP !== 0 ? `Budget ${fmtK(ytdBudgetGP)}` : null,
+              color: ytd.gp >= 0 ? "#6ee7b7" : "#fca5a5",
+            },
+            {
+              label: "GP Margin",
+              value: ytdMargin !== null ? fmtPct(ytdMargin) : "—",
+              budget: ytdBudgetMgn !== null ? `Budget ${fmtPct(ytdBudgetMgn)}` : null,
+              color: ytdMargin !== null
+                ? ytdMargin >= 0.35 ? "#6ee7b7"
+                : ytdMargin >= 0.20 ? "#fde68a"
+                : "#fca5a5"
+                : "#9ca3af",
+            },
+          ].map(chip => (
+            <div key={chip.label} className="bg-white/10 rounded-xl px-4 py-3">
+              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">{chip.label}</div>
+              <div className="text-2xl font-black" style={{ color: chip.color }}>{chip.value}</div>
+              {chip.budget && <div className="text-xs text-white/40 mt-0.5">{chip.budget}</div>}
+            </div>
+          ))}
         </div>
       </div>
 
