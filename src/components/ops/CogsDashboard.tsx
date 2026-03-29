@@ -338,12 +338,12 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                                     <ActualCell
                                       value={actualVal}
                                       isAuto={row.isAuto}
-                                      color={row.color}
+                                      color={isCurrCol && row.key !== "revenue" ? "#111827" : row.color}
                                       onSave={v  => handleSave(r.month, row.apiField, v)}
                                       onClear={() => handleSave(r.month, row.apiField, null)}
                                     />
                                     {budgetVal > 0 && (
-                                      <span className="text-xs text-gray-400 font-medium">{fmt.format(budgetVal)}</span>
+                                      <span className={`text-xs font-medium ${isCurrCol ? "text-gray-600" : "text-gray-400"}`}>{fmt.format(budgetVal)}</span>
                                     )}
                                     {row.showRevPct && (
                                       <RevPctBadge value={actualVal} revenue={r.revenue} />
