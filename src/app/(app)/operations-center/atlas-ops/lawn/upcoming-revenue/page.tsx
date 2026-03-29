@@ -29,14 +29,6 @@ type DayRow = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function isoWeekStart(d: Date): Date {
-  const dt = new Date(d);
-  const day = dt.getUTCDay();
-  dt.setUTCDate(dt.getUTCDate() - (day === 0 ? 6 : day - 1));
-  dt.setUTCHours(0, 0, 0, 0);
-  return dt;
-}
-
 function addDays(d: Date, n: number): Date {
   const dt = new Date(d);
   dt.setUTCDate(dt.getUTCDate() + n);
@@ -45,8 +37,8 @@ function addDays(d: Date, n: number): Date {
 
 function toISO(d: Date) { return d.toISOString().slice(0, 10); }
 
-function weekDates(mon: Date): string[] {
-  return Array.from({ length: 7 }, (_, i) => toISO(addDays(mon, i)));
+function rollingDates(start: Date): string[] {
+  return Array.from({ length: 7 }, (_, i) => toISO(addDays(start, i)));
 }
 
 const money = (n: number) =>
@@ -151,11 +143,9 @@ export default function UpcomingRevenuePage() {
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const today = toISO(new Date());
 
-  // Compute current displayed week — filter past dates when on current week
-  const baseMon = isoWeekStart(new Date());
-  const mon = addDays(baseMon, weekOffset * 7);
-  const allDates = weekDates(mon);
-  const dates = weekOffset === 0 ? allDates.filter(d => d >= today) : allDates;
+  // Rolling 7-day window starting from today + offset
+  const windowStart = addDays(new Date(today + "T00:00:00Z"), weekOffset * 7);
+  const dates = rollingDates(windowStart);
 
   const monthLabel = (() => {
     const months = [...new Set(dates.map(d => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })))];
@@ -164,13 +154,12 @@ export default function UpcomingRevenuePage() {
 
   const load = useCallback(async () => {
     const start = dates[0];
-    const end   = dates[6];
+    const end   = dates[dates.length - 1];
     const res = await fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?start=${start}&end=${end}`);
     if (!res.ok) return;
     const rows: DayRow[] = await res.json();
     setData(prev => {
       const next = new Map(prev);
-      // Clear this week's dates first
       for (const d of dates) next.delete(d);
       for (const r of rows) next.set(r.date, r);
       return next;
@@ -249,7 +238,7 @@ export default function UpcomingRevenuePage() {
                 onClick={() => setWeekOffset(0)}
                 className={`text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${weekOffset === 0 ? "bg-emerald-500 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}
               >
-                This Week
+                Today
               </button>
               <button
                 onClick={() => setWeekOffset(w => w + 1)}
