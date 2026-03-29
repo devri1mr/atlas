@@ -224,32 +224,18 @@ export default function UpcomingRevenuePage() {
   const projection     = monthSummary ? monthSummary.actual + monthSummary.planned : null;
   const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
-  async function handleSyncSheets() {
+  function handleSyncSheets() {
     if (!monthSummary) return;
-    setSyncState("syncing");
-    const win = window.open("about:blank", "_blank");
-    try {
-      const ym = dates[0].slice(0, 7);
-      const proj = monthSummary.actual + monthSummary.planned;
-      const syncRes = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: ym, projection: proj }),
-      });
-      if (!syncRes.ok) {
-        win?.close();
-        const j = await syncRes.json().catch(() => ({}));
-        throw new Error(j.error ?? `HTTP ${syncRes.status}`);
-      }
-      const { scriptUrl } = await syncRes.json();
-      if (win) win.location.href = scriptUrl;
-      setTimeout(() => win?.close(), 4000);
-      setSyncState("ok");
-    } catch (e: any) {
-      win?.close();
-      setSyncError(e.message ?? "Error");
-      setSyncState("error");
-    }
+    const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
+    if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000); return; }
+    const ym   = dates[0].slice(0, 7);
+    const proj = monthSummary.actual + monthSummary.planned;
+    const url  = new URL(webhookUrl);
+    url.searchParams.set("month",      ym);
+    url.searchParams.set("projection", String(proj));
+    const win  = window.open(url.toString(), "_blank");
+    setTimeout(() => win?.close(), 4000);
+    setSyncState("ok");
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
   }
 
