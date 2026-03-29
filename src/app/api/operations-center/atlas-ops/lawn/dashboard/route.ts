@@ -103,6 +103,7 @@ export async function GET() {
           )
         `)
         .eq("company_id", company.id)
+        .eq("is_complete", true)
         .gte("report_date", yearStart)
         .lte("report_date", yearEnd)
         .order("report_date"),
