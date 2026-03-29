@@ -137,6 +137,7 @@ export default function UpcomingRevenuePage() {
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
   const [lockedDates, setLockedDates]   = useState<Map<string, number>>(new Map());
   const [syncState, setSyncState]       = useState<SyncState>("idle");
+  const [syncError, setSyncError]       = useState("");
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -233,11 +234,18 @@ export default function UpcomingRevenuePage() {
           end:   dates[6],
         }),
       });
-      setSyncState(res.ok ? "ok" : "error");
-    } catch {
+      if (res.ok) {
+        setSyncState("ok");
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setSyncError(json.error ?? `HTTP ${res.status}`);
+        setSyncState("error");
+      }
+    } catch (e: any) {
+      setSyncError(e.message ?? "Network error");
       setSyncState("error");
     }
-    setTimeout(() => setSyncState("idle"), 3000);
+    setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 6000);
   }
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
@@ -282,7 +290,7 @@ export default function UpcomingRevenuePage() {
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
               </svg>
-              {syncState === "syncing" ? "Syncing…" : syncState === "ok" ? "Synced ✓" : syncState === "error" ? "Error" : "Sync to Sheets"}
+              {syncState === "syncing" ? "Syncing…" : syncState === "ok" ? "Synced ✓" : syncState === "error" ? `Error: ${syncError}` : "Sync to Sheets"}
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button
