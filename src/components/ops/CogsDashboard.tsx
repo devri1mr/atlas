@@ -268,7 +268,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-3 py-2 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)", borderBottom: "2px solid rgba(255,255,255,0.4)" }}>
+                      <th className="px-3 py-2 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
@@ -278,13 +278,13 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           <th
                             key={m}
                             className="py-2 text-center"
-                            style={{ background: isCurr ? "#fefce8" : BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)", borderBottom: isCurr ? "2px solid #6b7280" : "2px solid rgba(255,255,255,0.4)" }}
+                            style={{ background: isCurr ? "#fefce8" : BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-gray-900" : "text-xs text-white/70"}`}>{m}</span>
                           </th>
                         );
                       })}
-                      <th className="py-2 text-center" style={{ background: BG_FOOT_TOT, minWidth: 90, borderBottom: "2px solid rgba(255,255,255,0.4)" }}>
+                      <th className="py-2 text-center" style={{ background: BG_FOOT_TOT, minWidth: 90 }}>
                         <span className="text-xs font-bold text-white/50 uppercase tracking-widest">YTD</span>
                       </th>
                     </tr>
