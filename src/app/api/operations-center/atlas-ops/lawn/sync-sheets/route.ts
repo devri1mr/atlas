@@ -69,21 +69,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const payload = {
-      month,
-      actual,
-      planned: plannedTotal,
-      projection: actual + plannedTotal,
-      week_rows: weekRows ?? [],
-    };
+    const projection = actual + plannedTotal;
 
-    // Forward to Apps Script web app
-    const sheetRes = await fetch(webhookUrl, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(payload),
-      redirect: "follow",
-    });
+    // Use GET with query params — avoids Apps Script POST redirect body-loss issue
+    const url = new URL(webhookUrl);
+    url.searchParams.set("month",      month);
+    url.searchParams.set("projection", String(projection));
+
+    const sheetRes = await fetch(url.toString(), { method: "GET", redirect: "follow" });
 
     const text = await sheetRes.text();
     let sheetJson: any = {};
@@ -93,7 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sheets webhook failed", detail: sheetJson }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true, synced: payload, sheets: sheetJson });
+    return NextResponse.json({ ok: true, month, projection, sheets: sheetJson });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
