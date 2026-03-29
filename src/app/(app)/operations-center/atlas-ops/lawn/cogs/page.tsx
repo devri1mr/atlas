@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 
 type MonthCOGS = {
   month: number;
@@ -28,7 +27,6 @@ const FIELDS: FieldDef[] = [
 ];
 
 const MONTHS      = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmt    = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fmtPct = (n: number) => `${(n * 100).toFixed(0)}%`;
 const BG     = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
@@ -62,44 +60,6 @@ function InlineEdit({ value, isAuto, onSave, onClear }: {
       className={`w-full text-center text-xs font-semibold rounded py-0.5 hover:bg-black/5 transition-colors ${value > 0 ? "text-gray-900" : "text-gray-300"}`}>
       {value > 0 ? fmt.format(value) : "—"}
     </button>
-  );
-}
-
-// ── Spotlight KPI card (current month) ────────────────────────────────────────
-
-function KpiCard({ label, actual, budget, pct, isRevenue }: {
-  label: string; actual: number; budget: number; pct: number | null; isRevenue?: boolean;
-}) {
-  const budgetPct = budget > 0 ? actual / budget : null;
-  const barW      = budget > 0 ? Math.min((actual / budget) * 100, 100) : 0;
-  const over      = budget > 0 && actual > budget;
-
-  return (
-    <div className="bg-white rounded-2xl px-5 py-4 flex flex-col gap-2 shadow-sm" style={{ border: "1px solid rgba(16,64,32,0.10)" }}>
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</div>
-      <div className={`text-2xl font-black ${isRevenue ? "text-gray-900" : "text-gray-900"}`}>
-        {actual > 0 ? fmt.format(actual) : <span className="text-gray-300">—</span>}
-      </div>
-      {budget > 0 && (
-        <>
-          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div className={`h-full rounded-full transition-all ${over ? "bg-red-400" : isRevenue ? "bg-emerald-500" : "bg-emerald-400"}`}
-              style={{ width: `${barW}%` }} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">Bud {fmt.format(budget)}</span>
-            {budgetPct !== null && (
-              <span className={`text-xs font-semibold ${isRevenue ? (over ? "text-emerald-600" : "text-gray-500") : (over ? "text-red-500" : "text-gray-500")}`}>
-                {fmtPct(budgetPct)}
-              </span>
-            )}
-          </div>
-        </>
-      )}
-      {pct !== null && !isRevenue && (
-        <div className="text-xs text-gray-400">{fmtPct(pct)} of revenue</div>
-      )}
-    </div>
   );
 }
 
@@ -177,9 +137,6 @@ export default function COGSPage() {
   const totalBudgetGP = totals.budget_revenue - totals.budget_labor - totals.budget_job_materials - totals.budget_fuel - totals.budget_equipment;
   const totalMargin   = totals.revenue > 0 ? totals.gross_profit / totals.revenue : null;
 
-  // Current month data for spotlight
-  const cur = rows.find(r => r.month === curMonth) ?? null;
-
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
 
@@ -209,37 +166,8 @@ export default function COGSPage() {
       ) : (
         <div className="p-5 space-y-6">
 
-          {/* ── Current month spotlight ── */}
-          {isCurYear && cur && (
-            <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 px-1">
-                {MONTHS_FULL[curMonth - 1]} — Month to Date
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {FIELDS.map(f => {
-                  const actual = cur[f.key] as number;
-                  const budget = cur[`budget_${f.key}` as keyof MonthCOGS] as number;
-                  const pct    = f.key !== "revenue" && cur.revenue > 0 ? actual / cur.revenue : null;
-                  return (
-                    <KpiCard key={f.key} label={f.label} actual={actual} budget={budget} pct={pct}
-                      isRevenue={f.key === "revenue"} />
-                  );
-                })}
-                {/* Gross Profit card */}
-                <KpiCard label="Gross Profit"
-                  actual={cur.gross_profit}
-                  budget={cur.budget_revenue - cur.budget_labor - cur.budget_job_materials - cur.budget_fuel - cur.budget_equipment}
-                  pct={cur.margin_pct}
-                  isRevenue />
-              </div>
-            </div>
-          )}
-
           {/* ── Annual grid ── */}
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 px-1">
-              Annual Overview — {year}
-            </div>
             <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
                 <table className="w-full" style={{ minWidth: 900, borderCollapse: "collapse" }}>
