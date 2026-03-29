@@ -453,9 +453,6 @@ export default function CogsPage() {
                                   {fmtPct(r.margin_pct)}
                                 </span>
                               )}
-                              {bMgn !== null && (
-                                <span className="text-xs text-white/40 font-medium">Budg: {fmtPct(bMgn)}</span>
-                              )}
                             </div>
                           </td>
                         );
@@ -469,9 +466,6 @@ export default function CogsPage() {
                             >
                               {fmtPct(ytdMargin)}
                             </span>
-                          )}
-                          {ytdBudgetMgn !== null && (
-                            <span className="text-xs text-white/40">Budg: {fmtPct(ytdBudgetMgn)}</span>
                           )}
                         </div>
                       </td>
