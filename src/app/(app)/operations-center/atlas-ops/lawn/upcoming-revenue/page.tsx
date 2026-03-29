@@ -233,11 +233,18 @@ export default function UpcomingRevenuePage() {
       if (!res.ok) throw new Error("Failed to fetch projection");
       const { actual, planned } = await res.json();
       const projection = actual + planned;
-      // Call Apps Script directly from browser — Google session handles auth
+      // Call Apps Script via hidden iframe — full browser redirect + Google session
       const url = new URL(webhookUrl);
       url.searchParams.set("month", ym);
       url.searchParams.set("projection", String(projection));
-      await fetch(url.toString(), { mode: "no-cors" });
+      await new Promise<void>(resolve => {
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = url.toString();
+        iframe.onload = () => { document.body.removeChild(iframe); resolve(); };
+        document.body.appendChild(iframe);
+        setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); resolve(); }, 8000);
+      });
       setSyncState("ok");
     } catch (e: any) {
       setSyncError(e.message ?? "Error");
