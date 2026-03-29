@@ -511,6 +511,119 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
   );
 }
 
+// ── COGS Widget ───────────────────────────────────────────────────────────────
+
+type CogsMonth = {
+  month: number;
+  revenue: number; labor: number; job_materials: number; fuel: number; equipment: number;
+  gross_profit: number; margin_pct: number | null;
+  budget_revenue: number; budget_labor: number; budget_job_materials: number; budget_fuel: number; budget_equipment: number;
+};
+
+function CogsWidget() {
+  const [data, setData] = useState<CogsMonth | null>(null);
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear  = now.getFullYear();
+  const monthName = MONTHS_FULL[curMonth - 1];
+
+  useEffect(() => {
+    fetch(`/api/operations-center/atlas-ops/lawn/cogs?year=${curYear}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((rows: CogsMonth[] | null) => {
+        if (!rows) return;
+        setData(rows.find(r => r.month === curMonth) ?? null);
+      });
+  }, [curYear, curMonth]);
+
+  const cogs = data ? data.labor + data.job_materials + data.fuel + data.equipment : 0;
+
+  function pctOfRev(val: number) {
+    if (!data || data.revenue <= 0) return null;
+    return val / data.revenue;
+  }
+
+  const rows: { label: string; val: number; bud: number; isRev?: boolean }[] = data ? [
+    { label: "Revenue",       val: data.revenue,       bud: data.budget_revenue,       isRev: true },
+    { label: "Labor",         val: data.labor,         bud: data.budget_labor },
+    { label: "Job Materials", val: data.job_materials, bud: data.budget_job_materials },
+    { label: "Fuel",          val: data.fuel,          bud: data.budget_fuel },
+    { label: "Equipment",     val: data.equipment,     bud: data.budget_equipment },
+  ] : [];
+
+  const marginColor = (m: number | null) => {
+    if (m == null) return "text-white/30";
+    if (m >= 0.35) return "text-emerald-300";
+    if (m >= 0.20) return "text-yellow-300";
+    return "text-red-400";
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
+      <div
+        className="flex items-center justify-between px-5 py-3.5"
+        style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+      >
+        <div>
+          <div className="text-sm font-semibold text-white">COGS — {monthName} {curYear}</div>
+          <div className="text-xs text-white/40 mt-0.5">Cost of Goods Sold · actuals vs budget</div>
+        </div>
+        <a
+          href="/operations-center/atlas-ops/lawn/cogs"
+          className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+        >
+          Full view →
+        </a>
+      </div>
+
+      {!data ? (
+        <div className="bg-white px-5 py-6 text-center text-sm text-gray-400">No data yet for {monthName}</div>
+      ) : (
+        <div className="bg-white divide-y divide-gray-50">
+          {rows.map(r => {
+            const p = r.isRev ? null : pctOfRev(r.val);
+            const budPct = r.bud > 0 ? r.val / r.bud : null;
+            return (
+              <div key={r.label} className="grid grid-cols-[7rem_1fr_5rem_5rem] items-center px-5 py-2.5 gap-3">
+                <span className="text-xs font-semibold text-gray-500">{r.label}</span>
+                {/* Budget bar */}
+                <div className="relative h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                  {r.bud > 0 && (
+                    <div
+                      className={`h-full rounded-full ${r.isRev ? "bg-sky-400" : budPct != null && budPct > 1 ? "bg-red-400" : "bg-emerald-400"}`}
+                      style={{ width: `${Math.min((r.val / r.bud) * 100, 100)}%` }}
+                    />
+                  )}
+                </div>
+                <span className={`text-xs font-bold text-right ${r.isRev ? "text-sky-700" : "text-gray-800"}`}>
+                  {money.format(r.val)}
+                </span>
+                <span className="text-xs text-right text-gray-400">
+                  {p != null ? `${Math.round(p * 100)}%` : r.bud > 0 ? `bud ${money.format(r.bud)}` : "—"}
+                </span>
+              </div>
+            );
+          })}
+          {/* Footer */}
+          <div
+            className="grid grid-cols-[7rem_1fr_5rem_5rem] items-center px-5 py-3 gap-3"
+            style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+          >
+            <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+            <div />
+            <span className={`text-xs font-bold text-right ${data.gross_profit >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+              {money.format(data.gross_profit)}
+            </span>
+            <span className={`text-xs font-bold text-right ${marginColor(data.margin_pct)}`}>
+              {data.margin_pct != null ? `${(data.margin_pct * 100).toFixed(1)}%` : "—"}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
 function StatChip({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -622,6 +735,9 @@ export default function LawnDashboard() {
 
         {/* Monthly */}
         <MonthlyTable data={dash?.monthly ?? []} />
+
+        {/* COGS */}
+        <CogsWidget />
 
         {/* Service Breakdown */}
         {(dash?.service_breakdown?.length ?? 0) > 0 && (

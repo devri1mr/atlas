@@ -9,6 +9,7 @@ const BASE_TABS = [
   { label: "Upcoming Revenue",  href: "/operations-center/atlas-ops/lawn/upcoming-revenue" },
   { label: "Imports",           href: "/operations-center/atlas-ops/lawn/imports" },
   { label: "Rankings",          href: "/operations-center/atlas-ops/lawn/rankings" },
+  { label: "COGS",              href: "/operations-center/atlas-ops/lawn/cogs" },
 ];
 
 const SUPER_ADMIN_EMAIL = "matthew@garpielgroup.com";
