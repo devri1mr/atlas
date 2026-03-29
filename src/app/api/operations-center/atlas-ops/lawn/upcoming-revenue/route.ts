@@ -4,7 +4,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET ?start=YYYY-MM-DD&end=YYYY-MM-DD
+// GET ?start=YYYY-MM-DD&end=YYYY-MM-DD   — week planned rows
+// GET ?summary=YYYY-MM                    — month projection (actual + planned)
 export async function GET(req: NextRequest) {
   try {
     const sb = supabaseAdmin();
@@ -12,6 +13,51 @@ export async function GET(req: NextRequest) {
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const { searchParams } = new URL(req.url);
+
+    // ── Month projection summary ────────────────────────────────────────────────
+    const summaryMonth = searchParams.get("summary"); // "YYYY-MM"
+    if (summaryMonth) {
+      const today     = new Date().toISOString().slice(0, 10);
+      const monthStart = `${summaryMonth}-01`;
+      const monthEnd   = `${summaryMonth}-31`;
+
+      const [{ data: reports }, { data: planned }] = await Promise.all([
+        // Actual revenue from completed production reports (through yesterday)
+        sb
+          .from("lawn_production_reports")
+          .select("lawn_production_jobs(lawn_production_members(earned_amount))")
+          .eq("company_id", company.id)
+          .gte("report_date", monthStart)
+          .lt("report_date", today),
+        // Planned revenue from today onwards in the month
+        sb
+          .from("lawn_upcoming_revenue")
+          .select("mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
+          .eq("company_id", company.id)
+          .gte("date", today)
+          .lte("date", monthEnd),
+      ]);
+
+      let actual = 0;
+      for (const r of reports ?? []) {
+        for (const job of (r as any).lawn_production_jobs ?? []) {
+          for (const m of (job as any).lawn_production_members ?? []) {
+            actual += Number(m.earned_amount ?? 0);
+          }
+        }
+      }
+
+      let plannedTotal = 0;
+      for (const p of planned ?? []) {
+        plannedTotal += Number(p.mowing ?? 0) + Number(p.weeding ?? 0) + Number(p.shrubs ?? 0)
+          + Number(p.cleanups ?? 0) + Number(p.brush_hogging ?? 0)
+          + Number(p.string_trimming ?? 0) + Number(p.other ?? 0);
+      }
+
+      return NextResponse.json({ actual, planned: plannedTotal });
+    }
+
+    // ── Week planned rows ───────────────────────────────────────────────────────
     const start = searchParams.get("start");
     const end   = searchParams.get("end");
     if (!start || !end) return NextResponse.json({ error: "start and end required" }, { status: 400 });
