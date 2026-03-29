@@ -229,7 +229,7 @@ export default function UpcomingRevenuePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          month: today.slice(0, 7),
+          month: dates[0].slice(0, 7),
           start: dates[0],
           end:   dates[6],
         }),
