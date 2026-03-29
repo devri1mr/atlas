@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
     // ── Month projection summary ────────────────────────────────────────────────
     const summaryMonth = searchParams.get("summary"); // "YYYY-MM"
     if (summaryMonth) {
-      const today     = new Date().toISOString().slice(0, 10);
       const monthStart = `${summaryMonth}-01`;
       const monthEnd   = `${summaryMonth}-31`;
 
@@ -25,19 +24,22 @@ export async function GET(req: NextRequest) {
         // Actual revenue from completed (is_complete=true) production reports only
         sb
           .from("lawn_production_reports")
-          .select("lawn_production_jobs(lawn_production_members(earned_amount))")
+          .select("report_date, lawn_production_jobs(lawn_production_members(earned_amount))")
           .eq("company_id", company.id)
           .eq("is_complete", true)
           .gte("report_date", monthStart)
           .lte("report_date", monthEnd),
-        // Planned revenue from today onwards in the month
+        // All upcoming revenue entries for the month
         sb
           .from("lawn_upcoming_revenue")
-          .select("mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
+          .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
           .eq("company_id", company.id)
-          .gte("date", today)
+          .gte("date", monthStart)
           .lte("date", monthEnd),
       ]);
+
+      // Build set of dates that have a completed import
+      const completedDates = new Set((reports ?? []).map((r: any) => r.report_date as string));
 
       let actual = 0;
       for (const r of reports ?? []) {
@@ -48,11 +50,14 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Planned = upcoming entries for dates WITHOUT a completed import
       let plannedTotal = 0;
       for (const p of planned ?? []) {
-        plannedTotal += Number(p.mowing ?? 0) + Number(p.weeding ?? 0) + Number(p.shrubs ?? 0)
-          + Number(p.cleanups ?? 0) + Number(p.brush_hogging ?? 0)
-          + Number(p.string_trimming ?? 0) + Number(p.other ?? 0);
+        if (!completedDates.has((p as any).date)) {
+          plannedTotal += Number(p.mowing ?? 0) + Number(p.weeding ?? 0) + Number(p.shrubs ?? 0)
+            + Number(p.cleanups ?? 0) + Number(p.brush_hogging ?? 0)
+            + Number(p.string_trimming ?? 0) + Number(p.other ?? 0);
+        }
       }
 
       return NextResponse.json({ actual, planned: plannedTotal });
