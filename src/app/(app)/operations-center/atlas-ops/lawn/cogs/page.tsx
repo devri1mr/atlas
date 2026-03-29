@@ -210,7 +210,7 @@ export default function COGSPage() {
                   <thead>
                     <tr>
                       <th className="px-3 py-3 text-left border border-emerald-900/50" style={{ background: BG, width: 96 }}>
-                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Category</span>
+                        <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       <th className="px-2 py-3 border border-emerald-900/50" style={{ background: BG, width: 56 }} />
                       {MONTHS.map((m, i) => {
@@ -218,16 +218,16 @@ export default function COGSPage() {
                         return (
                           <th key={m} className="py-3 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0f4a25" : BG, minWidth: 64 }}>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
+                            <span className={`text-xs font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
                             {isCur && <span className="block w-1 h-1 rounded-full bg-emerald-400 mx-auto mt-0.5" />}
                           </th>
                         );
                       })}
                       <th className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, minWidth: 72 }}>
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Total</span>
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Total</span>
                       </th>
                       <th className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, width: 40 }}>
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">%</span>
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">%</span>
                       </th>
                     </tr>
                   </thead>
@@ -257,13 +257,13 @@ export default function COGSPage() {
                             <td rowSpan={rowCount} className={`px-3 py-2 border-r border-gray-200 align-middle ${sepBorder}`} style={{ background: bg }}>
                               <div className="flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
-                                <span className="text-[11px] font-bold text-gray-900">{f.label}</span>
+                                <span className="text-xs font-bold text-gray-900">{f.label}</span>
                               </div>
                               {f.key === "fuel" && (
-                                <div className="text-[9px] text-gray-400 mt-0.5 pl-3">formula est.</div>
+                                <div className="text-xs text-gray-400 mt-0.5 pl-3">formula est.</div>
                               )}
                             </td>
-                            <td className={`px-2 py-1 ${tdBase} text-[10px] font-semibold text-gray-500`} style={{ background: bg }}>
+                            <td className={`px-2 py-1 ${tdBase} text-xs font-semibold text-gray-500`} style={{ background: bg }}>
                               Actual
                             </td>
                             {rows.map(row => {
@@ -297,7 +297,7 @@ export default function COGSPage() {
 
                           {/* ── BUDGETED row ── */}
                           <tr style={{ background: bg }}>
-                            <td className={`px-2 py-0.5 ${f.hasPercent ? tdBase : tdLast} text-[10px] text-gray-400 italic`} style={{ background: bg }}>
+                            <td className={`px-2 py-0.5 ${f.hasPercent ? tdBase : tdLast} text-xs text-gray-400 italic`} style={{ background: bg }}>
                               Budgeted
                             </td>
                             {rows.map(row => {
@@ -305,20 +305,20 @@ export default function COGSPage() {
                               const bg2    = cellBg(row.month) ?? bg;
                               return (
                                 <td key={row.month} className={`px-1 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: bg2 }}>
-                                  <span className={`text-[11px] ${budget > 0 ? "text-gray-400" : "text-gray-200"}`}>
+                                  <span className={`text-xs ${budget > 0 ? "text-gray-400" : "text-gray-200"}`}>
                                     {budget > 0 ? fmt.format(budget) : ""}
                                   </span>
                                 </td>
                               );
                             })}
                             <td className={`px-2 py-0.5 text-center ${f.hasPercent ? tdBase : tdLast}`} style={{ background: "#f0fdf4" }}>
-                              <span className={`text-[11px] ${annualBudget > 0 ? "text-gray-400" : "text-gray-200"}`}>
+                              <span className={`text-xs ${annualBudget > 0 ? "text-gray-400" : "text-gray-200"}`}>
                                 {annualBudget > 0 ? fmt.format(annualBudget) : "—"}
                               </span>
                             </td>
                             <td className={`px-2 py-0.5 text-center ${f.hasPercent ? "" : sepBorder}`} style={{ background: "#f0fdf4" }}>
                               {!isRevenue && annualBudPct !== null && (
-                                <span className="text-[10px] text-gray-400">{fmtPct(annualBudPct)}</span>
+                                <span className="text-xs text-gray-400">{fmtPct(annualBudPct)}</span>
                               )}
                             </td>
                           </tr>
@@ -326,7 +326,7 @@ export default function COGSPage() {
                           {/* ── % row ── */}
                           {f.hasPercent && (
                             <tr style={{ background: bg }}>
-                              <td className={`px-2 py-0.5 ${tdLast} text-[10px] text-gray-400`} style={{ background: bg }}>
+                              <td className={`px-2 py-0.5 ${tdLast} text-xs text-gray-400`} style={{ background: bg }}>
                                 %
                               </td>
                               {rows.map(row => {
@@ -336,7 +336,7 @@ export default function COGSPage() {
                                 const bg2    = cellBg(row.month) ?? bg;
                                 return (
                                   <td key={row.month} className={`px-1 py-0.5 text-center ${tdLast}`} style={{ background: bg2 }}>
-                                    {p !== null && <span className="text-[10px] text-gray-900">{fmtPct(p)}</span>}
+                                    {p !== null && <span className="text-xs text-gray-900">{fmtPct(p)}</span>}
                                   </td>
                                 );
                               })}
@@ -356,9 +356,9 @@ export default function COGSPage() {
                     {/* PROFIT ACTUAL */}
                     <tr>
                       <td rowSpan={3} className="px-3 py-2 border border-emerald-900/50 align-middle" style={{ background: BG_FOOT }}>
-                        <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Profit</span>
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Profit</span>
                       </td>
-                      <td className="px-2 py-1 border border-emerald-900/50 text-[10px] font-semibold text-emerald-300/70" style={{ background: BG_FOOT }}>
+                      <td className="px-2 py-1 border border-emerald-900/50 text-xs font-semibold text-emerald-300/70" style={{ background: BG_FOOT }}>
                         Actual
                       </td>
                       {rows.map(row => {
@@ -389,7 +389,7 @@ export default function COGSPage() {
 
                     {/* PROFIT BUDGETED */}
                     <tr>
-                      <td className="px-2 py-1 border border-emerald-900/50 text-[10px] text-emerald-300/40 italic" style={{ background: BG_FOOT }}>
+                      <td className="px-2 py-1 border border-emerald-900/50 text-xs text-emerald-300/40 italic" style={{ background: BG_FOOT }}>
                         Budgeted
                       </td>
                       {rows.map(row => {
@@ -399,18 +399,18 @@ export default function COGSPage() {
                           <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
                             {budgetGP !== 0 && (
-                              <span className="text-[11px] text-white/50">{fmt.format(budgetGP)}</span>
+                              <span className="text-xs text-white/50">{fmt.format(budgetGP)}</span>
                             )}
                           </td>
                         );
                       })}
                       <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className="text-[11px] text-white/50">
+                        <span className="text-xs text-white/50">
                           {totalBudgetGP !== 0 ? fmt.format(totalBudgetGP) : "—"}
                         </span>
                       </td>
                       <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className="text-[10px] text-white/30">
+                        <span className="text-xs text-white/30">
                           {totalBudgetMargin !== null ? fmtPct(totalBudgetMargin) : "—"}
                         </span>
                       </td>
@@ -418,7 +418,7 @@ export default function COGSPage() {
 
                     {/* PROFIT % */}
                     <tr>
-                      <td className="px-2 py-0.5 border border-emerald-900/50 text-[10px] text-emerald-300/40" style={{ background: BG_FOOT }}>
+                      <td className="px-2 py-0.5 border border-emerald-900/50 text-xs text-emerald-300/40" style={{ background: BG_FOOT }}>
                         %
                       </td>
                       {rows.map(row => {
@@ -429,7 +429,7 @@ export default function COGSPage() {
                           <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
                             {m !== null && (
-                              <span className={`text-[10px] font-semibold ${marginColor(m)}`}>{fmtPct(m)}</span>
+                              <span className={`text-xs font-semibold ${marginColor(m)}`}>{fmtPct(m)}</span>
                             )}
                           </td>
                         );
