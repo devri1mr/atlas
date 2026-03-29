@@ -278,7 +278,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                           <th
                             key={m}
                             className="py-2 text-center"
-                            style={{ background: isCurr ? "#fefce8" : BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)" }}
+                            style={{ background: isCurr ? "#fefce8" : BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)", borderBottom: isCurr ? "2px solid #ca8a04" : undefined }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-gray-900" : "text-xs text-white/70"}`}>{m}</span>
                           </th>
