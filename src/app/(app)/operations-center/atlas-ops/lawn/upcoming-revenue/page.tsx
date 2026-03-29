@@ -223,25 +223,27 @@ export default function UpcomingRevenuePage() {
   const curMonthLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   async function handleSyncSheets() {
+    const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL;
+    if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); return; }
     setSyncState("syncing");
     try {
-      const res = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: dates[0].slice(0, 7) }),
-      });
-      if (res.ok) {
-        setSyncState("ok");
-      } else {
-        const json = await res.json().catch(() => ({}));
-        setSyncError(json.error ?? `HTTP ${res.status}`);
-        setSyncState("error");
-      }
+      const ym = dates[0].slice(0, 7);
+      // Fetch projection from Atlas
+      const res = await fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`);
+      if (!res.ok) throw new Error("Failed to fetch projection");
+      const { actual, planned } = await res.json();
+      const projection = actual + planned;
+      // Call Apps Script directly from browser — Google session handles auth
+      const url = new URL(webhookUrl);
+      url.searchParams.set("month", ym);
+      url.searchParams.set("projection", String(projection));
+      await fetch(url.toString(), { mode: "no-cors" });
+      setSyncState("ok");
     } catch (e: any) {
-      setSyncError(e.message ?? "Network error");
+      setSyncError(e.message ?? "Error");
       setSyncState("error");
     }
-    setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 6000);
+    setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
   }
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
