@@ -14,36 +14,36 @@ type MonthCOGS = {
   budget_fuel: number; budget_equipment: number;
 };
 
+type FieldKey = "revenue" | "labor" | "job_materials" | "fuel" | "equipment";
+
 type FieldDef = {
-  key:       "revenue" | "labor" | "job_materials" | "fuel" | "equipment";
-  apiField:  string;
-  label:     string;
-  isAuto:    boolean;
+  key: FieldKey;
+  apiField: string;
+  label: string;
+  isAuto: boolean;
   overrideKey?: keyof MonthCOGS;
+  hasPercent: boolean;
 };
 
 const FIELDS: FieldDef[] = [
-  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       isAuto: true,  overrideKey: "revenue_overridden" },
-  { key: "labor",         apiField: "labor_override",   label: "Labor",         isAuto: true,  overrideKey: "labor_overridden" },
-  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", isAuto: false },
-  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          isAuto: true,  overrideKey: "fuel_overridden" },
-  { key: "equipment",     apiField: "equipment",        label: "Equipment",     isAuto: false },
+  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       isAuto: true,  overrideKey: "revenue_overridden", hasPercent: false },
+  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", isAuto: false,                                     hasPercent: true  },
+  { key: "labor",         apiField: "labor_override",   label: "Labor",         isAuto: true,  overrideKey: "labor_overridden",   hasPercent: true  },
+  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          isAuto: true,  overrideKey: "fuel_overridden",    hasPercent: true  },
+  { key: "equipment",     apiField: "equipment",        label: "Equipment",     isAuto: false,                                     hasPercent: true  },
 ];
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const fmt    = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const MONTHS  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt     = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const fmtPct  = (n: number) => `${(n * 100).toFixed(0)}%`;
 
-const BG           = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
-const BG_FOOT      = "#0f3a1e";
+const BG            = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
+const BG_FOOT       = "#0f3a1e";
 const BG_FOOT_TOTAL = "#0a2010";
 
-// ── Editable cell ─────────────────────────────────────────────────────────────
+// ── Editable actual cell ───────────────────────────────────────────────────────
 
-function EditCell({
-  value, isAuto, isOverridden, isRevenue,
-  onSave, onClear,
-}: {
+function ActualCell({ value, isAuto, isOverridden, isRevenue, onSave, onClear }: {
   value: number; isAuto: boolean; isOverridden: boolean; isRevenue: boolean;
   onSave: (v: number) => void; onClear: () => void;
 }) {
@@ -66,14 +66,12 @@ function EditCell({
   if (editing) {
     return (
       <input
-        ref={inputRef}
-        type="number"
-        value={draft}
+        ref={inputRef} type="number" value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-        placeholder={isAuto ? "blank = auto" : "0"}
-        className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+        placeholder={isAuto ? "auto" : "0"}
+        className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded px-1 py-0.5 focus:outline-none"
         autoFocus
       />
     );
@@ -82,9 +80,8 @@ function EditCell({
   return (
     <div className="relative group">
       <button
-        onClick={startEdit}
-        onFocus={startEdit}
-        className={`w-full text-center text-xs rounded py-1.5 transition-colors ${
+        onClick={startEdit} onFocus={startEdit}
+        className={`w-full text-center text-xs rounded py-0.5 transition-colors ${
           value > 0
             ? `font-semibold hover:bg-emerald-50 ${isRevenue ? (isOverridden ? "text-amber-600" : "text-sky-700") : (isOverridden ? "text-amber-600" : "text-gray-800")}`
             : "text-gray-300 hover:bg-gray-50 hover:text-gray-500"
@@ -92,16 +89,11 @@ function EditCell({
       >
         {value > 0 ? fmt.format(value) : "—"}
       </button>
-      {isAuto && !isOverridden && value > 0 && (
-        <span className="absolute top-0.5 right-1 text-[8px] text-gray-300 leading-none pointer-events-none">auto</span>
-      )}
-      {isOverridden && (
-        <button
-          onMouseDown={e => { e.stopPropagation(); onClear(); }}
-          className="absolute top-0.5 right-1 text-[9px] text-amber-400 hover:text-amber-600 leading-none"
-          title="Revert to auto"
-        >↺</button>
-      )}
+      {isAuto && !isOverridden && value > 0 &&
+        <span className="absolute top-0 right-0.5 text-[8px] text-gray-300 pointer-events-none">auto</span>}
+      {isOverridden &&
+        <button onMouseDown={e => { e.stopPropagation(); onClear(); }}
+          className="absolute top-0 right-0.5 text-[9px] text-amber-400 hover:text-amber-600" title="Revert">↺</button>}
     </div>
   );
 }
@@ -125,62 +117,76 @@ export default function COGSPage() {
   async function handleSave(month: number, field: FieldDef, value: number | null) {
     setRows(prev => prev.map(r => {
       if (r.month !== month) return r;
-      const updated = { ...r };
+      const u = { ...r };
       if (value === null) {
-        if (field.key === "revenue")       { updated.revenue       = r.revenue_auto; updated.revenue_overridden = false; }
-        if (field.key === "labor")         { updated.labor         = r.labor_auto;   updated.labor_overridden   = false; }
-        if (field.key === "fuel")          { updated.fuel          = r.fuel_auto;    updated.fuel_overridden    = false; }
-        if (field.key === "job_materials") { updated.job_materials = 0; }
-        if (field.key === "equipment")     { updated.equipment     = 0; }
+        if (field.key === "revenue")       { u.revenue       = r.revenue_auto; u.revenue_overridden = false; }
+        if (field.key === "labor")         { u.labor         = r.labor_auto;   u.labor_overridden   = false; }
+        if (field.key === "fuel")          { u.fuel          = r.fuel_auto;    u.fuel_overridden    = false; }
+        if (field.key === "job_materials") { u.job_materials = 0; }
+        if (field.key === "equipment")     { u.equipment     = 0; }
       } else {
-        (updated as any)[field.key] = value;
-        if (field.overrideKey) (updated as any)[field.overrideKey] = true;
+        (u as any)[field.key] = value;
+        if (field.overrideKey) (u as any)[field.overrideKey] = true;
       }
-      updated.gross_profit = updated.revenue - updated.labor - updated.job_materials - updated.fuel - updated.equipment;
-      updated.margin_pct   = updated.revenue > 0 ? updated.gross_profit / updated.revenue : null;
-      return updated;
+      u.gross_profit = u.revenue - u.labor - u.job_materials - u.fuel - u.equipment;
+      u.margin_pct   = u.revenue > 0 ? u.gross_profit / u.revenue : null;
+      return u;
     }));
-
     await fetch("/api/operations-center/atlas-ops/lawn/cogs", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ division: "lawn", year, month, field: field.apiField, value }),
     });
-
     if (field.key === "labor" || field.key === "revenue") load();
   }
 
-  // Annual totals
-  const totals = rows.reduce((acc, r) => ({
-    revenue:       acc.revenue       + r.revenue,
-    labor:         acc.labor         + r.labor,
-    job_materials: acc.job_materials + r.job_materials,
-    fuel:          acc.fuel          + r.fuel,
-    equipment:     acc.equipment     + r.equipment,
-    gross_profit:  acc.gross_profit  + r.gross_profit,
-    budget_revenue:       acc.budget_revenue       + r.budget_revenue,
-    budget_labor:         acc.budget_labor         + r.budget_labor,
-    budget_job_materials: acc.budget_job_materials + r.budget_job_materials,
-    budget_fuel:          acc.budget_fuel          + r.budget_fuel,
-    budget_equipment:     acc.budget_equipment     + r.budget_equipment,
-  }), { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, gross_profit: 0,
-        budget_revenue: 0, budget_labor: 0, budget_job_materials: 0, budget_fuel: 0, budget_equipment: 0 });
+  const today    = new Date();
+  const curYear  = today.getFullYear();
+  const curMonth = today.getMonth() + 1;
 
-  const totalMargin = totals.revenue > 0 ? totals.gross_profit / totals.revenue : null;
+  function isFuture(month: number): boolean {
+    if (year < curYear) return false;
+    if (year > curYear) return true;
+    return month > curMonth;
+  }
+
+  // Annual totals — actuals only for past/current months
+  const totals = rows.reduce((acc, r) => {
+    const f = isFuture(r.month);
+    return {
+      revenue:       acc.revenue       + (f ? 0 : r.revenue),
+      labor:         acc.labor         + (f ? 0 : r.labor),
+      job_materials: acc.job_materials + (f ? 0 : r.job_materials),
+      fuel:          acc.fuel          + (f ? 0 : r.fuel),
+      equipment:     acc.equipment     + (f ? 0 : r.equipment),
+      gross_profit:  acc.gross_profit  + (f ? 0 : r.gross_profit),
+      budget_revenue:       acc.budget_revenue       + r.budget_revenue,
+      budget_labor:         acc.budget_labor         + r.budget_labor,
+      budget_job_materials: acc.budget_job_materials + r.budget_job_materials,
+      budget_fuel:          acc.budget_fuel          + r.budget_fuel,
+      budget_equipment:     acc.budget_equipment     + r.budget_equipment,
+    };
+  }, { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, gross_profit: 0,
+       budget_revenue: 0, budget_labor: 0, budget_job_materials: 0, budget_fuel: 0, budget_equipment: 0 });
+
+  const totalBudgetGP     = totals.budget_revenue - totals.budget_labor - totals.budget_job_materials - totals.budget_fuel - totals.budget_equipment;
+  const totalMargin       = totals.revenue > 0 ? totals.gross_profit / totals.revenue : null;
+  const totalBudgetMargin = totals.budget_revenue > 0 ? totalBudgetGP / totals.budget_revenue : null;
 
   function profitColor(p: number) {
-    if (p > 0) return "text-emerald-300";
-    if (p < 0) return "text-red-400";
-    return "text-white/20";
+    if (p > 0) return "text-emerald-300"; if (p < 0) return "text-red-400"; return "text-white/20";
   }
   function marginColor(m: number | null) {
     if (m === null) return "text-white/20";
-    if (m >= 0.35) return "text-emerald-400";
-    if (m >= 0.20) return "text-yellow-400";
-    return "text-red-400";
+    if (m >= 0.35) return "text-emerald-400"; if (m >= 0.20) return "text-yellow-400"; return "text-red-400";
   }
 
-  const curMonth = new Date().getMonth() + 1;
+  const isCurYear = year === curYear;
+
+  function cellBg(month: number) {
+    if (month === curMonth && isCurYear) return "#f0fdf4";
+    if (isFuture(month)) return "#fafafa";
+    return undefined; // inherit from row
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
@@ -212,26 +218,30 @@ export default function COGSPage() {
           <>
             <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ minWidth: 900, borderCollapse: "collapse" }}>
+                <table className="w-full" style={{ minWidth: 1000, borderCollapse: "collapse" }}>
 
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left border border-emerald-900/50" style={{ background: BG, width: 130 }}>
-                        <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
+                      <th className="px-3 py-3 text-left border border-emerald-900/50" style={{ background: BG, width: 96 }}>
+                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
+                      <th className="px-2 py-3 border border-emerald-900/50" style={{ background: BG, width: 56 }} />
                       {MONTHS.map((m, i) => {
-                        const isCur = i + 1 === curMonth;
+                        const isCur = i + 1 === curMonth && isCurYear;
                         return (
-                          <th key={m} className="px-2 py-3 text-center border border-emerald-900/50"
-                            style={{ background: isCur ? "#0f4a25" : BG, minWidth: 76 }}>
-                            <span className={`text-xs font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
+                          <th key={m} className="py-3 text-center border border-emerald-900/50"
+                            style={{ background: isCur ? "#0f4a25" : BG, minWidth: 64 }}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isCur ? "text-emerald-300" : "text-white/70"}`}>{m}</span>
                             {isCur && <span className="block w-1 h-1 rounded-full bg-emerald-400 mx-auto mt-0.5" />}
                           </th>
                         );
                       })}
-                      <th className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, minWidth: 84 }}>
-                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Annual</span>
+                      <th className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, minWidth: 72 }}>
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Total</span>
+                      </th>
+                      <th className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL, width: 40 }}>
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">%</span>
                       </th>
                     </tr>
                   </thead>
@@ -240,138 +250,214 @@ export default function COGSPage() {
                   <tbody>
                     {FIELDS.map((f, fi) => {
                       const isRevenue  = f.key === "revenue";
-                      const bg         = fi % 2 === 0 ? "#fff" : "#f9fafb";
-                      const annualVal  = totals[f.key as keyof typeof totals] as number;
-                      const annualBud  = totals[`budget_${f.key}` as keyof typeof totals] as number;
+                      const rowCount   = f.hasPercent ? 3 : 2;
+                      const evenBg     = fi % 2 === 0;
+                      const bg         = evenBg ? "#fff" : "#f9fafb";
+                      const bgBudget   = evenBg ? "#fafafa" : "#f6f8f6";
+                      const bgPct      = evenBg ? "#f7f7f7" : "#f4f6f4";
+                      const annualActual  = totals[f.key as keyof typeof totals] as number;
+                      const annualBudget  = totals[`budget_${f.key}` as keyof typeof totals] as number;
+                      const annualPct     = !isRevenue && totals.revenue > 0 ? annualActual / totals.revenue : null;
+                      const annualBudPct  = !isRevenue && totals.budget_revenue > 0 ? annualBudget / totals.budget_revenue : null;
+
                       return (
-                        <tr key={f.key}>
-                          <td className="px-4 py-2 border border-gray-200" style={{ background: bg }}>
-                            <div className="flex items-center gap-2">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
-                              <span className={`text-xs font-semibold ${isRevenue ? "text-sky-700" : "text-gray-600"}`}>{f.label}</span>
-                            </div>
-                            {f.key === "fuel" && (
-                              <div className="text-[10px] text-gray-400 mt-0.5 pl-3.5">formula est.</div>
-                            )}
-                          </td>
-                          {rows.map(row => {
-                            const isCur     = row.month === curMonth;
-                            const actual    = row[f.key] as number;
-                            const isOver    = f.overrideKey ? (row[f.overrideKey] as boolean) : false;
-                            return (
-                              <td key={row.month} className="px-1.5 py-1 border border-gray-200"
-                                style={{ background: isCur ? "#f0fdf4" : bg }}>
-                                <EditCell
-                                  value={actual}
-                                  isAuto={f.isAuto}
-                                  isOverridden={isOver}
-                                  isRevenue={isRevenue}
-                                  onSave={v => handleSave(row.month, f, v)}
-                                  onClear={() => handleSave(row.month, f, null)}
-                                />
+                        <React.Fragment key={f.key}>
+
+                          {/* ── ACTUAL row ── */}
+                          <tr style={{ background: bg }}>
+                            <td rowSpan={rowCount} className="px-3 py-2 border border-gray-200 align-middle" style={{ background: bg }}>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRevenue ? "bg-sky-400" : "bg-emerald-400"}`} />
+                                <span className={`text-[11px] font-bold ${isRevenue ? "text-sky-700" : "text-gray-700"}`}>{f.label}</span>
+                              </div>
+                              {f.key === "fuel" && (
+                                <div className="text-[9px] text-gray-400 mt-0.5 pl-3">formula est.</div>
+                              )}
+                            </td>
+                            <td className="px-2 py-1 border border-gray-200 text-[10px] font-semibold text-gray-500 whitespace-nowrap" style={{ background: bg }}>
+                              Actual
+                            </td>
+                            {rows.map(row => {
+                              const future = isFuture(row.month);
+                              const actual = row[f.key] as number;
+                              const isOver = f.overrideKey ? (row[f.overrideKey] as boolean) : false;
+                              const bg2    = cellBg(row.month) ?? bg;
+                              return (
+                                <td key={row.month} className="px-1 py-0.5 border border-gray-200" style={{ background: bg2 }}>
+                                  {future ? null : (
+                                    <ActualCell
+                                      value={actual} isAuto={f.isAuto} isOverridden={isOver} isRevenue={isRevenue}
+                                      onSave={v => handleSave(row.month, f, v)}
+                                      onClear={() => handleSave(row.month, f, null)}
+                                    />
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                              <span className={`text-xs font-bold ${annualActual > 0 ? (isRevenue ? "text-sky-700" : "text-gray-800") : "text-gray-300"}`}>
+                                {annualActual > 0 ? fmt.format(annualActual) : "—"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                              {!isRevenue && annualPct !== null && (
+                                <span className="text-xs font-semibold text-gray-600">{fmtPct(annualPct)}</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* ── BUDGETED row ── */}
+                          <tr style={{ background: bgBudget }}>
+                            <td className="px-2 py-1 border border-gray-200 text-[10px] text-gray-400 italic" style={{ background: bgBudget }}>
+                              Budgeted
+                            </td>
+                            {rows.map(row => {
+                              const budget = row[`budget_${f.key}` as keyof MonthCOGS] as number;
+                              const bg2    = cellBg(row.month) ?? bgBudget;
+                              return (
+                                <td key={row.month} className="px-1 py-0.5 border border-gray-200 text-center" style={{ background: bg2 }}>
+                                  <span className={`text-[11px] ${budget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-500") : "text-gray-200"}`}>
+                                    {budget > 0 ? fmt.format(budget) : ""}
+                                  </span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                              <span className={`text-[11px] ${annualBudget > 0 ? (isRevenue ? "text-sky-600/60" : "text-gray-500") : "text-gray-200"}`}>
+                                {annualBudget > 0 ? fmt.format(annualBudget) : "—"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1 text-center border border-gray-100" style={{ background: "#f0fdf4" }}>
+                              {!isRevenue && annualBudPct !== null && (
+                                <span className="text-[10px] text-gray-400">{fmtPct(annualBudPct)}</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* ── % row ── */}
+                          {f.hasPercent && (
+                            <tr style={{ background: bgPct }}>
+                              <td className="px-2 py-0.5 border border-gray-200 text-[10px] text-gray-400" style={{ background: bgPct }}>
+                                %
                               </td>
-                            );
-                          })}
-                          {/* Annual total */}
-                          <td className="px-3 py-2 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
-                            <span className={`text-xs font-bold ${annualVal > 0 ? (isRevenue ? "text-sky-700" : "text-gray-700") : "text-gray-300"}`}>
-                              {annualVal > 0 ? fmt.format(annualVal) : "—"}
-                            </span>
-                            {annualBud > 0 && (
-                              <div className="text-[10px] text-gray-400 mt-0.5">{fmt.format(annualBud)}</div>
-                            )}
-                          </td>
-                        </tr>
+                              {rows.map(row => {
+                                const future = isFuture(row.month);
+                                const actual = row[f.key] as number;
+                                const p      = !future && row.revenue > 0 ? actual / row.revenue : null;
+                                const bg2    = cellBg(row.month) ?? bgPct;
+                                return (
+                                  <td key={row.month} className="px-1 py-0.5 border border-gray-200 text-center" style={{ background: bg2 }}>
+                                    {p !== null && <span className="text-[10px] text-gray-500">{fmtPct(p)}</span>}
+                                  </td>
+                                );
+                              })}
+                              <td className="border border-gray-100" style={{ background: "#f0fdf4" }} />
+                              <td className="border border-gray-100" style={{ background: "#f0fdf4" }} />
+                            </tr>
+                          )}
+
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
 
-                  {/* ── Calculated footer ── */}
+                  {/* ── Profit footer ── */}
                   <tfoot>
-                    {/* % of Revenue */}
-                    <tr>
-                      <td className="px-4 py-2 border border-emerald-900/50" style={{ background: BG_FOOT }}>
-                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">% of Revenue</span>
-                      </td>
-                      {rows.map(row => {
-                        const isCur = row.month === curMonth;
-                        const cogs  = row.labor + row.job_materials + row.fuel + row.equipment;
-                        const p     = row.revenue > 0 ? cogs / row.revenue : null;
-                        return (
-                          <td key={row.month} className="px-2 py-2 text-center border border-emerald-900/50"
-                            style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
-                            <span className={`text-xs font-semibold ${p === null ? "text-white/20" : p <= 0.65 ? "text-emerald-300" : "text-yellow-300"}`}>
-                              {p !== null ? fmtPct(p) : "—"}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        {(() => {
-                          const c = totals.labor + totals.job_materials + totals.fuel + totals.equipment;
-                          const p = totals.revenue > 0 ? c / totals.revenue : null;
-                          return (
-                            <span className={`text-xs font-semibold ${p === null ? "text-white/20" : p <= 0.65 ? "text-emerald-300" : "text-yellow-300"}`}>
-                              {p !== null ? fmtPct(p) : "—"}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                    </tr>
 
-                    {/* Gross Profit */}
+                    {/* PROFIT ACTUAL */}
                     <tr>
-                      <td className="px-4 py-2.5 border border-emerald-900/50" style={{ background: BG_FOOT }}>
-                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+                      <td rowSpan={3} className="px-3 py-2 border border-emerald-900/50 align-middle" style={{ background: BG_FOOT }}>
+                        <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Profit</span>
+                      </td>
+                      <td className="px-2 py-1 border border-emerald-900/50 text-[10px] font-semibold text-emerald-300/70" style={{ background: BG_FOOT }}>
+                        Actual
                       </td>
                       {rows.map(row => {
-                        const isCur = row.month === curMonth;
+                        const future = isFuture(row.month);
+                        const isCur  = row.month === curMonth && isCurYear;
                         return (
-                          <td key={row.month} className="px-2 py-2.5 text-center border border-emerald-900/50"
+                          <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
                             style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
-                            <span className={`text-xs font-bold ${profitColor(row.revenue > 0 || row.gross_profit !== 0 ? row.gross_profit : 1)}`}>
-                              {row.revenue > 0 || row.gross_profit !== 0 ? fmt.format(row.gross_profit) : "—"}
-                            </span>
+                            {!future && (row.revenue > 0 || row.gross_profit !== 0) && (
+                              <span className={`text-xs font-bold ${profitColor(row.gross_profit)}`}>
+                                {fmt.format(row.gross_profit)}
+                              </span>
+                            )}
                           </td>
                         );
                       })}
-                      <td className="px-3 py-2.5 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className={`text-xs font-bold ${profitColor(totals.revenue > 0 ? totals.gross_profit : 1)}`}>
+                      <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className={`text-xs font-bold ${profitColor(totals.revenue > 0 ? totals.gross_profit : 0)}`}>
                           {totals.revenue > 0 ? fmt.format(totals.gross_profit) : "—"}
                         </span>
                       </td>
-                    </tr>
-
-                    {/* Margin % */}
-                    <tr>
-                      <td className="px-4 py-2.5 border border-emerald-900/50" style={{ background: BG_FOOT }}>
-                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Margin %</span>
-                      </td>
-                      {rows.map(row => {
-                        const isCur = row.month === curMonth;
-                        return (
-                          <td key={row.month} className="px-2 py-2.5 text-center border border-emerald-900/50"
-                            style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
-                            <span className={`text-xs font-semibold ${marginColor(row.margin_pct)}`}>
-                              {row.margin_pct !== null ? fmtPct(row.margin_pct) : "—"}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2.5 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
-                        <span className={`text-xs font-semibold ${marginColor(totalMargin)}`}>
+                      <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className={`text-xs font-bold ${marginColor(totalMargin)}`}>
                           {totalMargin !== null ? fmtPct(totalMargin) : "—"}
                         </span>
                       </td>
                     </tr>
-                  </tfoot>
 
+                    {/* PROFIT BUDGETED */}
+                    <tr>
+                      <td className="px-2 py-1 border border-emerald-900/50 text-[10px] text-emerald-300/40 italic" style={{ background: BG_FOOT }}>
+                        Budgeted
+                      </td>
+                      {rows.map(row => {
+                        const budgetGP = row.budget_revenue - row.budget_labor - row.budget_job_materials - row.budget_fuel - row.budget_equipment;
+                        const isCur    = row.month === curMonth && isCurYear;
+                        return (
+                          <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
+                            style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
+                            {budgetGP !== 0 && (
+                              <span className={`text-[11px] ${budgetGP > 0 ? "text-emerald-400/50" : "text-red-400/50"}`}>
+                                {fmt.format(budgetGP)}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className={`text-[11px] ${totalBudgetGP > 0 ? "text-emerald-400/50" : totalBudgetGP < 0 ? "text-red-400/50" : "text-white/10"}`}>
+                          {totalBudgetGP !== 0 ? fmt.format(totalBudgetGP) : "—"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1 text-center border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }}>
+                        <span className="text-[10px] text-white/30">
+                          {totalBudgetMargin !== null ? fmtPct(totalBudgetMargin) : "—"}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* PROFIT % */}
+                    <tr>
+                      <td className="px-2 py-0.5 border border-emerald-900/50 text-[10px] text-emerald-300/40" style={{ background: BG_FOOT }}>
+                        %
+                      </td>
+                      {rows.map(row => {
+                        const future = isFuture(row.month);
+                        const isCur  = row.month === curMonth && isCurYear;
+                        const m      = !future ? row.margin_pct : null;
+                        return (
+                          <td key={row.month} className="px-1 py-0.5 text-center border border-emerald-900/50"
+                            style={{ background: isCur ? "#0d3d1f" : BG_FOOT }}>
+                            {m !== null && (
+                              <span className={`text-[10px] font-semibold ${marginColor(m)}`}>{fmtPct(m)}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }} />
+                      <td className="border border-emerald-900/50" style={{ background: BG_FOOT_TOTAL }} />
+                    </tr>
+
+                  </tfoot>
                 </table>
               </div>
             </div>
 
             <p className="text-center text-xs text-gray-400 mt-3">
-              Click any cell to edit · Blank on auto fields reverts to auto · Amber = manual override · ↺ revert · Fuel estimated from labor ratio
+              Click any actual cell to edit · Blank reverts auto fields · Amber = manual override · ↺ revert · Fuel estimated from labor ratio
             </p>
           </>
         )}
