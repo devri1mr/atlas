@@ -235,13 +235,13 @@ export default function CogsPage() {
             {
               label: "YTD Revenue",
               value: fmt.format(ytd.revenue),
-              budget: ytd.bRevenue > 0 ? `Budget ${fmtK(ytd.bRevenue)}` : null,
+              budget: ytd.bRevenue > 0 ? `Budget ${fmt.format(ytd.bRevenue)}` : null,
               color: "#7dd3fc",
             },
             {
               label: "Gross Profit",
               value: fmt.format(ytd.gp),
-              budget: ytdBudgetGP !== 0 ? `Budget ${fmtK(ytdBudgetGP)}` : null,
+              budget: ytdBudgetGP !== 0 ? `Budget ${fmt.format(ytdBudgetGP)}` : null,
               color: ytd.gp >= 0 ? "#6ee7b7" : "#fca5a5",
             },
             {
@@ -366,7 +366,7 @@ export default function CogsPage() {
                                       onClear={() => handleSave(r.month, row.apiField, null)}
                                     />
                                     {budgetVal > 0 && (
-                                      <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmtK(budgetVal)}</span>
+                                      <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(budgetVal)}</span>
                                     )}
                                     {actualVal > 0 && budgetVal > 0 && (
                                       <DeltaBadge actual={actualVal} budget={budgetVal} favorable={row.favorable} />
@@ -390,7 +390,7 @@ export default function CogsPage() {
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
                               {ytdBud > 0 && (
-                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmtK(ytdBud)}</span>
+                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(ytdBud)}</span>
                               )}
                               {ytdVal > 0 && ytdBud > 0 && (
                                 <DeltaBadge actual={ytdVal} budget={ytdBud} favorable={row.favorable} />
@@ -426,7 +426,7 @@ export default function CogsPage() {
                                   {hasAny ? fmt.format(r.gross_profit) : "—"}
                                 </span>
                               )}
-                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium whitespace-nowrap">Budg: {fmtK(bGP)}</span>}
+                              {bGP !== 0 && <span className="text-xs text-white/40 font-medium whitespace-nowrap">Budg: {fmt.format(bGP)}</span>}
                             </div>
                           </td>
                         );
@@ -436,7 +436,7 @@ export default function CogsPage() {
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
                           </span>
-                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40 whitespace-nowrap">Budg: {fmtK(ytdBudgetGP)}</span>}
+                          {ytdBudgetGP !== 0 && <span className="text-xs text-white/40 whitespace-nowrap">Budg: {fmt.format(ytdBudgetGP)}</span>}
                         </div>
                       </td>
                     </tr>
