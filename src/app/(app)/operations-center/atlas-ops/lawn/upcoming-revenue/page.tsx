@@ -271,20 +271,26 @@ export default function UpcomingRevenuePage() {
 
               {/* Column headers — day names + dates */}
               <thead>
-                <tr style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
-                  {/* Category label column */}
-                  <th className="px-5 py-0 text-left" style={{ width: 160 }}>
+                <tr>
+                  <th
+                    className="px-5 py-3 text-left"
+                    style={{ width: 160, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                  >
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                   </th>
                   {dates.map(date => {
                     const isToday = date === today;
-                                        return (
-                      <th key={date} className="px-2 py-3 text-center" style={{ minWidth: 90 }}>
+                    return (
+                      <th
+                        key={date}
+                        className="px-2 py-3 text-center"
+                        style={{ minWidth: 90, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                      >
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : "text-white/50"}`}>
+                          <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : "text-white/60"}`}>
                             {dayLabel(date)}
                           </span>
-                          <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-white/70"}`}>
+                          <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-white/80"}`}>
                             {dateLabel(date)}
                           </span>
                           {isToday && <span className="w-1 h-1 rounded-full bg-emerald-400 mt-0.5" />}
@@ -292,24 +298,25 @@ export default function UpcomingRevenuePage() {
                       </th>
                     );
                   })}
-                  {/* Week total column */}
-                  <th className="px-3 py-3 text-center" style={{ minWidth: 90 }}>
+                  <th
+                    className="px-3 py-3 text-center"
+                    style={{ minWidth: 90, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                  >
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Week</span>
                   </th>
                 </tr>
 
                 {/* Lawn Total row */}
-                <tr className="border-b-2 border-emerald-900/30" style={{ background: "linear-gradient(90deg, #0f3a1e 0%, #1a4a28 100%)" }}>
-                  <td className="px-5 py-3">
+                <tr>
+                  <td className="px-5 py-3 border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
                     <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Lawn Total</span>
                   </td>
                   {dates.map(date => {
                     const row = data.get(date);
                     const total = row ? dayTotal(row) : 0;
-                    const weekend = isWeekend(date);
                     const isToday = date === today;
                     return (
-                      <td key={date} className={`px-2 py-3 text-center `}>
+                      <td key={date} className="px-2 py-3 text-center border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
                         <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
@@ -319,7 +326,7 @@ export default function UpcomingRevenuePage() {
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-center border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
                     <span className={`text-sm font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/25"}`}>
                       {weekRev > 0 ? money(weekRev) : "—"}
                     </span>
@@ -371,21 +378,20 @@ export default function UpcomingRevenuePage() {
 
               {/* Footer total row */}
               <tfoot>
-                <tr style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
-                  <td className="px-5 py-3 text-xs font-bold text-white">Daily Total</td>
+                <tr>
+                  <td className="px-5 py-3 text-xs font-bold text-white" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>Daily Total</td>
                   {dates.map(date => {
                     const row = data.get(date);
                     const total = row ? dayTotal(row) : 0;
-                    const weekend = isWeekend(date);
                     return (
-                      <td key={date} className={`px-2 py-3 text-center `}>
+                      <td key={date} className="px-2 py-3 text-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
                         <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
                     <span className={`text-xs font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/25"}`}>
                       {weekRev > 0 ? money(weekRev) : "—"}
                     </span>
