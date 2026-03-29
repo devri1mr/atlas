@@ -148,10 +148,10 @@ export default function COGSPage() {
             <div className="text-2xl font-black text-white mt-0.5">Cost of Goods Sold</div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/operations-center/settings/budgets"
+            <a href="/operations-center/settings/budgets"
               className="text-xs text-white/50 hover:text-white transition-colors font-medium">
               Edit Budgets →
-            </Link>
+            </a>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
               <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
