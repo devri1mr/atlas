@@ -260,7 +260,7 @@ export default function CogsPage() {
           <>
             <div className="rounded-2xl overflow-hidden shadow-lg" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ minWidth: 900, borderCollapse: "collapse" }}>
+                <table className="w-full" style={{ minWidth: 800, borderCollapse: "collapse" }}>
 
                   {/* ── Month headers ── */}
                   <thead>
@@ -275,7 +275,7 @@ export default function CogsPage() {
                           <th
                             key={m}
                             className="py-3 text-center"
-                            style={{ background: BG, minWidth: 68, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
+                            style={{ background: BG, minWidth: 58, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
                             {isCurr && <span className="block text-xs text-emerald-400 mt-0.5 font-semibold normal-case tracking-normal">now</span>}
@@ -326,7 +326,7 @@ export default function CogsPage() {
                             return (
                               <td
                                 key={r.month}
-                                className="px-2 py-3 text-center"
+                                className="px-1 py-3 text-center"
                                 style={{
                                   background: cellBg,
                                   borderBottom: "1px solid #f0f0f0",
@@ -460,7 +460,7 @@ export default function CogsPage() {
                           </td>
                         );
                       })}
-                      <td className="px-2 py-3 text-center" style={{ background: BG_FOOT_TOT }}>
+                      <td className="px-1 py-3 text-center" style={{ background: BG_FOOT_TOT }}>
                         <div className="flex flex-col items-center gap-0.5">
                           {ytdMargin !== null && (
                             <span
