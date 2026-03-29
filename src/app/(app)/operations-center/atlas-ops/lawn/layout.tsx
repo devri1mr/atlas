@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 
 const BASE_TABS = [
-  { label: "Dashboard",  href: "/operations-center/atlas-ops/lawn" },
-  { label: "Imports",    href: "/operations-center/atlas-ops/lawn/imports" },
-  { label: "Rankings",   href: "/operations-center/atlas-ops/lawn/rankings" },
+  { label: "Dashboard",         href: "/operations-center/atlas-ops/lawn" },
+  { label: "Upcoming Revenue",  href: "/operations-center/atlas-ops/lawn/upcoming-revenue" },
+  { label: "Imports",           href: "/operations-center/atlas-ops/lawn/imports" },
+  { label: "Rankings",          href: "/operations-center/atlas-ops/lawn/rankings" },
 ];
 
 const ADMIN_TABS = [
