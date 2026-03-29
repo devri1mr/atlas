@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     const summaryMonth = searchParams.get("summary"); // "YYYY-MM"
     if (summaryMonth) {
       const monthStart = `${summaryMonth}-01`;
-      const monthEnd   = `${summaryMonth}-31`;
+      const [sy, sm] = summaryMonth.split("-").map(Number);
+      const monthEnd = new Date(sy, sm, 0).toISOString().slice(0, 10);
 
       const [{ data: reports }, { data: planned }] = await Promise.all([
         // Actual revenue from completed (is_complete=true) production reports only

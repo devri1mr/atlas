@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     if (!month) return NextResponse.json({ error: "month required" }, { status: 400 });
 
     const monthStart = `${month}-01`;
-    const monthEnd   = `${month}-31`;
+    const [y, mo]  = month.split("-").map(Number);
+    const monthEnd = new Date(y, mo, 0).toISOString().slice(0, 10); // last real day of month
 
     const [{ data: reports }, { data: planned }] = await Promise.all([
       sb
