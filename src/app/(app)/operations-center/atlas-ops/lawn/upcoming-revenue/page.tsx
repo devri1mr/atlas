@@ -177,13 +177,15 @@ export default function UpcomingRevenuePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Load month summary (actual + planned) — always for current month
+  // Load month summary for the viewed week's month
   useEffect(() => {
-    const ym = today.slice(0, 7);
+    const ym = dates[0].slice(0, 7);
+    setMonthSummary(null);
     fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setMonthSummary(d));
-  }, [today]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekOffset]);
 
   async function handleSave(date: string, cat: Category, value: number) {
     // Capture the fully-merged row inside the updater to avoid stale closure
@@ -219,8 +221,8 @@ export default function UpcomingRevenuePage() {
 
   const weekRev = dates.reduce((s, d) =>
     s + (lockedDates.has(d) ? lockedDates.get(d)! : dayTotal(data.get(d) ?? {} as DayRow)), 0);
-  const projection  = monthSummary ? monthSummary.actual + monthSummary.planned : null;
-  const curMonthLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
+  const projection     = monthSummary ? monthSummary.actual + monthSummary.planned : null;
+  const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   async function handleSyncSheets() {
     setSyncState("syncing");
@@ -449,8 +451,8 @@ export default function UpcomingRevenuePage() {
         {monthSummary !== null && (
           <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
             <div className="px-5 py-3.5" style={{ background: BG_HEADER }}>
-              <span className="text-sm font-semibold text-white">{curMonthLabel} Projection</span>
-              <span className="text-xs text-white/40 ml-2">Actual thru yesterday + planned from today</span>
+              <span className="text-sm font-semibold text-white">{viewedMonthLabel} Projection</span>
+              <span className="text-xs text-white/40 ml-2">Actual completed + planned upcoming</span>
             </div>
             <div className="bg-white px-6 py-4 flex items-center gap-8 flex-wrap">
               <div>
@@ -468,7 +470,7 @@ export default function UpcomingRevenuePage() {
               <div className="ml-auto text-right">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Month Projection</div>
                 <div className="text-3xl font-black text-gray-900">{moneyFull(projection!)}</div>
-                <div className="text-xs text-gray-400 mt-0.5">Projected {curMonthLabel} total</div>
+                <div className="text-xs text-gray-400 mt-0.5">Projected {viewedMonthLabel} total</div>
               </div>
             </div>
           </div>
