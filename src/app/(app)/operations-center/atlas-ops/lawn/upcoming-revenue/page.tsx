@@ -224,30 +224,27 @@ export default function UpcomingRevenuePage() {
 
   async function handleSyncSheets() {
     setSyncState("syncing");
+    // Open tab immediately (synchronous = popup blocker won't fire)
+    const win = window.open("about:blank", "_blank");
     try {
       const ym = dates[0].slice(0, 7);
-      // Server computes correct projection and returns Apps Script URL
       const syncRes = await fetch("/api/operations-center/atlas-ops/lawn/sync-sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ month: ym }),
       });
       if (!syncRes.ok) {
+        win?.close();
         const j = await syncRes.json().catch(() => ({}));
         throw new Error(j.error ?? `HTTP ${syncRes.status}`);
       }
       const { scriptUrl } = await syncRes.json();
-      // Open in hidden iframe — browser's Google session handles Apps Script auth
-      await new Promise<void>(resolve => {
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.src = scriptUrl;
-        iframe.onload = () => { document.body.removeChild(iframe); resolve(); };
-        document.body.appendChild(iframe);
-        setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); resolve(); }, 8000);
-      });
+      // Navigate the tab to Apps Script URL — full browser nav uses your Google session
+      if (win) win.location.href = scriptUrl;
+      setTimeout(() => win?.close(), 4000);
       setSyncState("ok");
     } catch (e: any) {
+      win?.close();
       setSyncError(e.message ?? "Error");
       setSyncState("error");
     }
