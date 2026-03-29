@@ -204,11 +204,11 @@ export default function CogsPage() {
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
 
       {/* ── Hero ── */}
-      <div className="px-6 py-5" style={{ background: BG }}>
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
+      <div className="px-6 py-3" style={{ background: BG }}>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
           <div>
-            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-1">Lawn Division</div>
-            <div className="text-2xl font-black text-white">Cost of Goods Sold</div>
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">Lawn Division</div>
+            <div className="text-xl font-black text-white">Cost of Goods Sold</div>
           </div>
           <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
             <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
@@ -218,7 +218,7 @@ export default function CogsPage() {
         </div>
 
         {/* KPI chips */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           {[
             {
               label: "YTD Revenue",
@@ -243,17 +243,17 @@ export default function CogsPage() {
                 : "#9ca3af",
             },
           ].map(chip => (
-            <div key={chip.label} className="bg-white/10 rounded-xl px-4 py-3 text-center">
-              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">{chip.label}</div>
-              <div className="text-2xl font-black" style={{ color: chip.color }}>{chip.value}</div>
-              {chip.budget && <div className="text-xs text-white/40 mt-0.5">{chip.budget}</div>}
+            <div key={chip.label} className="bg-white/10 rounded-xl px-3 py-2 text-center">
+              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-0.5">{chip.label}</div>
+              <div className="text-xl font-black" style={{ color: chip.color }}>{chip.value}</div>
+              {chip.budget && <div className="text-xs text-white/40">{chip.budget}</div>}
             </div>
           ))}
         </div>
       </div>
 
       {/* ── Table ── */}
-      <div className="p-3">
+      <div className="p-2">
         {loading ? (
           <div className="text-center py-16 text-sm text-gray-400">Loading…</div>
         ) : (
@@ -265,7 +265,7 @@ export default function CogsPage() {
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th className="px-3 py-2 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
@@ -274,7 +274,7 @@ export default function CogsPage() {
                         return (
                           <th
                             key={m}
-                            className="py-3 text-center"
+                            className="py-2 text-center"
                             style={{ background: BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: "1px solid rgba(255,255,255,0.15)", borderBottom: "2px solid rgba(255,255,255,0.15)" }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-emerald-300" : "text-xs text-white/70"}`}>{m}</span>
@@ -282,7 +282,7 @@ export default function CogsPage() {
                           </th>
                         );
                       })}
-                      <th className="py-3 text-center" style={{ background: BG_FOOT_TOT, minWidth: 90 }}>
+                      <th className="py-2 text-center" style={{ background: BG_FOOT_TOT, minWidth: 90 }}>
                         <span className="text-xs font-bold text-white/50 uppercase tracking-widest">YTD</span>
                       </th>
                     </tr>
@@ -301,7 +301,7 @@ export default function CogsPage() {
 
                           {/* Label */}
                           <td
-                            className="px-3 py-3"
+                            className="px-3 py-2"
                             style={{
                               background: row.accentBg,
                               borderRight: "1px solid #d1d5db",
@@ -326,7 +326,7 @@ export default function CogsPage() {
                             return (
                               <td
                                 key={r.month}
-                                className="px-1 py-3 text-center"
+                                className="px-1 py-2 text-center"
                                 style={{
                                   background: cellBg,
                                   borderBottom: "1px solid #d1d5db",
@@ -367,7 +367,7 @@ export default function CogsPage() {
 
                           {/* YTD */}
                           <td
-                            className="px-2 py-2 text-center"
+                            className="px-2 py-1.5 text-center"
                             style={{ background: "#f0fdf4", borderBottom: "1px solid #d1d5db", borderLeft: "1px solid #d1d5db" }}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -395,7 +395,7 @@ export default function CogsPage() {
 
                     {/* Gross Profit */}
                     <tr>
-                      <td className="px-3 py-4" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                      <td className="px-3 py-2.5" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-sm font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
                       </td>
                       {data.map(r => {
@@ -405,7 +405,7 @@ export default function CogsPage() {
                         return (
                           <td
                             key={r.month}
-                            className="px-2 py-4 text-center"
+                            className="px-2 py-2.5 text-center"
                             style={{ background: BG_FOOT, opacity: future ? 0.35 : 1, borderTop: "2px solid rgba(255,255,255,0.08)" }}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -419,7 +419,7 @@ export default function CogsPage() {
                           </td>
                         );
                       })}
-                      <td className="px-2 py-4 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                      <td className="px-2 py-2.5 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
@@ -431,7 +431,7 @@ export default function CogsPage() {
 
                     {/* Margin % */}
                     <tr>
-                      <td className="px-3 py-3" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+                      <td className="px-3 py-2" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
                         <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">GP Margin</span>
                       </td>
                       {data.map(r => {
@@ -457,7 +457,7 @@ export default function CogsPage() {
                           </td>
                         );
                       })}
-                      <td className="px-1 py-3 text-center" style={{ background: BG_FOOT_TOT }}>
+                      <td className="px-1 py-2 text-center" style={{ background: BG_FOOT_TOT }}>
                         <div className="flex flex-col items-center gap-0.5">
                           {ytdMargin !== null && (
                             <span
