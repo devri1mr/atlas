@@ -51,14 +51,6 @@ function marginPillBg(m: number | null): string {
   return "rgba(239,68,68,0.25)";
 }
 
-// Returns: +X% (green/red) or "" if no data
-function deltaLabel(actual: number, budget: number, favorable: "high" | "low") {
-  if (budget === 0 || actual === 0) return null;
-  const pct   = (actual / budget - 1) * 100;
-  const good  = favorable === "high" ? pct >= 0 : pct <= 0;
-  const sign  = pct >= 0 ? "+" : "";
-  return { text: `${sign}${pct.toFixed(0)}%`, good, near: Math.abs(pct) < 2 };
-}
 
 // ── Editable actual cell ───────────────────────────────────────────────────────
 
@@ -109,18 +101,14 @@ function ActualCell({
   );
 }
 
-// ── Delta badge ───────────────────────────────────────────────────────────────
+// ── % of revenue badge ────────────────────────────────────────────────────────
 
-function DeltaBadge({ actual, budget, favorable }: { actual: number; budget: number; favorable: "high" | "low" }) {
-  const d = deltaLabel(actual, budget, favorable);
-  if (!d) return null;
-  const color = d.near ? "#9ca3af" : d.good ? "#059669" : "#dc2626";
+function RevPctBadge({ value, revenue }: { value: number; revenue: number }) {
+  if (revenue === 0 || value === 0) return null;
+  const pct = (value / revenue) * 100;
   return (
-    <span
-      className="inline-block text-xs font-bold px-1.5 py-0.5 rounded-full"
-      style={{ color, background: `${color}18` }}
-    >
-      {d.text}
+    <span className="inline-block text-xs font-bold text-gray-500 whitespace-nowrap">
+      {pct.toFixed(1)}%
     </span>
   );
 }
@@ -131,20 +119,20 @@ type RowDef = {
   key: keyof MonthCOGS;
   apiField: string;
   label: string;
-  color: string;       // dot + actual text color
-  accentBg: string;    // label cell bg
+  color: string;
+  accentBg: string;
   isAuto: boolean;
   overrideKey?: keyof MonthCOGS;
   budgetKey: keyof MonthCOGS;
-  favorable: "high" | "low";
+  showRevPct: boolean; // show value as % of revenue
 };
 
 const ROWS: RowDef[] = [
-  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       color: "#0284c7", accentBg: "#f0f9ff", isAuto: true,  overrideKey: "revenue_overridden",  budgetKey: "budget_revenue",       favorable: "high" },
-  { key: "labor",         apiField: "labor_override",   label: "Labor",         color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "labor_overridden",    budgetKey: "budget_labor",         favorable: "low"  },
-  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", color: "#374151", accentBg: "#fff",    isAuto: false,                                     budgetKey: "budget_job_materials", favorable: "low"  },
-  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "fuel_overridden",     budgetKey: "budget_fuel",          favorable: "low"  },
-  { key: "equipment",     apiField: "equipment",        label: "Equipment",     color: "#374151", accentBg: "#fff",    isAuto: false,                                     budgetKey: "budget_equipment",     favorable: "low"  },
+  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       color: "#0284c7", accentBg: "#f0f9ff", isAuto: true,  overrideKey: "revenue_overridden",  budgetKey: "budget_revenue",       showRevPct: false },
+  { key: "labor",         apiField: "labor_override",   label: "Labor",         color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "labor_overridden",    budgetKey: "budget_labor",         showRevPct: true  },
+  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", color: "#374151", accentBg: "#fff",    isAuto: false,                                     budgetKey: "budget_job_materials", showRevPct: true  },
+  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "fuel_overridden",     budgetKey: "budget_fuel",          showRevPct: true  },
+  { key: "equipment",     apiField: "equipment",        label: "Equipment",     color: "#374151", accentBg: "#fff",    isAuto: false,                                     budgetKey: "budget_equipment",     showRevPct: true  },
 ];
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -277,7 +265,7 @@ export default function CogsPage() {
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left" style={{ background: BG, width: 120, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th className="px-4 py-3 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
@@ -313,19 +301,19 @@ export default function CogsPage() {
 
                           {/* Label */}
                           <td
-                            className="px-4 py-3"
+                            className="px-3 py-3"
                             style={{
                               background: row.accentBg,
                               borderRight: "1px solid #e5e7eb",
                               borderBottom: "1px solid #e5e7eb",
                             }}
                           >
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2">
                               <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                className="w-2 h-2 rounded-full shrink-0"
                                 style={{ background: isRev ? "#0284c7" : "#10b981" }}
                               />
-                              <span className="text-xs font-black text-gray-700">{row.label}</span>
+                              <span className="text-xs font-black text-gray-700 whitespace-nowrap">{row.label}</span>
                             </div>
                           </td>
 
@@ -356,7 +344,7 @@ export default function CogsPage() {
                                     }
                                   </div>
                                 ) : (
-                                  /* Past/current: actual (editable) + budget + delta */
+                                  /* Past/current: actual (editable) + budget + % of revenue */
                                   <div className="flex flex-col items-center gap-1">
                                     <ActualCell
                                       value={actualVal}
@@ -368,8 +356,8 @@ export default function CogsPage() {
                                     {budgetVal > 0 && (
                                       <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(budgetVal)}</span>
                                     )}
-                                    {actualVal > 0 && budgetVal > 0 && (
-                                      <DeltaBadge actual={actualVal} budget={budgetVal} favorable={row.favorable} />
+                                    {row.showRevPct && (
+                                      <RevPctBadge value={actualVal} revenue={r.revenue} />
                                     )}
                                   </div>
                                 )}
@@ -392,8 +380,8 @@ export default function CogsPage() {
                               {ytdBud > 0 && (
                                 <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Budg: {fmt.format(ytdBud)}</span>
                               )}
-                              {ytdVal > 0 && ytdBud > 0 && (
-                                <DeltaBadge actual={ytdVal} budget={ytdBud} favorable={row.favorable} />
+                              {row.showRevPct && (
+                                <RevPctBadge value={ytdVal} revenue={ytd.revenue} />
                               )}
                             </div>
                           </td>
@@ -407,7 +395,7 @@ export default function CogsPage() {
 
                     {/* Gross Profit */}
                     <tr>
-                      <td className="px-4 py-4" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                      <td className="px-3 py-4" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-sm font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
                       </td>
                       {data.map(r => {
@@ -443,7 +431,7 @@ export default function CogsPage() {
 
                     {/* Margin % */}
                     <tr>
-                      <td className="px-4 py-3" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+                      <td className="px-3 py-3" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
                         <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">GP Margin</span>
                       </td>
                       {data.map(r => {
