@@ -76,14 +76,23 @@ export async function POST(req: NextRequest) {
     url.searchParams.set("month",      month);
     url.searchParams.set("projection", String(projection));
 
-    const sheetRes = await fetch(url.toString(), { method: "GET", redirect: "follow" });
+    const sheetRes = await fetch(url.toString(), {
+      method: "GET",
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
 
     const text = await sheetRes.text();
     let sheetJson: any = {};
-    try { sheetJson = JSON.parse(text); } catch { sheetJson = { raw: text }; }
+    try { sheetJson = JSON.parse(text); } catch { sheetJson = { raw: text.slice(0, 300) }; }
 
-    if (!sheetRes.ok) {
-      return NextResponse.json({ error: "Sheets webhook failed", detail: sheetJson }, { status: 502 });
+    // Apps Script returns 200 on success; treat any JSON with ok:true as success
+    const succeeded = sheetRes.ok || sheetJson?.ok === true;
+    if (!succeeded) {
+      return NextResponse.json(
+        { error: `Sheets webhook failed (HTTP ${sheetRes.status})`, detail: sheetJson },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ ok: true, month, projection, sheets: sheetJson });
