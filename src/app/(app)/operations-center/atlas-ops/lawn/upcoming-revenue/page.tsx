@@ -53,8 +53,6 @@ const money = (n: number) =>
   n === 0 ? "—" :
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-const moneyInput = (n: number) => n === 0 ? "" : String(n);
-
 function dayLabel(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00Z");
   return d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
@@ -153,10 +151,11 @@ export default function UpcomingRevenuePage() {
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const today = toISO(new Date());
 
-  // Compute current displayed week (Mon–Sun)
+  // Compute current displayed week — filter past dates when on current week
   const baseMon = isoWeekStart(new Date());
   const mon = addDays(baseMon, weekOffset * 7);
-  const dates = weekDates(mon);
+  const allDates = weekDates(mon);
+  const dates = weekOffset === 0 ? allDates.filter(d => d >= today) : allDates;
 
   const monthLabel = (() => {
     const months = [...new Set(dates.map(d => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })))];
@@ -241,7 +240,7 @@ export default function UpcomingRevenuePage() {
             {/* Week nav */}
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button
-                onClick={() => setWeekOffset(w => w - 1)}
+                onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
                 className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
               >
                 ‹
@@ -267,13 +266,13 @@ export default function UpcomingRevenuePage() {
       <div className="p-4">
         <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse" style={{ minWidth: 700 }}>
+            <table className="w-full" style={{ minWidth: 700, borderCollapse: "collapse" }}>
 
               {/* Column headers — day names + dates */}
               <thead>
                 <tr>
                   <th
-                    className="px-5 py-3 text-left"
+                    className="px-5 py-3 text-left border border-emerald-900/50"
                     style={{ width: 160, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
                   >
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
@@ -283,8 +282,8 @@ export default function UpcomingRevenuePage() {
                     return (
                       <th
                         key={date}
-                        className="px-2 py-3 text-center"
-                        style={{ minWidth: 90, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                        className="px-2 py-3 text-center border border-emerald-900/50"
+                        style={{ minWidth: 100, background: isToday ? "#0f4a25" : "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
                       >
                         <div className="flex flex-col items-center gap-0.5">
                           <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : "text-white/60"}`}>
@@ -299,16 +298,16 @@ export default function UpcomingRevenuePage() {
                     );
                   })}
                   <th
-                    className="px-3 py-3 text-center"
-                    style={{ minWidth: 90, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                    className="px-3 py-3 text-center border border-emerald-900/50"
+                    style={{ minWidth: 100, background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
                   >
-                    <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Week</span>
+                    <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Week Total</span>
                   </th>
                 </tr>
 
                 {/* Lawn Total row */}
                 <tr>
-                  <td className="px-5 py-3 border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
+                  <td className="px-5 py-3 border border-emerald-900/50" style={{ background: "#0f3a1e" }}>
                     <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Lawn Total</span>
                   </td>
                   {dates.map(date => {
@@ -316,7 +315,7 @@ export default function UpcomingRevenuePage() {
                     const total = row ? dayTotal(row) : 0;
                     const isToday = date === today;
                     return (
-                      <td key={date} className="px-2 py-3 text-center border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
+                      <td key={date} className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: isToday ? "#0f4a25" : "#0f3a1e" }}>
                         <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
@@ -326,7 +325,7 @@ export default function UpcomingRevenuePage() {
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 text-center border-b-2 border-emerald-900/40" style={{ background: "#0f3a1e" }}>
+                  <td className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: "#0f3a1e" }}>
                     <span className={`text-sm font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/25"}`}>
                       {weekRev > 0 ? money(weekRev) : "—"}
                     </span>
@@ -343,7 +342,7 @@ export default function UpcomingRevenuePage() {
                       key={cat.key}
                       className={`transition-colors hover:bg-emerald-50/30 group ${ci % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
                     >
-                      <td className="px-5 py-2.5">
+                      <td className="px-5 py-2.5 border border-gray-200 bg-white">
                         <div className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                           <span className="text-xs font-semibold text-gray-600">{cat.label}</span>
@@ -352,12 +351,11 @@ export default function UpcomingRevenuePage() {
                       {dates.map(date => {
                         const row = data.get(date);
                         const val = row?.[cat.key] ?? 0;
-                        const weekend = isWeekend(date);
                         const isToday = date === today;
                         return (
                           <td
                             key={date}
-                            className={`px-2 py-1.5 ${isToday ? "bg-emerald-50/60" : ""} ${weekend ? "bg-gray-50/60" : ""}`}
+                            className={`px-2 py-1.5 border border-gray-200 ${isToday ? "bg-emerald-50" : "bg-white"}`}
                           >
                             <EditCell
                               value={val}
@@ -366,8 +364,8 @@ export default function UpcomingRevenuePage() {
                           </td>
                         );
                       })}
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`text-xs font-semibold ${catWeek > 0 ? "text-emerald-700" : "text-gray-200"}`}>
+                      <td className="px-3 py-2.5 text-center border border-gray-200 bg-gray-50">
+                        <span className={`text-xs font-semibold ${catWeek > 0 ? "text-emerald-700" : "text-gray-300"}`}>
                           {catWeek > 0 ? money(catWeek) : "—"}
                         </span>
                       </td>
@@ -379,19 +377,20 @@ export default function UpcomingRevenuePage() {
               {/* Footer total row */}
               <tfoot>
                 <tr>
-                  <td className="px-5 py-3 text-xs font-bold text-white" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>Daily Total</td>
+                  <td className="px-5 py-3 text-xs font-bold text-white border border-emerald-900/50" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>Daily Total</td>
                   {dates.map(date => {
                     const row = data.get(date);
                     const total = row ? dayTotal(row) : 0;
+                    const isToday = date === today;
                     return (
-                      <td key={date} className="px-2 py-3 text-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
+                      <td key={date} className="px-2 py-3 text-center border border-emerald-900/50" style={{ background: isToday ? "#0f4a25" : "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
                         <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/25"}`}>
                           {total > 0 ? money(total) : "—"}
                         </span>
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 text-center" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
+                  <td className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
                     <span className={`text-xs font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/25"}`}>
                       {weekRev > 0 ? money(weekRev) : "—"}
                     </span>
