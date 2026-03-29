@@ -11,6 +11,8 @@ const BASE_TABS = [
   { label: "Rankings",          href: "/operations-center/atlas-ops/lawn/rankings" },
 ];
 
+const SUPER_ADMIN_EMAIL = "matthew@garpielgroup.com";
+
 const ADMIN_TABS = [
   { label: "Admin Pay",  href: "/operations-center/atlas-ops/lawn/admin-pay" },
 ];
@@ -18,7 +20,8 @@ const ADMIN_TABS = [
 export default function LawnLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useUser();
-  const TABS = user?.role_is_admin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
+  const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
+  const TABS = isSuperAdmin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
 
   return (
     <div className="flex flex-col min-h-screen">
