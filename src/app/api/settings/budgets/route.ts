@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await sb
       .from("division_budgets")
-      .select("month, revenue, labor, job_materials, fuel, equipment")
+      .select("month, revenue, labor, job_materials, fuel, equipment, subcontractors")
       .eq("company_id", company.id)
       .eq("division", division)
       .eq("year", year)
@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest) {
     const { division, year, month, field, value } = await req.json();
     if (!division || !year || !month || !field) return NextResponse.json({ error: "division, year, month, field required" }, { status: 400 });
 
-    const ALLOWED = ["revenue", "labor", "job_materials", "fuel", "equipment"];
+    const ALLOWED = ["revenue", "labor", "job_materials", "fuel", "equipment", "subcontractors"];
     if (!ALLOWED.includes(field)) return NextResponse.json({ error: "Invalid field" }, { status: 400 });
 
     const now = new Date().toISOString();

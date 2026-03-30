@@ -4,25 +4,26 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Field = "revenue" | "labor" | "job_materials" | "fuel" | "equipment";
-type MonthRow = { month: number; revenue: number; labor: number; job_materials: number; fuel: number; equipment: number };
+type Field = "revenue" | "labor" | "job_materials" | "fuel" | "equipment" | "subcontractors";
+type MonthRow = { month: number; revenue: number; labor: number; job_materials: number; fuel: number; equipment: number; subcontractors: number };
 type Division = { id: string; name: string };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 const FIELDS: { key: Field; label: string; accent: string }[] = [
-  { key: "revenue",       label: "Revenue",       accent: "text-sky-700" },
-  { key: "labor",         label: "Labor",         accent: "text-gray-700" },
-  { key: "job_materials", label: "Job Materials", accent: "text-gray-700" },
-  { key: "fuel",          label: "Fuel",          accent: "text-gray-700" },
-  { key: "equipment",     label: "Equipment",     accent: "text-gray-700" },
+  { key: "revenue",        label: "Revenue",        accent: "text-sky-700" },
+  { key: "labor",          label: "Labor",          accent: "text-gray-700" },
+  { key: "job_materials",  label: "Job Materials",  accent: "text-gray-700" },
+  { key: "fuel",           label: "Fuel",           accent: "text-gray-700" },
+  { key: "equipment",      label: "Equipment",      accent: "text-gray-700" },
+  { key: "subcontractors", label: "Subcontractors", accent: "text-gray-700" },
 ];
 
 const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
 function emptyRow(month: number): MonthRow {
-  return { month, revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0 };
+  return { month, revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, subcontractors: 0 };
 }
 
 // ── Editable cell ─────────────────────────────────────────────────────────────
@@ -130,20 +131,21 @@ export default function BudgetsPage() {
   // Totals
   const totals = rows.reduce(
     (acc, r) => ({
-      revenue:       acc.revenue       + r.revenue,
-      labor:         acc.labor         + r.labor,
-      job_materials: acc.job_materials + r.job_materials,
-      fuel:          acc.fuel          + r.fuel,
-      equipment:     acc.equipment     + r.equipment,
+      revenue:        acc.revenue        + r.revenue,
+      labor:          acc.labor          + r.labor,
+      job_materials:  acc.job_materials  + r.job_materials,
+      fuel:           acc.fuel           + r.fuel,
+      equipment:      acc.equipment      + r.equipment,
+      subcontractors: acc.subcontractors + r.subcontractors,
     }),
-    { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0 }
+    { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, subcontractors: 0 }
   );
 
-  const totalCOGS   = totals.labor + totals.job_materials + totals.fuel + totals.equipment;
+  const totalCOGS   = totals.labor + totals.job_materials + totals.fuel + totals.equipment + totals.subcontractors;
   const totalProfit = totals.revenue - totalCOGS;
   const totalMargin = totals.revenue > 0 ? totalProfit / totals.revenue : null;
 
-  function rowProfit(r: MonthRow) { return r.revenue - r.labor - r.job_materials - r.fuel - r.equipment; }
+  function rowProfit(r: MonthRow) { return r.revenue - r.labor - r.job_materials - r.fuel - r.equipment - r.subcontractors; }
   function rowMargin(r: MonthRow) { return r.revenue > 0 ? rowProfit(r) / r.revenue : null; }
 
   function marginColor(m: number | null) {
@@ -310,7 +312,7 @@ export default function BudgetsPage() {
             </div>
 
             <p className="text-center text-xs text-gray-400 mt-3">
-              Click any cell to enter a budget amount · Saves automatically · Gross Profit = Revenue − Labor − Materials − Fuel − Equipment
+              Click any cell to enter a budget amount · Saves automatically · Gross Profit = Revenue − Labor − Materials − Fuel − Equipment − Subcontractors
             </p>
           </>
         )}

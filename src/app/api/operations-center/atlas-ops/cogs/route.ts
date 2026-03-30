@@ -84,12 +84,12 @@ export async function GET(req: NextRequest) {
       { data: adminOverrides },
     ] = await Promise.all([
       sb.from("division_budgets")
-        .select("division, month, revenue, labor, job_materials, fuel, equipment")
+        .select("division, month, revenue, labor, job_materials, fuel, equipment, subcontractors")
         .eq("company_id", company.id)
         .eq("year", year)
         .in("division", divisionKeys),
       sb.from("division_cogs_actuals")
-        .select("division, month, revenue_override, labor_override, job_materials, fuel_override, equipment")
+        .select("division, month, revenue_override, labor_override, job_materials, fuel_override, equipment, subcontractors")
         .eq("company_id", company.id)
         .eq("year", year)
         .in("division", divisionKeys),
@@ -154,8 +154,8 @@ export async function GET(req: NextRequest) {
     const result = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
 
-      let totalRevenue = 0, totalLabor = 0, totalJobMaterials = 0, totalFuel = 0, totalEquipment = 0;
-      let totalBRevenue = 0, totalBLabor = 0, totalBMat = 0, totalBFuel = 0, totalBEquip = 0;
+      let totalRevenue = 0, totalLabor = 0, totalJobMaterials = 0, totalFuel = 0, totalEquipment = 0, totalSubs = 0;
+      let totalBRevenue = 0, totalBLabor = 0, totalBMat = 0, totalBFuel = 0, totalBEquip = 0, totalBSubs = 0;
 
       for (const div of divisions) {
         const divKey  = div.name.toLowerCase();
@@ -168,6 +168,7 @@ export async function GET(req: NextRequest) {
         totalBMat     += Number(budget.job_materials ?? 0);
         totalBFuel    += Number(budget.fuel          ?? 0);
         totalBEquip   += Number(budget.equipment     ?? 0);
+        totalBSubs    += Number(budget.subcontractors ?? 0);
 
         // Actuals
         if (divKey === "lawn" && hasLawn) {
@@ -188,9 +189,10 @@ export async function GET(req: NextRequest) {
 
           totalRevenue       += revenue;
           totalLabor         += labor;
-          totalJobMaterials  += actuals.job_materials != null ? Number(actuals.job_materials) : 0;
+          totalJobMaterials  += actuals.job_materials    != null ? Number(actuals.job_materials)    : 0;
           totalFuel          += fuel;
-          totalEquipment     += actuals.equipment     != null ? Number(actuals.equipment)     : 0;
+          totalEquipment     += actuals.equipment        != null ? Number(actuals.equipment)        : 0;
+          totalSubs          += actuals.subcontractors   != null ? Number(actuals.subcontractors)   : 0;
         } else {
           // Manual actuals (all non-lawn divisions)
           const revenue = actuals.revenue_override != null ? Number(actuals.revenue_override) : 0;
@@ -203,23 +205,26 @@ export async function GET(req: NextRequest) {
 
           totalRevenue      += revenue;
           totalLabor        += labor;
-          totalJobMaterials += actuals.job_materials != null ? Number(actuals.job_materials) : 0;
+          totalJobMaterials += actuals.job_materials    != null ? Number(actuals.job_materials)    : 0;
           totalFuel         += fuel;
-          totalEquipment    += actuals.equipment     != null ? Number(actuals.equipment)     : 0;
+          totalEquipment    += actuals.equipment        != null ? Number(actuals.equipment)        : 0;
+          totalSubs         += actuals.subcontractors   != null ? Number(actuals.subcontractors)   : 0;
         }
       }
 
-      const gross_profit = totalRevenue - totalLabor - totalJobMaterials - totalFuel - totalEquipment;
+      const gross_profit = totalRevenue - totalLabor - totalJobMaterials - totalFuel - totalEquipment - totalSubs;
       const margin_pct   = totalRevenue > 0 ? gross_profit / totalRevenue : null;
 
       return {
         month,
         revenue: totalRevenue, labor: totalLabor, job_materials: totalJobMaterials, fuel: totalFuel, equipment: totalEquipment,
+        subcontractors: totalSubs,
         gross_profit, margin_pct,
         revenue_auto: 0, labor_auto: 0, fuel_auto: 0,
         revenue_overridden: false, labor_overridden: false, fuel_overridden: false,
         budget_revenue: totalBRevenue, budget_labor: totalBLabor,
         budget_job_materials: totalBMat, budget_fuel: totalBFuel, budget_equipment: totalBEquip,
+        budget_subcontractors: totalBSubs,
       };
     });
 

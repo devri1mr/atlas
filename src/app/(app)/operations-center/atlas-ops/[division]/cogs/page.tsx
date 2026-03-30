@@ -9,11 +9,14 @@ export default async function DivisionCogsPage({ params }: Props) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ") + " Division";
 
+  const showSubcontractors = ["snow", "landscaping"].includes(division);
+
   return (
     <CogsDashboard
       division={division}
       divisionLabel={divisionLabel}
       apiPath={`/api/operations-center/atlas-ops/${division}/cogs`}
+      showSubcontractors={showSubcontractors}
     />
   );
 }

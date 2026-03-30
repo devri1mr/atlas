@@ -7,11 +7,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 export type MonthCOGS = {
   month: number;
   revenue: number; labor: number; job_materials: number; fuel: number; equipment: number;
+  subcontractors: number;
   gross_profit: number; margin_pct: number | null;
   revenue_auto: number; labor_auto: number; fuel_auto: number;
   revenue_overridden: boolean; labor_overridden: boolean; fuel_overridden: boolean;
   budget_revenue: number; budget_labor: number; budget_job_materials: number;
-  budget_fuel: number; budget_equipment: number;
+  budget_fuel: number; budget_equipment: number; budget_subcontractors: number;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -120,13 +121,17 @@ type RowDef = {
   showRevPct: boolean;
 };
 
-const ROWS: RowDef[] = [
-  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       color: "#0284c7", accentBg: "#f0f9ff", isAuto: true,  overrideKey: "revenue_overridden", budgetKey: "budget_revenue",       showRevPct: false },
-  { key: "labor",         apiField: "labor_override",   label: "Labor",         color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "labor_overridden",   budgetKey: "budget_labor",         showRevPct: true  },
-  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", color: "#374151", accentBg: "#fff",    isAuto: false,                                    budgetKey: "budget_job_materials", showRevPct: true  },
-  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "fuel_overridden",    budgetKey: "budget_fuel",          showRevPct: true  },
-  { key: "equipment",     apiField: "equipment",        label: "Equipment",     color: "#374151", accentBg: "#fff",    isAuto: false,                                    budgetKey: "budget_equipment",     showRevPct: true  },
+const BASE_ROWS: RowDef[] = [
+  { key: "revenue",       apiField: "revenue_override", label: "Revenue",       color: "#0284c7", accentBg: "#f0f9ff", isAuto: true,  overrideKey: "revenue_overridden", budgetKey: "budget_revenue",          showRevPct: false },
+  { key: "labor",         apiField: "labor_override",   label: "Labor",         color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "labor_overridden",   budgetKey: "budget_labor",            showRevPct: true  },
+  { key: "job_materials", apiField: "job_materials",    label: "Job Materials", color: "#374151", accentBg: "#fff",    isAuto: false,                                    budgetKey: "budget_job_materials",    showRevPct: true  },
+  { key: "fuel",          apiField: "fuel_override",    label: "Fuel",          color: "#374151", accentBg: "#f9fafb", isAuto: true,  overrideKey: "fuel_overridden",    budgetKey: "budget_fuel",             showRevPct: true  },
+  { key: "equipment",     apiField: "equipment",        label: "Equipment",     color: "#374151", accentBg: "#fff",    isAuto: false,                                    budgetKey: "budget_equipment",        showRevPct: true  },
 ];
+
+const SUBCONTRACTORS_ROW: RowDef = {
+  key: "subcontractors", apiField: "subcontractors", label: "Subcontractors", color: "#374151", accentBg: "#f9fafb", isAuto: false, budgetKey: "budget_subcontractors", showRevPct: true,
+};
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -139,11 +144,13 @@ interface CogsDashboardProps {
   externalData?: MonthCOGS[];
   /** When true, shows values as static text (no editing, no year selector) */
   readOnly?: boolean;
+  /** Show Subcontractors row between Equipment and Gross Profit */
+  showSubcontractors?: boolean;
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export default function CogsDashboard({ division, divisionLabel, apiPath, externalData, readOnly = false }: CogsDashboardProps) {
+export default function CogsDashboard({ division, divisionLabel, apiPath, externalData, readOnly = false, showSubcontractors = false }: CogsDashboardProps) {
   const [year,    setYear]    = useState(CUR_YEAR);
   const [data,    setData]    = useState<MonthCOGS[]>([]);
   const [loading, setLoading] = useState(!externalData);
@@ -180,36 +187,40 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
   // ── Aggregates ───────────────────────────────────────────────────────────────
 
+  const ROWS = showSubcontractors ? [...BASE_ROWS, SUBCONTRACTORS_ROW] : BASE_ROWS;
+
   const past = data.filter(r => !isFuture(r.month, year));
 
   const ytd = past.reduce(
     (acc, r) => ({
-      revenue:       acc.revenue       + r.revenue,
-      labor:         acc.labor         + r.labor,
-      job_materials: acc.job_materials + r.job_materials,
-      fuel:          acc.fuel          + r.fuel,
-      equipment:     acc.equipment     + r.equipment,
-      gp:            acc.gp            + r.gross_profit,
-      bRevenue:      acc.bRevenue      + r.budget_revenue,
-      bLabor:        acc.bLabor        + r.budget_labor,
-      bMat:          acc.bMat          + r.budget_job_materials,
-      bFuel:         acc.bFuel         + r.budget_fuel,
-      bEquip:        acc.bEquip        + r.budget_equipment,
+      revenue:        acc.revenue        + r.revenue,
+      labor:          acc.labor          + r.labor,
+      job_materials:  acc.job_materials  + r.job_materials,
+      fuel:           acc.fuel           + r.fuel,
+      equipment:      acc.equipment      + r.equipment,
+      subcontractors: acc.subcontractors + (r.subcontractors ?? 0),
+      gp:             acc.gp             + r.gross_profit,
+      bRevenue:       acc.bRevenue       + r.budget_revenue,
+      bLabor:         acc.bLabor         + r.budget_labor,
+      bMat:           acc.bMat           + r.budget_job_materials,
+      bFuel:          acc.bFuel          + r.budget_fuel,
+      bEquip:         acc.bEquip         + r.budget_equipment,
+      bSubs:          acc.bSubs          + (r.budget_subcontractors ?? 0),
     }),
-    { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, gp: 0, bRevenue: 0, bLabor: 0, bMat: 0, bFuel: 0, bEquip: 0 }
+    { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0, subcontractors: 0, gp: 0, bRevenue: 0, bLabor: 0, bMat: 0, bFuel: 0, bEquip: 0, bSubs: 0 }
   );
 
-  const ytdMargin   = ytd.revenue > 0 ? ytd.gp / ytd.revenue : null;
-  const ytdBudgetGP = ytd.bRevenue - ytd.bLabor - ytd.bMat - ytd.bFuel - ytd.bEquip;
+  const ytdMargin    = ytd.revenue > 0 ? ytd.gp / ytd.revenue : null;
+  const ytdBudgetGP  = ytd.bRevenue - ytd.bLabor - ytd.bMat - ytd.bFuel - ytd.bEquip - ytd.bSubs;
   const ytdBudgetMgn = ytd.bRevenue !== 0 ? ytdBudgetGP / ytd.bRevenue : null;
 
   const ytdByKey: Record<string, number> = {
     revenue: ytd.revenue, labor: ytd.labor, job_materials: ytd.job_materials,
-    fuel: ytd.fuel, equipment: ytd.equipment,
+    fuel: ytd.fuel, equipment: ytd.equipment, subcontractors: ytd.subcontractors,
   };
   const ytdBudgetByKey: Record<string, number> = {
     revenue: ytd.bRevenue, labor: ytd.bLabor, job_materials: ytd.bMat,
-    fuel: ytd.bFuel, equipment: ytd.bEquip,
+    fuel: ytd.bFuel, equipment: ytd.bEquip, subcontractors: ytd.bSubs,
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────

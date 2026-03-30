@@ -20,12 +20,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ divi
 
     const [{ data: budgets }, { data: actuals }] = await Promise.all([
       sb.from("division_budgets")
-        .select("month, revenue, labor, job_materials, fuel, equipment")
+        .select("month, revenue, labor, job_materials, fuel, equipment, subcontractors")
         .eq("company_id", company.id)
         .eq("division", divisionKey)
         .eq("year", year),
       sb.from("division_cogs_actuals")
-        .select("month, revenue_override, labor_override, job_materials, fuel_override, equipment")
+        .select("month, revenue_override, labor_override, job_materials, fuel_override, equipment, subcontractors")
         .eq("company_id", company.id)
         .eq("division", divisionKey)
         .eq("year", year),
@@ -39,31 +39,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ divi
       const budget = budgetMap.get(month) ?? { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0 };
       const ov     = actualMap.get(month) ?? {};
 
-      const revenue       = ov.revenue_override != null ? Number(ov.revenue_override) : 0;
-      const labor         = ov.labor_override   != null ? Number(ov.labor_override)   : 0;
-      const job_materials = ov.job_materials    != null ? Number(ov.job_materials)    : 0;
-      const fuel          = ov.fuel_override    != null ? Number(ov.fuel_override)    : 0;
-      const equipment     = ov.equipment        != null ? Number(ov.equipment)        : 0;
+      const revenue        = ov.revenue_override != null ? Number(ov.revenue_override) : 0;
+      const labor          = ov.labor_override   != null ? Number(ov.labor_override)   : 0;
+      const job_materials  = ov.job_materials    != null ? Number(ov.job_materials)    : 0;
+      const fuel           = ov.fuel_override    != null ? Number(ov.fuel_override)    : 0;
+      const equipment      = ov.equipment        != null ? Number(ov.equipment)        : 0;
+      const subcontractors = ov.subcontractors   != null ? Number(ov.subcontractors)   : 0;
 
-      const gross_profit = revenue - labor - job_materials - fuel - equipment;
+      const gross_profit = revenue - labor - job_materials - fuel - equipment - subcontractors;
       const margin_pct   = revenue > 0 ? gross_profit / revenue : null;
 
       return {
         month,
-        revenue, labor, job_materials, fuel, equipment,
+        revenue, labor, job_materials, fuel, equipment, subcontractors,
         gross_profit, margin_pct,
-        // Auto values are 0 for manual-entry divisions
         revenue_auto: 0, labor_auto: 0, fuel_auto: 0,
-        // Override flags = whether a value has been entered
         revenue_overridden:  ov.revenue_override != null,
         labor_overridden:    ov.labor_override   != null,
         fuel_overridden:     ov.fuel_override    != null,
-        // Budgets
-        budget_revenue:       Number(budget.revenue       ?? 0),
-        budget_labor:         Number(budget.labor         ?? 0),
-        budget_job_materials: Number(budget.job_materials ?? 0),
-        budget_fuel:          Number(budget.fuel          ?? 0),
-        budget_equipment:     Number(budget.equipment     ?? 0),
+        budget_revenue:           Number(budget.revenue        ?? 0),
+        budget_labor:             Number(budget.labor          ?? 0),
+        budget_job_materials:     Number(budget.job_materials  ?? 0),
+        budget_fuel:              Number(budget.fuel           ?? 0),
+        budget_equipment:         Number(budget.equipment      ?? 0),
+        budget_subcontractors:    Number(budget.subcontractors ?? 0),
       };
     });
 
@@ -86,7 +85,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ divi
     const { year, month, field, value } = await req.json();
     if (!year || !month || !field) return NextResponse.json({ error: "year, month, field required" }, { status: 400 });
 
-    const ALLOWED = ["revenue_override","labor_override","job_materials","fuel_override","equipment"];
+    const ALLOWED = ["revenue_override","labor_override","job_materials","fuel_override","equipment","subcontractors"];
     if (!ALLOWED.includes(field)) return NextResponse.json({ error: "Invalid field" }, { status: 400 });
 
     const { error } = await sb.from("division_cogs_actuals").upsert(
