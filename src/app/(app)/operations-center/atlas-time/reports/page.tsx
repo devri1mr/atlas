@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AccessGate from "@/components/AccessGate";
+import { useUser } from "@/lib/userContext";
 import {
   HRSettings, PayPeriod, PunchOut,
   computePeriodPunches, getPayPeriodContaining, shiftPayPeriod, isoDate,
@@ -96,6 +97,9 @@ function ThC({ label, col, sort, onSort }: { label: string; col: string; sort: [
 }
 
 export default function ReportsPage() {
+  const { user } = useUser();
+  const isAdmin  = user?.role_is_admin ?? false;
+
   const [settings, setSettings]         = useState<HRSettings>(DEFAULT_SETTINGS);
   const [laborOverheadRate, setLaborOverheadRate] = useState(15);
   const [punches, setPunches]       = useState<RawPunch[]>([]);
@@ -313,6 +317,8 @@ export default function ReportsPage() {
       ot:    r => r._ot,
       total: r => r._total,
       div:   r => r._div,
+      rate:  r => r.at_employees?.default_pay_rate ?? 0,
+      cost:  r => (r.at_employees?.default_pay_rate ?? 0) * r._total,
     });
   }, [filteredPunches, computedMap, detailSort]);
 
@@ -594,6 +600,8 @@ export default function ReportsPage() {
                       <ThC label="Total"      col="total" sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="Punch Item" col="div"   sort={detailSort} onSort={toggleDetailSort} />
                       <ThC label="Class"      col="class" sort={detailSort} onSort={toggleDetailSort} />
+                      {isAdmin && <ThC label="Pay Rate" col="rate" sort={detailSort} onSort={toggleDetailSort} />}
+                      {isAdmin && <ThC label="Est. Cost" col="cost" sort={detailSort} onSort={toggleDetailSort} />}
                       <ThC label="Status"     col="status" sort={detailSort} onSort={toggleDetailSort} />
                     </tr>
                   </thead>
@@ -613,7 +621,7 @@ export default function ReportsPage() {
                             <td className="px-3 py-1.5 text-center tabular-nums text-xs text-gray-600">{h(gReg)}</td>
                             <td className={`px-3 py-1.5 text-center tabular-nums text-xs font-semibold ${gOt > 0 ? "text-amber-600" : "text-gray-300"}`}>{gOt > 0 ? h(gOt) : "—"}</td>
                             <td className="px-3 py-1.5 text-center tabular-nums font-bold text-xs text-[#123b1f]">{h(gTot)}</td>
-                            <td /><td /><td />
+                            <td /><td />{isAdmin && <td />}{isAdmin && <td />}<td />
                           </tr>
                         );
                       };
@@ -646,6 +654,23 @@ export default function ReportsPage() {
                             <td className="px-3 py-2.5 text-center tabular-nums font-bold text-xs">{h(p._total)}</td>
                             <td className="px-3 py-2.5 text-center text-xs text-gray-500 whitespace-nowrap">{p._div || "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs text-gray-400 whitespace-nowrap">{p._class || "—"}</td>
+                            {isAdmin && (() => {
+                              const rate = p.at_employees?.default_pay_rate ?? null;
+                              const otMult = settings.ot_multiplier ?? 1.5;
+                              const cost = rate != null
+                                ? rate * p._reg + rate * otMult * p._ot
+                                : null;
+                              return (
+                                <>
+                                  <td className="px-3 py-2.5 text-center tabular-nums text-xs text-gray-600 whitespace-nowrap">
+                                    {rate != null ? c(rate) : <span className="text-gray-300">—</span>}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center tabular-nums text-xs font-semibold text-emerald-700 whitespace-nowrap">
+                                    {cost != null ? c(cost) : <span className="text-gray-300">—</span>}
+                                  </td>
+                                </>
+                              );
+                            })()}
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
                                 {p.status === "approved"
