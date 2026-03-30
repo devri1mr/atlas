@@ -259,7 +259,9 @@ export default function UpcomingRevenuePage() {
     const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
     if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000); return; }
     setSyncState("syncing");
-    // Refresh month summary to ensure we send the latest data
+    // Open window immediately — must be synchronous in user-gesture context or browser blocks it
+    const win = window.open("about:blank", "_blank");
+    // Refresh month summary to get latest data before navigating
     const ym = dates[0].slice(0, 7);
     let proj = monthSummary.actual + monthSummary.planned;
     try {
@@ -273,8 +275,10 @@ export default function UpcomingRevenuePage() {
     const url = new URL(webhookUrl);
     url.searchParams.set("month",      ym);
     url.searchParams.set("projection", String(proj));
-    const win = window.open(url.toString(), "_blank");
-    setTimeout(() => win?.close(), 4000);
+    if (win) {
+      win.location.href = url.toString();
+      setTimeout(() => win.close(), 4000);
+    }
     setSyncState("ok");
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
   }
