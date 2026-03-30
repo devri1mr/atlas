@@ -136,11 +136,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Budgets (months 1 → monthNum) — all divisions ────────────────────────
+    // ── Budgets (months 1 → monthNum) — all divisions + admin ────────────────
     const budgetYtdMap   = new Map<string, number>(); // divKey → YTD budget
     const budgetMonthMap = new Map<string, number>(); // divKey → current month budget
     {
-      const allKeys = divisions.map(d => d.name.toLowerCase());
+      // Include "admin" even though it isn't an ops division row
+      const allKeys = [...divisions.map(d => d.name.toLowerCase()), "admin"];
       const { data: budgetRows } = await sb
         .from("division_budgets")
         .select("division, month, revenue")
@@ -188,20 +189,31 @@ export async function GET(req: NextRequest) {
         .eq("month", monthNum),
     ]);
 
-    // Lawn day-map: date → revenue (actuals override upcoming)
-    const lawnDayMap = new Map<string, number>();
-    for (const row of lawnUpcoming ?? []) {
-      if ((row as any).is_voided) continue;
-      const s = sumRow(row);
-      if (s > 0) lawnDayMap.set((row as any).date, s);
-    }
+    // Lawn: locked dates (completed production reports)
+    const lawnLockedDates = new Set<string>();
+    const lawnActualByDate = new Map<string, number>(); // date → actual earned
     for (const r of lawnReportsCur ?? []) {
+      const date = (r as any).report_date as string;
+      lawnLockedDates.add(date);
       let actual = 0;
       for (const job of (r as any).lawn_production_jobs ?? [])
         for (const mem of (job as any).lawn_production_members ?? [])
           actual += Number(mem.earned_amount ?? 0);
-      lawnDayMap.set((r as any).report_date, actual);
+      lawnActualByDate.set(date, actual);
     }
+
+    // Lawn upcoming (non-locked, non-voided) planned entries
+    const lawnPlannedByDate = new Map<string, number>(); // only future/upcoming dates
+    for (const row of lawnUpcoming ?? []) {
+      if ((row as any).is_voided) continue;
+      const date = (row as any).date as string;
+      if (lawnLockedDates.has(date)) continue; // locked dates use actuals, not planned
+      const s = sumRow(row);
+      if (s > 0) lawnPlannedByDate.set(date, s);
+    }
+
+    // lawnDayMap: combined for month total (actuals + planned)
+    const lawnDayMap = new Map<string, number>([...lawnActualByDate, ...lawnPlannedByDate]);
 
     // Non-lawn day-map: divKey → date → revenue
     const divDayMap = new Map<string, Map<string, number>>();
@@ -238,9 +250,10 @@ export async function GET(req: NextRequest) {
       let monthCogsActual = 0; // current-month COGS override amount (non-lawn)
 
       if (lawn) {
+        // Week columns: upcoming/planned only (locked actuals show in month total, not per-week)
         weekTotals = weeks.map(w => {
           let t = 0;
-          for (const [date, amt] of lawnDayMap)
+          for (const [date, amt] of lawnPlannedByDate)
             if (date >= w.start && date <= w.end) t += amt;
           return t;
         });
@@ -260,7 +273,10 @@ export async function GET(req: NextRequest) {
       }
 
       const weekSum     = weekTotals.reduce((s, v) => s + v, 0);
-      const monthTotal  = weekSum + monthCogsActual;
+      // Lawn month total = all actuals + all upcoming planned (not just week-column sum)
+      const monthTotal  = lawn
+        ? [...lawnDayMap.values()].reduce((s, v) => s + v, 0)
+        : weekSum + monthCogsActual;
       const monthBudget = budgetMonthMap.get(divKey) ?? 0;
       const ytdBudget   = budgetYtdMap.get(divKey) ?? 0;
 
@@ -275,6 +291,22 @@ export async function GET(req: NextRequest) {
         over_under:    (ytdPrior + monthTotal) - ytdBudget,
       };
     });
+
+    // ── Admin row (cost center — zero revenue, negative budget) ──────────────
+    const adminMonthBudget = budgetMonthMap.get("admin") ?? 0;
+    const adminYtdBudget   = budgetYtdMap.get("admin") ?? 0;
+    if (adminMonthBudget !== 0 || adminYtdBudget !== 0) {
+      results.push({
+        key:          "admin",
+        name:         "Admin",
+        weeks:        weeks.map(() => 0),
+        month_total:  0,
+        month_budget: adminMonthBudget,
+        ytd:          0,
+        ytd_budget:   adminYtdBudget,
+        over_under:   0 - adminYtdBudget, // 0 actual vs negative budget
+      });
+    }
 
     // Company totals
     const totals = {

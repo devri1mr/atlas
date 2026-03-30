@@ -68,7 +68,14 @@ const FCELL = "px-3 py-3.5 text-center tabular-nums whitespace-nowrap border-r b
 
 function Val({ v, dim }: { v: number; dim?: boolean }) {
   if (v === 0) return <span className="text-gray-300">—</span>;
+  if (v < 0) return <span className="font-semibold text-red-500">{money(v)}</span>;
   return <span className={dim ? "text-gray-600" : "font-semibold text-gray-900"}>{money(v)}</span>;
+}
+
+function FValNeg({ v }: { v: number }) {
+  if (v === 0) return <span className="text-white/25">—</span>;
+  if (v < 0) return <span style={{ color: "#fca5a5" }}>{money(v)}</span>;
+  return <span style={{ color: "rgba(255,255,255,0.5)" }}>{money(v)}</span>;
 }
 
 function FVal({ v, color }: { v: number; color?: string }) {
@@ -293,14 +300,14 @@ export default function CompanyRevenuePage() {
                       <FVal v={data.totals.month_total} />
                     </td>
                     <td className={`${FCELL} border-l border-l-white/10`}>
-                      <FVal v={data.totals.month_budget} color="rgba(255,255,255,0.5)" />
+                      <FValNeg v={data.totals.month_budget} />
                     </td>
                     {/* YTD group */}
                     <td className={`${FCELL} border-l-[3px] border-l-white/30`}>
                       <FVal v={data.totals.ytd} color="#6ee7b7" />
                     </td>
                     <td className={`${FCELL} border-l border-l-white/10`}>
-                      <FVal v={data.totals.ytd_budget} color="rgba(255,255,255,0.5)" />
+                      <FValNeg v={data.totals.ytd_budget} />
                     </td>
                     <td className={`${FCELL} border-l border-l-white/10`}>
                       <FOverUnder v={data.totals.over_under} />
