@@ -62,9 +62,9 @@ function nextMonth(ym: string) {
 
 // ── Cell helpers ──────────────────────────────────────────────────────────────
 
-const CELL  = "px-3 py-3 text-center tabular-nums whitespace-nowrap border-r border-gray-100 text-sm";
-const HCELL = "px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider whitespace-nowrap border-r border-white/10";
-const FCELL = "px-3 py-3.5 text-center tabular-nums whitespace-nowrap border-r border-white/10 text-sm font-bold";
+const CELL  = "px-2 py-3 text-center tabular-nums whitespace-nowrap border-r border-gray-100 text-sm";
+const HCELL = "px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide whitespace-nowrap border-r border-white/10";
+const FCELL = "px-2 py-3.5 text-center tabular-nums whitespace-nowrap border-r border-white/10 text-sm font-bold";
 
 function Val({ v, dim }: { v: number; dim?: boolean }) {
   if (v === 0) return <span className="text-gray-300">—</span>;

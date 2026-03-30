@@ -39,10 +39,10 @@ function buildWeeks(year: number, month: number, daysInMonth: number) {
       const startStr = `${year}-${pad(month)}-${pad(clipStart)}`;
       const endStr   = `${year}-${pad(month)}-${pad(clipEnd)}`;
 
-      // Label: "M/D – M/D/YYYY"  (or just "M/D/YYYY" for single-day weeks)
+      // Label: "M/D – M/D"  (or just "M/D" for single-day weeks)
       const s = `${month}/${clipStart}`;
-      const e = `${month}/${clipEnd}/${year}`;
-      const label = clipStart === clipEnd ? e : `${s} – ${e}`;
+      const e = `${month}/${clipEnd}`;
+      const label = clipStart === clipEnd ? s : `${s}–${e}`;
 
       weeks.push({ label, start: startStr, end: endStr });
     }

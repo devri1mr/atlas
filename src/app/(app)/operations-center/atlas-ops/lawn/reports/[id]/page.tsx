@@ -1020,7 +1020,7 @@ function ViewCanvas({
       {groups.map((g, gi) => {
         if (g.type === "stat_row") {
           return (
-            <div key={gi} className="flex flex-wrap gap-4 justify-center">
+            <div key={gi} className="print-widget flex flex-wrap gap-4 justify-center">
               {g.items.map((w) => (
                 <div key={w.id} className="flex-1 min-w-[200px]">
                   <StatCardWidget widget={w} widgetData={widgetDataMap.get(w.id)} />
@@ -1030,7 +1030,7 @@ function ViewCanvas({
           );
         }
         return (
-          <div key={gi}>
+          <div key={gi} className="print-widget">
             {g.item.widget_type === "stat_card" && (
               <StatCardWidget widget={g.item} widgetData={widgetDataMap.get(g.item.id)} />
             )}

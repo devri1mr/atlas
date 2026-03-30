@@ -68,10 +68,12 @@ thead th {
 @media print {
   @page {
     margin: 0;
+    size: landscape;
   }
 
   body {
-    padding: 0.6in 0.75in;
+    padding: 0.4in 0.5in;
+    background: white !important;
   }
 
   .print-logo {
@@ -112,12 +114,22 @@ thead th {
     position: relative !important;
   }
 
-  /* Avoid breaking inside table rows and stat cards */
-  tr, .stat-card-widget {
-    break-inside: avoid;
+  /* Compact table font for print */
+  table {
+    font-size: 9px !important;
   }
 
-  body {
-    background: white !important;
+  table th, table td {
+    padding: 4px 6px !important;
+  }
+
+  /* Repeat table header on every page */
+  thead {
+    display: table-header-group;
+  }
+
+  /* Avoid breaking inside table rows, stat cards, and widgets */
+  tr, .stat-card-widget, .print-widget {
+    break-inside: avoid;
   }
 }
