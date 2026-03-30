@@ -5,18 +5,6 @@ import { useParams } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Category = "mowing" | "weeding" | "shrubs" | "cleanups" | "brush_hogging" | "string_trimming" | "other";
-
-const CATEGORIES: { key: Category; label: string }[] = [
-  { key: "mowing",          label: "Mowing" },
-  { key: "weeding",         label: "Weeding" },
-  { key: "shrubs",          label: "Shrubs" },
-  { key: "cleanups",        label: "Cleanups" },
-  { key: "brush_hogging",   label: "Brush Hogging" },
-  { key: "string_trimming", label: "String Trimming" },
-  { key: "other",           label: "Other" },
-];
-
 type DayRow = {
   date: string;
   mowing: number; weeding: number; shrubs: number; cleanups: number;
@@ -62,29 +50,23 @@ function dateLabel(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const money     = (n: number) => n === 0 ? "—" : fmt.format(n);
+const fmt      = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money    = (n: number) => n === 0 ? "—" : fmt.format(n);
 const moneyFull = (n: number) => fmt.format(n);
 
 function dayTotal(row: DayRow): number {
-  return CATEGORIES.reduce((s, c) => s + (row[c.key] ?? 0), 0);
-}
-function weekTotal(data: Map<string, DayRow>, dates: string[]): number {
-  return dates.reduce((s, d) => s + dayTotal(data.get(d) ?? {} as DayRow), 0);
-}
-function categoryWeekTotal(data: Map<string, DayRow>, dates: string[], cat: Category): number {
-  return dates.reduce((s, d) => s + (data.get(d)?.[cat] ?? 0), 0);
+  return (row.mowing ?? 0) + (row.weeding ?? 0) + (row.shrubs ?? 0) + (row.cleanups ?? 0) +
+         (row.brush_hogging ?? 0) + (row.string_trimming ?? 0) + (row.other ?? 0);
 }
 
 // ── Editable cell ─────────────────────────────────────────────────────────────
 
-function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: number) => void; disabled?: boolean }) {
+function EditCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft]     = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   function startEdit() {
-    if (disabled) return;
     setDraft(value === 0 ? "" : String(value));
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
@@ -102,8 +84,8 @@ function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: numb
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); } }}
-        className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded px-1 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        className="w-full text-center text-sm font-semibold bg-white border border-emerald-400 rounded px-1 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300"
         autoFocus
       />
     );
@@ -112,13 +94,10 @@ function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: numb
     <button
       onClick={startEdit}
       onFocus={startEdit}
-      disabled={disabled}
-      className={`w-full text-center text-xs rounded py-1.5 transition-colors ${
-        disabled
-          ? "text-gray-300 cursor-default"
-          : value > 0
-            ? "font-semibold text-gray-800 hover:bg-emerald-50 cursor-text"
-            : "text-gray-300 hover:bg-gray-50 hover:text-gray-500 cursor-text"
+      className={`w-full text-center text-sm rounded py-2.5 transition-colors ${
+        value > 0
+          ? "font-bold text-gray-800 hover:bg-emerald-50 cursor-text"
+          : "text-gray-300 hover:bg-gray-50 hover:text-gray-500 cursor-text"
       }`}
     >
       {value > 0 ? money(value) : "—"}
@@ -159,11 +138,8 @@ export default function DivisionUpcomingRevenuePage() {
     return months.join(" / ");
   })();
 
-  // Load week planned revenue
   const load = useCallback(async () => {
-    const start = dates[0];
-    const end   = dates[6];
-    const res   = await fetch(`${apiBase}?start=${start}&end=${end}`);
+    const res = await fetch(`${apiBase}?start=${dates[0]}&end=${dates[6]}`);
     if (res.ok) {
       const rows: DayRow[] = await res.json();
       setData(prev => {
@@ -178,7 +154,6 @@ export default function DivisionUpcomingRevenuePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Load month summary
   useEffect(() => {
     const ym = dates[0].slice(0, 7);
     setMonthSummary(null);
@@ -188,21 +163,16 @@ export default function DivisionUpcomingRevenuePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset]);
 
-  async function handleSave(date: string, cat: Category, value: number) {
-    let rowToSave: DayRow = { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
-    setData(prev => {
-      const next = new Map(prev);
-      const ex = next.get(date) ?? { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
-      rowToSave = { ...ex, [cat]: value };
-      next.set(date, rowToSave);
-      return next;
-    });
+  async function handleSave(date: string, value: number) {
+    const blank = { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
+    const rowToSave = { ...blank, other: value };
+    setData(prev => { const next = new Map(prev); next.set(date, rowToSave); return next; });
     setSaving(prev => new Set(prev).add(date));
     try {
       const res = await fetch(apiBase, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...rowToSave, date }),
+        body: JSON.stringify(rowToSave),
       });
       if (!res.ok) { load(); return; }
       const ym = dates[0].slice(0, 7);
@@ -224,19 +194,17 @@ export default function DivisionUpcomingRevenuePage() {
     url.searchParams.set("month",      ym);
     url.searchParams.set("projection", String(proj));
     url.searchParams.set("division",   division.replace(/-/g, " "));
-    const win  = window.open(url.toString(), "_blank");
+    const win = window.open(url.toString(), "_blank");
     setTimeout(() => win?.close(), 4000);
     setSyncState("ok");
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
   }
 
-  const weekRev = dates.reduce((s, d) =>
-    s + dayTotal(data.get(d) ?? {} as DayRow), 0);
+  const weekRev          = dates.reduce((s, d) => s + dayTotal(data.get(d) ?? {} as DayRow), 0);
   const projection       = monthSummary ? monthSummary.actual + monthSummary.planned : null;
   const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
-  const BG_TOTAL   = "#0f3a1e";
   const BG_TODAY_H = "#0f4a25";
 
   return (
@@ -261,16 +229,13 @@ export default function DivisionUpcomingRevenuePage() {
                 <div className="text-xl font-bold text-emerald-300">{moneyFull(weekRev)}</div>
               </div>
             )}
-            {/* Sync to Sheets button */}
             <button
               onClick={handleSyncSheets}
               disabled={syncState === "syncing"}
               className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
-                syncState === "ok"
-                  ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300"
-                  : syncState === "error"
-                  ? "bg-red-500/20 border-red-400/50 text-red-300"
-                  : "bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white"
+                syncState === "ok"    ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300"
+                : syncState === "error" ? "bg-red-500/20 border-red-400/50 text-red-300"
+                : "bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white"
               }`}
             >
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -279,18 +244,9 @@ export default function DivisionUpcomingRevenuePage() {
               {syncState === "syncing" ? "Syncing…" : syncState === "ok" ? "Synced ✓" : syncState === "error" ? `Error: ${syncError}` : "Sync to Sheets"}
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-              <button
-                onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-              >‹</button>
-              <button
-                onClick={() => setWeekOffset(0)}
-                className={`text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${weekOffset === 0 ? "bg-emerald-500 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}
-              >This Week</button>
-              <button
-                onClick={() => setWeekOffset(w => w + 1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-              >›</button>
+              <button onClick={() => setWeekOffset(w => Math.max(0, w - 1))} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+              <button onClick={() => setWeekOffset(0)} className={`text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${weekOffset === 0 ? "bg-emerald-500 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>This Week</button>
+              <button onClick={() => setWeekOffset(w => w + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
             </div>
           </div>
         </div>
@@ -303,17 +259,16 @@ export default function DivisionUpcomingRevenuePage() {
           <div className="overflow-x-auto">
             <table className="w-full" style={{ minWidth: 720, borderCollapse: "collapse" }}>
               <thead>
-                {/* Day / date headers */}
                 <tr>
                   <th className="px-5 py-3 text-left border border-emerald-900/50" style={{ width: 160, background: BG_HEADER }}>
-                    <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
+                    <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">{divisionLabel}</span>
                   </th>
                   {dates.map(date => {
                     const isToday = date === today;
                     const isPast  = date < today;
                     return (
                       <th key={date} className="px-2 py-3 text-center border border-emerald-900/50"
-                        style={{ minWidth: 100, background: isToday ? BG_TODAY_H : BG_HEADER }}>
+                        style={{ minWidth: 110, background: isToday ? BG_TODAY_H : BG_HEADER }}>
                         <div className="flex flex-col items-center gap-0.5">
                           <span className={`text-xs font-bold uppercase tracking-widest ${isToday ? "text-emerald-300" : isPast ? "text-white/40" : "text-white/60"}`}>
                             {dayLabel(date)}
@@ -326,95 +281,37 @@ export default function DivisionUpcomingRevenuePage() {
                       </th>
                     );
                   })}
-                  <th className="px-3 py-3 text-center border border-emerald-900/50" style={{ minWidth: 100, background: BG_HEADER }}>
+                  <th className="px-3 py-3 text-center border border-emerald-900/50" style={{ minWidth: 110, background: BG_HEADER }}>
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Week Total</span>
                   </th>
                 </tr>
-
-                {/* Division total row */}
-                <tr>
-                  <td className="px-5 py-3 border border-emerald-900/50" style={{ background: BG_TOTAL }}>
-                    <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">{divisionLabel} Total</span>
-                  </td>
-                  {dates.map(date => {
-                    const row   = data.get(date);
-                    const total = row ? dayTotal(row) : 0;
-                    const isToday = date === today;
-                    return (
-                      <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
-                        style={{ background: isToday ? BG_TODAY_H : BG_TOTAL }}>
-                        <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/20"}`}>
-                          {total > 0 ? money(total) : "—"}
-                        </span>
-                        {saving.has(date) && <span className="block text-[10px] text-emerald-400/60 mt-0.5">saving…</span>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: BG_TOTAL }}>
-                    <span className={`text-sm font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/20"}`}>
-                      {weekRev > 0 ? money(weekRev) : "—"}
-                    </span>
-                  </td>
-                </tr>
               </thead>
 
-              {/* Category rows */}
               <tbody>
-                {CATEGORIES.map((cat, ci) => {
-                  const catWeek = categoryWeekTotal(data, dates, cat.key);
-                  return (
-                    <tr key={cat.key} className="group">
-                      <td className="px-5 py-2.5 border border-gray-200" style={{ background: ci % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                          <span className="text-xs font-semibold text-gray-600">{cat.label}</span>
-                        </div>
-                      </td>
-                      {dates.map(date => {
-                        const row     = data.get(date);
-                        const val     = row?.[cat.key] ?? 0;
-                        const isToday = date === today;
-                        const bgColor = isToday ? "#ecfdf5" : ci % 2 === 0 ? "#fff" : "#f9fafb";
-                        return (
-                          <td key={date} className="px-2 py-1.5 border border-gray-200" style={{ background: bgColor }}>
-                            <EditCell value={val} onSave={v => handleSave(date, cat.key, v)} />
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2.5 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
-                        <span className={`text-xs font-semibold ${catWeek > 0 ? "text-emerald-700" : "text-gray-300"}`}>
-                          {catWeek > 0 ? money(catWeek) : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-
-              {/* Daily total footer */}
-              <tfoot>
                 <tr>
-                  <td className="px-5 py-3 text-xs font-bold text-white border border-emerald-900/50" style={{ background: BG_HEADER }}>Daily Total</td>
+                  <td className="px-5 py-2 border border-gray-200" style={{ background: "#fff" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="text-xs font-semibold text-gray-600">Daily Revenue</span>
+                    </div>
+                  </td>
                   {dates.map(date => {
-                    const row   = data.get(date);
-                    const total = row ? dayTotal(row) : 0;
+                    const val     = dayTotal(data.get(date) ?? {} as DayRow);
                     const isToday = date === today;
                     return (
-                      <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
-                        style={{ background: isToday ? BG_TODAY_H : BG_HEADER }}>
-                        <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/20"}`}>
-                          {total > 0 ? money(total) : "—"}
-                        </span>
+                      <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: isToday ? "#ecfdf5" : "#fff" }}>
+                        <EditCell value={val} onSave={v => handleSave(date, v)} />
+                        {saving.has(date) && <div className="text-center text-[10px] text-emerald-400/60">saving…</div>}
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 text-center border border-emerald-900/50" style={{ background: BG_HEADER }}>
-                    <span className={`text-xs font-bold ${weekRev > 0 ? "text-emerald-300" : "text-white/20"}`}>
+                  <td className="px-3 py-2 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
+                    <span className={`text-sm font-bold ${weekRev > 0 ? "text-emerald-700" : "text-gray-300"}`}>
                       {weekRev > 0 ? money(weekRev) : "—"}
                     </span>
                   </td>
                 </tr>
-              </tfoot>
+              </tbody>
             </table>
           </div>
         </div>

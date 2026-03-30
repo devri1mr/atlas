@@ -285,7 +285,7 @@ export default function UpcomingRevenuePage() {
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button
-                onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
+                onClick={() => setWeekOffset(w => w - 1)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
               >‹</button>
               <button
