@@ -7,13 +7,14 @@ import { useCallback, useEffect, useState } from "react";
 type WeekSlot = { label: string; start: string; end: string };
 
 type DivisionRow = {
-  key:         string;
-  name:        string;
-  weeks:       number[];
-  month_total: number;
-  ytd:         number;
-  ytd_budget:  number;
-  over_under:  number;
+  key:          string;
+  name:         string;
+  weeks:        number[];
+  month_total:  number;
+  month_budget: number;
+  ytd:          number;
+  ytd_budget:   number;
+  over_under:   number;
 };
 
 type CompanyRevenue = {
@@ -23,11 +24,12 @@ type CompanyRevenue = {
   weeks:     WeekSlot[];
   divisions: DivisionRow[];
   totals: {
-    weeks:       number[];
-    month_total: number;
-    ytd:         number;
-    ytd_budget:  number;
-    over_under:  number;
+    weeks:        number[];
+    month_total:  number;
+    month_budget: number;
+    ytd:          number;
+    ytd_budget:   number;
+    over_under:   number;
   };
 };
 
@@ -183,18 +185,26 @@ export default function CompanyRevenuePage() {
                       </th>
                     ))}
 
-                    {/* Month total */}
+                    {/* Month total — thick left border separates weeks from summary cols */}
                     <th
                       className={HCELL}
-                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.8)", borderLeft: "1px solid rgba(255,255,255,0.15)" }}
+                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.8)", borderLeft: "3px solid rgba(255,255,255,0.25)" }}
                     >
                       {MONTHS[mNum - 1]}
                     </th>
 
-                    {/* YTD */}
+                    {/* Month Budget */}
                     <th
                       className={HCELL}
-                      style={{ background: BG_HEAD, color: "#6ee7b7", borderLeft: "1px solid rgba(255,255,255,0.15)" }}
+                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.45)", borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+                    >
+                      Mth Budget
+                    </th>
+
+                    {/* YTD — thick left border separates month group from YTD group */}
+                    <th
+                      className={HCELL}
+                      style={{ background: BG_HEAD, color: "#6ee7b7", borderLeft: "3px solid rgba(255,255,255,0.25)" }}
                     >
                       YTD
                     </th>
@@ -202,7 +212,7 @@ export default function CompanyRevenuePage() {
                     {/* YTD Budget */}
                     <th
                       className={HCELL}
-                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.45)", borderLeft: "1px solid rgba(255,255,255,0.15)" }}
+                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.45)", borderLeft: "1px solid rgba(255,255,255,0.12)" }}
                     >
                       YTD Budget
                     </th>
@@ -210,7 +220,7 @@ export default function CompanyRevenuePage() {
                     {/* Over / Under */}
                     <th
                       className={HCELL}
-                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.55)", borderLeft: "1px solid rgba(255,255,255,0.15)" }}
+                      style={{ background: BG_HEAD, color: "rgba(255,255,255,0.55)", borderLeft: "1px solid rgba(255,255,255,0.12)" }}
                     >
                       Over / Under
                     </th>
@@ -237,12 +247,17 @@ export default function CompanyRevenuePage() {
                       ))}
 
                       {/* Month total */}
-                      <td className={`${CELL} border-l-2 border-l-gray-200`}>
+                      <td className={`${CELL} border-l-[3px] border-l-gray-300`}>
                         <Val v={div.month_total} />
                       </td>
 
-                      {/* YTD */}
-                      <td className={`${CELL} border-l border-l-gray-200`}>
+                      {/* Month Budget */}
+                      <td className={`${CELL} border-l border-l-gray-100`}>
+                        <Val v={div.month_budget} dim />
+                      </td>
+
+                      {/* YTD — thick separator */}
+                      <td className={`${CELL} border-l-[3px] border-l-gray-300`}>
                         {div.ytd > 0
                           ? <span className="font-bold text-emerald-700">{money(div.ytd)}</span>
                           : <span className="text-gray-300">—</span>
@@ -250,12 +265,12 @@ export default function CompanyRevenuePage() {
                       </td>
 
                       {/* YTD Budget */}
-                      <td className={`${CELL} border-l border-l-gray-200`}>
+                      <td className={`${CELL} border-l border-l-gray-100`}>
                         <Val v={div.ytd_budget} dim />
                       </td>
 
                       {/* Over / Under */}
-                      <td className={`${CELL} border-l border-l-gray-200`}>
+                      <td className={`${CELL} border-l border-l-gray-100`}>
                         <OverUnder v={div.over_under} />
                       </td>
                     </tr>
@@ -273,16 +288,21 @@ export default function CompanyRevenuePage() {
                         <FVal v={wv} />
                       </td>
                     ))}
-                    <td className={`${FCELL} border-l-2 border-l-white/20`}>
+                    {/* Month group */}
+                    <td className={`${FCELL} border-l-[3px] border-l-white/30`}>
                       <FVal v={data.totals.month_total} />
                     </td>
-                    <td className={`${FCELL} border-l border-l-white/15`}>
+                    <td className={`${FCELL} border-l border-l-white/10`}>
+                      <FVal v={data.totals.month_budget} color="rgba(255,255,255,0.5)" />
+                    </td>
+                    {/* YTD group */}
+                    <td className={`${FCELL} border-l-[3px] border-l-white/30`}>
                       <FVal v={data.totals.ytd} color="#6ee7b7" />
                     </td>
-                    <td className={`${FCELL} border-l border-l-white/15`}>
+                    <td className={`${FCELL} border-l border-l-white/10`}>
                       <FVal v={data.totals.ytd_budget} color="rgba(255,255,255,0.5)" />
                     </td>
-                    <td className={`${FCELL} border-l border-l-white/15`}>
+                    <td className={`${FCELL} border-l border-l-white/10`}>
                       <FOverUnder v={data.totals.over_under} />
                     </td>
                   </tr>
@@ -293,10 +313,12 @@ export default function CompanyRevenuePage() {
                       <td className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white/35 border-r border-white/10 sticky left-0" style={{ background: BG_TOT }}>
                         Annual Proj.
                       </td>
-                      {Array.from({ length: numWeeks + 1 }).map((_, i) => (
+                      {/* skip week cols + month + month budget */}
+                      {Array.from({ length: numWeeks + 2 }).map((_, i) => (
                         <td key={i} className="border-r border-white/10" />
                       ))}
-                      <td className="px-3 py-2.5 text-center font-bold tabular-nums whitespace-nowrap border-r border-white/10 border-l-2 border-l-white/20" style={{ color: "#86efac" }}>
+                      {/* YTD projection */}
+                      <td className="px-3 py-2.5 text-center font-bold tabular-nums whitespace-nowrap border-r border-white/10 border-l-[3px] border-l-white/25" style={{ color: "#86efac" }}>
                         {money(Math.round((data.totals.ytd / mNum) * 12))}
                       </td>
                       <td className="border-r border-white/10" />

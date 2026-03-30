@@ -136,8 +136,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── YTD budgets (months 1 → monthNum) — all divisions ─────────────────────
-    const budgetMap = new Map<string, number>(); // divKey → YTD budget revenue
+    // ── Budgets (months 1 → monthNum) — all divisions ────────────────────────
+    const budgetYtdMap   = new Map<string, number>(); // divKey → YTD budget
+    const budgetMonthMap = new Map<string, number>(); // divKey → current month budget
     {
       const allKeys = divisions.map(d => d.name.toLowerCase());
       const { data: budgetRows } = await sb
@@ -150,7 +151,10 @@ export async function GET(req: NextRequest) {
 
       for (const row of budgetRows ?? []) {
         const key = (row as any).division as string;
-        budgetMap.set(key, (budgetMap.get(key) ?? 0) + Number((row as any).revenue ?? 0));
+        const rev = Number((row as any).revenue ?? 0);
+        budgetYtdMap.set(key, (budgetYtdMap.get(key) ?? 0) + rev);
+        if ((row as any).month === monthNum)
+          budgetMonthMap.set(key, rev);
       }
     }
 
@@ -255,28 +259,31 @@ export async function GET(req: NextRequest) {
         monthCogsActual = curCogsMap.get(divKey) ?? 0;
       }
 
-      const weekSum    = weekTotals.reduce((s, v) => s + v, 0);
-      const monthTotal = weekSum + monthCogsActual;
-      const ytdBudget  = budgetMap.get(divKey) ?? 0;
+      const weekSum     = weekTotals.reduce((s, v) => s + v, 0);
+      const monthTotal  = weekSum + monthCogsActual;
+      const monthBudget = budgetMonthMap.get(divKey) ?? 0;
+      const ytdBudget   = budgetYtdMap.get(divKey) ?? 0;
 
       return {
-        key:          divKey,
-        name:         div.name,
-        weeks:        weekTotals,
-        month_total:  monthTotal,
-        ytd:          ytdPrior + monthTotal,
-        ytd_budget:   ytdBudget,
-        over_under:   (ytdPrior + monthTotal) - ytdBudget,
+        key:           divKey,
+        name:          div.name,
+        weeks:         weekTotals,
+        month_total:   monthTotal,
+        month_budget:  monthBudget,
+        ytd:           ytdPrior + monthTotal,
+        ytd_budget:    ytdBudget,
+        over_under:    (ytdPrior + monthTotal) - ytdBudget,
       };
     });
 
     // Company totals
     const totals = {
-      weeks:       weeks.map((_, i) => results.reduce((s, d) => s + d.weeks[i], 0)),
-      month_total: results.reduce((s, d) => s + d.month_total, 0),
-      ytd:         results.reduce((s, d) => s + d.ytd, 0),
-      ytd_budget:  results.reduce((s, d) => s + d.ytd_budget, 0),
-      over_under:  results.reduce((s, d) => s + d.over_under, 0),
+      weeks:        weeks.map((_, i) => results.reduce((s, d) => s + d.weeks[i], 0)),
+      month_total:  results.reduce((s, d) => s + d.month_total, 0),
+      month_budget: results.reduce((s, d) => s + d.month_budget, 0),
+      ytd:          results.reduce((s, d) => s + d.ytd, 0),
+      ytd_budget:   results.reduce((s, d) => s + d.ytd_budget, 0),
+      over_under:   results.reduce((s, d) => s + d.over_under, 0),
     };
 
     return NextResponse.json({ month: monthParam, year, monthNum, weeks, divisions: results, totals });

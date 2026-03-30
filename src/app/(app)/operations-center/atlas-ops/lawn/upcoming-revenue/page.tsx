@@ -75,7 +75,8 @@ function weekTotal(data: Map<string, DayRow>, dates: string[]): number {
 }
 function categoryWeekTotal(data: Map<string, DayRow>, dates: string[], cat: Category, today: string, lockedDates: Map<string, number>): number {
   return dates.reduce((s, d) => {
-    if (d < today && !lockedDates.has(d)) return s; // past non-official = $0
+    if (lockedDates.has(d)) return s; // official/locked: actuals have no category breakdown
+    if (d < today) return s;          // past non-official = $0
     return s + (data.get(d)?.[cat] ?? 0);
   }, 0);
 }
