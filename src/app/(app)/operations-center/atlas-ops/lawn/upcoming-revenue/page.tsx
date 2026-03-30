@@ -144,6 +144,7 @@ export default function UpcomingRevenuePage() {
   const [syncError, setSyncError]       = useState("");
   const [voidedDates, setVoidedDates]   = useState<Set<string>>(new Set());
   const [voiding, setVoiding]           = useState(false);
+  const [saveError, setSaveError]       = useState<string | null>(null);
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -223,7 +224,9 @@ export default function UpcomingRevenuePage() {
         body: JSON.stringify({ ...rowToSave, date }),
       });
       if (!res.ok) {
-        // Save failed — reload from DB so UI reflects truth
+        const errBody = await res.json().catch(() => ({}));
+        setSaveError(errBody.error ?? `Save failed (${res.status})`);
+        setTimeout(() => setSaveError(null), 6000);
         load();
         return;
       }
@@ -304,6 +307,13 @@ export default function UpcomingRevenuePage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div className="bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center">
+          Save failed: {saveError}
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <div className="px-6 py-5" style={{ background: BG_HEADER }}>

@@ -144,23 +144,38 @@ export async function PUT(req: NextRequest) {
     const { date, mowing = 0, weeding = 0, shrubs = 0, cleanups = 0, brush_hogging = 0, string_trimming = 0, other = 0 } = body;
     if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
 
-    const { error } = await sb
+    const payload = {
+      company_id:      company.id,
+      date,
+      mowing:          Number(mowing),
+      weeding:         Number(weeding),
+      shrubs:          Number(shrubs),
+      cleanups:        Number(cleanups),
+      brush_hogging:   Number(brush_hogging),
+      string_trimming: Number(string_trimming),
+      other:           Number(other),
+      updated_at:      new Date().toISOString(),
+    };
+
+    // Check if a row already exists for this company+date
+    const { data: existing } = await sb
       .from("lawn_upcoming_revenue")
-      .upsert(
-        {
-          company_id: company.id,
-          date,
-          mowing:          Number(mowing),
-          weeding:         Number(weeding),
-          shrubs:          Number(shrubs),
-          cleanups:        Number(cleanups),
-          brush_hogging:   Number(brush_hogging),
-          string_trimming: Number(string_trimming),
-          other:           Number(other),
-          updated_at:      new Date().toISOString(),
-        },
-        { onConflict: "company_id,date" }
-      );
+      .select("id")
+      .eq("company_id", company.id)
+      .eq("date", date)
+      .maybeSingle();
+
+    let error;
+    if (existing?.id) {
+      ({ error } = await sb
+        .from("lawn_upcoming_revenue")
+        .update(payload)
+        .eq("id", existing.id));
+    } else {
+      ({ error } = await sb
+        .from("lawn_upcoming_revenue")
+        .insert(payload));
+    }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
