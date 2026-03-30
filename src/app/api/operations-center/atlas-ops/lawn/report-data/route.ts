@@ -669,23 +669,25 @@ export async function POST(req: NextRequest) {
 
         const cur = memberMap.get(empId) ?? {
           employee_id: empId, name,
-          reg_hours: 0, ot_hours: 0, total_pay_hours: 0,
+          reg_hours: 0, ot_hours: 0, dt_hours: 0, total_pay_hours: 0,
           ot_cost: 0, total_payroll: 0, total_earned: 0,
-          labor_pct: null, efficiency_pct: null,
+          labor_pct: null, efficiency_pct: null, downtime_pct: null,
         };
         cur.reg_hours += reg;
         cur.ot_hours += ot;
+        cur.dt_hours += dt;
         cur.total_pay_hours += reg + ot + dt;
         cur.ot_cost += otCost;
         cur.total_payroll += punchPayroll;
         memberMap.set(empId, cur);
       }
 
-      // Attach revenue and compute labor % / efficiency % per member
+      // Attach revenue and compute labor % / efficiency % / downtime % per member
       for (const [empId, m] of memberMap.entries()) {
-        m.total_earned = earnedMap.get(empId) ?? 0;
+        m.total_earned   = earnedMap.get(empId) ?? 0;
         m.labor_pct      = m.total_earned > 0 ? m.total_payroll / m.total_earned : null;
         m.efficiency_pct = m.total_payroll > 0 ? (m.total_earned * 0.39) / m.total_payroll : null;
+        m.downtime_pct   = m.total_pay_hours > 0 ? m.dt_hours / m.total_pay_hours : null;
       }
 
       // Sort by labor_pct ascending (best = lowest); nulls last
@@ -696,7 +698,7 @@ export async function POST(req: NextRequest) {
         return a.labor_pct - b.labor_pct;
       });
 
-      const ALL_COLUMNS = ["name", "reg_hours", "ot_hours", "total_pay_hours", "ot_cost", "labor_pct", "efficiency_pct"];
+      const ALL_COLUMNS = ["name", "reg_hours", "ot_hours", "total_pay_hours", "ot_cost", "labor_pct", "efficiency_pct", "downtime_pct"];
       const columns: string[] = Array.isArray(config.columns) && config.columns.length > 0
         ? config.columns
         : ALL_COLUMNS;

@@ -74,6 +74,7 @@ const MEMBER_TABLE_COLUMNS = [
   { key: "ot_cost",        label: "OT Cost" },
   { key: "labor_pct",      label: "Labor %" },
   { key: "efficiency_pct", label: "Efficiency %" },
+  { key: "downtime_pct",   label: "DT %" },
 ];
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -197,9 +198,11 @@ function StatCardWidget({
 function JobTableWidget({
   widget,
   widgetData,
+  onConfigChange,
 }: {
   widget: Widget;
   widgetData: WidgetData | undefined;
+  onConfigChange?: (updates: Record<string, any>) => void;
 }) {
   const loading = widgetData?.loading ?? true;
   const data = widgetData?.data;
@@ -208,12 +211,15 @@ function JobTableWidget({
   const start = data?.start;
   const end = data?.end;
 
-  const [sortKey, setSortKey] = useState<string>("date");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = useState<string>(widget.config.sort_key ?? "date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(widget.config.sort_dir ?? "asc");
 
   function handleSort(key: string) {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("asc"); }
+    const newDir: "asc" | "desc" = sortKey === key ? (sortDir === "asc" ? "desc" : "asc") : "asc";
+    const newKey = key;
+    setSortKey(newKey);
+    setSortDir(newDir);
+    onConfigChange?.({ sort_key: newKey, sort_dir: newDir });
   }
 
   const rows = [...rawRows].sort((a, b) => {
@@ -227,8 +233,10 @@ function JobTableWidget({
     ? ` · Service: ${widget.config.service_filter}`
     : "";
 
-  const totalRevenue = rawRows.reduce((s, r) => s + (r.revenue ?? 0), 0);
-  const totalPayroll = rawRows.reduce((s, r) => s + (r.payroll_cost ?? 0), 0);
+  const totalBudgetedHours = rawRows.reduce((s, r) => s + (r.budgeted_hours ?? 0), 0);
+  const totalActualHours   = rawRows.reduce((s, r) => s + (r.actual_hours ?? 0), 0);
+  const totalRevenue       = rawRows.reduce((s, r) => s + (r.revenue ?? 0), 0);
+  const totalPayroll       = rawRows.reduce((s, r) => s + (r.payroll_cost ?? 0), 0);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -321,10 +329,22 @@ function JobTableWidget({
             {/* Totals */}
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50">
-                <td colSpan={columns.filter(c => ["date","client_name","service","crew_code","budgeted_hours","actual_hours"].includes(c)).length}
-                  className="px-4 py-2.5 text-xs font-semibold text-gray-500 text-center">
-                  TOTALS
-                </td>
+                {columns.includes("date") && (
+                  <td className="px-4 py-2.5 text-xs font-semibold text-gray-500 text-center">TOTALS</td>
+                )}
+                {columns.includes("client_name") && <td />}
+                {columns.includes("service") && <td />}
+                {columns.includes("crew_code") && <td />}
+                {columns.includes("budgeted_hours") && (
+                  <td className="px-4 py-2.5 text-center font-bold text-gray-900 tabular-nums">
+                    {totalBudgetedHours.toFixed(1)}
+                  </td>
+                )}
+                {columns.includes("actual_hours") && (
+                  <td className="px-4 py-2.5 text-center font-bold text-gray-900 tabular-nums">
+                    {totalActualHours.toFixed(1)}
+                  </td>
+                )}
                 {columns.includes("revenue") && (
                   <td className="px-4 py-2.5 text-center font-bold text-gray-900 tabular-nums">
                     {fmtCurrency(totalRevenue)}
@@ -340,7 +360,11 @@ function JobTableWidget({
                     {totalRevenue > 0 ? fmtPct(totalPayroll / totalRevenue) : "—"}
                   </td>
                 )}
-                {columns.includes("efficiency_pct") && <td />}
+                {columns.includes("efficiency_pct") && (
+                  <td className={`px-4 py-2.5 text-center font-bold tabular-nums ${totalPayroll > 0 && (totalRevenue * 0.39) / totalPayroll >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {totalPayroll > 0 ? fmtPct((totalRevenue * 0.39) / totalPayroll) : "—"}
+                  </td>
+                )}
               </tr>
             </tfoot>
           </table>
@@ -366,11 +390,14 @@ function MemberTableWidget({
   const start = data?.start;
   const end = data?.end;
 
-  const totalOtCost  = rows.reduce((s, r) => s + (r.ot_cost ?? 0), 0);
-  const totalHours   = rows.reduce((s, r) => s + (r.total_pay_hours ?? 0), 0);
-  const totalPayroll = rows.reduce((s, r) => s + (r.total_payroll ?? 0), 0);
-  const totalEarned  = rows.reduce((s, r) => s + (r.total_earned ?? 0), 0);
-  const hasAnyOt     = rows.some((r) => (r.ot_hours ?? 0) > 0);
+  const totalRegHours  = rows.reduce((s, r) => s + (r.reg_hours ?? 0), 0);
+  const totalOtHours   = rows.reduce((s, r) => s + (r.ot_hours ?? 0), 0);
+  const totalDtHours   = rows.reduce((s, r) => s + (r.dt_hours ?? 0), 0);
+  const totalOtCost    = rows.reduce((s, r) => s + (r.ot_cost ?? 0), 0);
+  const totalHours     = rows.reduce((s, r) => s + (r.total_pay_hours ?? 0), 0);
+  const totalPayroll   = rows.reduce((s, r) => s + (r.total_payroll ?? 0), 0);
+  const totalEarned    = rows.reduce((s, r) => s + (r.total_earned ?? 0), 0);
+  const hasAnyOt       = rows.some((r) => (r.ot_hours ?? 0) > 0);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -443,6 +470,11 @@ function MemberTableWidget({
                       {row.efficiency_pct !== null ? fmtPct(row.efficiency_pct) : "—"}
                     </td>
                   )}
+                  {columns.includes("downtime_pct") && (
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${(row.downtime_pct ?? 0) > 0 ? "text-red-600" : "text-gray-300"}`}>
+                      {(row.downtime_pct ?? 0) > 0 ? fmtPct(row.downtime_pct) : "—"}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -451,8 +483,16 @@ function MemberTableWidget({
                 {columns.includes("name") && (
                   <td className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">TOTALS</td>
                 )}
-                {columns.includes("reg_hours") && <td />}
-                {columns.includes("ot_hours") && hasAnyOt && <td />}
+                {columns.includes("reg_hours") && (
+                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums whitespace-nowrap">
+                    {totalRegHours.toFixed(1)}
+                  </td>
+                )}
+                {columns.includes("ot_hours") && hasAnyOt && (
+                  <td className="px-4 py-2.5 text-right font-bold text-amber-600 tabular-nums whitespace-nowrap">
+                    {totalOtHours > 0 ? totalOtHours.toFixed(1) : "—"}
+                  </td>
+                )}
                 {columns.includes("total_pay_hours") && (
                   <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums whitespace-nowrap">
                     {totalHours.toFixed(1)}
@@ -471,6 +511,11 @@ function MemberTableWidget({
                 {columns.includes("efficiency_pct") && (
                   <td className={`px-4 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${totalPayroll > 0 && (totalEarned * 0.39) / totalPayroll >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
                     {totalPayroll > 0 ? fmtPct((totalEarned * 0.39) / totalPayroll) : "—"}
+                  </td>
+                )}
+                {columns.includes("downtime_pct") && (
+                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${totalDtHours > 0 ? "text-red-600" : "text-gray-300"}`}>
+                    {totalHours > 0 ? fmtPct(totalDtHours / totalHours) : "—"}
                   </td>
                 )}
               </tr>
@@ -779,7 +824,7 @@ function WidgetCanvasItem({
             <StatCardWidget widget={widget} widgetData={widgetData} />
           )}
           {widget.widget_type === "job_table" && (
-            <JobTableWidget widget={widget} widgetData={widgetData} />
+            <JobTableWidget widget={widget} widgetData={widgetData} onConfigChange={onConfigChange} />
           )}
           {widget.widget_type === "member_table" && (
             <MemberTableWidget widget={widget} widgetData={widgetData} />
