@@ -431,15 +431,14 @@ export async function POST(req: NextRequest) {
 
           let revenue = 0;
           let payrollCost = 0;
-          const seenPerson = new Set<string>();
 
           for (const m of (j as any).lawn_production_members ?? []) {
             revenue += Number(m.earned_amount ?? 0);
-            const pk = m.employee_id ?? m.resource_name ?? "";
-            if (pk && !seenPerson.has(pk)) {
-              seenPerson.add(pk);
-              payrollCost += Number(m.payroll_cost ?? 0);
-            }
+            // payroll_cost is the member's full daily cost — prorate by job hrs / total day hrs
+            const jobHrs  = Number(m.actual_hours ?? 0);
+            const dayHrs  = Number(m.total_payroll_hours ?? 0);
+            const ratio   = dayHrs > 0 ? jobHrs / dayHrs : 1;
+            payrollCost += Number(m.payroll_cost ?? 0) * ratio;
           }
 
           const budHrs = Number(j.budgeted_hours ?? 0);

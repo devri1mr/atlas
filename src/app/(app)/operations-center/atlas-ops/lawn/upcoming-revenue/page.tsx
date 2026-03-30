@@ -184,6 +184,18 @@ export default function UpcomingRevenuePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Warn before unload when saves are in-flight
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (saving.size > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saving]);
+
   // Load month summary for the viewed week's month
   useEffect(() => {
     const ym = dates[0].slice(0, 7);
@@ -240,16 +252,26 @@ export default function UpcomingRevenuePage() {
   const projection     = monthSummary ? monthSummary.actual + monthSummary.planned : null;
   const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
-  function handleSyncSheets() {
-    if (!monthSummary) return;
+  async function handleSyncSheets() {
+    if (!monthSummary || saving.size > 0) return;
     const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
     if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000); return; }
-    const ym   = dates[0].slice(0, 7);
-    const proj = monthSummary.actual + monthSummary.planned;
-    const url  = new URL(webhookUrl);
+    setSyncState("syncing");
+    // Refresh month summary to ensure we send the latest data
+    const ym = dates[0].slice(0, 7);
+    let proj = monthSummary.actual + monthSummary.planned;
+    try {
+      const res = await fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`);
+      if (res.ok) {
+        const fresh: MonthSummary = await res.json();
+        setMonthSummary(fresh);
+        proj = fresh.actual + fresh.planned;
+      }
+    } catch { /* use cached value */ }
+    const url = new URL(webhookUrl);
     url.searchParams.set("month",      ym);
     url.searchParams.set("projection", String(proj));
-    const win  = window.open(url.toString(), "_blank");
+    const win = window.open(url.toString(), "_blank");
     setTimeout(() => win?.close(), 4000);
     setSyncState("ok");
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
@@ -320,7 +342,7 @@ export default function UpcomingRevenuePage() {
             {/* Sync to Sheets button */}
             <button
               onClick={handleSyncSheets}
-              disabled={syncState === "syncing"}
+              disabled={syncState === "syncing" || saving.size > 0}
               className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 syncState === "ok"
                   ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300"

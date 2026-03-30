@@ -203,17 +203,32 @@ function JobTableWidget({
 }) {
   const loading = widgetData?.loading ?? true;
   const data = widgetData?.data;
-  const rows: any[] = data?.rows ?? [];
+  const rawRows: any[] = data?.rows ?? [];
   const columns: string[] = data?.columns ?? JOB_TABLE_COLUMNS.map((c) => c.key);
   const start = data?.start;
   const end = data?.end;
+
+  const [sortKey, setSortKey] = useState<string>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function handleSort(key: string) {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  const rows = [...rawRows].sort((a, b) => {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   const serviceLabel = widget.config.service_filter
     ? ` · Service: ${widget.config.service_filter}`
     : "";
 
-  const totalRevenue = rows.reduce((s, r) => s + (r.revenue ?? 0), 0);
-  const totalPayroll = rows.reduce((s, r) => s + (r.payroll_cost ?? 0), 0);
+  const totalRevenue = rawRows.reduce((s, r) => s + (r.revenue ?? 0), 0);
+  const totalPayroll = rawRows.reduce((s, r) => s + (r.payroll_cost ?? 0), 0);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -246,8 +261,15 @@ function JobTableWidget({
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 {JOB_TABLE_COLUMNS.filter((c) => columns.includes(c.key)).map((col) => (
-                  <th key={col.key} className="px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">
+                  <th
+                    key={col.key}
+                    className="px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap cursor-pointer select-none hover:text-gray-800"
+                    onClick={() => handleSort(col.key)}
+                  >
                     {col.label}
+                    {sortKey === col.key && (
+                      <span className="ml-1 text-emerald-600">{sortDir === "asc" ? "↑" : "↓"}</span>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -944,9 +966,9 @@ function ViewCanvas({
       {groups.map((g, gi) => {
         if (g.type === "stat_row") {
           return (
-            <div key={gi} className="flex flex-wrap gap-4">
+            <div key={gi} className="flex flex-wrap gap-4 justify-center">
               {g.items.map((w) => (
-                <div key={w.id} className="min-w-[200px] max-w-[280px] flex-1">
+                <div key={w.id} className="flex-1 min-w-[200px]">
                   <StatCardWidget widget={w} widgetData={widgetDataMap.get(w.id)} />
                 </div>
               ))}
@@ -1036,9 +1058,9 @@ function EditCanvas({
       {groups.map((g, gi) => {
         if (g.type === "stat_row") {
           return (
-            <div key={gi} className="flex flex-wrap gap-4">
+            <div key={gi} className="flex flex-wrap gap-4 justify-center">
               {g.items.map((w) => (
-                <div key={w.id} className="min-w-[200px] max-w-[280px] flex-1">
+                <div key={w.id} className="flex-1 min-w-[200px]">
                   <WidgetCanvasItem
                     widget={w}
                     widgetData={widgetDataMap.get(w.id)}

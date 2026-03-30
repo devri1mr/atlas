@@ -93,8 +93,8 @@ function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEar
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-xs text-gray-500">{person.total_payroll_hours.toFixed(1)} hrs</div>
-        <div className={`text-xs font-semibold mt-0.5 ${person.labor_pct > 0.39 ? "text-red-500" : "text-emerald-600"}`}>
+        <div className="text-sm font-bold text-emerald-700">${person.total_earned.toLocaleString("en-US", { maximumFractionDigits: 0 })}</div>
+        <div className={`text-xs mt-0.5 ${person.labor_pct > 0.39 ? "text-red-500" : "text-gray-400"}`}>
           {pct(person.labor_pct)} labor
         </div>
       </div>
@@ -209,9 +209,9 @@ export default function RankingsPage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-xs text-white/40">{p.total_payroll_hours.toFixed(1)} hrs</div>
-                      <div className={`text-sm font-bold mt-0.5 ${p.labor_pct > 0.39 ? "text-red-400" : "text-emerald-400"}`}>
-                        {pct(p.labor_pct)}
+                      <div className="text-base font-bold text-emerald-400">${p.total_earned.toLocaleString("en-US", { maximumFractionDigits: 0 })}</div>
+                      <div className={`text-xs mt-0.5 ${p.labor_pct > 0.39 ? "text-red-400" : "text-white/40"}`}>
+                        {pct(p.labor_pct)} labor
                       </div>
                     </div>
                   </div>
@@ -305,7 +305,7 @@ export default function RankingsPage() {
             <div className="rounded-xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
               <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-emerald-950">Top Producers</span>
-                <span className="text-xs text-emerald-900/40">relative to leader · no $ shown</span>
+                <span className="text-xs text-emerald-900/40">sorted by revenue generated</span>
               </div>
               {producers.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-gray-400">No data for this period</div>

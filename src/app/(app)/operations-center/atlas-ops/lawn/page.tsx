@@ -200,10 +200,13 @@ function MonthlyTable({ data }: { data: CogsMonth[] }) {
           <tbody>
             {data.map((m, i) => {
               const isCur    = i === curMonth;
-              const budget   = m.budget_revenue > 0 ? m.budget_revenue : MONTHLY_BUDGET;
-              const fillPct  = Math.min((m.revenue / budget) * 100, 100);
+              const hasBudget = m.budget_revenue > 0;
+              const budget   = hasBudget ? m.budget_revenue : MONTHLY_BUDGET;
+              const fillPct  = !hasBudget && m.revenue > 0
+                ? 100
+                : Math.min((m.revenue / budget) * 100, 100);
               const donePct  = Math.round(fillPct);
-              const exceeded = m.revenue >= budget;
+              const exceeded = !hasBudget ? m.revenue > 0 : m.revenue >= budget;
               const laborPct = m.revenue > 0 ? m.labor / m.revenue : null;
               const effPct   = m.labor   > 0 ? (m.revenue * 0.39) / m.labor : null;
               return (
