@@ -348,23 +348,61 @@ export async function POST(req: NextRequest) {
       }
 
       else if (metric === "efficiency_pct") {
-        const { data: reports } = await sb
-          .from("lawn_production_reports")
-          .select("lawn_production_jobs(budgeted_hours, actual_hours)")
-          .eq("company_id", company.id)
-          .eq("is_complete", true)
-          .gte("report_date", start)
-          .lte("report_date", end);
+        // efficiency = revenue * 0.39 / total_payroll (crew + admin)
+        const [{ data: reports }, { data: punches }] = await Promise.all([
+          sb.from("lawn_production_reports")
+            .select("lawn_production_jobs(lawn_production_members(earned_amount))")
+            .eq("company_id", company.id)
+            .eq("is_complete", true)
+            .gte("report_date", start)
+            .lte("report_date", end),
+          sb.from("at_punches")
+            .select("employee_id, regular_hours, ot_hours, dt_hours")
+            .eq("company_id", company.id)
+            .in("division_id", lawnDivIds)
+            .gte("date_for_payroll", start)
+            .lte("date_for_payroll", end)
+            .not("clock_out_at", "is", null),
+        ]);
 
-        let totalBudgeted = 0;
-        let totalActual = 0;
+        let totalRevenue = 0;
         for (const r of reports ?? []) {
           for (const j of (r as any).lawn_production_jobs ?? []) {
-            totalBudgeted += Number(j.budgeted_hours ?? 0);
-            totalActual += Number(j.actual_hours ?? 0);
+            for (const m of (j as any).lawn_production_members ?? []) {
+              totalRevenue += Number(m.earned_amount ?? 0);
+            }
           }
         }
-        value = totalActual > 0 ? totalBudgeted / totalActual : null;
+
+        const empIds = [...new Set((punches ?? []).map((p) => p.employee_id).filter(Boolean))];
+        const [{ data: payRates }, { data: employees }, { data: atSettings }] = await Promise.all([
+          empIds.length > 0
+            ? sb.from("at_pay_rates").select("employee_id, rate, effective_date, end_date, is_default").in("employee_id", empIds)
+            : Promise.resolve({ data: [] }),
+          empIds.length > 0
+            ? sb.from("at_employees").select("id, default_pay_rate").in("id", empIds)
+            : Promise.resolve({ data: [] }),
+          sb.from("at_settings").select("ot_multiplier, dt_multiplier").eq("company_id", company.id).maybeSingle(),
+        ]);
+
+        const otMult = (atSettings as any)?.ot_multiplier ?? 1.5;
+        const dtMult = (atSettings as any)?.dt_multiplier ?? 2.0;
+        const defaultRateMap = new Map<string, number>(
+          (employees ?? []).map((e: any) => [e.id, Number(e.default_pay_rate ?? 0)])
+        );
+
+        let totalPayroll = 0;
+        for (const p of punches ?? []) {
+          if (!p.employee_id) continue;
+          const rate = resolvePayRate(p.employee_id, end, (payRates ?? []) as PayRateRow[], defaultRateMap);
+          const reg = Number((p as any).regular_hours ?? 0);
+          const ot = Number((p as any).ot_hours ?? 0);
+          const dt = Number((p as any).dt_hours ?? 0);
+          totalPayroll += (reg * rate + ot * rate * otMult + dt * rate * dtMult) * PAYROLL_BURDEN;
+        }
+        totalPayroll += await getAdminPayForRange(sb, company.id, start, end);
+
+        value = totalPayroll > 0 ? (totalRevenue * 0.39) / totalPayroll : null;
       }
 
       else if (metric === "job_count") {
