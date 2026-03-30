@@ -38,7 +38,7 @@ function EditCell({ value, onSave, isRevenue }: { value: number; onSave: (v: num
     setTimeout(() => inputRef.current?.select(), 0);
   }
   function commit() {
-    onSave(parseFloat(draft.replace(/[^0-9.]/g, "")) || 0);
+    onSave(parseFloat(draft.replace(/[^0-9.-]/g, "")) || 0);
     setEditing(false);
   }
 
@@ -62,12 +62,12 @@ function EditCell({ value, onSave, isRevenue }: { value: number; onSave: (v: num
       onClick={startEdit}
       onFocus={startEdit}
       className={`w-full text-center text-xs rounded py-1.5 transition-colors ${
-        value > 0
-          ? `font-semibold hover:bg-emerald-50 ${isRevenue ? "text-sky-700" : "text-gray-800"}`
+        value !== 0
+          ? `font-semibold hover:bg-emerald-50 ${isRevenue ? "text-sky-700" : value < 0 ? "text-red-600" : "text-gray-800"}`
           : "text-gray-300 hover:bg-gray-50 hover:text-gray-500"
       }`}
     >
-      {value > 0 ? fmt.format(value) : "—"}
+      {value !== 0 ? fmt.format(value) : "—"}
     </button>
   );
 }
@@ -249,8 +249,8 @@ export default function BudgetsPage() {
                             </td>
                           ))}
                           <td className="px-3 py-2 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
-                            <span className={`text-xs font-bold ${annualTotal > 0 ? (isRevenue ? "text-sky-700" : "text-gray-700") : "text-gray-300"}`}>
-                              {annualTotal > 0 ? fmt.format(annualTotal) : "—"}
+                            <span className={`text-xs font-bold ${annualTotal !== 0 ? (isRevenue ? "text-sky-700" : annualTotal < 0 ? "text-red-600" : "text-gray-700") : "text-gray-300"}`}>
+                              {annualTotal !== 0 ? fmt.format(annualTotal) : "—"}
                             </span>
                           </td>
                         </tr>
