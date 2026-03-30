@@ -9,8 +9,9 @@ export default function DivisionLayout({ children }: { children: React.ReactNode
 
   const base = `/operations-center/atlas-ops/${division}`;
   const TABS = [
-    { label: "Dashboard", href: base },
-    { label: "COGS",      href: `${base}/cogs` },
+    { label: "Dashboard",        href: base },
+    { label: "Upcoming Revenue", href: `${base}/upcoming-revenue` },
+    { label: "COGS",             href: `${base}/cogs` },
   ];
 
   return (

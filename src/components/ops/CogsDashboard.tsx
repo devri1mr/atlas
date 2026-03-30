@@ -429,7 +429,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                       <td className="px-2 py-2.5 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
-                            {ytd.revenue > 0 ? fmt.format(ytd.gp) : "—"}
+                            {(ytd.revenue !== 0 || ytd.gp !== 0) ? fmt.format(ytd.gp) : "—"}
                           </span>
                           {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">{fmt.format(ytdBudgetGP)}</span>}
                         </div>

@@ -13,6 +13,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ divi
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const { division } = await params;
+    // Normalize slug to match stored key format: "holiday-lights" → "holiday lights"
+    const divisionKey = division.replace(/-/g, " ");
     const { searchParams } = new URL(req.url);
     const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
 
@@ -20,12 +22,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ divi
       sb.from("division_budgets")
         .select("month, revenue, labor, job_materials, fuel, equipment")
         .eq("company_id", company.id)
-        .eq("division", division)
+        .eq("division", divisionKey)
         .eq("year", year),
       sb.from("division_cogs_actuals")
         .select("month, revenue_override, labor_override, job_materials, fuel_override, equipment")
         .eq("company_id", company.id)
-        .eq("division", division)
+        .eq("division", divisionKey)
         .eq("year", year),
     ]);
 
@@ -80,6 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ divi
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const { division } = await params;
+    const divisionKey = division.replace(/-/g, " ");
     const { year, month, field, value } = await req.json();
     if (!year || !month || !field) return NextResponse.json({ error: "year, month, field required" }, { status: 400 });
 
@@ -87,7 +90,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ divi
     if (!ALLOWED.includes(field)) return NextResponse.json({ error: "Invalid field" }, { status: 400 });
 
     const { error } = await sb.from("division_cogs_actuals").upsert(
-      { company_id: company.id, division, year: Number(year), month: Number(month), [field]: value, updated_at: new Date().toISOString() },
+      { company_id: company.id, division: divisionKey, year: Number(year), month: Number(month), [field]: value, updated_at: new Date().toISOString() },
       { onConflict: "company_id,division,year,month" }
     );
 
