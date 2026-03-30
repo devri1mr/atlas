@@ -502,12 +502,14 @@ export default function UpcomingRevenuePage() {
                         const bgColor      = isToday ? "#ecfdf5" : isLocked ? "#f0fdf4" : isVoided ? "#f9fafb" : ci % 2 === 0 ? "#fff" : "#f9fafb";
                         return (
                           <td key={date} className="px-2 py-1.5 border border-gray-200" style={{ background: bgColor }}>
-                            {isVoided && val > 0 ? (
+                            {isLocked ? (
+                              <span className="block text-center text-xs text-gray-300 py-1.5">—</span>
+                            ) : isVoided && val > 0 ? (
                               <span className="block text-center text-xs font-semibold text-gray-300 line-through py-1.5">{money(val)}</span>
                             ) : isUnresolved ? (
                               <span className="block text-center text-xs font-semibold text-amber-400/60 py-1.5">{money(val)}</span>
                             ) : (
-                              <EditCell value={val} disabled={isLocked || (isPast && !isToday)} onSave={v => handleSave(date, cat.key, v)} />
+                              <EditCell value={val} disabled={isPast && !isToday} onSave={v => handleSave(date, cat.key, v)} />
                             )}
                           </td>
                         );
