@@ -67,13 +67,13 @@ const JOB_TABLE_COLUMNS = [
 ];
 
 const MEMBER_TABLE_COLUMNS = [
-  { key: "name", label: "Name" },
-  { key: "reg_hours", label: "Reg Hrs" },
-  { key: "ot_hours", label: "OT Hrs" },
-  { key: "dt_hours", label: "DT Hrs" },
-  { key: "total_pay_hours", label: "Total Hrs" },
-  { key: "ot_cost", label: "OT Cost" },
-  { key: "total_payroll", label: "Total Payroll" },
+  { key: "name",           label: "Name" },
+  { key: "reg_hours",      label: "Reg Hrs" },
+  { key: "ot_hours",       label: "OT Hrs" },
+  { key: "total_pay_hours",label: "Total Hrs" },
+  { key: "ot_cost",        label: "OT Cost" },
+  { key: "labor_pct",      label: "Labor %" },
+  { key: "efficiency_pct", label: "Efficiency %" },
 ];
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -366,9 +366,11 @@ function MemberTableWidget({
   const start = data?.start;
   const end = data?.end;
 
+  const totalOtCost  = rows.reduce((s, r) => s + (r.ot_cost ?? 0), 0);
+  const totalHours   = rows.reduce((s, r) => s + (r.total_pay_hours ?? 0), 0);
   const totalPayroll = rows.reduce((s, r) => s + (r.total_payroll ?? 0), 0);
-  const totalOtCost = rows.reduce((s, r) => s + (r.ot_cost ?? 0), 0);
-  const totalHours = rows.reduce((s, r) => s + (r.total_pay_hours ?? 0), 0);
+  const totalEarned  = rows.reduce((s, r) => s + (r.total_earned ?? 0), 0);
+  const hasAnyOt     = rows.some((r) => (r.ot_hours ?? 0) > 0);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -381,7 +383,7 @@ function MemberTableWidget({
         {!loading && start && end && (
           <div className="text-xs text-white/50 mt-0.5">
             {fmtDateShort(start)} – {fmtDateShort(end)}
-            {rows.length > 0 && ` · ${rows.length} employee${rows.length !== 1 ? "s" : ""}`}
+            {rows.length > 0 && ` · ${rows.length} team member${rows.length !== 1 ? "s" : ""}`}
           </div>
         )}
       </div>
@@ -399,43 +401,46 @@ function MemberTableWidget({
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                {MEMBER_TABLE_COLUMNS.filter((c) => columns.includes(c.key)).map((col) => (
-                  <th key={col.key} className="px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">
-                    {col.label}
-                  </th>
-                ))}
+                {MEMBER_TABLE_COLUMNS
+                  .filter((c) => columns.includes(c.key))
+                  .filter((c) => c.key !== "ot_hours" || hasAnyOt)
+                  .map((col) => (
+                    <th key={col.key} className={`px-4 py-2.5 font-semibold text-gray-500 whitespace-nowrap ${col.key === "name" ? "text-left" : "text-right"}`}>
+                      {col.label}
+                    </th>
+                  ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   {columns.includes("name") && (
-                    <td className="px-4 py-2.5 font-medium text-gray-800">{row.name}</td>
+                    <td className="px-4 py-2.5 text-left font-medium text-gray-800">{row.name}</td>
                   )}
                   {columns.includes("reg_hours") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{row.reg_hours.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 whitespace-nowrap">{(row.reg_hours ?? 0).toFixed(1)}</td>
                   )}
-                  {columns.includes("ot_hours") && (
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${row.ot_hours > 0 ? "text-amber-600 font-semibold" : "text-gray-400"}`}>
-                      {row.ot_hours.toFixed(2)}
-                    </td>
-                  )}
-                  {columns.includes("dt_hours") && (
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${row.dt_hours > 0 ? "text-red-500 font-semibold" : "text-gray-400"}`}>
-                      {row.dt_hours.toFixed(2)}
+                  {columns.includes("ot_hours") && hasAnyOt && (
+                    <td className={`px-4 py-2.5 text-right tabular-nums whitespace-nowrap ${(row.ot_hours ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-gray-300"}`}>
+                      {(row.ot_hours ?? 0) > 0 ? (row.ot_hours).toFixed(1) : "—"}
                     </td>
                   )}
                   {columns.includes("total_pay_hours") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-800">{row.total_pay_hours.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-800 whitespace-nowrap">{(row.total_pay_hours ?? 0).toFixed(1)}</td>
                   )}
                   {columns.includes("ot_cost") && (
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${row.ot_cost > 0 ? "text-amber-600" : "text-gray-400"}`}>
-                      {fmtCurrency(row.ot_cost)}
+                    <td className={`px-4 py-2.5 text-right tabular-nums whitespace-nowrap ${(row.ot_cost ?? 0) > 0 ? "text-amber-600" : "text-gray-300"}`}>
+                      {(row.ot_cost ?? 0) > 0 ? fmtCurrency(row.ot_cost) : "—"}
                     </td>
                   )}
-                  {columns.includes("total_payroll") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
-                      {fmtCurrency(row.total_payroll)}
+                  {columns.includes("labor_pct") && (
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${laborPctColor(row.labor_pct)}`}>
+                      {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
+                    </td>
+                  )}
+                  {columns.includes("efficiency_pct") && (
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${row.efficiency_pct !== null ? (row.efficiency_pct >= 1 ? "text-emerald-600" : "text-amber-600") : "text-gray-400"}`}>
+                      {row.efficiency_pct !== null ? fmtPct(row.efficiency_pct) : "—"}
                     </td>
                   )}
                 </tr>
@@ -444,24 +449,28 @@ function MemberTableWidget({
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50">
                 {columns.includes("name") && (
-                  <td className="px-4 py-2.5 text-xs font-semibold text-gray-500">TOTAL</td>
+                  <td className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">TOTALS</td>
                 )}
                 {columns.includes("reg_hours") && <td />}
-                {columns.includes("ot_hours") && <td />}
-                {columns.includes("dt_hours") && <td />}
+                {columns.includes("ot_hours") && hasAnyOt && <td />}
                 {columns.includes("total_pay_hours") && (
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
-                    {totalHours.toFixed(2)}
+                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums whitespace-nowrap">
+                    {totalHours.toFixed(1)}
                   </td>
                 )}
                 {columns.includes("ot_cost") && (
-                  <td className="px-4 py-2.5 text-right font-bold text-amber-600 tabular-nums">
-                    {fmtCurrency(totalOtCost)}
+                  <td className="px-4 py-2.5 text-right font-bold text-amber-600 tabular-nums whitespace-nowrap">
+                    {totalOtCost > 0 ? fmtCurrency(totalOtCost) : "—"}
                   </td>
                 )}
-                {columns.includes("total_payroll") && (
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
-                    {fmtCurrency(totalPayroll)}
+                {columns.includes("labor_pct") && (
+                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${laborPctColor(totalEarned > 0 ? totalPayroll / totalEarned : null)}`}>
+                    {totalEarned > 0 ? fmtPct(totalPayroll / totalEarned) : "—"}
+                  </td>
+                )}
+                {columns.includes("efficiency_pct") && (
+                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${totalPayroll > 0 && (totalEarned * 0.39) / totalPayroll >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {totalPayroll > 0 ? fmtPct((totalEarned * 0.39) / totalPayroll) : "—"}
                   </td>
                 )}
               </tr>

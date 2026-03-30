@@ -207,12 +207,11 @@ export default function UpcomingRevenuePage() {
   }, [weekOffset]);
 
   async function handleSave(date: string, cat: Category, value: number) {
-    // Capture the fully-merged row inside the updater to avoid stale closure
-    let rowToSave: DayRow = { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
+    // Compute the merged row synchronously from current state before any async work
+    const ex = data.get(date) ?? { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
+    const rowToSave: DayRow = { ...ex, [cat]: value };
     setData(prev => {
       const next = new Map(prev);
-      const ex = next.get(date) ?? { date, mowing: 0, weeding: 0, shrubs: 0, cleanups: 0, brush_hogging: 0, string_trimming: 0, other: 0 };
-      rowToSave = { ...ex, [cat]: value };
       next.set(date, rowToSave);
       return next;
     });

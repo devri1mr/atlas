@@ -589,18 +589,34 @@ export async function POST(req: NextRequest) {
 
     // ── member_table ──────────────────────────────────────────────────────────
     if (widget_type === "member_table") {
-      const { data: punches } = await sb
-        .from("at_punches")
-        .select(`
-          employee_id, regular_hours, ot_hours, dt_hours,
-          at_employees!employee_id (first_name, last_name)
-        `)
-        .eq("company_id", company.id)
-        .in("division_id", lawnDivIds)
-        .gte("date_for_payroll", start)
-        .lte("date_for_payroll", end)
-        .not("clock_out_at", "is", null)
-        .not("employee_id", "is", null);
+      const [{ data: punches }, { data: reports }] = await Promise.all([
+        sb.from("at_punches")
+          .select(`employee_id, regular_hours, ot_hours, dt_hours, at_employees!employee_id (first_name, last_name)`)
+          .eq("company_id", company.id)
+          .in("division_id", lawnDivIds)
+          .gte("date_for_payroll", start)
+          .lte("date_for_payroll", end)
+          .not("clock_out_at", "is", null)
+          .not("employee_id", "is", null),
+        // Revenue per employee from production reports
+        sb.from("lawn_production_reports")
+          .select("lawn_production_jobs(lawn_production_members(employee_id, earned_amount))")
+          .eq("company_id", company.id)
+          .eq("is_complete", true)
+          .gte("report_date", start)
+          .lte("report_date", end),
+      ]);
+
+      // Build employee_id → total earned map from production reports
+      const earnedMap = new Map<string, number>();
+      for (const r of reports ?? []) {
+        for (const j of (r as any).lawn_production_jobs ?? []) {
+          for (const m of (j as any).lawn_production_members ?? []) {
+            if (!m.employee_id) continue;
+            earnedMap.set(m.employee_id, (earnedMap.get(m.employee_id) ?? 0) + Number(m.earned_amount ?? 0));
+          }
+        }
+      }
 
       const empIds = [...new Set((punches ?? []).map((p: any) => p.employee_id).filter(Boolean))];
 
@@ -625,10 +641,12 @@ export async function POST(req: NextRequest) {
         name: string;
         reg_hours: number;
         ot_hours: number;
-        dt_hours: number;
         total_pay_hours: number;
         ot_cost: number;
         total_payroll: number;
+        total_earned: number;
+        labor_pct: number | null;
+        efficiency_pct: number | null;
       };
 
       const memberMap = new Map<string, MemberAgg>();
@@ -650,27 +668,35 @@ export async function POST(req: NextRequest) {
         const punchPayroll = (reg * rate + ot * rate * otMult + dt * rate * dtMult) * PAYROLL_BURDEN;
 
         const cur = memberMap.get(empId) ?? {
-          employee_id: empId,
-          name,
-          reg_hours: 0,
-          ot_hours: 0,
-          dt_hours: 0,
-          total_pay_hours: 0,
-          ot_cost: 0,
-          total_payroll: 0,
+          employee_id: empId, name,
+          reg_hours: 0, ot_hours: 0, total_pay_hours: 0,
+          ot_cost: 0, total_payroll: 0, total_earned: 0,
+          labor_pct: null, efficiency_pct: null,
         };
         cur.reg_hours += reg;
         cur.ot_hours += ot;
-        cur.dt_hours += dt;
         cur.total_pay_hours += reg + ot + dt;
         cur.ot_cost += otCost;
         cur.total_payroll += punchPayroll;
         memberMap.set(empId, cur);
       }
 
-      const rows = [...memberMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+      // Attach revenue and compute labor % / efficiency % per member
+      for (const [empId, m] of memberMap.entries()) {
+        m.total_earned = earnedMap.get(empId) ?? 0;
+        m.labor_pct      = m.total_earned > 0 ? m.total_payroll / m.total_earned : null;
+        m.efficiency_pct = m.total_payroll > 0 ? (m.total_earned * 0.39) / m.total_payroll : null;
+      }
 
-      const ALL_COLUMNS = ["name", "reg_hours", "ot_hours", "dt_hours", "total_pay_hours", "ot_cost", "total_payroll"];
+      // Sort by labor_pct ascending (best = lowest); nulls last
+      const rows = [...memberMap.values()].sort((a, b) => {
+        if (a.labor_pct === null && b.labor_pct === null) return a.name.localeCompare(b.name);
+        if (a.labor_pct === null) return 1;
+        if (b.labor_pct === null) return -1;
+        return a.labor_pct - b.labor_pct;
+      });
+
+      const ALL_COLUMNS = ["name", "reg_hours", "ot_hours", "total_pay_hours", "ot_cost", "labor_pct", "efficiency_pct"];
       const columns: string[] = Array.isArray(config.columns) && config.columns.length > 0
         ? config.columns
         : ALL_COLUMNS;
