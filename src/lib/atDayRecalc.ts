@@ -92,18 +92,48 @@ export async function recalcDayLunch(
   const results   = computeWeekPunches(punchesWithOverride, settings);
   const resultMap = new Map(results.map(r => [r.id, r]));
 
-  // Write all results back in parallel
-  await Promise.all(weekPunches.map(p => {
-    const r = resultMap.get(p.id);
-    if (!r) return Promise.resolve();
-    // no-lunch override: manager explicitly removed deduction (stored as 0, punch already calculated)
-    // forced-lunch is handled by computeWeekPunches via forced_lunch_mins; result flows through naturally.
-    const isManualOverride = !lunchOverrides && p.regular_hours !== null && p.lunch_deducted_mins === 0;
-    return sb.from("at_punches").update({
+  // Apply r2 rounding to each punch individually, then correct any overshoot so
+  // the stored weekly reg total never exceeds the threshold (e.g. 40.01 → 40.00).
+  const storedMap = new Map<string, { regular_hours: number; ot_hours: number; dt_hours: number; lunch_deducted_mins: number }>();
+  for (const [id, r] of resultMap) {
+    storedMap.set(id, {
       regular_hours:       r2(r.regular_hours),
       ot_hours:            r2(r.ot_hours),
       dt_hours:            r2(r.dt_hours),
-      lunch_deducted_mins: isManualOverride ? 0 : (r.lunch_deducted_mins || null),
+      lunch_deducted_mins: r.lunch_deducted_mins,
+    });
+  }
+
+  // If per-punch r2 rounding caused the weekly reg total to exceed the threshold,
+  // move the excess into OT on the last-in-time punch that still has reg hours.
+  const threshold   = settings.ot_weekly_threshold;
+  const weekRegSum  = [...storedMap.values()].reduce((s, r) => s + r.regular_hours, 0);
+  const overshoot   = r2(weekRegSum - threshold); // how many hundredths over the limit
+  if (overshoot > 0) {
+    const lastWithReg = weekPunches
+      .slice()
+      .sort((a, b) => b.clock_in_at.localeCompare(a.clock_in_at))
+      .find(p => (storedMap.get(p.id)?.regular_hours ?? 0) > 0);
+    if (lastWithReg) {
+      const s = storedMap.get(lastWithReg.id)!;
+      storedMap.set(lastWithReg.id, {
+        ...s,
+        regular_hours: r2(s.regular_hours - overshoot),
+        ot_hours:      r2(s.ot_hours      + overshoot),
+      });
+    }
+  }
+
+  // Write all results back in parallel
+  await Promise.all(weekPunches.map(p => {
+    const stored = storedMap.get(p.id);
+    if (!stored) return Promise.resolve();
+    const isManualOverride = !lunchOverrides && p.regular_hours !== null && p.lunch_deducted_mins === 0;
+    return sb.from("at_punches").update({
+      regular_hours:       stored.regular_hours,
+      ot_hours:            stored.ot_hours,
+      dt_hours:            stored.dt_hours,
+      lunch_deducted_mins: isManualOverride ? 0 : (stored.lunch_deducted_mins || null),
     }).eq("id", p.id);
   }));
 }

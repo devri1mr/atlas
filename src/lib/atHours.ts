@@ -118,6 +118,26 @@ export function computeWeekPunches(punches: PunchIn[], s: HRSettings): PunchOut[
     }
   }
 
+  // Final correction: per-punch ratio rounding can push the weekly reg total
+  // fractionally over the threshold. Move any overshoot into OT on the last
+  // chronological punch that has reg hours.
+  const regSum     = [...results.values()].reduce((s, r) => s + r.regular_hours, 0);
+  const overshoot  = r4(regSum - s.ot_weekly_threshold);
+  if (overshoot > 0.00005) { // guard against pure floating-point noise
+    const lastWithReg = closed
+      .slice()
+      .sort((a, b) => b.clock_in_at.localeCompare(a.clock_in_at))
+      .find(p => (results.get(p.id)?.regular_hours ?? 0) > 0);
+    if (lastWithReg) {
+      const r = results.get(lastWithReg.id)!;
+      results.set(lastWithReg.id, {
+        ...r,
+        regular_hours: r4(r.regular_hours - overshoot),
+        ot_hours:      r4(r.ot_hours      + overshoot),
+      });
+    }
+  }
+
   return closed.map(p => results.get(p.id)!).filter(Boolean);
 }
 
