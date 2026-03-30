@@ -129,6 +129,9 @@ function computeTask(
 
   const mulchSqft = num(getAnswer(answers, questionsByKey, "mulch_sqft"), 0);
   const depthFromAnswer = num(getAnswer(answers, questionsByKey, "mulch_depth"), 0);
+  const stoneSqft = num(getAnswer(answers, questionsByKey, "stone_sqft"), 0);
+  const stoneDepth = num(getAnswer(answers, questionsByKey, "stone_depth"), 0);
+  const stoneEdgingLft = num(getAnswer(answers, questionsByKey, "stone_edging_lft"), 0);
 
   let quantity = 0;
   let manHours = 0;
@@ -202,6 +205,27 @@ function computeTask(
 
       generatedFromQuestionKeys = conditionalKey ? [conditionalKey] : [];
     }
+
+  } else if (ruleType === "stone_tons_from_sqft_depth") {
+    // (sqft × depth_inches / 12 / 27) × 1.35 tons/yd³ for river rock
+    const depth = num(config?.depth_inches, stoneDepth || 2);
+    const roundTo = num(config?.round_to, 0.5);
+    quantity = stoneSqft > 0 ? (stoneSqft * depth / 12 / 27) * 1.35 : 0;
+    quantity = roundToIncrement(quantity, roundTo);
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && quantity > 0) manHours = quantity * mpu / 60;
+    generatedFromQuestionKeys = ["stone_sqft", "stone_depth"];
+
+  } else if (ruleType === "hours_per_stone_sqft") {
+    const rate = num(config?.rate_sqft_per_hour, 0);
+    manHours = rate > 0 && stoneSqft > 0 ? stoneSqft / rate : 0;
+    generatedFromQuestionKeys = ["stone_sqft"];
+
+  } else if (ruleType === "hours_per_stone_lft") {
+    quantity = stoneEdgingLft;
+    const mpu = num(config?.minutes_per_unit, 0);
+    if (mpu > 0 && quantity > 0) manHours = quantity * mpu / 60;
+    generatedFromQuestionKeys = ["stone_edging_lft"];
 
   } else {
     skip = true;
@@ -424,7 +448,7 @@ export async function POST(req: NextRequest) {
     const { data: rawTaskMaterials, error: materialsError } = taskIds.length > 0
       ? await supabase
           .from("scope_bundle_task_materials")
-          .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id")
+          .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id, material_choice_question_key")
           .in("bundle_task_id", taskIds)
       : { data: [], error: null };
 
@@ -432,20 +456,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: materialsError.message }, { status: 500 });
     }
 
-    // Resolve material names from materials_catalog
-    const matIds = [...new Set((rawTaskMaterials || []).map((m: any) => m.material_id).filter(Boolean))];
-    const { data: catalogItems } = matIds.length > 0
-      ? await supabase.from("materials_catalog").select("id, name").in("id", matIds)
+    // Resolve effective material_id for each row (choice rows get id from answers)
+    const resolvedMaterials = (rawTaskMaterials || []).map((m: any) => {
+      const choiceKey = m.material_choice_question_key;
+      const effectiveId = choiceKey
+        ? (String(answers[choiceKey] ?? "").trim() || null)
+        : (m.material_id || null);
+      return { ...m, effective_material_id: effectiveId };
+    }).filter((m: any) => m.effective_material_id);
+
+    // Fetch names + costs for all effective material ids
+    const allMatIds = [...new Set(resolvedMaterials.map((m: any) => m.effective_material_id as string))];
+    const { data: catalogItems } = allMatIds.length > 0
+      ? await supabase.from("materials_catalog").select("id, name, default_unit_cost").in("id", allMatIds)
       : { data: [] };
-    const nameMap = new Map((catalogItems || []).map((c: any) => [c.id, c.name]));
+    const catalogMap = new Map((catalogItems || []).map((c: any) => [c.id, c]));
 
     // Shape into the same structure the rest of the code expects
-    const materials = (rawTaskMaterials || []).map((m: any) => ({
+    const materials = resolvedMaterials.map((m: any) => ({
       ...m,
-      materials: { name: nameMap.get(m.material_id) || "Bundle Material" },
+      effective_material_id: m.effective_material_id,
+      materials: { name: catalogMap.get(m.effective_material_id)?.name || "Bundle Material" },
+      resolved_unit_cost: m.unit_cost != null ? Number(m.unit_cost) : (catalogMap.get(m.effective_material_id)?.default_unit_cost ?? 0),
     }));
 
-    // Aggregate the new bundle qty by material_id across all bundle tasks.
+    // Aggregate the new bundle qty by effective_material_id across all bundle tasks.
     // We ADD the new bundle qty on top of whatever already exists — purely additive.
     type MatAdd = {
       name: string;
@@ -464,7 +499,7 @@ export async function POST(req: NextRequest) {
       if (addQty === 0) continue;
 
       const materialName = (m as any).materials?.name;
-      const key = m.material_id;
+      const key = m.effective_material_id as string;
 
       if (matAddMap.has(key)) {
         const d = matAddMap.get(key)!;
@@ -473,7 +508,7 @@ export async function POST(req: NextRequest) {
         matAddMap.set(key, {
           name: materialName || "Material",
           unit: m.unit,
-          unit_cost: Number(m.unit_cost || 0),
+          unit_cost: m.resolved_unit_cost,
           qty: addQty,
           source_task_id: m.bundle_task_id,
         });

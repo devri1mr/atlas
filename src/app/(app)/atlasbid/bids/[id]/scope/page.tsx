@@ -211,6 +211,78 @@ function effectiveHours(row: LaborRow, season: string): number {
   return base * getDifficultyMultiplier(row) * getSeasonMultiplier(row, season);
 }
 
+function MaterialSelectInput({
+  questionKey,
+  value,
+  onChange,
+}: {
+  questionKey: string;
+  value: string;
+  onChange: (id: string, name: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<{ id: string; name: string; default_unit?: string | null; default_unit_cost?: number | null }[]>([]);
+  const [selectedName, setSelectedName] = useState("");
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    if (search.length < 2) { setResults([]); setSearched(false); return; }
+    const t = setTimeout(async () => {
+      const r = await fetch(`/api/materials-catalog?q=${encodeURIComponent(search)}`);
+      const j = await r.json();
+      setResults(j?.data ?? []);
+      setSearched(true);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  function clear() { onChange("", ""); setSelectedName(""); setSearch(""); setResults([]); setSearched(false); }
+
+  return (
+    <div className="relative">
+      <div className="flex gap-1">
+        <input
+          type="text"
+          className="border p-2 rounded w-full text-sm"
+          placeholder="Search materials catalog…"
+          value={selectedName || search}
+          onChange={e => { setSearch(e.target.value); setSelectedName(""); onChange("", ""); }}
+        />
+        {(selectedName || value) && (
+          <button type="button" onClick={clear} className="px-2 text-gray-400 hover:text-gray-600 text-sm">✕</button>
+        )}
+      </div>
+      {selectedName && <p className="text-xs text-emerald-700 mt-0.5 font-medium">✓ {selectedName}</p>}
+      {results.length > 0 && !selectedName && (
+        <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-full max-h-48 overflow-y-auto">
+          {results.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex justify-between"
+              onMouseDown={e => {
+                e.preventDefault();
+                onChange(m.id, m.name);
+                setSelectedName(m.name);
+                setSearch("");
+                setResults([]);
+              }}
+            >
+              <span className="font-medium">{m.name}</span>
+              <span className="text-gray-400 text-xs">{m.default_unit}{m.default_unit_cost != null ? ` · $${m.default_unit_cost}` : ""}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {searched && results.length === 0 && !selectedName && (
+        <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow p-3 w-full text-sm text-gray-400 text-center">
+          No materials found
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BidScopePage() {
   const params = useParams();
   const bidId = paramToString((params as any)?.id).trim();
@@ -1828,6 +1900,12 @@ async function addLabor() {
               <input type="checkbox" checked={bundleAnswers[q.question_key] === true} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))} />
               <span>{q.label}</span>
             </label>
+          ) : q.input_type === "material_select" ? (
+            <MaterialSelectInput
+              questionKey={q.question_key}
+              value={bundleAnswers[q.question_key] ?? ""}
+              onChange={(id, name) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: id, [`${q.question_key}__name`]: name }))}
+            />
           ) : (
             <input type="text" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.value }))} />
           )}

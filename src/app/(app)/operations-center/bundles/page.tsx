@@ -17,8 +17,9 @@ type BundleTask = {
   show_as_line_item_default?: boolean; sort_order?: number;
 };
 type TaskMaterial = {
-  id: string; bundle_task_id: string; material_id: string; material_name?: string | null;
+  id: string; bundle_task_id: string; material_id?: string | null; material_name?: string | null;
   qty_per_task_unit: number; unit: string; unit_cost?: number | null;
+  material_choice_question_key?: string | null;
 };
 type MatCatalogRow = { id: string; name: string; default_unit?: string | null; default_unit_cost?: number | null };
 type TaskCatalogRow = { id: string; name: string; unit?: string | null; minutes_per_unit?: number | null; default_qty?: number | null };
@@ -31,9 +32,12 @@ const RULE_TYPES = [
   { value: "fixed_quantity", label: "Fixed Quantity" },
   { value: "fixed_hours", label: "Fixed Hours" },
   { value: "conditional_if_checked", label: "Conditional (only if checkbox checked)" },
+  { value: "stone_tons_from_sqft_depth", label: "Stone Tons (sq ft + depth → tons)" },
+  { value: "hours_per_stone_sqft", label: "Stone: Hours from Area (sq ft)" },
+  { value: "hours_per_stone_lft", label: "Stone: Hours from Edging (linear ft)" },
 ];
 
-const INPUT_TYPES = ["number", "checkbox", "text"];
+const INPUT_TYPES = ["number", "checkbox", "text", "material_select"];
 const UNITS = ["yd", "sqft", "lft", "ea", "hr", "bag", "lb", "gal", "ton", "load", "visit"];
 
 const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
@@ -159,6 +163,30 @@ function RuleConfigFields({
           {field("factor", "Factor (if lft unit)")}
         </div>
       );
+    case "stone_tons_from_sqft_depth":
+      return (
+        <div className="grid grid-cols-3 gap-3">
+          {requiresKey(["stone_sqft"], 'label your question "Stone sqft"')}
+          {requiresKey(["stone_depth"], 'label your question "Stone depth"')}
+          {field("depth_inches", "Default Depth (in)", "2")}
+          {field("round_to", "Round Qty To", "0.5")}
+          {field("minutes_per_unit", "Min per ton (hrs calc)", "e.g. 45")}
+        </div>
+      );
+    case "hours_per_stone_sqft":
+      return (
+        <div className="grid grid-cols-1 gap-3">
+          {requiresKey(["stone_sqft"], 'label your question "Stone sqft"')}
+          {field("rate_sqft_per_hour", "sq ft per Hour", "e.g. 400")}
+        </div>
+      );
+    case "hours_per_stone_lft":
+      return (
+        <div className="grid grid-cols-2 gap-3">
+          {requiresKey(["stone_edging_lft"], 'label your question "Stone edging lft"')}
+          {field("minutes_per_unit", "Min per lft (hrs calc)", "e.g. 3")}
+        </div>
+      );
     default:
       return null;
   }
@@ -205,6 +233,19 @@ function previewTask(task: BundleTask, answers: Record<string, any>, questions: 
     else if (unit === "yd") qty = sqft > 0 ? roundInc((sqft * n(cfg.depth_inches, depthAns || 3)) / 324, n(cfg.round_to, 1)) : 0;
     else if (unit === "lf") qty = roundInc(sqft * n(cfg.factor), n(cfg.round_to, 1));
     const rate = n(cfg.rate_sqft_per_hour); if (rate > 0 && sqft > 0) hrs = sqft / rate;
+  } else if (rule === "stone_tons_from_sqft_depth") {
+    const stoneSqft = n(getAns("stone_sqft"));
+    const stoneDepth = n(getAns("stone_depth"));
+    const depth = n(cfg.depth_inches, stoneDepth || 2);
+    qty = stoneSqft > 0 ? roundInc((stoneSqft * depth / 12 / 27) * 1.35, n(cfg.round_to, 0.5)) : 0;
+    const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
+  } else if (rule === "hours_per_stone_sqft") {
+    const stoneSqft = n(getAns("stone_sqft"));
+    const rate = n(cfg.rate_sqft_per_hour); hrs = rate > 0 ? stoneSqft / rate : 0;
+  } else if (rule === "hours_per_stone_lft") {
+    const lft = n(getAns("stone_edging_lft"));
+    qty = lft;
+    const mpu = n(cfg.minutes_per_unit); if (mpu > 0 && qty > 0) hrs = qty * mpu / 60;
   }
   qty = Number(qty.toFixed(2)); hrs = Number(hrs.toFixed(2));
   if (qty <= 0 && hrs <= 0) return { skip: true, reason: "qty and hrs both 0", qty, hrs };
@@ -252,6 +293,8 @@ export default function BundleBuilderPage() {
   const [matQty, setMatQty] = useState(""); const [matUnit, setMatUnit] = useState("ea");
   const [matCost, setMatCost] = useState(""); const [addingMat, setAddingMat] = useState(false);
   const [matSearched, setMatSearched] = useState(false);
+  const [matIsChoice, setMatIsChoice] = useState(false);
+  const [matChoiceKey, setMatChoiceKey] = useState("");
 
   // Per-task save state
   const [savingTask, setSavingTask] = useState<string | null>(null);
@@ -423,9 +466,38 @@ export default function BundleBuilderPage() {
     setMatQty("");
     setMatUnit("ea");
     setMatCost("");
+    setMatIsChoice(false);
+    setMatChoiceKey("");
   }
 
   async function addMaterial(taskId: string) {
+    if (matIsChoice) {
+      if (!matChoiceKey) { err("Select a material select question."); return; }
+      if (!matQty || Number(matQty) <= 0) { err("Enter a qty ratio greater than 0."); return; }
+      setAddingMat(true);
+      try {
+        const r = await fetch("/api/operations-center/scope-bundle-task-materials", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bundle_task_id: taskId,
+            material_choice_question_key: matChoiceKey,
+            qty_per_task_unit: Number(matQty),
+            unit: matUnit || "ea",
+            unit_cost: matCost ? Number(matCost) : null,
+          }),
+        });
+        const j = await r.json();
+        if (!r.ok) { err(j?.error || "Failed to add material"); return; }
+        setTaskMaterials(prev => ({ ...prev, [taskId]: [...(prev[taskId] || []), { ...j.row, material_name: `[Choice: ${matChoiceKey}]` }] }));
+        setMatTaskId(null); setMatIsChoice(false); setMatChoiceKey(""); setMatQty(""); setMatUnit("ea"); setMatCost("");
+        flash("Choice material linked.");
+      } catch (e: any) {
+        err(e?.message || "Failed to add material");
+      } finally {
+        setAddingMat(false);
+      }
+      return;
+    }
     const mat = matSelected;
     if (!mat) { err("Select a material from the search results first."); return; }
     if (!matQty || Number(matQty) <= 0) { err("Enter a qty greater than 0."); return; }
@@ -574,6 +646,7 @@ export default function BundleBuilderPage() {
                           <option value="number">Number</option>
                           <option value="checkbox">Checkbox</option>
                           <option value="text">Text</option>
+                          <option value="material_select">Material Select</option>
                         </select>
                         <input className={inputCls} placeholder="sq ft, in…"
                           value={d.unit}
@@ -668,14 +741,29 @@ export default function BundleBuilderPage() {
                           {mats.length === 0 && <div className="text-xs text-gray-400">No materials linked yet.</div>}
                           {mats.map(m => (
                             <div key={m.id} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-1.5 text-sm">
-                              <span className="flex-1 font-medium text-gray-700">{m.material_name || m.material_id}</span>
+                              <span className="flex-1 font-medium text-gray-700">
+                                {m.material_choice_question_key
+                                  ? <span className="text-blue-600">⬡ Choice: <code className="bg-blue-50 px-1 rounded text-xs">{m.material_choice_question_key}</code></span>
+                                  : (m.material_name || m.material_id)}
+                              </span>
                               <span className="text-gray-500 text-xs">{m.qty_per_task_unit} {m.unit} per {task.unit}{m.unit_cost != null ? ` · $${Number(m.unit_cost).toFixed(2)}` : ""}</span>
                               <button onClick={() => deleteMaterial(task.id, m.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">✕</button>
                             </div>
                           ))}
                           {matTaskId === task.id ? (
                             <div className="bg-[#f6f8f6] rounded-lg p-3 space-y-2 border border-green-200">
-                              <div className="relative">
+                              {/* Fixed vs Choice toggle */}
+                              <div className="flex gap-2 mb-1">
+                                <button
+                                  onClick={() => { setMatIsChoice(false); setMatChoiceKey(""); }}
+                                  className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${!matIsChoice ? "bg-[#123b1f] text-white border-[#123b1f]" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                                >Fixed Material</button>
+                                <button
+                                  onClick={() => { setMatIsChoice(true); setMatSelected(null); setMatSearch(""); }}
+                                  className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${matIsChoice ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                                >Choice (from question)</button>
+                              </div>
+                              {!matIsChoice && <div className="relative">
                                 <label className={labelCls}>Search Materials Catalog</label>
                                 <input className={inputCls} placeholder="Type to search (min 2 chars)…"
                                   value={matSelected ? matSelected.name : matSearch}
@@ -712,8 +800,35 @@ export default function BundleBuilderPage() {
                                     No materials found for &ldquo;{matSearch}&rdquo;
                                   </div>
                                 )}
-                              </div>
-                              {matSelected && (
+                              </div>}
+                              {matIsChoice && (
+                                <div className="space-y-2">
+                                  <div>
+                                    <label className={labelCls}>Material Select Question</label>
+                                    <select className={inputCls} value={matChoiceKey} onChange={e => setMatChoiceKey(e.target.value)}>
+                                      <option value="">— pick a material_select question —</option>
+                                      {questions.filter(q => q.input_type === "material_select").map(q => (
+                                        <option key={q.question_key} value={q.question_key}>{q.label} ({q.question_key})</option>
+                                      ))}
+                                    </select>
+                                    {questions.filter(q => q.input_type === "material_select").length === 0 && (
+                                      <p className="text-xs text-amber-600 mt-1">Add a "material_select" type question to this bundle first.</p>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className={labelCls}>Ratio per {task.unit}</label>
+                                      <input className={inputCls} type="number" step="0.01" min="0" value={matQty} onChange={e => setMatQty(e.target.value)} placeholder="1.0" />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>Unit</label>
+                                      <UnitInput className={inputCls} value={matUnit} onChange={setMatUnit} />
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-blue-600">The material catalog item will be chosen by sales when loading this bundle into a bid.</p>
+                                </div>
+                              )}
+                              {!matIsChoice && matSelected && (
                                 <>
                                 {(task.unit === "yd" || task.rule_type === "mulch_yards_from_sqft_depth") && (
                                   <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
@@ -739,15 +854,15 @@ export default function BundleBuilderPage() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => addMaterial(task.id)}
-                                  disabled={addingMat || !matSelected || !matQty}
+                                  disabled={addingMat || (!matIsChoice && !matSelected) || (matIsChoice && !matChoiceKey) || !matQty}
                                   className={`${btnPrimary}`}
                                 >
                                   {addingMat ? "Adding…" : "+ Link Material"}
                                 </button>
-                                <button onClick={() => { setMatTaskId(null); setMatSelected(null); setMatSearch(""); setMatQty(""); }}
+                                <button onClick={() => { setMatTaskId(null); setMatSelected(null); setMatSearch(""); setMatQty(""); setMatIsChoice(false); setMatChoiceKey(""); }}
                                   className="text-gray-500 text-sm px-3 py-2 hover:text-gray-700 font-medium">Cancel</button>
                               </div>
-                              {!matSelected && (
+                              {!matIsChoice && !matSelected && (
                                 <p className="text-xs text-gray-400">Search and select a material above, then set the qty.</p>
                               )}
                             </div>
