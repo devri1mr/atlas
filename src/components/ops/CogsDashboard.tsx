@@ -224,15 +224,14 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
             <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">{divisionLabel}</div>
             <div className="text-xl font-black text-white">Cost of Goods Sold</div>
           </div>
-          {!readOnly ? (
+          {/* Show year nav when data comes from an API (apiPath); hide for external/sheets data */}
+          {apiPath ? (
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
               <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
               <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
             </div>
-          ) : (
-            <span className="text-sm font-bold text-white/60 px-3">{year}</span>
-          )}
+          ) : null}
         </div>
 
         {/* KPI chips */}

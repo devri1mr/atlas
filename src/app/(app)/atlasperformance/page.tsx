@@ -537,68 +537,16 @@ export default function AtlasPerformancePage() {
       {/* ── Content ── */}
       <div ref={scrollRef} className="perf-content" style={{ flex: 1, overflow: "auto", padding: 12 }}>
 
-        {/* Summary tab */}
+        {/* Summary tab — combined COGS for all show_in_ops divisions */}
         {activeTab === "summary" && (
-          summaryLoading && !summaryItems ? (
-            <CenteredSpinner />
-          ) : summaryItems && summaryItems.length === 0 ? (
-            <EmptyState msg="No division performance sheets configured yet. Go to Operations Center → Divisions and add a sheet URL to each division." />
-          ) : (
-            <>
-              {/* Header + toggle */}
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-                <div>
-                  <div className="perf-sum-title" style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
-                    {summaryView === "month"
-                      ? `${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`
-                      : `YTD · Jan – ${MONTHS_FULL[currentMonth] ?? ""} ${new Date().getFullYear()}`}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                    {summaryView === "month" ? "Current month" : "Year to date thru current month"} · all active divisions
-                  </div>
-                </div>
-                {/* Month / YTD toggle */}
-                <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 3, gap: 2 }}>
-                  {(["month", "ytd"] as const).map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setSummaryView(v)}
-                      style={{
-                        padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                        fontSize: 12, fontWeight: 700,
-                        background: summaryView === v ? "#fff" : "transparent",
-                        color: summaryView === v ? "#15803d" : "#6b7280",
-                        boxShadow: summaryView === v ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {v === "month" ? `${MONTHS_FULL[currentMonth]?.slice(0,3) ?? "Month"}` : "YTD"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="perf-sum-grid" style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                gap: 14,
-              }}>
-                {(summaryItems ?? []).map(item => (
-                  <div
-                    key={item.divisionId}
-                    onClick={() => setActiveTab(item.divisionId)}
-                    style={{ cursor: "pointer" }}
-                    title={`Open ${item.divisionName} detail`}
-                  >
-                    <SummaryCard item={item} mode={summaryView} globalMonth={currentMonth} />
-                  </div>
-                ))}
-              </div>
-              {/* All-divisions totals row */}
-              {summaryItems && summaryItems.length > 1 && (
-                <AllDivisionsTotals items={summaryItems} mode={summaryView} adminRevenue={adminRevenue} />
-              )}
-            </>
-          )
+          <>
+            <CogsDashboard
+              division="all"
+              divisionLabel="All Divisions"
+              apiPath="/api/operations-center/atlas-ops/cogs"
+              readOnly
+            />
+          </>
         )}
 
         {/* Division tabs */}
