@@ -215,21 +215,20 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
+    <div style={{ background: "#f0f4f0" }}>
 
       {/* ── Hero ── */}
-      <div className="px-6 py-3" style={{ background: BG }}>
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <div className="px-4 py-2" style={{ background: BG }}>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
           <div>
-            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">{divisionLabel}</div>
-            <div className="text-xl font-black text-white">Cost of Goods Sold</div>
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">{divisionLabel}</div>
+            <div className="text-base font-black text-white leading-tight">Cost of Goods Sold</div>
           </div>
-          {/* Show year nav when data comes from an API (apiPath); hide for external/sheets data */}
           {apiPath ? (
-            <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-              <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+            <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1">
+              <button onClick={() => setYear(y => y - 1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
               <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
-              <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
+              <button onClick={() => setYear(y => y + 1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
             </div>
           ) : null}
         </div>
@@ -260,17 +259,17 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                 : "#9ca3af",
             },
           ].map(chip => (
-            <div key={chip.label} className="bg-white/10 rounded-xl px-3 py-2 text-center">
-              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-0.5">{chip.label}</div>
-              <div className="text-xl font-black" style={{ color: chip.color }}>{chip.value}</div>
-              {chip.budget && <div className="text-xs text-white/40">{chip.budget}</div>}
+            <div key={chip.label} className="bg-white/10 rounded-lg px-3 py-1 text-center">
+              <div className="text-xs font-semibold text-white/50 uppercase tracking-wider">{chip.label}</div>
+              <div className="text-base font-black leading-tight" style={{ color: chip.color }}>{chip.value}</div>
+              {chip.budget && <div className="text-xs text-white/40 leading-tight">{chip.budget}</div>}
             </div>
           ))}
         </div>
       </div>
 
       {/* ── Table ── */}
-      <div className="p-2">
+      <div className="p-1">
         {loading ? (
           <div className="text-center py-16 text-sm text-gray-400">Loading…</div>
         ) : (
