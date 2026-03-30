@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AccessGate from "@/components/AccessGate";
 import {
@@ -51,6 +52,9 @@ function h(n: number) { return n.toFixed(2); }
 const inputCls = "border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500";
 
 export default function TimesheetsPage() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+
   const [settings, setSettings] = useState<HRSettings>(DEFAULT_SETTINGS);
   const [period, setPeriod]     = useState<PayPeriod | null>(null);
   const [punches, setPunches]   = useState<RawPunch[]>([]);
@@ -65,16 +69,18 @@ export default function TimesheetsPage() {
   const [sortBy, setSortBy]     = useState<"name_asc" | "name_desc" | "hours_desc" | "hours_asc" | "ot_desc" | "status">("name_asc");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "open">("all");
 
-  // Load settings once
+  // Load settings once — initialise period from ?date= URL param if present
   useEffect(() => {
+    const dateParam = searchParams.get("date");
+    const anchor    = dateParam ? new Date(dateParam + "T12:00:00") : new Date();
     fetch("/api/atlas-time/settings")
       .then(r => r.json())
       .then(j => {
         const s: HRSettings = { ...DEFAULT_SETTINGS, ...j.settings };
         setSettings(s);
-        setPeriod(getPayPeriodContaining(new Date(), s));
+        setPeriod(getPayPeriodContaining(anchor, s));
       }).catch(() => {
-        setPeriod(getPayPeriodContaining(new Date(), DEFAULT_SETTINGS));
+        setPeriod(getPayPeriodContaining(anchor, DEFAULT_SETTINGS));
       });
     fetch("/api/atlas-time/divisions")
       .then(r => r.json())
@@ -93,6 +99,14 @@ export default function TimesheetsPage() {
   }, []);
 
   useEffect(() => { if (period) loadPunches(period); }, [period, loadPunches]);
+
+  // Keep ?date= URL param in sync so hard-refresh restores the same period
+  useEffect(() => {
+    if (!period) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", isoDate(period.start));
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [period]);
 
   function nav(delta: number) { if (period) setPeriod(shiftPayPeriod(period, delta, settings)); }
 
