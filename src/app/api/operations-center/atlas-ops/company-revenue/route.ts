@@ -18,21 +18,38 @@ function sumRow(row: any): number {
   );
 }
 
+/** Calendar Mon–Sun weeks clipped to the month. */
 function buildWeeks(year: number, month: number, daysInMonth: number) {
   const pad = (n: number) => String(n).padStart(2, "0");
-  const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const abbr = MONTH_ABBR[month - 1];
-  const slots = [[1,7],[8,14],[15,21],[22,28],[29, daysInMonth]] as [number,number][];
-  return slots
-    .filter(([s]) => s <= daysInMonth)
-    .map(([s, e]) => {
-      const end = Math.min(e, daysInMonth);
-      return {
-        label: s === end ? `${abbr} ${s}` : `${abbr} ${s}–${end}`,
-        start: `${year}-${pad(month)}-${pad(s)}`,
-        end:   `${year}-${pad(month)}-${pad(end)}`,
-      };
-    });
+
+  // Day-of-week for the 1st (0=Sun … 6=Sat)
+  const firstDow = new Date(year, month - 1, 1).getDay();
+  // Days back to the nearest Monday (including the 1st if it IS a Monday)
+  const daysBackToMon = firstDow === 0 ? 6 : firstDow - 1;
+
+  const weeks: { label: string; start: string; end: string }[] = [];
+  let weekStartDay = 1 - daysBackToMon; // may be ≤ 0 (days in prior month)
+
+  while (weekStartDay <= daysInMonth) {
+    const weekEndDay   = weekStartDay + 6;
+    const clipStart    = Math.max(1, weekStartDay);
+    const clipEnd      = Math.min(daysInMonth, weekEndDay);
+
+    if (clipStart <= daysInMonth) {
+      const startStr = `${year}-${pad(month)}-${pad(clipStart)}`;
+      const endStr   = `${year}-${pad(month)}-${pad(clipEnd)}`;
+
+      // Label: "M/D – M/D/YYYY"  (or just "M/D/YYYY" for single-day weeks)
+      const s = `${month}/${clipStart}`;
+      const e = `${month}/${clipEnd}/${year}`;
+      const label = clipStart === clipEnd ? e : `${s} – ${e}`;
+
+      weeks.push({ label, start: startStr, end: endStr });
+    }
+    weekStartDay += 7;
+  }
+
+  return weeks;
 }
 
 // ── GET ?month=YYYY-MM ────────────────────────────────────────────────────────
@@ -50,8 +67,7 @@ export async function GET(req: NextRequest) {
     const daysInMonth = new Date(year, monthNum, 0).getDate();
     const monthStart  = `${monthParam}-01`;
     const monthEnd    = `${monthParam}-${String(daysInMonth).padStart(2, "0")}`;
-
-    const weeks = buildWeeks(year, monthNum, daysInMonth);
+    const weeks       = buildWeeks(year, monthNum, daysInMonth);
 
     // Active ops divisions
     const { data: divRows } = await sb
@@ -64,19 +80,16 @@ export async function GET(req: NextRequest) {
     const divisions = divRows ?? [];
     const isLawnDiv = (name: string) => name.toLowerCase() === "lawn";
 
-    // ── Lawn: prior-month actuals from production reports ─────────────────────
-    // Fetch once for the whole year-to-date range, group by month
-    const lawnPriorMap = new Map<number, number>(); // month → earned total
+    // ── YTD prior months: lawn production reports ─────────────────────────────
+    const lawnPriorMap = new Map<number, number>(); // month → revenue
     if (monthNum > 1 && divisions.some(d => isLawnDiv(d.name))) {
-      const priorEnd = `${year}-${String(monthNum - 1).padStart(2, "0")}-31`; // generous upper bound
-
-      const [{ data: lawnReports }, { data: lawnCogsOverrides }] = await Promise.all([
+      const [{ data: lawnReports }, { data: lawnCogsOv }] = await Promise.all([
         sb.from("lawn_production_reports")
           .select("report_date, lawn_production_jobs(lawn_production_members(earned_amount))")
           .eq("company_id", company.id)
           .eq("is_complete", true)
           .gte("report_date", `${year}-01-01`)
-          .lte("report_date", priorEnd),
+          .lt("report_date", monthStart),
         sb.from("division_cogs_actuals")
           .select("month, revenue_override")
           .eq("company_id", company.id)
@@ -85,7 +98,6 @@ export async function GET(req: NextRequest) {
           .lt("month", monthNum),
       ]);
 
-      // Sum production reports per calendar month
       for (const r of lawnReports ?? []) {
         const m = Number((r as any).report_date?.slice(5, 7));
         if (!m || m >= monthNum) continue;
@@ -95,29 +107,24 @@ export async function GET(req: NextRequest) {
             earned += Number(mem.earned_amount ?? 0);
         lawnPriorMap.set(m, (lawnPriorMap.get(m) ?? 0) + earned);
       }
-
-      // COGS override takes precedence if set
-      for (const row of lawnCogsOverrides ?? []) {
+      // COGS override takes precedence
+      for (const row of lawnCogsOv ?? []) {
         if ((row as any).revenue_override != null)
           lawnPriorMap.set((row as any).month, Number((row as any).revenue_override));
       }
     }
 
-    // ── Non-lawn: prior-month COGS actuals ────────────────────────────────────
-    // Fetch all at once
-    const nonLawnCogsMap = new Map<string, Map<number, number>>(); // divKey → month → amount
+    // ── YTD prior months: non-lawn COGS actuals ───────────────────────────────
+    const nonLawnCogsMap = new Map<string, Map<number, number>>();
     if (monthNum > 1) {
-      const nonLawnKeys = divisions
-        .filter(d => !isLawnDiv(d.name))
-        .map(d => d.name.toLowerCase());
-
-      if (nonLawnKeys.length > 0) {
+      const nlKeys = divisions.filter(d => !isLawnDiv(d.name)).map(d => d.name.toLowerCase());
+      if (nlKeys.length > 0) {
         const { data: cogsRows } = await sb
           .from("division_cogs_actuals")
           .select("division, month, revenue_override")
           .eq("company_id", company.id)
           .eq("year", year)
-          .in("division", nonLawnKeys)
+          .in("division", nlKeys)
           .lt("month", monthNum);
 
         for (const row of cogsRows ?? []) {
@@ -129,49 +136,70 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Current month: per-division upcoming + lawn actuals ───────────────────
+    // ── YTD budgets (months 1 → monthNum) — all divisions ─────────────────────
+    const budgetMap = new Map<string, number>(); // divKey → YTD budget revenue
+    {
+      const allKeys = divisions.map(d => d.name.toLowerCase());
+      const { data: budgetRows } = await sb
+        .from("division_budgets")
+        .select("division, month, revenue")
+        .eq("company_id", company.id)
+        .eq("year", year)
+        .lte("month", monthNum)
+        .in("division", allKeys);
+
+      for (const row of budgetRows ?? []) {
+        const key = (row as any).division as string;
+        budgetMap.set(key, (budgetMap.get(key) ?? 0) + Number((row as any).revenue ?? 0));
+      }
+    }
+
+    // ── Current month: all queries in parallel ────────────────────────────────
     const [
       { data: lawnUpcoming },
-      { data: lawnReports },
+      { data: lawnReportsCur },
       { data: divUpcoming },
+      { data: curMonthCogs },   // COGS overrides for current month (non-lawn)
     ] = await Promise.all([
-      // Lawn upcoming entries for current month
       sb.from("lawn_upcoming_revenue")
         .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other, is_voided")
         .eq("company_id", company.id)
         .gte("date", monthStart)
         .lte("date", monthEnd),
-      // Lawn completed production reports for current month
       sb.from("lawn_production_reports")
         .select("report_date, lawn_production_jobs(lawn_production_members(earned_amount))")
         .eq("company_id", company.id)
         .eq("is_complete", true)
         .gte("report_date", monthStart)
         .lte("report_date", monthEnd),
-      // All non-lawn division upcoming revenue for current month
       sb.from("division_upcoming_revenue")
         .select("division, date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
         .eq("company_id", company.id)
         .gte("date", monthStart)
         .lte("date", monthEnd),
+      sb.from("division_cogs_actuals")
+        .select("division, revenue_override")
+        .eq("company_id", company.id)
+        .eq("year", year)
+        .eq("month", monthNum),
     ]);
 
-    // Build lawn day-totals map: date → revenue
+    // Lawn day-map: date → revenue (actuals override upcoming)
     const lawnDayMap = new Map<string, number>();
     for (const row of lawnUpcoming ?? []) {
       if ((row as any).is_voided) continue;
       const s = sumRow(row);
       if (s > 0) lawnDayMap.set((row as any).date, s);
     }
-    for (const r of lawnReports ?? []) {
+    for (const r of lawnReportsCur ?? []) {
       let actual = 0;
       for (const job of (r as any).lawn_production_jobs ?? [])
         for (const mem of (job as any).lawn_production_members ?? [])
           actual += Number(mem.earned_amount ?? 0);
-      lawnDayMap.set((r as any).report_date, actual); // override with actual
+      lawnDayMap.set((r as any).report_date, actual);
     }
 
-    // Build non-lawn day-totals: divKey → date → revenue
+    // Non-lawn day-map: divKey → date → revenue
     const divDayMap = new Map<string, Map<string, number>>();
     for (const row of divUpcoming ?? []) {
       const key = (row as any).division as string;
@@ -180,44 +208,75 @@ export async function GET(req: NextRequest) {
       if (s > 0) divDayMap.get(key)!.set((row as any).date, s);
     }
 
+    // Current-month COGS override map: divKey → revenue_override
+    const curCogsMap = new Map<string, number>();
+    for (const row of curMonthCogs ?? []) {
+      if ((row as any).revenue_override != null)
+        curCogsMap.set((row as any).division as string, Number((row as any).revenue_override));
+    }
+
     // ── Assemble per-division results ─────────────────────────────────────────
     const results = divisions.map(div => {
       const divKey = div.name.toLowerCase();
-      const lawn = isLawnDiv(div.name);
+      const lawn   = isLawnDiv(div.name);
 
       // YTD prior months
       let ytdPrior = 0;
       if (lawn) {
         for (const [, v] of lawnPriorMap) ytdPrior += v;
       } else {
-        const monthMap = nonLawnCogsMap.get(divKey);
-        if (monthMap) for (const [, v] of monthMap) ytdPrior += v;
+        const mm = nonLawnCogsMap.get(divKey);
+        if (mm) for (const [, v] of mm) ytdPrior += v;
       }
 
       // Current month week totals
-      const dayMap = lawn ? lawnDayMap : (divDayMap.get(divKey) ?? new Map());
-      const weekTotals = weeks.map(w => {
-        let total = 0;
-        for (const [date, amount] of dayMap)
-          if (date >= w.start && date <= w.end) total += amount;
-        return total;
-      });
+      let weekTotals: number[];
+      let monthCogsActual = 0; // current-month COGS override amount (non-lawn)
 
-      const monthTotal = weekTotals.reduce((s, v) => s + v, 0);
+      if (lawn) {
+        weekTotals = weeks.map(w => {
+          let t = 0;
+          for (const [date, amt] of lawnDayMap)
+            if (date >= w.start && date <= w.end) t += amt;
+          return t;
+        });
+      } else {
+        // COGS override for current month: distribute across weeks
+        // OR: if set, treat as lump-sum and show in the Month Total / YTD only
+        // Strategy: show upcoming entries per week, then add COGS override as
+        // a lump to month total (similar to how the summary route does actual + planned)
+        const dayMap = divDayMap.get(divKey) ?? new Map<string, number>();
+        weekTotals = weeks.map(w => {
+          let t = 0;
+          for (const [date, amt] of dayMap)
+            if (date >= w.start && date <= w.end) t += amt;
+          return t;
+        });
+        monthCogsActual = curCogsMap.get(divKey) ?? 0;
+      }
+
+      const weekSum    = weekTotals.reduce((s, v) => s + v, 0);
+      const monthTotal = weekSum + monthCogsActual;
+      const ytdBudget  = budgetMap.get(divKey) ?? 0;
+
       return {
-        key:         divKey,
-        name:        div.name,
-        weeks:       weekTotals,
-        month_total: monthTotal,
-        ytd:         ytdPrior + monthTotal,
+        key:          divKey,
+        name:         div.name,
+        weeks:        weekTotals,
+        month_total:  monthTotal,
+        ytd:          ytdPrior + monthTotal,
+        ytd_budget:   ytdBudget,
+        over_under:   (ytdPrior + monthTotal) - ytdBudget,
       };
     });
 
-    // Company totals row
+    // Company totals
     const totals = {
       weeks:       weeks.map((_, i) => results.reduce((s, d) => s + d.weeks[i], 0)),
       month_total: results.reduce((s, d) => s + d.month_total, 0),
       ytd:         results.reduce((s, d) => s + d.ytd, 0),
+      ytd_budget:  results.reduce((s, d) => s + d.ytd_budget, 0),
+      over_under:  results.reduce((s, d) => s + d.over_under, 0),
     };
 
     return NextResponse.json({ month: monthParam, year, monthNum, weeks, divisions: results, totals });
