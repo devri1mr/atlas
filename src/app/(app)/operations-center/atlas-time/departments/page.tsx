@@ -6,7 +6,7 @@ import Link from "next/link";
 // Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null; division_id?: string | null };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null; division_id?: string | null; csv_name?: string | null };
 type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
 
 const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
@@ -71,6 +71,7 @@ export default function DepartmentsPage() {
   const [editDivDeptId, setEditDivDeptId] = useState("");
   const [editDivQbClass, setEditDivQbClass] = useState("");
   const [editDivParentId, setEditDivParentId] = useState("");
+  const [editDivCsvName, setEditDivCsvName] = useState("");
   const [editDivSaving, setEditDivSaving] = useState(false);
 
   // Payroll items — expanded dept + add form
@@ -183,7 +184,7 @@ export default function DepartmentsPage() {
         ? `/api/atlas-time/divisions/${id}`
         : `/api/operations-center/divisions`;
       const body = source === "time_clock"
-        ? { name: editDivName.trim(), department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null, division_id: editDivParentId || null }
+        ? { name: editDivName.trim(), department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null, division_id: editDivParentId || null, csv_name: editDivCsvName.trim() || null }
         : { id, department_id: editDivDeptId || null, qb_class_name: editDivQbClass.trim() || null };
       const res = await fetch(url, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -223,6 +224,7 @@ export default function DepartmentsPage() {
     setEditDivDeptId(div.department_id ?? "");
     setEditDivQbClass(div.qb_class_name ?? "");
     setEditDivParentId(div.division_id ?? "");
+    setEditDivCsvName(div.csv_name ?? "");
   }
 
   // ── Payroll Items ─────────────────────────────────────────
@@ -613,6 +615,12 @@ export default function DepartmentsPage() {
                           placeholder="QB Class name (leave blank to use division name)"
                           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
+                        <input
+                          value={editDivCsvName}
+                          onChange={e => setEditDivCsvName(e.target.value)}
+                          placeholder="CSV import name (exact type name from timesheet export, e.g. Shop - Field)"
+                          className="w-full border border-orange-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                        />
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
@@ -626,6 +634,7 @@ export default function DepartmentsPage() {
                             : <span className="text-[10px] text-amber-600 font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-100">No department</span>
                           }
                           {(() => { const linkedDiv = divisions.find(d => d.id === div.division_id && d.source === "company"); return linkedDiv ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">{linkedDiv.name}</span> : null; })()}
+                          {div.csv_name && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">CSV: {div.csv_name}</span>}
                           {!div.active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Inactive</span>}
                         </div>
                         <RowActions

@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     const [empRes, divRes, atDivRes, nameMapsRes] = await Promise.all([
       sb.from("at_employees").select("id, first_name, last_name").eq("company_id", companyId),
       sb.from("divisions").select("id, name").eq("active", true),
-      sb.from("at_divisions").select("id, name, division_id").eq("active", true),
+      sb.from("at_divisions").select("id, name, division_id, csv_name").eq("active", true),
       sb.from("at_import_name_maps").select("csv_name, employee_id").eq("company_id", companyId),
     ]);
 
@@ -147,6 +147,10 @@ export async function POST(req: NextRequest) {
 
     function matchPunchItem(punchItem: string) {
       const n = normalize(punchItem);
+
+      // 0. Explicit CSV alias — highest priority
+      let atDiv = atDivList.find(d => d.csv_name && normalize(d.csv_name) === n);
+      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
       // 1. Exact match — at_divisions first
       let atDiv = atDivList.find(d => normalize(d.name) === n);

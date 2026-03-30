@@ -20,7 +20,7 @@ export async function GET() {
     const [companyRes, extrasRes] = await Promise.all([
       sb.from("divisions").select("id, name, active, department_id, qb_class_name").order("name", { ascending: true }),
       sb.from("at_divisions")
-        .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id")
+        .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id, csv_name")
         .eq("company_id", companyId)
         .eq("time_clock_only", true)
         .order("name", { ascending: true }),
