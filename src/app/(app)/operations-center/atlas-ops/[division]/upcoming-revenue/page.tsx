@@ -138,10 +138,14 @@ export default function DivisionUpcomingRevenuePage() {
 
   const apiBase = `/api/operations-center/atlas-ops/${division}/upcoming-revenue`;
 
+  type SyncState = "idle" | "syncing" | "ok" | "error";
+
   const [weekOffset, setWeekOffset]     = useState(0);
   const [data, setData]                 = useState<Map<string, DayRow>>(new Map());
   const [saving, setSaving]             = useState<Set<string>>(new Set());
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
+  const [syncState, setSyncState]       = useState<SyncState>("idle");
+  const [syncError, setSyncError]       = useState("");
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -210,6 +214,22 @@ export default function DivisionUpcomingRevenuePage() {
     }
   }
 
+  function handleSyncSheets() {
+    if (!monthSummary) return;
+    const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
+    if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000); return; }
+    const ym   = dates[0].slice(0, 7);
+    const proj = monthSummary.actual + monthSummary.planned;
+    const url  = new URL(webhookUrl);
+    url.searchParams.set("month",      ym);
+    url.searchParams.set("projection", String(proj));
+    url.searchParams.set("division",   division.replace(/-/g, " "));
+    const win  = window.open(url.toString(), "_blank");
+    setTimeout(() => win?.close(), 4000);
+    setSyncState("ok");
+    setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
+  }
+
   const weekRev = dates.reduce((s, d) =>
     s + dayTotal(data.get(d) ?? {} as DayRow), 0);
   const projection       = monthSummary ? monthSummary.actual + monthSummary.planned : null;
@@ -241,6 +261,23 @@ export default function DivisionUpcomingRevenuePage() {
                 <div className="text-xl font-bold text-emerald-300">{moneyFull(weekRev)}</div>
               </div>
             )}
+            {/* Sync to Sheets button */}
+            <button
+              onClick={handleSyncSheets}
+              disabled={syncState === "syncing"}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                syncState === "ok"
+                  ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300"
+                  : syncState === "error"
+                  ? "bg-red-500/20 border-red-400/50 text-red-300"
+                  : "bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white"
+              }`}
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              </svg>
+              {syncState === "syncing" ? "Syncing…" : syncState === "ok" ? "Synced ✓" : syncState === "error" ? `Error: ${syncError}` : "Sync to Sheets"}
+            </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
               <button
                 onClick={() => setWeekOffset(w => Math.max(0, w - 1))}

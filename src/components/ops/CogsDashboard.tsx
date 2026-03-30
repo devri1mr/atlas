@@ -201,7 +201,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
   const ytdMargin   = ytd.revenue > 0 ? ytd.gp / ytd.revenue : null;
   const ytdBudgetGP = ytd.bRevenue - ytd.bLabor - ytd.bMat - ytd.bFuel - ytd.bEquip;
-  const ytdBudgetMgn = ytd.bRevenue > 0 ? ytdBudgetGP / ytd.bRevenue : null;
+  const ytdBudgetMgn = ytd.bRevenue !== 0 ? ytdBudgetGP / ytd.bRevenue : null;
 
   const ytdByKey: Record<string, number> = {
     revenue: ytd.revenue, labor: ytd.labor, job_materials: ytd.job_materials,
@@ -239,7 +239,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
             {
               label: "YTD Revenue",
               value: fmt.format(ytd.revenue),
-              budget: ytd.bRevenue > 0 ? `Budget ${fmt.format(ytd.bRevenue)}` : null,
+              budget: ytd.bRevenue !== 0 ? `Budget ${fmt.format(ytd.bRevenue)}` : null,
               color: "#7dd3fc",
             },
             {
@@ -341,7 +341,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                               >
                                 {future ? (
                                   <div className="py-0.5">
-                                    {budgetVal > 0
+                                    {budgetVal !== 0
                                       ? <span className="text-xs font-semibold text-gray-300">{fmt.format(budgetVal)}</span>
                                       : <span className="text-xs text-gray-200">—</span>
                                     }
@@ -361,7 +361,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                                         onClear={() => handleSave(r.month, row.apiField, null)}
                                       />
                                     )}
-                                    {budgetVal > 0 && (
+                                    {budgetVal !== 0 && (
                                       <span className={`text-xs font-medium ${isCurrCol ? "text-gray-600" : "text-gray-400"}`}>{fmt.format(budgetVal)}</span>
                                     )}
                                     {row.showRevPct && (
@@ -382,7 +382,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                               <span className="text-xs font-black" style={{ color: ytdVal > 0 ? row.color : "#e5e7eb" }}>
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
-                              {ytdBud > 0 && (
+                              {ytdBud !== 0 && (
                                 <span className="text-xs text-gray-400 font-medium">{fmt.format(ytdBud)}</span>
                               )}
                               {row.showRevPct && (
