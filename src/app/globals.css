@@ -67,7 +67,18 @@ thead th {
 /* ── Print styles ─────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    margin: 0.6in 0.75in;
+    margin: 0;
+  }
+
+  body {
+    padding: 0.6in 0.75in;
+  }
+
+  .print-logo {
+    height: 70px !important;
+    width: auto !important;
+    max-height: 70px !important;
+    max-width: 250px !important;
   }
 
   /* Kill the app shell chrome */

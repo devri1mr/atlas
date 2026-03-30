@@ -1334,7 +1334,7 @@ export default function ReportBuilderPage() {
 
       {/* Print-only header: Atlas logo centered */}
       <div className="hidden print:flex flex-col items-center justify-center pb-6 pt-2">
-        <img src="/atlas-logo.png" alt="Atlas" style={{ height: 56, mixBlendMode: "multiply" }} />
+        <img src="/atlas-logo.png" alt="Atlas" className="print-logo" style={{ mixBlendMode: "multiply" }} />
       </div>
 
       {/* Sticky header */}
