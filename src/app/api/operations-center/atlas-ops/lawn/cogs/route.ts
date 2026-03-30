@@ -116,10 +116,14 @@ export async function GET(req: NextRequest) {
     const budgetMap  = new Map((budgets  ?? []).map((b: any) => [b.month, b]));
     const actualMap  = new Map((actuals  ?? []).map((a: any) => [a.month, a]));
 
-    // Yesterday's date string (UTC) — admin pay for current month only sums through yesterday
-    const todayUTC = new Date();
-    const yesterday = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - 1));
+    // Date helpers for admin pay cutoff logic
+    const todayUTC    = new Date();
+    const todayStr    = `${todayUTC.getUTCFullYear()}-${String(todayUTC.getUTCMonth() + 1).padStart(2, "0")}-${String(todayUTC.getUTCDate()).padStart(2, "0")}`;
+    const yesterday   = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - 1));
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+    // Set of all completed report dates (for today-inclusion check)
+    const completedDates = new Set((reports ?? []).map((r: any) => r.report_date as string));
 
     // Build 12-month result
     const result = Array.from({ length: 12 }, (_, i) => {
@@ -128,9 +132,15 @@ export async function GET(req: NextRequest) {
       const budget = budgetMap.get(month)   ?? { revenue: 0, labor: 0, job_materials: 0, fuel: 0, equipment: 0 };
       const ov     = actualMap.get(month)   ?? {};
 
-      // Admin pay: cap at yesterday for current month, full month for past months
+      // Admin pay cutoff for current month:
+      //   - Always include all past days (through yesterday)
+      //   - Also include today if today has a completed import
+      //   - Past months: no cutoff (full month)
       const isCurrentMonth = year === todayUTC.getUTCFullYear() && month === todayUTC.getUTCMonth() + 1;
-      const adminPay = adminMonthTotal(year, month, adminConfig, adminOverrideMap, isCurrentMonth ? yesterdayStr : undefined);
+      const adminCutoff = isCurrentMonth
+        ? (completedDates.has(todayStr) ? todayStr : yesterdayStr)
+        : undefined;
+      const adminPay = adminMonthTotal(year, month, adminConfig, adminOverrideMap, adminCutoff);
 
       // Actuals — override takes precedence
       const revenue_auto = prod.revenue;
