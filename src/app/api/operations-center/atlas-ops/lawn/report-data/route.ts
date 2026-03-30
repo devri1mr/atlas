@@ -114,6 +114,14 @@ export async function POST(req: NextRequest) {
 
     const { start, end } = resolveDateRange(config);
 
+    // Fetch lawn division IDs once — filter all at_punches queries to lawn only
+    const { data: lawnDivs } = await sb
+      .from("at_divisions")
+      .select("id")
+      .ilike("name", "%lawn%")
+      .eq("active", true);
+    const lawnDivIds = (lawnDivs ?? []).map((d: any) => d.id);
+
     // ── stat_card ─────────────────────────────────────────────────────────────
     if (widget_type === "stat_card") {
       const metric = config.metric ?? "total_revenue";
@@ -144,6 +152,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("ot_hours")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null);
@@ -156,6 +165,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("employee_id, ot_hours")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null);
@@ -190,6 +200,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("regular_hours")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null);
@@ -202,6 +213,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("regular_hours, ot_hours, dt_hours")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null);
@@ -221,6 +233,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("employee_id, regular_hours, ot_hours, dt_hours")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null);
@@ -353,6 +366,7 @@ export async function POST(req: NextRequest) {
           .from("at_punches")
           .select("employee_id")
           .eq("company_id", company.id)
+          .in("at_division_id", lawnDivIds)
           .gte("date_for_payroll", start)
           .lte("date_for_payroll", end)
           .not("clock_out_at", "is", null)
@@ -469,6 +483,7 @@ export async function POST(req: NextRequest) {
           at_employees!employee_id (first_name, last_name)
         `)
         .eq("company_id", company.id)
+        .in("at_division_id", lawnDivIds)
         .gte("date_for_payroll", start)
         .lte("date_for_payroll", end)
         .not("clock_out_at", "is", null)

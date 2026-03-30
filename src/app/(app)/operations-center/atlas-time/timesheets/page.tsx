@@ -235,15 +235,18 @@ function TimesheetsInner() {
           .filter(p => p.clock_out_at && !p.locked)
           .map(p => {
             const c = compMap.get(p.id);
+            // If punch was already recalced (regular_hours stored), trust the DB values.
+            // This preserves manual lunch edits (e.g. manager cleared lunch → stored as 0).
+            const recalced = p.regular_hours !== null;
             return fetch(`/api/atlas-time/punches/${p.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 status:               "approved",
-                regular_hours:        c?.regular_hours ?? p.regular_hours,
-                ot_hours:             c?.ot_hours      ?? 0,
-                dt_hours:             c?.dt_hours      ?? 0,
-                lunch_deducted_mins:  c?.lunch_deducted_mins ?? 0,
+                regular_hours:        recalced ? (p.regular_hours ?? 0)       : (c?.regular_hours ?? 0),
+                ot_hours:             recalced ? (p.ot_hours      ?? 0)       : (c?.ot_hours      ?? 0),
+                dt_hours:             recalced ? (p.dt_hours      ?? 0)       : (c?.dt_hours      ?? 0),
+                lunch_deducted_mins:  recalced ? (p.lunch_deducted_mins ?? 0) : (c?.lunch_deducted_mins ?? 0),
                 approved_at:          new Date().toISOString(),
               }),
             });

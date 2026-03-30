@@ -553,6 +553,15 @@ function StatCardConfig({
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
         />
       </div>
+      <label className="flex items-center gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={!!config.full_width}
+          onChange={(e) => onChange({ full_width: e.target.checked })}
+          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+        />
+        <span className="text-xs font-semibold text-gray-600">Full width (own row)</span>
+      </label>
     </div>
   );
 }
@@ -903,7 +912,7 @@ function Palette({ onAdd }: { onAdd: (type: WidgetType, config?: Record<string, 
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Canvas renderer — groups stat cards into flex rows
+// Canvas renderer — groups stat cards into flex rows (full_width stat cards break the row)
 // ══════════════════════════════════════════════════════════════════════════════
 
 function ViewCanvas({
@@ -916,15 +925,16 @@ function ViewCanvas({
   const groups: Array<{ type: "stat_row"; items: Widget[] } | { type: "full"; item: Widget }> = [];
   let i = 0;
   while (i < widgets.length) {
-    if (widgets[i].widget_type === "stat_card") {
+    const w = widgets[i];
+    if (w.widget_type === "stat_card" && !w.config.full_width) {
       const run: Widget[] = [];
-      while (i < widgets.length && widgets[i].widget_type === "stat_card") {
+      while (i < widgets.length && widgets[i].widget_type === "stat_card" && !widgets[i].config.full_width) {
         run.push(widgets[i]);
         i++;
       }
       groups.push({ type: "stat_row", items: run });
     } else {
-      groups.push({ type: "full", item: widgets[i] });
+      groups.push({ type: "full", item: w });
       i++;
     }
   }
@@ -945,6 +955,9 @@ function ViewCanvas({
         }
         return (
           <div key={gi}>
+            {g.item.widget_type === "stat_card" && (
+              <StatCardWidget widget={g.item} widgetData={widgetDataMap.get(g.item.id)} />
+            )}
             {g.item.widget_type === "job_table" && (
               <JobTableWidget widget={g.item} widgetData={widgetDataMap.get(g.item.id)} />
             )}
@@ -986,19 +999,20 @@ function EditCanvas({
   onDrop: (id: string) => void;
   onDragEnd: () => void;
 }) {
-  // Group stat cards for rendering, but pass full controls
+  // Group stat cards for rendering — full_width stat cards break into their own row
   const groups: Array<{ type: "stat_row"; items: Widget[] } | { type: "full"; item: Widget }> = [];
   let i = 0;
   while (i < widgets.length) {
-    if (widgets[i].widget_type === "stat_card") {
+    const w = widgets[i];
+    if (w.widget_type === "stat_card" && !w.config.full_width) {
       const run: Widget[] = [];
-      while (i < widgets.length && widgets[i].widget_type === "stat_card") {
+      while (i < widgets.length && widgets[i].widget_type === "stat_card" && !widgets[i].config.full_width) {
         run.push(widgets[i]);
         i++;
       }
       groups.push({ type: "stat_row", items: run });
     } else {
-      groups.push({ type: "full", item: widgets[i] });
+      groups.push({ type: "full", item: w });
       i++;
     }
   }
