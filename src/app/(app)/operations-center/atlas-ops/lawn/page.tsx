@@ -175,9 +175,9 @@ function WeekCard({ title, days, isCurrent }: { title: string; days: DayData[]; 
 
 const MONTHLY_BUDGET = 25_000;
 
-function MonthlyTable({ data }: { data: MonthData[] }) {
-  const totalRev = data.reduce((s, m) => s + m.revenue, 0);
-  const totalPay = data.reduce((s, m) => s + m.payroll_cost, 0);
+function MonthlyTable({ data }: { data: CogsMonth[] }) {
+  const totalRev = data.reduce((s, m) => s + (m.revenue ?? 0), 0);
+  const totalPay = data.reduce((s, m) => s + (m.labor   ?? 0), 0);
   const curMonth = new Date().getMonth();
 
   return (
@@ -199,10 +199,13 @@ function MonthlyTable({ data }: { data: MonthData[] }) {
           </thead>
           <tbody>
             {data.map((m, i) => {
-              const isCur = i === curMonth;
-              const fillPct  = Math.min((m.revenue / MONTHLY_BUDGET) * 100, 100);
+              const isCur    = i === curMonth;
+              const budget   = m.budget_revenue > 0 ? m.budget_revenue : MONTHLY_BUDGET;
+              const fillPct  = Math.min((m.revenue / budget) * 100, 100);
               const donePct  = Math.round(fillPct);
-              const exceeded = m.revenue >= MONTHLY_BUDGET;
+              const exceeded = m.revenue >= budget;
+              const laborPct = m.revenue > 0 ? m.labor / m.revenue : null;
+              const effPct   = m.labor   > 0 ? (m.revenue * 0.39) / m.labor : null;
               return (
                 <tr
                   key={m.month}
@@ -239,11 +242,11 @@ function MonthlyTable({ data }: { data: MonthData[] }) {
                   <td className="px-4 py-3 text-right font-semibold text-gray-800">
                     {m.revenue > 0 ? money.format(m.revenue) : "—"}
                   </td>
-                  <td className={`px-4 py-3 text-center ${m.revenue > 0 ? laborColorClass(m.labor_pct) : "text-gray-300"}`}>
-                    {m.revenue > 0 ? pct(m.labor_pct) : "—"}
+                  <td className={`px-4 py-3 text-center ${m.revenue > 0 ? laborColorClass(laborPct) : "text-gray-300"}`}>
+                    {m.revenue > 0 ? pct(laborPct) : "—"}
                   </td>
-                  <td className={`px-4 py-3 text-center ${m.revenue > 0 ? effColorClass(m.efficiency_pct) : "text-gray-300"}`}>
-                    {m.revenue > 0 ? pct(m.efficiency_pct) : "—"}
+                  <td className={`px-4 py-3 text-center ${m.revenue > 0 ? effColorClass(effPct) : "text-gray-300"}`}>
+                    {m.revenue > 0 ? pct(effPct) : "—"}
                   </td>
                 </tr>
               );
@@ -643,25 +646,29 @@ function StatChip({ label, value, sub }: { label: string; value: string; sub?: s
 
 export default function LawnDashboard() {
   const [dash, setDash]       = useState<DashData | null>(null);
+  const [cogs, setCogs]       = useState<CogsMonth[]>([]);
   const [employees, setEmps]  = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [dashRes, empRes] = await Promise.all([
+    const year = new Date().getFullYear();
+    const [dashRes, empRes, cogsRes] = await Promise.all([
       fetch("/api/operations-center/atlas-ops/lawn/dashboard", { cache: "no-store" }).then(r => r.json()),
       fetch("/api/atlas-time/employees", { cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/operations-center/atlas-ops/lawn/cogs?year=${year}`, { cache: "no-store" }).then(r => r.ok ? r.json() : []),
     ]);
     setDash(dashRes);
     setEmps((empRes.employees ?? []).filter((e: any) => e.default_pay_rate));
+    setCogs(cogsRes ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Hero stats
-  const ytdRev  = dash?.monthly.reduce((s, m) => s + m.revenue, 0) ?? 0;
-  const ytdPay  = dash?.monthly.reduce((s, m) => s + m.payroll_cost, 0) ?? 0;
+  // Hero stats — use COGS as source of truth for revenue and labor
+  const ytdRev  = cogs.reduce((s, m) => s + (m.revenue ?? 0), 0);
+  const ytdPay  = cogs.reduce((s, m) => s + (m.labor   ?? 0), 0);
   const ytdLP   = ytdRev > 0 ? ytdPay / ytdRev : null;
   const curWeekRev = dash?.current_week.reduce((s, d) => s + d.revenue, 0) ?? 0;
   const curWeekPay = dash?.current_week.reduce((s, d) => s + d.payroll_cost, 0) ?? 0;
@@ -737,7 +744,7 @@ export default function LawnDashboard() {
         </div>
 
         {/* Monthly */}
-        <MonthlyTable data={dash?.monthly ?? []} />
+        <MonthlyTable data={cogs} />
 
         {/* COGS */}
         <CogsWidget />
