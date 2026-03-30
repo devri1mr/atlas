@@ -24,6 +24,7 @@ type RawPunch = {
   lunch_deducted_mins: number | null; approved_at: string | null; locked: boolean | null;
   at_employees: { id: string; first_name: string; last_name: string; preferred_name: string | null; job_title: string | null; default_pay_rate: number | null; pay_type: string; at_departments: { name: string } | null } | null;
   divisions: { id: string; name: string; qb_class_name: string | null } | null;
+  at_divisions: { id: string; name: string } | null;
 };
 
 type Division = { id: string; name: string; active: boolean; source?: string };
@@ -187,9 +188,9 @@ export default function TimesheetsPage() {
         body: JSON.stringify({
           clock_in_at:        draft?.clock_in_at  ? new Date(draft.clock_in_at!  as string).toISOString() : undefined,
           clock_out_at:       draft?.clock_out_at ? new Date(draft.clock_out_at! as string).toISOString() : null,
-          // at_divisions have their own UUID; send as at_division_id so the API resolves the parent division_id
+          // at_divisions: omit division_id so PATCH auto-populates it from the at_division's parent
           ...(isAtDiv
-            ? { at_division_id: selectedDivKey, division_id: null }
+            ? { at_division_id: selectedDivKey }
             : { division_id: selectedDivKey || null, at_division_id: null }
           ),
           employee_note:      draft?.employee_note,
@@ -411,6 +412,7 @@ export default function TimesheetsPage() {
                             <th className="px-3 py-2 text-center">Reg</th>
                             <th className="px-3 py-2 text-center">OT</th>
                             <th className="px-3 py-2 text-center">Total</th>
+                            <th className="px-3 py-2 text-center">Punch Item</th>
                             <th className="px-3 py-2 text-center">Division</th>
                             <th className="px-3 py-2 text-center">Status</th>
                             <th className="px-3 py-2 text-center print:hidden">Actions</th>
@@ -465,6 +467,7 @@ export default function TimesheetsPage() {
                                     {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                   </select>
                                 </td>
+                                <td className="px-3 py-2 text-center text-gray-400 text-xs">auto</td>
                                 <td className="px-3 py-2"><span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Editing</span></td>
                                 <td className="px-3 py-2 text-right print:hidden">
                                   <div className="flex items-center justify-end gap-1.5">
@@ -495,7 +498,8 @@ export default function TimesheetsPage() {
                                 <td className="px-3 py-2.5 text-center font-semibold tabular-nums">{h(reg)}</td>
                                 <td className={`px-3 py-2.5 text-center font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2.5 text-center font-bold tabular-nums">{h(total)}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.at_divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
                                 <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                   {p.locked
                                     ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Locked</span>
