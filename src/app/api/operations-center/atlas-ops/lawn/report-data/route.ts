@@ -641,12 +641,14 @@ export async function POST(req: NextRequest) {
         name: string;
         reg_hours: number;
         ot_hours: number;
+        dt_hours: number;
         total_pay_hours: number;
         ot_cost: number;
         total_payroll: number;
         total_earned: number;
         labor_pct: number | null;
         efficiency_pct: number | null;
+        downtime_pct: number | null;
       };
 
       const memberMap = new Map<string, MemberAgg>();
