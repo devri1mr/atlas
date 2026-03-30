@@ -281,7 +281,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                   {/* ── Month headers ── */}
                   <thead>
                     <tr>
-                      <th className="px-3 py-2 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th className="px-3 py-1 text-left" style={{ background: BG, width: 96, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                       </th>
                       {MONTHS.map((m, i) => {
@@ -290,7 +290,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                         return (
                           <th
                             key={m}
-                            className="py-2 text-center"
+                            className="py-1 text-center"
                             style={{ background: isCurr ? "#fefce8" : BG, minWidth: 52, opacity: future ? 0.4 : 1, borderRight: isCurr ? "2px solid #ca8a04" : "1px solid rgba(255,255,255,0.15)", borderBottom: isCurr ? "2px solid #ca8a04" : undefined, borderLeft: isCurr ? "2px solid #ca8a04" : undefined, borderTop: isCurr ? "2px solid #ca8a04" : undefined }}
                           >
                             <span className={`font-bold uppercase tracking-wider ${isCurr ? "text-sm text-gray-900" : "text-xs text-white/70"}`}>{m}</span>
@@ -316,7 +316,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
                           {/* Label */}
                           <td
-                            className="px-3 py-2"
+                            className="px-3 py-1"
                             style={{ background: row.accentBg, borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db" }}
                           >
                             <div className="flex items-center gap-2">
@@ -336,7 +336,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                             return (
                               <td
                                 key={r.month}
-                                className="px-1 py-2 text-center"
+                                className="px-1 py-1 text-center"
                                 style={{ background: colBg, borderBottom: "1px solid #d1d5db", borderRight: "1px solid #d1d5db", opacity: future ? 0.35 : 1, verticalAlign: "top" }}
                               >
                                 {future ? (
@@ -375,7 +375,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
                           {/* YTD */}
                           <td
-                            className="px-2 py-1.5 text-center"
+                            className="px-2 py-1 text-center"
                             style={{ background: "#f0fdf4", borderBottom: "1px solid #d1d5db", borderLeft: "1px solid #d1d5db" }}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -400,7 +400,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
                     {/* Gross Profit */}
                     <tr>
-                      <td className="px-3 py-2.5" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                      <td className="px-3 py-1.5" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <span className="text-sm font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
                       </td>
                       {data.map(r => {
@@ -411,7 +411,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                         return (
                           <td
                             key={r.month}
-                            className="px-2 py-2.5 text-center"
+                            className="px-2 py-1.5 text-center"
                             style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderTop: "2px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.2)" }}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -425,7 +425,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                           </td>
                         );
                       })}
-                      <td className="px-2 py-2.5 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+                      <td className="px-2 py-1.5 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {(ytd.revenue !== 0 || ytd.gp !== 0) ? fmt.format(ytd.gp) : "—"}
@@ -437,7 +437,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
 
                     {/* GP Margin */}
                     <tr>
-                      <td className="px-3 py-2" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.25)" }}>
+                      <td className="px-3 py-1" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.25)" }}>
                         <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">GP Margin</span>
                       </td>
                       {data.map(r => {
@@ -446,7 +446,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                         return (
                           <td
                             key={r.month}
-                            className="px-1.5 py-3 text-center"
+                            className="px-1.5 py-1.5 text-center"
                             style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.25)" }}
                           >
                             {!future && r.margin_pct !== null && (
@@ -460,7 +460,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                           </td>
                         );
                       })}
-                      <td className="px-1 py-2 text-center" style={{ background: BG_FOOT_TOT, borderTop: "1px solid rgba(255,255,255,0.25)" }}>
+                      <td className="px-1 py-1 text-center" style={{ background: BG_FOOT_TOT, borderTop: "1px solid rgba(255,255,255,0.25)" }}>
                         {ytdMargin !== null && (
                           <span
                             className={`inline-block text-xs font-black px-2 py-0.5 rounded-full ${marginTextColor(ytdMargin)}`}
