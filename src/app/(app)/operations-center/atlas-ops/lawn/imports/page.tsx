@@ -171,7 +171,10 @@ function buildPersonView(jobs: Job[], punches: ReportPunch[]): PersonEntry[] {
       if (p.ot_hours            === null && m.ot_hours            != null) p.ot_hours            = m.ot_hours;
       if (p.total_payroll_hours === null && m.total_payroll_hours != null) p.total_payroll_hours = m.total_payroll_hours;
       if (p.payroll_cost        === null && m.payroll_cost        != null) p.payroll_cost        = m.payroll_cost;
-      if (job.crew_code && !p.crew_codes.includes(job.crew_code)) p.crew_codes.push(job.crew_code);
+      // Split combined crew codes like "LC-4, LC-5" into individual entries
+      for (const code of (job.crew_code ?? "").split(",").map(c => c.trim()).filter(Boolean)) {
+        if (!p.crew_codes.includes(code)) p.crew_codes.push(code);
+      }
       p.jobs.push({ client_name: job.client_name, service: job.service, actual_hours: m.actual_hours, earned_amount: m.earned_amount });
     }
   }
@@ -192,7 +195,9 @@ type DownTimeResult = { totalMs: number; segments: DownSegment[] };
 // Calculate down time for a person given their crew's dispatch jobs.
 // Works per-punch-period so punch-out gaps are never counted as down time.
 function calcDownTime(person: PersonEntry, dispatchJobs: DispatchJob[]): DownTimeResult | null {
-  const crewDispatch = dispatchJobs.filter(j => j.crew_code && person.crew_codes.includes(j.crew_code));
+  const crewDispatch = dispatchJobs.filter(j =>
+    j.crew_code && j.crew_code.split(",").map(c => c.trim()).some(c => person.crew_codes.includes(c))
+  );
 
   type Seg = { label: string; startMs: number; endMs: number; startISO: string; endISO: string };
   const allSegs: Seg[] = [];
