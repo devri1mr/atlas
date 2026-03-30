@@ -1,7 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
+import { Suspense } from "react";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -53,7 +52,7 @@ function h(n: number) { return n.toFixed(2); }
 
 const inputCls = "border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500";
 
-export default function TimesheetsPage() {
+function TimesheetsInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
@@ -564,5 +563,13 @@ export default function TimesheetsPage() {
       </div>
     </div>
     </AccessGate>
+  );
+}
+
+export default function TimesheetsPage() {
+  return (
+    <Suspense>
+      <TimesheetsInner />
+    </Suspense>
   );
 }
