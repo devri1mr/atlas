@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
       if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
       // 1. Exact match — at_divisions first
-      let atDiv = atDivList.find(d => normalize(d.name) === n);
+      atDiv = atDivList.find(d => normalize(d.name) === n);
       if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
       let div = divList.find(d => normalize(d.name) === n);
