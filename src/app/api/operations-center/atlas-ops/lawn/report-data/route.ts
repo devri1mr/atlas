@@ -114,12 +114,12 @@ export async function POST(req: NextRequest) {
 
     const { start, end } = resolveDateRange(config);
 
-    // Fetch lawn main division IDs — filter at_punches by division_id (auto-populated from at_division parent)
+    // Fetch lawn main division IDs — divisions table is global (no company_id)
+    // at_punches.division_id is auto-populated from the at_division's parent division
     const { data: lawnMainDivs } = await sb
       .from("divisions")
       .select("id")
-      .ilike("name", "%lawn%")
-      .eq("company_id", company.id);
+      .ilike("name", "%lawn%");
     const lawnDivIds = (lawnMainDivs ?? []).map((d: any) => d.id);
 
     // ── stat_card ─────────────────────────────────────────────────────────────

@@ -1,26 +1,25 @@
 /**
- * localDate.ts — All date helpers in Atlas use LOCAL time, never UTC.
+ * localDate.ts — All date helpers in Atlas use Eastern Time (America/New_York).
  *
  * Rule: never call new Date().toISOString().slice(0,10) for "today" —
- * that returns the UTC date which can be wrong by one day for US timezones.
- * Use localISO() / localToday() instead.
+ * that returns the UTC date which can be wrong for Eastern time.
+ * Use localISO() / localToday() instead (both now Eastern-aware).
  *
  * Timestamps stored in the database (created_at, updated_at, clock-in/out)
  * remain as full ISO strings via new Date().toISOString() — that is correct.
  * This file is only for date-only values (YYYY-MM-DD).
  */
 
-/** Returns YYYY-MM-DD in the user's local timezone. */
+import { estDate, estToday as _estToday } from "./estTime";
+
+/** Returns YYYY-MM-DD in Eastern Time. */
 export function localISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return estDate(d.toISOString());
 }
 
-/** Today's date as YYYY-MM-DD in local time. */
+/** Today's date as YYYY-MM-DD in Eastern Time. */
 export function localToday(): string {
-  return localISO(new Date());
+  return _estToday();
 }
 
 /** Monday of the ISO week containing d (local time). */

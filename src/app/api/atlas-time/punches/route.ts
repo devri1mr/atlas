@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { recalcDayLunch } from "@/lib/atDayRecalc";
+import { estDate, estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     const divIds       = url.searchParams.get("division_ids")?.split(",").filter(Boolean) ?? [];
     const statusFilter = url.searchParams.get("status");
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = estToday();
     const from  = dateFrom ?? today;
     const to    = dateTo   ?? today;
 
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
       const clockIn  = new Date(body.clock_in_at);
       const clockOut = body.clock_out_at ? new Date(body.clock_out_at) : null;
-      const dateForPayroll = body.date_for_payroll ?? clockIn.toISOString().slice(0, 10);
+      const dateForPayroll = body.date_for_payroll ?? estDate(clockIn.toISOString());
 
       let regularHours: number | null = null;
       if (clockOut) {
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
     if (open) return NextResponse.json({ error: "Already clocked in" }, { status: 409 });
 
     const now   = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = estDate(now.toISOString());
 
     // Auto-populate division_id from at_division parent when not explicitly provided
     let clockInDivId: string | null = body.division_id ?? null;

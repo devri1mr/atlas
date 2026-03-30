@@ -164,7 +164,7 @@ function StatCardWidget({
         className="px-4 py-2.5 text-center"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
       >
-        <div className="text-xs font-semibold text-white/90 truncate">{label}</div>
+        <div className="text-xs font-semibold text-white/90 text-center w-full">{label}</div>
       </div>
       {/* Body */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-5 text-center">
@@ -177,11 +177,11 @@ function StatCardWidget({
           <span className="text-xs text-red-400">{widgetData.error}</span>
         ) : (
           <>
-            <div className="text-3xl font-bold text-gray-900 mb-1 tabular-nums">
+            <div className="text-3xl font-bold text-gray-900 mb-1 tabular-nums text-center w-full">
               {fmtMetricValue(value, metric.format)}
             </div>
             {start && end && (
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-400 text-center w-full">
                 {fmtDateShort(start)} – {fmtDateShort(end)}
               </div>
             )}

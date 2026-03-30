@@ -176,7 +176,7 @@ function elapsed(clockIn: string): string {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 }
 
 function fmtHours(clockIn: string, clockOut: string): string {
@@ -184,14 +184,20 @@ function fmtHours(clockIn: string, clockOut: string): string {
   return diff.toFixed(2);
 }
 
-/** Build an ISO-8601 string with the browser's local timezone offset so the server stores the correct UTC time. */
+/** Build an ISO-8601 UTC string from a date + time entered as Eastern Time. */
 function localIso(dateStr: string, timeStr: string): string {
-  const off  = new Date().getTimezoneOffset(); // minutes west of UTC (positive = behind UTC)
-  const sign = off <= 0 ? "+" : "-";
-  const abs  = Math.abs(off);
-  const hh   = String(Math.floor(abs / 60)).padStart(2, "0");
-  const mm   = String(abs % 60).padStart(2, "0");
-  return `${dateStr}T${timeStr}:00${sign}${hh}:${mm}`;
+  // Always interpret input as Eastern Time (America/New_York) — handles EST/EDT automatically
+  const naive = new Date(`${dateStr}T${timeStr}:00Z`);
+  const estParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(naive);
+  const get = (t: string) => estParts.find(p => p.type === t)?.value ?? "";
+  const h = get("hour") === "24" ? "00" : get("hour");
+  const estAsUtc = new Date(`${get("year")}-${get("month")}-${get("day")}T${h}:${get("minute")}:00Z`);
+  const offsetMs = naive.getTime() - estAsUtc.getTime();
+  return new Date(naive.getTime() + offsetMs).toISOString();
 }
 
 /** Merge per-employee lunch overrides onto global settings. */
@@ -918,7 +924,7 @@ function ClockPageInner() {
             <div className="text-right flex flex-col items-end gap-2">
               {isToday && (
                 <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tight">
-                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "America/New_York" })}
                 </div>
               )}
               <div className="flex flex-col items-end gap-1.5">

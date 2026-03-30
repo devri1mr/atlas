@@ -25,7 +25,7 @@ function displayName(e: Employee) {
   return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 }
 function elapsed(clockIn: string) {
   const ms = Date.now() - new Date(clockIn).getTime();
@@ -305,7 +305,7 @@ export default function KioskPage() {
             Back
           </button>
           <span className="text-white/30 font-mono text-xs tabular-nums">
-            {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+            {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "America/New_York" })}
           </span>
         </div>
 
@@ -332,7 +332,7 @@ export default function KioskPage() {
               <div className="bg-white/5 border border-white/8 rounded-2xl px-5 py-3.5 text-center w-full max-w-sm">
                 <div className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Not Clocked In</div>
                 <div className="text-3xl font-bold text-white/70">
-                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                  {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })}
                 </div>
               </div>
             )}
@@ -446,7 +446,7 @@ export default function KioskPage() {
           <Image src="/garpiel-logo.jpg" alt="Garpiel Group" width={110} height={110} priority />
         </div>
         <span className="text-white/35 font-mono text-xs tabular-nums">
-          {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })}
+          {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "America/New_York" })}
         </span>
       </div>
       <div className="flex-1 flex flex-col items-center justify-center gap-4">

@@ -79,7 +79,7 @@ function extractHHMM(iso: string): string {
 }
 
 function fmtTime(iso: string): string {
-  try { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
+  try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }); }
   catch { return iso; }
 }
 

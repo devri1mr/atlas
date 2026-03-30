@@ -9,6 +9,7 @@ import {
   HRSettings, PayPeriod, PunchOut,
   computePeriodPunches, getPayPeriodContaining, shiftPayPeriod, isoDate,
 } from "@/lib/atHours";
+import { toEasternLocal, fromEasternLocal } from "@/lib/estTime";
 
 const DEFAULT_SETTINGS: HRSettings = {
   pay_cycle: "weekly", pay_period_start_day: 1, pay_period_anchor_date: null,
@@ -32,7 +33,7 @@ type RawPunch = {
 type Division = { id: string; name: string; active: boolean; source?: string };
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 }
 function fmtDate(iso: string) {
   const d = new Date(iso + "T12:00:00");
@@ -173,8 +174,8 @@ function TimesheetsInner() {
     // Use at_division_id as the dropdown key when present (at_divisions have their own UUID in the list)
     const divKey = p.at_division_id ?? p.division_id ?? "";
     setEditing(prev => ({ ...prev, [p.id]: {
-      clock_in_at:  p.clock_in_at.slice(0, 16),
-      clock_out_at: p.clock_out_at?.slice(0, 16) ?? "",
+      clock_in_at:  toEasternLocal(p.clock_in_at),
+      clock_out_at: p.clock_out_at ? toEasternLocal(p.clock_out_at) : "",
       division_id:  divKey,
       employee_note: p.employee_note ?? "",
       manager_note: p.manager_note ?? "",
@@ -198,8 +199,8 @@ function TimesheetsInner() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clock_in_at:        draft?.clock_in_at  ? new Date(draft.clock_in_at!  as string).toISOString() : undefined,
-          clock_out_at:       draft?.clock_out_at ? new Date(draft.clock_out_at! as string).toISOString() : null,
+          clock_in_at:        draft?.clock_in_at  ? fromEasternLocal(draft.clock_in_at!  as string) : undefined,
+          clock_out_at:       draft?.clock_out_at ? fromEasternLocal(draft.clock_out_at! as string) : null,
           // at_divisions: omit division_id so PATCH auto-populates it from the at_division's parent
           ...(isAtDiv
             ? { at_division_id: selectedDivKey }

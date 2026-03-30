@@ -103,7 +103,7 @@ function fmtDay(iso: string) {
   return `${weekday} ${m}/${day}/${y}`;
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 }
 function h(n: number) { return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function c(n: number) { return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -579,7 +579,7 @@ export default function ReportsPage() {
         {/* Print header (hidden on screen) */}
         <div className="hidden print:block mb-4 pb-4 border-b">
           <h2 className="text-xl font-bold">Atlas HR — {tab === "summary" ? "Payroll Summary" : "Time Card Detail"}</h2>
-          <p className="text-sm text-gray-600 mt-1">Period: {rangeLabel} · Generated {new Date().toLocaleString()}</p>
+          <p className="text-sm text-gray-600 mt-1">Period: {rangeLabel} · Generated {new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}</p>
         </div>
 
         {/* Tabs */}
