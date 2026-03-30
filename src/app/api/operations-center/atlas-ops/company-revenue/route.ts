@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     // ── YTD prior months: non-lawn COGS actuals ───────────────────────────────
     const nonLawnCogsMap = new Map<string, Map<number, number>>();
     if (monthNum > 1) {
-      const nlKeys = divisions.filter(d => !isLawnDiv(d.name)).map(d => d.name.toLowerCase());
+      const nlKeys = [...divisions.filter(d => !isLawnDiv(d.name)).map(d => d.name.toLowerCase()), "admin"];
       if (nlKeys.length > 0) {
         const { data: cogsRows } = await sb
           .from("division_cogs_actuals")
@@ -292,19 +292,27 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // ── Admin row (cost center — zero revenue, negative budget) ──────────────
+    // ── Admin row (cost center — revenue from COGS actuals, negative budget) ──
     const adminMonthBudget = budgetMonthMap.get("admin") ?? 0;
     const adminYtdBudget   = budgetYtdMap.get("admin") ?? 0;
-    if (adminMonthBudget !== 0 || adminYtdBudget !== 0) {
+    // Prior months actual from COGS
+    let adminYtdPrior = 0;
+    const adminPriorMap = nonLawnCogsMap.get("admin");
+    if (adminPriorMap) for (const [, v] of adminPriorMap) adminYtdPrior += v;
+    // Current month actual from COGS
+    const adminMonthActual = curCogsMap.get("admin") ?? 0;
+    const adminMonthTotal  = adminMonthActual;
+    const adminYtd         = adminYtdPrior + adminMonthTotal;
+    if (adminMonthBudget !== 0 || adminYtdBudget !== 0 || adminYtd !== 0) {
       results.push({
         key:          "admin",
         name:         "Admin",
         weeks:        weeks.map(() => 0),
-        month_total:  0,
+        month_total:  adminMonthTotal,
         month_budget: adminMonthBudget,
-        ytd:          0,
+        ytd:          adminYtd,
         ytd_budget:   adminYtdBudget,
-        over_under:   0 - adminYtdBudget, // 0 actual vs negative budget
+        over_under:   adminYtd - adminYtdBudget,
       });
     }
 

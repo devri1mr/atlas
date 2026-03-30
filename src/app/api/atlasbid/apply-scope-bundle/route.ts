@@ -95,7 +95,8 @@ function computeTask(
   questionsByKey: Map<string, BundleQuestion>
 ) {
   const config = task.rule_config ?? {};
-  const ruleType = String(task.rule_type || "");
+  // stone_rule in config overrides the DB rule_type (works around DB check constraint)
+  const ruleType = String(config?.stone_rule || task.rule_type || "");
   const unit = String(task.unit || "ea");
 
   const questionKey =
@@ -443,12 +444,12 @@ export async function POST(req: NextRequest) {
     // MATERIALS INSERT
     // =====================
 
-    // Fetch task materials by bundle task IDs (avoids FK join assumptions)
+    // Fetch task materials by bundle task IDs (fixed materials only)
     const taskIds = (tasks || []).map((t: any) => t.id);
     const { data: rawTaskMaterials, error: materialsError } = taskIds.length > 0
       ? await supabase
           .from("scope_bundle_task_materials")
-          .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id, material_choice_question_key")
+          .select("material_id, qty_per_task_unit, unit, unit_cost, bundle_task_id")
           .in("bundle_task_id", taskIds)
       : { data: [], error: null };
 
@@ -456,14 +457,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: materialsError.message }, { status: 500 });
     }
 
-    // Resolve effective material_id for each row (choice rows get id from answers)
-    const resolvedMaterials = (rawTaskMaterials || []).map((m: any) => {
-      const choiceKey = m.material_choice_question_key;
-      const effectiveId = choiceKey
-        ? (String(answers[choiceKey] ?? "").trim() || null)
-        : (m.material_id || null);
-      return { ...m, effective_material_id: effectiveId };
-    }).filter((m: any) => m.effective_material_id);
+    // Resolve fixed material rows
+    const resolvedFixed = (rawTaskMaterials || [])
+      .filter((m: any) => m.material_id)
+      .map((m: any) => ({ ...m, effective_material_id: m.material_id }));
+
+    // Resolve choice_materials from rule_config (encoded as JSON, no extra DB column needed)
+    const resolvedChoice: any[] = [];
+    for (const task of (tasks || []) as BundleTask[]) {
+      const cfg = task.rule_config ?? {};
+      const choiceMats: Array<{ question_key: string; qty_per_unit: number; unit: string }> = cfg.choice_materials ?? [];
+      for (const cm of choiceMats) {
+        const materialId = String(answers[cm.question_key] ?? "").trim();
+        if (!materialId) continue;
+        const taskQty = taskQuantityByBundleTaskId.get(task.id) || 0;
+        resolvedChoice.push({
+          bundle_task_id: task.id,
+          effective_material_id: materialId,
+          qty_per_task_unit: cm.qty_per_unit ?? 1,
+          unit: cm.unit || "ea",
+          unit_cost: null,
+        });
+      }
+    }
+
+    const resolvedMaterials = [...resolvedFixed, ...resolvedChoice];
 
     // Fetch names + costs for all effective material ids
     const allMatIds = [...new Set(resolvedMaterials.map((m: any) => m.effective_material_id as string))];

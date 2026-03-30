@@ -9,8 +9,12 @@ type Bundle = { id: string; name: string; description?: string | null; division_
 type Question = {
   id: string; bundle_id: string; question_key: string; label: string;
   input_type: string; unit?: string | null; required?: boolean; default_value?: string | null;
-  help_text?: string | null; sort_order?: number;
+  help_text?: string | null; sort_order?: number; options_json?: any;
 };
+
+function isMaterialSelect(q: Question) {
+  return q.input_type === "material_select" || q.options_json?.widget === "material_select";
+}
 type BundleTask = {
   id: string; bundle_id: string; task_name: string; item_name?: string | null;
   unit: string; rule_type: string; rule_config: Record<string, any>;
@@ -387,7 +391,9 @@ export default function BundleBuilderPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bundle_id: selectedBundle.id, question_key: slugify(d.label),
-          label: d.label.trim(), input_type: d.type,
+          label: d.label.trim(),
+          input_type: d.type === "material_select" ? "text" : d.type,
+          options_json: d.type === "material_select" ? { widget: "material_select" } : null,
           unit: d.unit.trim() || null, required: d.required,
           default_value: d.defaultVal.trim() || null, help_text: d.help.trim() || null,
           sort_order: questions.length + added.length,
@@ -614,7 +620,7 @@ export default function BundleBuilderPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-800">{q.label}</span>
                         <code className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">{q.question_key}</code>
-                        <span className="text-xs text-gray-400">{q.input_type}{q.unit ? ` · ${q.unit}` : ""}{q.required ? " · required" : ""}</span>
+                        <span className="text-xs text-gray-400">{isMaterialSelect(q) ? "material_select" : q.input_type}{q.unit ? ` · ${q.unit}` : ""}{q.required ? " · required" : ""}</span>
                       </div>
                       {q.help_text && <div className="text-xs text-gray-400 mt-0.5 italic">{q.help_text}</div>}
                     </div>
@@ -807,11 +813,11 @@ export default function BundleBuilderPage() {
                                     <label className={labelCls}>Material Select Question</label>
                                     <select className={inputCls} value={matChoiceKey} onChange={e => setMatChoiceKey(e.target.value)}>
                                       <option value="">— pick a material_select question —</option>
-                                      {questions.filter(q => q.input_type === "material_select").map(q => (
+                                      {questions.filter(q => isMaterialSelect(q)).map(q => (
                                         <option key={q.question_key} value={q.question_key}>{q.label} ({q.question_key})</option>
                                       ))}
                                     </select>
-                                    {questions.filter(q => q.input_type === "material_select").length === 0 && (
+                                    {questions.filter(q => isMaterialSelect(q)).length === 0 && (
                                       <p className="text-xs text-amber-600 mt-1">Add a "material_select" type question to this bundle first.</p>
                                     )}
                                   </div>

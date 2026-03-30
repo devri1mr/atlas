@@ -1900,7 +1900,7 @@ async function addLabor() {
               <input type="checkbox" checked={bundleAnswers[q.question_key] === true} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))} />
               <span>{q.label}</span>
             </label>
-          ) : q.input_type === "material_select" ? (
+          ) : (q.input_type === "material_select" || q.options_json?.widget === "material_select") ? (
             <MaterialSelectInput
               questionKey={q.question_key}
               value={bundleAnswers[q.question_key] ?? ""}
