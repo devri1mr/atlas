@@ -550,6 +550,36 @@ function TimesheetsInner() {
                         </tfoot>
                       </table>
                       </div>
+
+                      {/* Punch item hours breakdown */}
+                      {(() => {
+                        const byItem = new Map<string, number>();
+                        for (const p of sortedPunches) {
+                          if (!p.clock_out_at) continue;
+                          const c = compMap.get(p.id);
+                          const recalced = p.regular_hours !== null;
+                          const total = recalced
+                            ? (p.regular_hours ?? 0) + (p.ot_hours ?? 0) + (p.dt_hours ?? 0)
+                            : (c?.regular_hours ?? 0) + (c?.ot_hours ?? 0) + (c?.dt_hours ?? 0);
+                          const label = p.at_divisions?.name ?? p.divisions?.name ?? p.at_divisions?.divisions?.name ?? "Unassigned";
+                          byItem.set(label, (byItem.get(label) ?? 0) + total);
+                        }
+                        if (byItem.size <= 1) return null;
+                        const rows = [...byItem.entries()].sort((a, b) => b[1] - a[1]);
+                        return (
+                          <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Hours by Punch Item</div>
+                            <div className="flex flex-wrap gap-x-6 gap-y-1">
+                              {rows.map(([label, hrs]) => (
+                                <div key={label} className="flex items-center gap-1.5 text-xs">
+                                  <span className="text-gray-500">{label}</span>
+                                  <span className="font-bold text-gray-800 tabular-nums">{h(hrs)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
