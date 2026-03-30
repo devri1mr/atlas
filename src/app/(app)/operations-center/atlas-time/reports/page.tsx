@@ -30,13 +30,57 @@ type RawPunch = {
     at_departments: { id: string; name: string } | null;
   } | null;
   divisions: { id: string; name: string; qb_class_name: string | null } | null;
-  at_divisions: { id: string; name: string; qb_class_name: string | null } | null;
+  at_divisions: { id: string; name: string; qb_class_name: string | null; division_id: string | null } | null;
 };
 
 type EmpOption  = { id: string; name: string };
 type DivOption  = { id: string; name: string };
 type DeptOption = { id: string; name: string };
 type SortDir    = "asc" | "desc";
+
+type PayRate = {
+  id: string;
+  employee_id: string;
+  division_id: string | null;
+  rate: number;
+  effective_date: string;
+  end_date: string | null;
+  is_default: boolean;
+};
+
+// Resolve the correct pay rate for a punch given:
+// - The punch date (for effective_date cutoff)
+// - The punch's effective division_id (may come via at_division parent)
+// Priority: division-specific match → default rate → any rate → null
+function resolvePayRate(
+  employeeId: string,
+  punchDate: string,
+  divisionId: string | null,
+  rates: PayRate[],
+  fallback: number | null,
+): number | null {
+  const eligible = rates.filter(
+    r => r.employee_id === employeeId && r.effective_date <= punchDate
+  );
+  if (!eligible.length) return fallback;
+
+  // 1. Division-specific match (most recent effective date)
+  if (divisionId) {
+    const divMatch = eligible.filter(r => r.division_id === divisionId);
+    if (divMatch.length) return divMatch[0].rate; // already sorted DESC
+  }
+
+  // 2. Default rate (most recent effective date)
+  const defMatch = eligible.filter(r => r.is_default);
+  if (defMatch.length) return defMatch[0].rate;
+
+  // 3. Any non-division rate (most recent)
+  const general = eligible.filter(r => !r.division_id);
+  if (general.length) return general[0].rate;
+
+  // 4. Fallback to at_employees.default_pay_rate
+  return fallback;
+}
 
 const QUICK_FILTERS = [
   { label: "Today",             value: "today" },
@@ -103,6 +147,7 @@ export default function ReportsPage() {
   const [settings, setSettings]         = useState<HRSettings>(DEFAULT_SETTINGS);
   const [laborOverheadRate, setLaborOverheadRate] = useState(15);
   const [punches, setPunches]       = useState<RawPunch[]>([]);
+  const [payRates, setPayRates]     = useState<PayRate[]>([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState("");
   const [tab, setTab]               = useState<"summary" | "detail">("summary");
@@ -206,7 +251,20 @@ export default function ReportsPage() {
       const res  = await fetch(`/api/atlas-time/punches?${params}`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Failed");
-      setPunches(json.punches ?? []);
+      const loadedPunches: RawPunch[] = json.punches ?? [];
+      setPunches(loadedPunches);
+
+      // Fetch pay rates for all unique employees in the result
+      const empIds = [...new Set(loadedPunches.map(p => p.employee_id))];
+      if (empIds.length) {
+        const ratesRes = await fetch(`/api/atlas-time/pay-rates?employee_ids=${empIds.join(",")}`, { cache: "no-store" });
+        if (ratesRes.ok) {
+          const ratesJson = await ratesRes.json();
+          setPayRates(ratesJson.pay_rates ?? []);
+        }
+      } else {
+        setPayRates([]);
+      }
     } catch (e: any) { setError(e?.message ?? "Failed to load"); }
     finally { setLoading(false); }
   }
@@ -655,7 +713,15 @@ export default function ReportsPage() {
                             <td className="px-3 py-2.5 text-center text-xs text-gray-500 whitespace-nowrap">{p._div || "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs text-gray-400 whitespace-nowrap">{p._class || "—"}</td>
                             {isAdmin && (() => {
-                              const rate = p.at_employees?.default_pay_rate ?? null;
+                              // Effective division: punch's own division_id, or at_division's parent
+                              const effectiveDivId = p.division_id ?? p.at_divisions?.division_id ?? null;
+                              const rate = resolvePayRate(
+                                p.employee_id,
+                                p.date_for_payroll,
+                                effectiveDivId,
+                                payRates,
+                                p.at_employees?.default_pay_rate ?? null,
+                              );
                               const otMult = settings.ot_multiplier ?? 1.5;
                               const cost = rate != null
                                 ? rate * p._reg + rate * otMult * p._ot
