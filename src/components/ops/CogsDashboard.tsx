@@ -67,7 +67,7 @@ function ActualCell({ value, isAuto, color, onSave, onClear }: {
   function commit() {
     const v = draft.trim();
     if (v === "" && isAuto) onClear();
-    else onSave(parseFloat(v.replace(/[^0-9.]/g, "")) || 0);
+    else onSave(parseFloat(v.replace(/[^0-9.\-]/g, "")) || 0);
     setEditing(false);
   }
 
@@ -88,9 +88,9 @@ function ActualCell({ value, isAuto, color, onSave, onClear }: {
     <button
       onClick={start} onFocus={start}
       className="w-full text-center text-xs font-black rounded-lg py-0.5 transition-colors hover:bg-black/5"
-      style={{ color: value > 0 ? color : "#e5e7eb" }}
+      style={{ color: value !== 0 ? color : "#e5e7eb" }}
     >
-      {value > 0 ? fmt.format(value) : "—"}
+      {value !== 0 ? fmt.format(value) : "—"}
     </button>
   );
 }
