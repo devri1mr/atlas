@@ -9,7 +9,7 @@ export default async function DivisionCogsPage({ params }: Props) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ") + " Division";
 
-  const showSubcontractors = ["snow", "landscaping"].includes(division);
+  const showSubcontractors = division === "snow";
 
   return (
     <CogsDashboard
