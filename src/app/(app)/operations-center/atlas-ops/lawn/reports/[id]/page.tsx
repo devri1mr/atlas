@@ -161,7 +161,7 @@ function StatCardWidget({
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden h-full flex flex-col">
       {/* Header */}
       <div
-        className="px-4 py-2.5"
+        className="px-4 py-2.5 text-center"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
       >
         <div className="text-xs font-semibold text-white/90 truncate">{label}</div>
@@ -219,7 +219,7 @@ function JobTableWidget({
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div
-        className="px-5 py-3"
+        className="px-5 py-3 text-center"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
       >
         <div className="text-sm font-semibold text-white">Job Summary</div>
@@ -352,7 +352,7 @@ function MemberTableWidget({
     <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div
-        className="px-5 py-3"
+        className="px-5 py-3 text-center"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
       >
         <div className="text-sm font-semibold text-white">Team Members</div>
@@ -462,7 +462,7 @@ function SectionHeaderWidget({ widget }: { widget: Widget }) {
       className="rounded-xl overflow-hidden shadow-sm"
       style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
     >
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 text-center">
         <div className="text-base font-bold text-white tracking-wide uppercase">{title}</div>
         {subtitle && <div className="text-sm text-white/50 mt-0.5">{subtitle}</div>}
       </div>
