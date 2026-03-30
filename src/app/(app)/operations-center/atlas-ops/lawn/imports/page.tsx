@@ -282,56 +282,75 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
   onSaved: () => void;
 }) {
   const variesJobs = dispatchJobs.filter(j => j.time_varies);
+
+  // Group jobs that share the same client+service into one panel.
+  // Multiple crews dispatched to the same site (e.g. LC-4 + LC-5 at Gratiot Saginaw)
+  // previously caused duplicate entries — now they're one combined panel.
+  const groupMap = new Map<string, { key: string; ids: string[]; client_name: string; service: string | null; crews: string[]; savedTimes: DispatchJobTime[] }>();
+  for (const j of variesJobs) {
+    const key = `${j.client_name}__${j.service ?? ""}`;
+    if (!groupMap.has(key)) groupMap.set(key, { key, ids: [], client_name: j.client_name, service: j.service, crews: [], savedTimes: [] });
+    const g = groupMap.get(key)!;
+    g.ids.push(j.id);
+    if (j.crew_code && !g.crews.includes(j.crew_code)) g.crews.push(j.crew_code);
+    for (const t of j.lawn_dispatch_job_times ?? []) {
+      if (!g.savedTimes.find(st => st.id === t.id)) g.savedTimes.push(t);
+    }
+  }
+  const groups = [...groupMap.values()];
+
   const [forms, setForms] = useState<Record<string, { employee_id: string; resource_name: string; start: string; end: string; notes: string }[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  // Start jobs with existing time entries as dismissed — user already handled them
+  // Dismiss a group once all its jobs have at least one time entry
   const [dismissed, setDismissed] = useState<Set<string>>(
-    () => new Set(variesJobs.filter(j => (j.lawn_dispatch_job_times?.length ?? 0) > 0).map(j => j.id))
+    () => new Set(groups.filter(g => g.savedTimes.length > 0).map(g => g.key))
   );
   const [showDismissed, setShowDismissed] = useState(false);
 
-  const dismissedJobs = variesJobs.filter(j => dismissed.has(j.id));
-  const visibleJobs   = variesJobs.filter(j => !dismissed.has(j.id) || showDismissed);
-  if (!visibleJobs.length && !dismissedJobs.length) return null;
+  const dismissedGroups = groups.filter(g => dismissed.has(g.key));
+  const visibleGroups   = groups.filter(g => !dismissed.has(g.key) || showDismissed);
+  if (!visibleGroups.length && !dismissedGroups.length) return null;
 
-  function addRow(jobId: string, empId: string | null, name: string) {
+  function addRow(groupKey: string, empId: string | null, name: string) {
     setForms(prev => ({
       ...prev,
-      [jobId]: [...(prev[jobId] ?? []), { employee_id: empId ?? "", resource_name: name, start: "", end: "", notes: "" }],
+      [groupKey]: [...(prev[groupKey] ?? []), { employee_id: empId ?? "", resource_name: name, start: "", end: "", notes: "" }],
     }));
   }
 
-  function updateRow(jobId: string, idx: number, field: string, val: string) {
+  function updateRow(groupKey: string, idx: number, field: string, val: string) {
     setForms(prev => {
-      const rows = [...(prev[jobId] ?? [])];
+      const rows = [...(prev[groupKey] ?? [])];
       rows[idx] = { ...rows[idx], [field]: val };
-      return { ...prev, [jobId]: rows };
+      return { ...prev, [groupKey]: rows };
     });
   }
 
-  async function saveRow(jobId: string, idx: number) {
-    const row = forms[jobId]?.[idx];
+  async function saveRow(group: typeof groups[0], idx: number) {
+    const row = forms[group.key]?.[idx];
     if (!row?.start) return;
-    setSaving(`${jobId}-${idx}`);
+    setSaving(`${group.key}-${idx}`);
     try {
-      // Build timestamps in local time so they store correctly as UTC in Supabase
       const toISO = (t: string) => new Date(`${reportDate}T${t}:00`).toISOString();
-      await fetch("/api/operations-center/atlas-ops/lawn/dispatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dispatch_job_id: jobId,
-          employee_id: row.employee_id || null,
-          resource_name: row.resource_name,
-          start_time: toISO(row.start),
-          end_time: row.end ? toISO(row.end) : null,
-          notes: row.notes || null,
-        }),
-      });
+      // Fan out to every dispatch job in the group so down-time calc finds it via any crew
+      await Promise.all(group.ids.map(jobId =>
+        fetch("/api/operations-center/atlas-ops/lawn/dispatch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dispatch_job_id: jobId,
+            employee_id: row.employee_id || null,
+            resource_name: row.resource_name,
+            start_time: toISO(row.start),
+            end_time: row.end ? toISO(row.end) : null,
+            notes: row.notes || null,
+          }),
+        })
+      ));
       setForms(prev => {
-        const rows = [...(prev[jobId] ?? [])];
+        const rows = [...(prev[group.key] ?? [])];
         rows.splice(idx, 1);
-        return { ...prev, [jobId]: rows };
+        return { ...prev, [group.key]: rows };
       });
       onSaved();
     } finally {
@@ -349,40 +368,44 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span className="text-sm font-semibold text-amber-800">Time Entry Required — {variesJobs.length} job{variesJobs.length > 1 ? "s" : ""} show "Varies"</span>
+          <span className="text-sm font-semibold text-amber-800">Time Entry Required — {groups.length} job{groups.length > 1 ? "s" : ""} show "Varies"</span>
         </div>
-        {dismissedJobs.length > 0 && (
+        {dismissedGroups.length > 0 && (
           <button
             onClick={() => setShowDismissed(v => !v)}
             className="text-xs text-amber-700 hover:text-amber-900 underline decoration-dotted"
           >
-            {showDismissed ? "Hide" : `Show`} {dismissedJobs.length} closed job{dismissedJobs.length > 1 ? "s" : ""}
+            {showDismissed ? "Hide" : "Show"} {dismissedGroups.length} closed job{dismissedGroups.length > 1 ? "s" : ""}
           </button>
         )}
       </div>
       <div className="space-y-4">
-        {visibleJobs.map(job => {
-          const crewPersons = persons.filter(p => p.crew_codes.includes(job.crew_code ?? ""));
-          const pendingRows = forms[job.id] ?? [];
-          const savedTimes  = job.lawn_dispatch_job_times ?? [];
+        {visibleGroups.map(group => {
+          const crewPersons = persons.filter(p => group.crews.some(c => p.crew_codes.includes(c)));
+          const pendingRows = forms[group.key] ?? [];
+          const savedTimes  = group.savedTimes;
+          // De-duplicate saved times by employee+start (fan-out creates duplicates across jobs)
+          const uniqueSaved = savedTimes.filter((t, i) =>
+            savedTimes.findIndex(s => s.employee_id === t.employee_id && s.start_time === t.start_time && s.resource_name === t.resource_name) === i
+          );
           return (
-            <div key={job.id} className="rounded-lg border border-amber-200 bg-white overflow-hidden">
+            <div key={group.key} className="rounded-lg border border-amber-200 bg-white overflow-hidden">
               <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
                 <div>
-                  <span className="font-medium text-sm text-amber-900">{job.client_name}</span>
-                  {job.service && <span className="text-xs text-amber-700 ml-2">· {job.service}</span>}
-                  <span className="text-xs text-amber-600 ml-2">Crew {job.crew_code}</span>
+                  <span className="font-medium text-sm text-amber-900">{group.client_name}</span>
+                  {group.service && <span className="text-xs text-amber-700 ml-2">· {group.service}</span>}
+                  <span className="text-xs text-amber-600 ml-2">Crew {group.crews.join(", ")}</span>
                 </div>
-                {dismissed.has(job.id) ? (
+                {dismissed.has(group.key) ? (
                   <button
-                    onClick={() => setDismissed(prev => { const s = new Set(prev); s.delete(job.id); return s; })}
+                    onClick={() => setDismissed(prev => { const s = new Set(prev); s.delete(group.key); return s; })}
                     className="text-xs rounded border border-emerald-300 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 font-medium"
                   >
                     Re-open
                   </button>
                 ) : (
                   <button
-                    onClick={() => setDismissed(prev => new Set([...prev, job.id]))}
+                    onClick={() => setDismissed(prev => new Set([...prev, group.key]))}
                     className="text-xs rounded border border-amber-300 px-2.5 py-1 text-amber-700 hover:bg-amber-100 font-medium"
                   >
                     Done
@@ -390,10 +413,9 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                 )}
               </div>
               <div className="p-4 space-y-3">
-                {/* Saved entries */}
-                {savedTimes.length > 0 && (
+                {uniqueSaved.length > 0 && (
                   <div className="space-y-1">
-                    {savedTimes.map(t => (
+                    {uniqueSaved.map(t => (
                       <div key={t.id} className="flex items-center gap-3 text-xs text-gray-700">
                         <span className="w-36 font-medium">{t.resource_name ? formatName(t.resource_name) : "—"}</span>
                         <span>{fmtTime(t.start_time)} → {fmtTime(t.end_time)}</span>
@@ -403,15 +425,14 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                     ))}
                   </div>
                 )}
-                {/* Pending input rows */}
                 {pendingRows.map((row, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-xs">
                     <select
                       value={row.employee_id}
                       onChange={e => {
                         const p = persons.find(cp => cp.employee_id === e.target.value);
-                        updateRow(job.id, idx, "employee_id", e.target.value);
-                        if (p) updateRow(job.id, idx, "resource_name", p.resource_name);
+                        updateRow(group.key, idx, "employee_id", e.target.value);
+                        if (p) updateRow(group.key, idx, "resource_name", p.resource_name);
                       }}
                       className="border border-gray-200 rounded px-2 py-1 text-xs w-44"
                     >
@@ -422,56 +443,30 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
                         </option>
                       ))}
                     </select>
-                    <input
-                      type="time"
-                      value={row.start}
-                      onChange={e => updateRow(job.id, idx, "start", e.target.value)}
-                      className="border border-gray-200 rounded px-2 py-1 text-xs w-28"
-                      placeholder="Start"
-                    />
+                    <input type="time" value={row.start} onChange={e => updateRow(group.key, idx, "start", e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs w-28" />
                     <span className="text-gray-400">→</span>
-                    <input
-                      type="time"
-                      value={row.end}
-                      onChange={e => updateRow(job.id, idx, "end", e.target.value)}
-                      className="border border-gray-200 rounded px-2 py-1 text-xs w-28"
-                      placeholder="End"
-                    />
-                    <input
-                      type="text"
-                      value={row.notes}
-                      onChange={e => updateRow(job.id, idx, "notes", e.target.value)}
-                      className="border border-gray-200 rounded px-2 py-1 text-xs flex-1"
-                      placeholder="Notes (optional)"
-                    />
+                    <input type="time" value={row.end} onChange={e => updateRow(group.key, idx, "end", e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs w-28" />
+                    <input type="text" value={row.notes} onChange={e => updateRow(group.key, idx, "notes", e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs flex-1" placeholder="Notes (optional)" />
                     <button
-                      onClick={() => saveRow(job.id, idx)}
-                      disabled={!row.start || saving === `${job.id}-${idx}`}
+                      onClick={() => saveRow(group, idx)}
+                      disabled={!row.start || saving === `${group.key}-${idx}`}
                       className="rounded bg-emerald-700 text-white px-2.5 py-1 text-xs font-medium hover:bg-emerald-800 disabled:opacity-50"
                     >
                       Save
                     </button>
                   </div>
                 ))}
-                {/* Add row buttons: crew members + anyone dropdown */}
                 <div className="flex flex-wrap gap-2 pt-1 items-center">
                   {crewPersons.map(p => (
-                    <button
-                      key={p.resource_name}
-                      onClick={() => addRow(job.id, p.employee_id, p.resource_name)}
-                      className="text-xs rounded border border-emerald-200 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
-                    >
+                    <button key={p.resource_name} onClick={() => addRow(group.key, p.employee_id, p.resource_name)}
+                      className="text-xs rounded border border-emerald-200 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap">
                       + {formatName(p.resource_name)}
                     </button>
                   ))}
-                  <select
-                    value=""
-                    onChange={e => {
-                      const p = persons.find(cp => cp.employee_id === e.target.value || cp.resource_name === e.target.value);
-                      if (p) addRow(job.id, p.employee_id, p.resource_name);
-                    }}
-                    className="text-xs rounded border border-gray-200 px-2 py-1 text-gray-500 hover:border-gray-300"
-                  >
+                  <select value="" onChange={e => {
+                    const p = persons.find(cp => cp.employee_id === e.target.value || cp.resource_name === e.target.value);
+                    if (p) addRow(group.key, p.employee_id, p.resource_name);
+                  }} className="text-xs rounded border border-gray-200 px-2 py-1 text-gray-500 hover:border-gray-300">
                     <option value="">+ Other member…</option>
                     {persons.filter(p => !crewPersons.includes(p)).map(p => (
                       <option key={p.employee_id ?? p.resource_name} value={p.employee_id ?? p.resource_name}>
