@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MonthCOGS = {
+export type MonthCOGS = {
   month: number;
   revenue: number; labor: number; job_materials: number; fuel: number; equipment: number;
   gross_profit: number; margin_pct: number | null;
@@ -131,22 +131,25 @@ const ROWS: RowDef[] = [
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface CogsDashboardProps {
-  /** e.g. "lawn" — used as the division param in API calls */
   division: string;
-  /** e.g. "Lawn Division" — displayed in the hero */
   divisionLabel: string;
-  /** API path for GET/PUT, e.g. "/api/operations-center/atlas-ops/lawn/cogs" */
-  apiPath: string;
+  /** API path for GET/PUT — required unless externalData is provided */
+  apiPath?: string;
+  /** Pre-loaded data (e.g. from Sheets). Skips the API fetch. */
+  externalData?: MonthCOGS[];
+  /** When true, shows values as static text (no editing, no year selector) */
+  readOnly?: boolean;
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export default function CogsDashboard({ division, divisionLabel, apiPath }: CogsDashboardProps) {
+export default function CogsDashboard({ division, divisionLabel, apiPath, externalData, readOnly = false }: CogsDashboardProps) {
   const [year,    setYear]    = useState(CUR_YEAR);
   const [data,    setData]    = useState<MonthCOGS[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!externalData);
 
   const load = useCallback(async () => {
+    if (!apiPath) return;
     setLoading(true);
     try {
       const res = await fetch(`${apiPath}?year=${year}`);
@@ -156,9 +159,17 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
     }
   }, [apiPath, year]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (externalData) {
+      setData(externalData);
+      setLoading(false);
+    } else {
+      load();
+    }
+  }, [load, externalData]);
 
   async function handleSave(month: number, field: string, value: number | null) {
+    if (!apiPath) return;
     await fetch(apiPath, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -213,11 +224,15 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
             <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-0.5">{divisionLabel}</div>
             <div className="text-xl font-black text-white">Cost of Goods Sold</div>
           </div>
-          <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-            <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
-            <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
-          </div>
+          {!readOnly ? (
+            <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
+              <button onClick={() => setYear(y => y - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+              <span className="text-sm font-bold text-white w-12 text-center">{year}</span>
+              <button onClick={() => setYear(y => y + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
+            </div>
+          ) : (
+            <span className="text-sm font-bold text-white/60 px-3">{year}</span>
+          )}
         </div>
 
         {/* KPI chips */}
@@ -335,13 +350,19 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
                                   </div>
                                 ) : (
                                   <div className="flex flex-col items-center gap-1">
-                                    <ActualCell
-                                      value={actualVal}
-                                      isAuto={row.isAuto}
-                                      color={isCurrCol && row.key !== "revenue" ? "#111827" : row.color}
-                                      onSave={v  => handleSave(r.month, row.apiField, v)}
-                                      onClear={() => handleSave(r.month, row.apiField, null)}
-                                    />
+                                    {readOnly ? (
+                                      <div className="text-center text-xs font-black py-0.5" style={{ color: actualVal > 0 ? (isCurrCol && row.key !== "revenue" ? "#111827" : row.color) : "#e5e7eb" }}>
+                                        {actualVal !== 0 ? fmt.format(actualVal) : "—"}
+                                      </div>
+                                    ) : (
+                                      <ActualCell
+                                        value={actualVal}
+                                        isAuto={row.isAuto}
+                                        color={isCurrCol && row.key !== "revenue" ? "#111827" : row.color}
+                                        onSave={v  => handleSave(r.month, row.apiField, v)}
+                                        onClear={() => handleSave(r.month, row.apiField, null)}
+                                      />
+                                    )}
                                     {budgetVal > 0 && (
                                       <span className={`text-xs font-medium ${isCurrCol ? "text-gray-600" : "text-gray-400"}`}>{fmt.format(budgetVal)}</span>
                                     )}
@@ -459,7 +480,9 @@ export default function CogsDashboard({ division, divisionLabel, apiPath }: Cogs
             </div>
 
             <p className="text-center text-xs text-gray-400 mt-3">
-              Click any actual value to edit · Leave blank on auto-calculated fields to revert to auto · Gray = budget · % = cost as % of revenue
+              {readOnly
+                ? "Data sourced from performance sheet · Gray = budget · % = cost as % of revenue"
+                : "Click any actual value to edit · Leave blank on auto-calculated fields to revert to auto · Gray = budget · % = cost as % of revenue"}
             </p>
           </>
         )}

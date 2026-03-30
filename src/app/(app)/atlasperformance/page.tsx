@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import CogsDashboard, { type MonthCOGS } from "@/components/ops/CogsDashboard";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 type Cat = {
@@ -262,6 +263,31 @@ function SummaryCard({ item, mode = "month", globalMonth }: { item: SummaryItem;
       </div>
     </div>
   );
+}
+
+/* ─── Sheets → CogsDashboard data transform ─────────────────────────── */
+function sheetsToMonthCOGS(d: Data): MonthCOGS[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const revenue       = d.revenue.actual[i]   ?? 0;
+    const labor         = d.labor.actual[i]      ?? 0;
+    const job_materials = d.materials.actual[i]  ?? 0;
+    const fuel          = d.fuel.actual[i]        ?? 0;
+    const equipment     = d.equipment.actual[i]  ?? 0;
+    const gross_profit  = d.profit.actual[i]     ?? (revenue - labor - job_materials - fuel - equipment);
+    return {
+      month: i + 1,
+      revenue, labor, job_materials, fuel, equipment,
+      gross_profit,
+      margin_pct: revenue > 0 ? gross_profit / revenue : null,
+      revenue_auto: revenue, labor_auto: labor, fuel_auto: fuel,
+      revenue_overridden: false, labor_overridden: false, fuel_overridden: false,
+      budget_revenue:       d.revenue.budget[i]   ?? 0,
+      budget_labor:         d.labor.budget[i]      ?? 0,
+      budget_job_materials: d.materials.budget[i]  ?? 0,
+      budget_fuel:          d.fuel.budget[i]        ?? 0,
+      budget_equipment:     d.equipment.budget[i]  ?? 0,
+    };
+  });
 }
 
 /* ─── Main page ──────────────────────────────────────────────────────── */
@@ -577,10 +603,30 @@ export default function AtlasPerformancePage() {
 
         {/* Division tabs */}
         {activeTab !== "summary" && (() => {
+          const activeDivision = divisions.find(d => d.id === activeTab);
+          const isLawn = activeDivision?.name.toLowerCase() === "lawn";
+
+          if (isLawn) {
+            return (
+              <CogsDashboard
+                division="lawn"
+                divisionLabel="Lawn Division"
+                apiPath="/api/operations-center/atlas-ops/lawn/cogs"
+              />
+            );
+          }
+
           const d = divData[activeTab];
           if (!d || d === "loading") return <CenteredSpinner />;
           if (d === "error") return <EmptyState msg="Failed to load sheet data. Check that the sheet URL is correct and publicly accessible." retry={() => loadDivision(activeTab)} />;
-          return <DivisionTable data={d as Data} globalMonth={currentMonth} />;
+          return (
+            <CogsDashboard
+              division={activeDivision?.name.toLowerCase().replace(/\s+/g, "-") ?? ""}
+              divisionLabel={`${activeDivision?.name ?? ""} Division`}
+              readOnly
+              externalData={sheetsToMonthCOGS(d as Data)}
+            />
+          );
         })()}
       </div>
     </div>
