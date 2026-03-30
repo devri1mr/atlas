@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AccessGate from "@/components/AccessGate";
 import {
@@ -53,7 +53,6 @@ function h(n: number) { return n.toFixed(2); }
 const inputCls = "border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500";
 
 function TimesheetsInner() {
-  const router       = useRouter();
   const searchParams = useSearchParams();
 
   const [settings, setSettings] = useState<HRSettings>(DEFAULT_SETTINGS);
@@ -104,9 +103,7 @@ function TimesheetsInner() {
   // Keep ?date= URL param in sync so hard-refresh restores the same period
   useEffect(() => {
     if (!period) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("date", isoDate(period.start));
-    router.replace(`?${params.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `?date=${isoDate(period.start)}`);
   }, [period]);
 
   function nav(delta: number) { if (period) setPeriod(shiftPayPeriod(period, delta, settings)); }
