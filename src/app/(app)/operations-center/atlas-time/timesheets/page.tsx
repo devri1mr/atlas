@@ -26,7 +26,7 @@ type RawPunch = {
   lunch_deducted_mins: number | null; approved_at: string | null; locked: boolean | null;
   at_employees: { id: string; first_name: string; last_name: string; preferred_name: string | null; job_title: string | null; default_pay_rate: number | null; pay_type: string; at_departments: { name: string } | null } | null;
   divisions: { id: string; name: string; qb_class_name: string | null } | null;
-  at_divisions: { id: string; name: string } | null;
+  at_divisions: { id: string; name: string; division_id: string | null; divisions: { id: string; name: string } | null } | null;
 };
 
 type Division = { id: string; name: string; active: boolean; source?: string };
@@ -511,7 +511,7 @@ function TimesheetsInner() {
                                 <td className={`px-3 py-2.5 text-center font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2.5 text-center font-bold tabular-nums">{h(total)}</td>
                                 <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.at_divisions?.name ?? p.divisions?.name ?? "—"}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap">{p.divisions?.name ?? p.at_divisions?.divisions?.name ?? "—"}</td>
                                 <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                   {p.locked
                                     ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Locked</span>
