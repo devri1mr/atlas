@@ -281,11 +281,13 @@ function sheetsToMonthCOGS(d: Data): MonthCOGS[] {
       margin_pct: revenue > 0 ? gross_profit / revenue : null,
       revenue_auto: revenue, labor_auto: labor, fuel_auto: fuel,
       revenue_overridden: false, labor_overridden: false, fuel_overridden: false,
+      subcontractors:       0,
       budget_revenue:       d.revenue.budget[i]   ?? 0,
       budget_labor:         d.labor.budget[i]      ?? 0,
       budget_job_materials: d.materials.budget[i]  ?? 0,
       budget_fuel:          d.fuel.budget[i]        ?? 0,
       budget_equipment:     d.equipment.budget[i]  ?? 0,
+      budget_subcontractors: 0,
     };
   });
 }
