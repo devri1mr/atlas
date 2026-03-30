@@ -263,7 +263,7 @@ function JobTableWidget({
                 {JOB_TABLE_COLUMNS.filter((c) => columns.includes(c.key)).map((col) => (
                   <th
                     key={col.key}
-                    className="px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap cursor-pointer select-none hover:text-gray-800"
+                    className="px-4 py-2.5 text-center font-semibold text-gray-500 whitespace-nowrap cursor-pointer select-none hover:text-gray-800"
                     onClick={() => handleSort(col.key)}
                   >
                     {col.label}
@@ -278,40 +278,40 @@ function JobTableWidget({
               {rows.map((row, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   {columns.includes("date") && (
-                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmtDateFull(row.date)}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-600 whitespace-nowrap">{fmtDateFull(row.date)}</td>
                   )}
                   {columns.includes("client_name") && (
-                    <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[180px] truncate">{row.client_name}</td>
+                    <td className="px-4 py-2.5 text-center font-medium text-gray-800 max-w-[180px] truncate">{row.client_name}</td>
                   )}
                   {columns.includes("service") && (
-                    <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{row.service}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-600 whitespace-nowrap">{row.service}</td>
                   )}
                   {columns.includes("crew_code") && (
-                    <td className="px-4 py-2.5 text-gray-600">{row.crew_code}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-600">{row.crew_code}</td>
                   )}
                   {columns.includes("budgeted_hours") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{row.budgeted_hours.toFixed(1)}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{row.budgeted_hours.toFixed(1)}</td>
                   )}
                   {columns.includes("actual_hours") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{row.actual_hours.toFixed(1)}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{row.actual_hours.toFixed(1)}</td>
                   )}
                   {columns.includes("revenue") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-800 font-medium">
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-800 font-medium">
                       {fmtCurrency(row.revenue)}
                     </td>
                   )}
                   {columns.includes("payroll_cost") && (
-                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">
                       {fmtCurrency(row.payroll_cost)}
                     </td>
                   )}
                   {columns.includes("labor_pct") && (
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${laborPctColor(row.labor_pct)}`}>
+                    <td className={`px-4 py-2.5 text-center tabular-nums ${laborPctColor(row.labor_pct)}`}>
                       {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
                     </td>
                   )}
                   {columns.includes("efficiency_pct") && (
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${row.efficiency_pct >= 1 ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}`}>
+                    <td className={`px-4 py-2.5 text-center tabular-nums ${row.efficiency_pct >= 1 ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}`}>
                       {row.efficiency_pct !== null ? fmtPct(row.efficiency_pct) : "—"}
                     </td>
                   )}
@@ -322,21 +322,21 @@ function JobTableWidget({
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50">
                 <td colSpan={columns.filter(c => ["date","client_name","service","crew_code","budgeted_hours","actual_hours"].includes(c)).length}
-                  className="px-4 py-2.5 text-xs font-semibold text-gray-500 text-right">
-                  TOTAL →
+                  className="px-4 py-2.5 text-xs font-semibold text-gray-500 text-center">
+                  TOTALS
                 </td>
                 {columns.includes("revenue") && (
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
+                  <td className="px-4 py-2.5 text-center font-bold text-gray-900 tabular-nums">
                     {fmtCurrency(totalRevenue)}
                   </td>
                 )}
                 {columns.includes("payroll_cost") && (
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
+                  <td className="px-4 py-2.5 text-center font-bold text-gray-900 tabular-nums">
                     {fmtCurrency(totalPayroll)}
                   </td>
                 )}
                 {columns.includes("labor_pct") && (
-                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${laborPctColor(totalRevenue > 0 ? totalPayroll / totalRevenue : null)}`}>
+                  <td className={`px-4 py-2.5 text-center font-bold tabular-nums ${laborPctColor(totalRevenue > 0 ? totalPayroll / totalRevenue : null)}`}>
                     {totalRevenue > 0 ? fmtPct(totalPayroll / totalRevenue) : "—"}
                   </td>
                 )}
@@ -1322,9 +1322,15 @@ export default function ReportBuilderPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50">
+
+      {/* Print-only header: Atlas logo centered */}
+      <div className="hidden print:flex flex-col items-center justify-center pb-6 pt-2">
+        <img src="/atlas-logo.png" alt="Atlas" style={{ height: 56, mixBlendMode: "multiply" }} />
+      </div>
+
       {/* Sticky header */}
       <div
-        className="sticky top-0 z-30 border-b border-white/10 shadow-lg print:hidden"
+        className="no-print sticky top-0 z-30 border-b border-white/10 shadow-lg"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
       >
         <div className="mx-auto max-w-[1400px] px-6 py-3 flex items-center gap-4">
@@ -1464,7 +1470,17 @@ export default function ReportBuilderPage() {
       <style jsx global>{`
         @media print {
           body { background: white !important; }
-          .print\\:hidden { display: none !important; }
+          .no-print { display: none !important; }
+          /* Release scroll containers so all pages render */
+          .print-root, .print-root * {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          /* Keep tables together where possible */
+          table { break-inside: auto; }
+          tr    { break-inside: avoid; }
+          thead { display: table-header-group; }
         }
       `}</style>
     </div>

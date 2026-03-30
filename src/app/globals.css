@@ -63,3 +63,50 @@ thead th {
   z-index: 10;
   background-color: white;
 }
+
+/* ── Print styles ─────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 0.6in 0.75in;
+  }
+
+  /* Kill the app shell chrome */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Release ALL height, overflow, and flex constraints so content
+     flows naturally across multiple print pages */
+  html, body,
+  body > *,
+  body > * > *,
+  body > * > * > * {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Undo flex layout that clips content */
+  .print-root,
+  .print-root > * {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Prevent sticky/fixed positioning from duplicating on every page */
+  [class*="sticky"],
+  [class*="fixed"] {
+    position: relative !important;
+  }
+
+  /* Avoid breaking inside table rows and stat cards */
+  tr, .stat-card-widget {
+    break-inside: avoid;
+  }
+
+  body {
+    background: white !important;
+  }
+}

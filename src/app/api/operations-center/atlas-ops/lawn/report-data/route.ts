@@ -491,7 +491,7 @@ export async function POST(req: NextRequest) {
           lawn_production_jobs (
             id, client_name, service, crew_code, budgeted_hours, actual_hours,
             lawn_production_members (
-              employee_id, resource_name, earned_amount, payroll_cost
+              employee_id, resource_name, earned_amount, payroll_cost, actual_hours
             )
           )
         `)
@@ -500,6 +500,22 @@ export async function POST(req: NextRequest) {
         .gte("report_date", start)
         .lte("report_date", end)
         .order("report_date", { ascending: true });
+
+      // Pass 1 — for each person+date, sum their actual_hours across ALL jobs that day.
+      // payroll_cost on each member row is the person's FULL daily cost.
+      // We prorate it: job_actual_hrs / person_total_actual_hrs_for_day.
+      const personDayActHrs = new Map<string, number>(); // key: `${date}|${personKey}`
+      for (const r of reports ?? []) {
+        const date = r.report_date as string;
+        for (const j of (r as any).lawn_production_jobs ?? []) {
+          for (const m of (j as any).lawn_production_members ?? []) {
+            const pk = m.employee_id ?? m.resource_name ?? "";
+            if (!pk) continue;
+            const key = `${date}|${pk}`;
+            personDayActHrs.set(key, (personDayActHrs.get(key) ?? 0) + Number(m.actual_hours ?? 0));
+          }
+        }
+      }
 
       type JobRow = {
         date: string;
@@ -516,6 +532,7 @@ export async function POST(req: NextRequest) {
 
       const rows: JobRow[] = [];
 
+      // Pass 2 — build job rows with correctly prorated payroll cost
       for (const r of reports ?? []) {
         const date = r.report_date as string;
         for (const j of (r as any).lawn_production_jobs ?? []) {
@@ -530,10 +547,11 @@ export async function POST(req: NextRequest) {
 
           for (const m of (j as any).lawn_production_members ?? []) {
             revenue += Number(m.earned_amount ?? 0);
-            // payroll_cost is the member's full daily cost — prorate by job hrs / total day hrs
-            const jobHrs  = Number(m.actual_hours ?? 0);
-            const dayHrs  = Number(m.total_payroll_hours ?? 0);
-            const ratio   = dayHrs > 0 ? jobHrs / dayHrs : 1;
+            const pk = m.employee_id ?? m.resource_name ?? "";
+            const jobActHrs = Number(m.actual_hours ?? 0);
+            const dayActHrs = pk ? (personDayActHrs.get(`${date}|${pk}`) ?? 0) : 0;
+            // Prorate this person's daily cost by their fraction of hours on this job
+            const ratio = dayActHrs > 0 ? jobActHrs / dayActHrs : 1;
             payrollCost += Number(m.payroll_cost ?? 0) * ratio;
           }
 
