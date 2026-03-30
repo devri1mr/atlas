@@ -169,6 +169,20 @@ export async function POST(req: NextRequest) {
       div = divList.find(d => wordPrefixMatch(d.name, punchItem));
       if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
+      // 4. Word-suffix: CSV name matches the trailing words of an at_division name
+      //    e.g. "Tree Farm" matches "Admin: DRDG Tree Farm"
+      atDiv = atDivList.find(d => {
+        const atWords  = d.name.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+        const csvWords = punchItem.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+        if (csvWords.length === 0 || csvWords.length >= atWords.length) return false;
+        const tail = atWords.slice(atWords.length - csvWords.length);
+        return csvWords.every((w, i) => {
+          const len = Math.min(w.length, tail[i].length, 4);
+          return w.slice(0, len) === tail[i].slice(0, len);
+        });
+      });
+      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
+
       return null;
     }
 

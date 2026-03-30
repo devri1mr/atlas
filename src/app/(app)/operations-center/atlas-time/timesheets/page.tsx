@@ -19,14 +19,14 @@ const DEFAULT_SETTINGS: HRSettings = {
 type RawPunch = {
   id: string; employee_id: string; clock_in_at: string; clock_out_at: string | null;
   date_for_payroll: string; punch_method: string; status: string; is_manual: boolean | null;
-  division_id: string | null; employee_note: string | null; manager_note: string | null;
+  division_id: string | null; at_division_id: string | null; employee_note: string | null; manager_note: string | null;
   regular_hours: number | null; ot_hours: number | null; dt_hours: number | null;
   lunch_deducted_mins: number | null; approved_at: string | null; locked: boolean | null;
   at_employees: { id: string; first_name: string; last_name: string; preferred_name: string | null; job_title: string | null; default_pay_rate: number | null; pay_type: string; at_departments: { name: string } | null } | null;
   divisions: { id: string; name: string; qb_class_name: string | null } | null;
 };
 
-type Division = { id: string; name: string; active: boolean };
+type Division = { id: string; name: string; active: boolean; source?: string };
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -157,10 +157,12 @@ export default function TimesheetsPage() {
   }
 
   function startEdit(p: RawPunch) {
+    // Use at_division_id as the dropdown key when present (at_divisions have their own UUID in the list)
+    const divKey = p.at_division_id ?? p.division_id ?? "";
     setEditing(prev => ({ ...prev, [p.id]: {
       clock_in_at:  p.clock_in_at.slice(0, 16),
       clock_out_at: p.clock_out_at?.slice(0, 16) ?? "",
-      division_id:  p.division_id ?? "",
+      division_id:  divKey,
       employee_note: p.employee_note ?? "",
       manager_note: p.manager_note ?? "",
       lunch_deducted_mins: p.lunch_deducted_mins ?? 0,
@@ -174,13 +176,22 @@ export default function TimesheetsPage() {
       const origPunch = [...byEmployee.values()].flat().find(p => p.id === punchId);
       const origLunch = origPunch?.lunch_deducted_mins ?? 0;
       const newLunch  = (draft?.lunch_deducted_mins as number) ?? origLunch;
+      // Determine if selected division is an at_division (time_clock_only) or a main division
+      const selectedDivKey = (draft?.division_id as string) || null;
+      const selectedDiv = selectedDivKey ? divisions.find(d => d.id === selectedDivKey) : null;
+      const isAtDiv = selectedDiv?.source === "time_clock";
+
       const res = await fetch(`/api/atlas-time/punches/${punchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clock_in_at:        draft?.clock_in_at  ? new Date(draft.clock_in_at!  as string).toISOString() : undefined,
           clock_out_at:       draft?.clock_out_at ? new Date(draft.clock_out_at! as string).toISOString() : null,
-          division_id:        (draft?.division_id as string) || null,
+          // at_divisions have their own UUID; send as at_division_id so the API resolves the parent division_id
+          ...(isAtDiv
+            ? { at_division_id: selectedDivKey, division_id: null }
+            : { division_id: selectedDivKey || null, at_division_id: null }
+          ),
           employee_note:      draft?.employee_note,
           manager_note:       draft?.manager_note,
           ...(newLunch !== origLunch ? { lunch_deducted_mins: newLunch } : {}),
