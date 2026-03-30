@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         // All upcoming revenue entries for the month
         sb
           .from("lawn_upcoming_revenue")
-          .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
+          .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other, is_voided")
           .eq("company_id", company.id)
           .gte("date", monthStart)
           .lte("date", monthEnd),
@@ -51,10 +51,10 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Planned = upcoming entries for dates WITHOUT a completed import
+      // Planned = upcoming entries for dates WITHOUT a completed import and not voided
       let plannedTotal = 0;
       for (const p of planned ?? []) {
-        if (!completedDates.has((p as any).date)) {
+        if (!completedDates.has((p as any).date) && !(p as any).is_voided) {
           plannedTotal += Number(p.mowing ?? 0) + Number(p.weeding ?? 0) + Number(p.shrubs ?? 0)
             + Number(p.cleanups ?? 0) + Number(p.brush_hogging ?? 0)
             + Number(p.string_trimming ?? 0) + Number(p.other ?? 0);
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await sb
       .from("lawn_upcoming_revenue")
-      .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other")
+      .select("date, mowing, weeding, shrubs, cleanups, brush_hogging, string_trimming, other, is_voided")
       .eq("company_id", company.id)
       .gte("date", start)
       .lte("date", end)
@@ -104,6 +104,29 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data ?? []);
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
+// PATCH — void one or more dates { dates: string[] }
+export async function PATCH(req: NextRequest) {
+  try {
+    const sb = supabaseAdmin();
+    const { data: company } = await sb.from("companies").select("id").limit(1).single();
+    if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+    const { dates }: { dates: string[] } = await req.json();
+    if (!dates?.length) return NextResponse.json({ error: "dates required" }, { status: 400 });
+
+    const { error } = await sb
+      .from("lawn_upcoming_revenue")
+      .update({ is_voided: true, updated_at: new Date().toISOString() })
+      .eq("company_id", company.id)
+      .in("date", dates);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }

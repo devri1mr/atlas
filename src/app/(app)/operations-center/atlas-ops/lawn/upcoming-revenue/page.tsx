@@ -20,6 +20,7 @@ type DayRow = {
   date: string;
   mowing: number; weeding: number; shrubs: number; cleanups: number;
   brush_hogging: number; string_trimming: number; other: number;
+  is_voided?: boolean;
 };
 
 type MonthSummary = { actual: number; planned: number };
@@ -72,8 +73,11 @@ function dayTotal(row: DayRow): number {
 function weekTotal(data: Map<string, DayRow>, dates: string[]): number {
   return dates.reduce((s, d) => s + dayTotal(data.get(d) ?? {} as DayRow), 0);
 }
-function categoryWeekTotal(data: Map<string, DayRow>, dates: string[], cat: Category): number {
-  return dates.reduce((s, d) => s + (data.get(d)?.[cat] ?? 0), 0);
+function categoryWeekTotal(data: Map<string, DayRow>, dates: string[], cat: Category, today: string, lockedDates: Map<string, number>): number {
+  return dates.reduce((s, d) => {
+    if (d < today && !lockedDates.has(d)) return s; // past non-official = $0
+    return s + (data.get(d)?.[cat] ?? 0);
+  }, 0);
 }
 
 // ── Editable cell ─────────────────────────────────────────────────────────────
@@ -138,6 +142,8 @@ export default function UpcomingRevenuePage() {
   const [lockedDates, setLockedDates]   = useState<Map<string, number>>(new Map());
   const [syncState, setSyncState]       = useState<SyncState>("idle");
   const [syncError, setSyncError]       = useState("");
+  const [voidedDates, setVoidedDates]   = useState<Set<string>>(new Set());
+  const [voiding, setVoiding]           = useState(false);
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -167,6 +173,7 @@ export default function UpcomingRevenuePage() {
         for (const r of rows) next.set(r.date, r);
         return next;
       });
+      setVoidedDates(new Set(rows.filter(r => r.is_voided).map(r => r.date)));
     }
     if (lockedRes.ok) {
       const locked: LockedDate[] = await lockedRes.json();
@@ -219,8 +226,17 @@ export default function UpcomingRevenuePage() {
     }
   }
 
-  const weekRev = dates.reduce((s, d) =>
-    s + (lockedDates.has(d) ? lockedDates.get(d)! : dayTotal(data.get(d) ?? {} as DayRow)), 0);
+  const weekRev = dates.reduce((s, d) => {
+    if (lockedDates.has(d)) return s + lockedDates.get(d)!;
+    if (d < today) return s; // past without official import = $0
+    return s + dayTotal(data.get(d) ?? {} as DayRow);
+  }, 0);
+
+  // Past days with planned revenue that aren't official or voided — need attention
+  const unresolvedPastDates = dates.filter(d =>
+    d < today && !lockedDates.has(d) && !voidedDates.has(d) &&
+    dayTotal(data.get(d) ?? {} as DayRow) > 0
+  );
   const projection     = monthSummary ? monthSummary.actual + monthSummary.planned : null;
   const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
@@ -237,6 +253,28 @@ export default function UpcomingRevenuePage() {
     setTimeout(() => win?.close(), 4000);
     setSyncState("ok");
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
+  }
+
+  async function handleFinalizeWeek() {
+    if (!unresolvedPastDates.length) return;
+    setVoiding(true);
+    try {
+      const res = await fetch("/api/operations-center/atlas-ops/lawn/upcoming-revenue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dates: unresolvedPastDates }),
+      });
+      if (res.ok) {
+        setVoidedDates(prev => new Set([...prev, ...unresolvedPastDates]));
+        // Refresh month summary
+        const ym = dates[0].slice(0, 7);
+        fetch(`/api/operations-center/atlas-ops/lawn/upcoming-revenue?summary=${ym}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => d && setMonthSummary(d));
+      }
+    } finally {
+      setVoiding(false);
+    }
   }
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
@@ -264,6 +302,20 @@ export default function UpcomingRevenuePage() {
                 <div className="text-xs text-white/40 uppercase tracking-wider">Week Total</div>
                 <div className="text-xl font-bold text-emerald-300">{moneyFull(weekRev)}</div>
               </div>
+            )}
+            {/* Finalize Week button — only when there are unresolved past days */}
+            {unresolvedPastDates.length > 0 && (
+              <button
+                onClick={handleFinalizeWeek}
+                disabled={voiding}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border bg-amber-500/20 border-amber-400/50 text-amber-300 hover:bg-amber-500/30"
+                title={`${unresolvedPastDates.length} past day${unresolvedPastDates.length > 1 ? "s" : ""} with unresolved planned revenue`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {voiding ? "Closing…" : `Finalize Week (${unresolvedPastDates.length})`}
+              </button>
             )}
             {/* Sync to Sheets button */}
             <button
@@ -314,9 +366,11 @@ export default function UpcomingRevenuePage() {
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Category</span>
                   </th>
                   {dates.map(date => {
-                    const isToday  = date === today;
-                    const isPast   = date < today;
-                    const isLocked = lockedDates.has(date);
+                    const isToday      = date === today;
+                    const isPast       = date < today;
+                    const isLocked     = lockedDates.has(date);
+                    const isVoided     = voidedDates.has(date);
+                    const isUnresolved = isPast && !isLocked && !isVoided && dayTotal(data.get(date) ?? {} as DayRow) > 0;
                     return (
                       <th key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ minWidth: 100, background: isToday ? BG_TODAY_H : BG_HEADER }}>
@@ -331,6 +385,16 @@ export default function UpcomingRevenuePage() {
                           {isLocked && (
                             <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
                               Official
+                            </span>
+                          )}
+                          {isVoided && (
+                            <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-white/10 text-white/40 border border-white/20">
+                              Voided
+                            </span>
+                          )}
+                          {isUnresolved && (
+                            <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                              Unresolved
                             </span>
                           )}
                         </div>
@@ -348,16 +412,26 @@ export default function UpcomingRevenuePage() {
                     <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Lawn Total</span>
                   </td>
                   {dates.map(date => {
-                    const row      = data.get(date);
-                    const isLocked = lockedDates.has(date);
-                    const total    = isLocked ? lockedDates.get(date)! : (row ? dayTotal(row) : 0);
-                    const isToday  = date === today;
+                    const row          = data.get(date);
+                    const isLocked     = lockedDates.has(date);
+                    const isVoided     = voidedDates.has(date);
+                    const isPast       = date < today;
+                    const plannedTotal = row ? dayTotal(row) : 0;
+                    const total        = isLocked ? lockedDates.get(date)! : (isPast && !isLocked ? 0 : plannedTotal);
+                    const isToday      = date === today;
+                    const isUnresolved = isPast && !isLocked && !isVoided && plannedTotal > 0;
                     return (
                       <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ background: isToday ? BG_TODAY_H : BG_TOTAL }}>
-                        <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/20"}`}>
-                          {total > 0 ? money(total) : "—"}
-                        </span>
+                        {isVoided && plannedTotal > 0 ? (
+                          <span className="text-sm font-bold text-white/25 line-through">{money(plannedTotal)}</span>
+                        ) : isUnresolved ? (
+                          <span className="text-sm font-bold text-amber-400/70">{money(plannedTotal)}</span>
+                        ) : (
+                          <span className={`text-sm font-bold ${total > 0 ? (isToday ? "text-emerald-300" : "text-white") : "text-white/20"}`}>
+                            {total > 0 ? money(total) : "—"}
+                          </span>
+                        )}
                         {saving.has(date) && <span className="block text-[10px] text-emerald-400/60 mt-0.5">saving…</span>}
                       </td>
                     );
@@ -373,7 +447,7 @@ export default function UpcomingRevenuePage() {
               {/* Category rows */}
               <tbody>
                 {CATEGORIES.map((cat, ci) => {
-                  const catWeek = categoryWeekTotal(data, dates, cat.key);
+                  const catWeek = categoryWeekTotal(data, dates, cat.key, today, lockedDates);
                   return (
                     <tr key={cat.key} className="group">
                       <td className="px-5 py-2.5 border border-gray-200" style={{ background: ci % 2 === 0 ? "#fff" : "#f9fafb" }}>
@@ -383,14 +457,23 @@ export default function UpcomingRevenuePage() {
                         </div>
                       </td>
                       {dates.map(date => {
-                        const row      = data.get(date);
-                        const val      = row?.[cat.key] ?? 0;
-                        const isToday  = date === today;
-                        const isLocked = lockedDates.has(date);
-                        const bgColor  = isToday ? "#ecfdf5" : isLocked ? "#f0fdf4" : ci % 2 === 0 ? "#fff" : "#f9fafb";
+                        const row          = data.get(date);
+                        const val          = row?.[cat.key] ?? 0;
+                        const isToday      = date === today;
+                        const isLocked     = lockedDates.has(date);
+                        const isVoided     = voidedDates.has(date);
+                        const isPast       = date < today;
+                        const isUnresolved = isPast && !isLocked && !isVoided && val > 0;
+                        const bgColor      = isToday ? "#ecfdf5" : isLocked ? "#f0fdf4" : isVoided ? "#f9fafb" : ci % 2 === 0 ? "#fff" : "#f9fafb";
                         return (
                           <td key={date} className="px-2 py-1.5 border border-gray-200" style={{ background: bgColor }}>
-                            <EditCell value={val} disabled={isLocked} onSave={v => handleSave(date, cat.key, v)} />
+                            {isVoided && val > 0 ? (
+                              <span className="block text-center text-xs font-semibold text-gray-300 line-through py-1.5">{money(val)}</span>
+                            ) : isUnresolved ? (
+                              <span className="block text-center text-xs font-semibold text-amber-400/60 py-1.5">{money(val)}</span>
+                            ) : (
+                              <EditCell value={val} disabled={isLocked || (isPast && !isToday)} onSave={v => handleSave(date, cat.key, v)} />
+                            )}
                           </td>
                         );
                       })}
@@ -409,16 +492,26 @@ export default function UpcomingRevenuePage() {
                 <tr>
                   <td className="px-5 py-3 text-xs font-bold text-white border border-emerald-900/50" style={{ background: BG_HEADER }}>Daily Total</td>
                   {dates.map(date => {
-                    const row      = data.get(date);
-                    const isLocked = lockedDates.has(date);
-                    const total    = isLocked ? lockedDates.get(date)! : (row ? dayTotal(row) : 0);
-                    const isToday  = date === today;
+                    const row          = data.get(date);
+                    const isLocked     = lockedDates.has(date);
+                    const isVoided     = voidedDates.has(date);
+                    const isPast       = date < today;
+                    const plannedTotal = row ? dayTotal(row) : 0;
+                    const total        = isLocked ? lockedDates.get(date)! : (isPast ? 0 : plannedTotal);
+                    const isToday      = date === today;
+                    const isUnresolved = isPast && !isLocked && !isVoided && plannedTotal > 0;
                     return (
                       <td key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ background: isToday ? BG_TODAY_H : BG_HEADER }}>
-                        <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/20"}`}>
-                          {total > 0 ? money(total) : "—"}
-                        </span>
+                        {isVoided && plannedTotal > 0 ? (
+                          <span className="text-xs font-bold text-white/20 line-through">{money(plannedTotal)}</span>
+                        ) : isUnresolved ? (
+                          <span className="text-xs font-bold text-amber-400/60">{money(plannedTotal)}</span>
+                        ) : (
+                          <span className={`text-xs font-bold ${total > 0 ? "text-emerald-300" : "text-white/20"}`}>
+                            {total > 0 ? money(total) : "—"}
+                          </span>
+                        )}
                       </td>
                     );
                   })}
