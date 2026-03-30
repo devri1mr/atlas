@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -512,7 +514,7 @@ export default function TimesheetsPage() {
                                 <td className="px-3 py-2.5 text-center font-semibold tabular-nums">{h(reg)}</td>
                                 <td className={`px-3 py-2.5 text-center font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2.5 text-center font-bold tabular-nums">{h(total)}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.at_divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.at_divisions?.name ?? p.divisions?.name ?? "—"}</td>
                                 <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap">{p.divisions?.name ?? "—"}</td>
                                 <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                   {p.locked
