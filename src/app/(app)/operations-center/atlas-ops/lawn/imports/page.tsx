@@ -961,8 +961,24 @@ export default function LawnPage() {
 
         {/* Reports list */}
         <div className="rounded-xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
-          <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3">
+          <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-emerald-950">Imported Reports</div>
+            {reports.length > 0 && (() => {
+              const complete = reports.filter(r => r.is_complete).length;
+              const total    = reports.length;
+              return (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <div className="flex gap-0.5">
+                    {reports.map(r => (
+                      <div key={r.id} className={`w-2 h-2 rounded-full ${r.is_complete ? "bg-emerald-500" : "bg-gray-200"}`} />
+                    ))}
+                  </div>
+                  <span className={`font-semibold ${complete === total ? "text-emerald-600" : "text-gray-500"}`}>
+                    {complete} of {total} complete
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {loading ? (
