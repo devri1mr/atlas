@@ -553,29 +553,44 @@ function TimesheetsInner() {
 
                       {/* Punch item hours breakdown */}
                       {(() => {
-                        const byItem = new Map<string, number>();
+                        const byItem = new Map<string, { reg: number; ot: number; dt: number }>();
                         for (const p of sortedPunches) {
                           if (!p.clock_out_at) continue;
                           const c = compMap.get(p.id);
                           const recalced = p.regular_hours !== null;
-                          const total = recalced
-                            ? (p.regular_hours ?? 0) + (p.ot_hours ?? 0) + (p.dt_hours ?? 0)
-                            : (c?.regular_hours ?? 0) + (c?.ot_hours ?? 0) + (c?.dt_hours ?? 0);
+                          const reg = recalced ? (p.regular_hours ?? 0) : (c?.regular_hours ?? 0);
+                          const ot  = recalced ? (p.ot_hours     ?? 0) : (c?.ot_hours     ?? 0);
+                          const dt  = recalced ? (p.dt_hours     ?? 0) : (c?.dt_hours     ?? 0);
                           const label = p.at_divisions?.name ?? p.divisions?.name ?? p.at_divisions?.divisions?.name ?? "Unassigned";
-                          byItem.set(label, (byItem.get(label) ?? 0) + total);
+                          const cur = byItem.get(label) ?? { reg: 0, ot: 0, dt: 0 };
+                          byItem.set(label, { reg: cur.reg + reg, ot: cur.ot + ot, dt: cur.dt + dt });
                         }
                         if (byItem.size <= 1) return null;
-                        const rows = [...byItem.entries()].sort((a, b) => b[1] - a[1]);
+                        const rows = [...byItem.entries()].sort((a, b) => (b[1].reg + b[1].ot + b[1].dt) - (a[1].reg + a[1].ot + a[1].dt));
                         return (
                           <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Hours by Punch Item</div>
-                            <div className="flex flex-wrap gap-x-6 gap-y-1">
-                              {rows.map(([label, hrs]) => (
-                                <div key={label} className="flex items-center gap-1.5 text-xs">
-                                  <span className="text-gray-500">{label}</span>
-                                  <span className="font-bold text-gray-800 tabular-nums">{h(hrs)}</span>
-                                </div>
-                              ))}
+                            <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                              {rows.map(([label, hrs]) => {
+                                const hasOT = hrs.ot > 0 || hrs.dt > 0;
+                                const total = hrs.reg + hrs.ot + hrs.dt;
+                                return (
+                                  <div key={label} className="flex items-center gap-1.5 text-xs">
+                                    <span className="text-gray-500">{label}</span>
+                                    {hasOT ? (
+                                      <>
+                                        <span className="tabular-nums text-gray-700">{h(hrs.reg)}<span className="text-gray-400 font-normal"> reg</span></span>
+                                        <span className="text-gray-300">·</span>
+                                        <span className="tabular-nums text-amber-600 font-semibold">{h(hrs.ot)}<span className="text-amber-400 font-normal"> OT</span></span>
+                                        {hrs.dt > 0 && <><span className="text-gray-300">·</span><span className="tabular-nums text-red-600 font-semibold">{h(hrs.dt)}<span className="text-red-400 font-normal"> DT</span></span></>}
+                                        <span className="text-gray-300 text-[10px]">({h(total)})</span>
+                                      </>
+                                    ) : (
+                                      <span className="font-bold text-gray-800 tabular-nums">{h(total)}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
