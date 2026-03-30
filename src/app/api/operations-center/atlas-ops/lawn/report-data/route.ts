@@ -101,6 +101,60 @@ function resolvePayRate(
 
 const PAYROLL_BURDEN = 1.15; // matches import logic
 
+// ── Admin pay helpers ─────────────────────────────────────────────────────────
+
+const MONTH_KEYS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"] as const;
+
+function weekdaysInMonth(year: number, month: number): number {
+  const days = new Date(year, month, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
+function adminDailyRate(dateStr: string, config: any, overrideMap: Map<string, number | null>): number {
+  const d = new Date(dateStr + "T12:00:00Z");
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return 0;
+  if (overrideMap.has(dateStr)) { const ov = overrideMap.get(dateStr); return ov ?? 0; }
+  if (!config) return 0;
+  const mk = MONTH_KEYS[d.getUTCMonth()];
+  const monthlyRate = config[`${mk}_daily`];
+  if (monthlyRate != null) return Number(monthlyRate);
+  const annualTotal = Number(config.manager_1_annual ?? 0) + Number(config.manager_2_annual ?? 0);
+  if (annualTotal <= 0) return 0;
+  const wkdays = weekdaysInMonth(d.getUTCFullYear(), d.getUTCMonth() + 1);
+  return wkdays > 0 ? (annualTotal / 12) / wkdays : 0;
+}
+
+async function getAdminPayForRange(
+  sb: ReturnType<typeof supabaseAdmin>,
+  companyId: string,
+  start: string,
+  end: string
+): Promise<number> {
+  const [{ data: adminConfig }, { data: adminOverrides }] = await Promise.all([
+    sb.from("lawn_admin_pay_config").select("*").eq("company_id", companyId).maybeSingle(),
+    sb.from("lawn_admin_pay_overrides").select("date, payroll_cost")
+      .eq("company_id", companyId).gte("date", start).lte("date", end),
+  ]);
+  const overrideMap = new Map<string, number | null>();
+  for (const ov of adminOverrides ?? []) {
+    overrideMap.set(ov.date as string, ov.payroll_cost != null ? Number(ov.payroll_cost) : null);
+  }
+  let total = 0;
+  const cur = new Date(start + "T12:00:00Z");
+  const stop = new Date(end + "T12:00:00Z");
+  while (cur <= stop) {
+    total += adminDailyRate(cur.toISOString().slice(0, 10), adminConfig, overrideMap);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return total;
+}
+
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -264,6 +318,10 @@ export async function POST(req: NextRequest) {
           const dt = Number((p as any).dt_hours ?? 0);
           totalPayroll += (reg * rate + ot * rate * otMult + dt * rate * dtMult) * PAYROLL_BURDEN;
         }
+
+        // Add admin pay for all weekdays in the date range
+        const adminPay = await getAdminPayForRange(sb, company.id, start, end);
+        totalPayroll += adminPay;
 
         if (metric === "total_payroll") {
           value = totalPayroll;
