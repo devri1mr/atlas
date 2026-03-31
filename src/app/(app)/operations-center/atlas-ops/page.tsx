@@ -85,14 +85,14 @@ function FVal({ v, color }: { v: number; color?: string }) {
 }
 
 function OverUnder({ v }: { v: number }) {
-  if (v === 0) return <span className="text-gray-300">—</span>;
+  if (v === 0) return <span className="font-semibold text-gray-400">$0</span>;
   const color = v >= 0 ? "text-emerald-600" : "text-red-500";
   const sign  = v >= 0 ? "+" : "";
   return <span className={`font-semibold ${color}`}>{sign}{money(v)}</span>;
 }
 
 function FOverUnder({ v }: { v: number }) {
-  if (v === 0) return <span className="text-white/25">—</span>;
+  if (v === 0) return <span style={{ color: "rgba(255,255,255,0.4)" }}>$0</span>;
   const color = v >= 0 ? "#6ee7b7" : "#fca5a5";
   const sign  = v >= 0 ? "+" : "";
   return <span style={{ color }}>{sign}{money(v)}</span>;
