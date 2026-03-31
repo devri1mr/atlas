@@ -385,7 +385,7 @@ const [bundleAnswers, setBundleAnswers] = useState<Record<string, any>>({});
 const [loadingBundles, setLoadingBundles] = useState(false);
 const [loadingBundleQuestions, setLoadingBundleQuestions] = useState(false);
 const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
-const [showBundlePanel, setShowBundlePanel] = useState(false);
+const [openBundleCardId, setOpenBundleCardId] = useState<string | null>(null);
 const [calcOpenForRow, setCalcOpenForRow] = useState<string | null>(null);
 const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string; depth: string }>>({});
 
@@ -412,12 +412,12 @@ const [bidMeasurements, setBidMeasurements] = useState<MeasurementRow[]>([]);
 
   // Lazy-load measurements when the bundle panel opens
   useEffect(() => {
-    if (!showBundlePanel || !bidId || bidMeasurements.length > 0) return;
+    if (!openBundleCardId || !bidId || bidMeasurements.length > 0) return;
     fetch(`/api/atlasbid/bid-measurements?bid_id=${bidId}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => setBidMeasurements(Array.isArray(j?.rows) ? j.rows : []))
       .catch(() => {});
-  }, [showBundlePanel, bidId]);
+  }, [openBundleCardId, bidId]);
 function normalizeMaterialText(v: unknown) {
   return String(v ?? "").trim().toLowerCase();
 }
@@ -1145,6 +1145,9 @@ if (json?.bundle_run?.id) {
     { id: json.bundle_run.id, bundle_id: selectedBundleId, bundle_name: bundleName },
   ]);
 }
+setOpenBundleCardId(null);
+setSelectedBundleId("");
+setBundleQuestions([]);
 
 // Targeted refresh: only reload materials (bundle apply adds/updates material qtys)
 const matRes = await fetch(`/api/atlasbid/bid-materials?bid_id=${bidId}`, { cache: "no-store" });
@@ -1797,18 +1800,139 @@ async function addLabor() {
         </div>
       ) : (
         <>
+          {/* ── Add Work — Bundle Cards ───────────────────────────────────────── */}
+          {scopeBundles.length > 0 && (
+            <div className="rounded-2xl overflow-hidden mb-4" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
+              <div className="px-5 pt-4 pb-3">
+                <p className="text-emerald-400/80 text-[10px] font-bold uppercase tracking-widest mb-3">Add Work</p>
+                <div className="flex flex-wrap gap-2">
+                  {scopeBundles.map((bundle) => {
+                    const isOpen = openBundleCardId === bundle.id;
+                    return (
+                      <button
+                        key={bundle.id}
+                        type="button"
+                        onClick={() => {
+                          if (isOpen) {
+                            setOpenBundleCardId(null);
+                            setSelectedBundleId("");
+                            setBundleQuestions([]);
+                          } else {
+                            setOpenBundleCardId(bundle.id);
+                            setSelectedBundleId(bundle.id);
+                            loadBundleQuestions(bundle.id);
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                          isOpen
+                            ? "bg-emerald-500/25 border-emerald-400/70 text-white"
+                            : "bg-white/5 border-white/15 text-white/75 hover:bg-white/10 hover:border-white/30 hover:text-white"
+                        }`}
+                      >
+                        <span className={`text-base leading-none ${isOpen ? "text-emerald-300" : "text-emerald-500"}`}>+</span>
+                        {bundle.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Expanded question form */}
+              {openBundleCardId && selectedBundleId && (
+                <div className="border-t border-white/10 px-5 py-5">
+                  {loadingBundleQuestions ? (
+                    <div className="text-white/50 text-sm">Loading questions…</div>
+                  ) : bundleQuestions.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                        {bundleQuestions.map((q) => (
+                          <div key={q.id}>
+                            <label className="block text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-1.5">
+                              {q.label}{q.unit ? ` (${q.unit})` : ""}
+                              {q.required && <span className="text-red-400 ml-1">*</span>}
+                            </label>
+                            {q.input_type === "number" ? (
+                              <div className="space-y-1.5">
+                                <input
+                                  type="number"
+                                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                                  placeholder={q.help_text || "0"}
+                                  value={bundleAnswers[q.question_key] ?? ""}
+                                  onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: Number(e.target.value) }))}
+                                />
+                                {bidMeasurements.filter((m) => m.unit === q.unit).length > 0 && (
+                                  <select
+                                    className="w-full bg-emerald-900/60 border border-emerald-600/40 rounded-xl px-2 py-1.5 text-xs text-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      const m = bidMeasurements.find((x) => x.id === e.target.value);
+                                      if (m) setBundleAnswers((prev) => ({ ...prev, [q.question_key]: m.computed_value }));
+                                    }}
+                                  >
+                                    <option value="">📐 Use a measurement…</option>
+                                    {bidMeasurements.filter((m) => m.unit === q.unit).map((m) => (
+                                      <option key={m.id} value={m.id}>{m.label} — {m.computed_value.toLocaleString()} {m.unit}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            ) : q.input_type === "checkbox" ? (
+                              <label className="inline-flex items-center gap-2 text-white/80 text-sm cursor-pointer mt-1">
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-white/30 bg-white/10 w-4 h-4 accent-emerald-400"
+                                  checked={bundleAnswers[q.question_key] === true}
+                                  onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))}
+                                />
+                                <span>{q.label}</span>
+                              </label>
+                            ) : (q.input_type === "material_select" || q.options_json?.widget === "material_select") ? (
+                              <MaterialSelectInput
+                                questionKey={q.question_key}
+                                value={bundleAnswers[q.question_key] ?? ""}
+                                onChange={(id, name) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: id, [`${q.question_key}__name`]: name }))}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                                value={bundleAnswers[q.question_key] ?? ""}
+                                onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.value }))}
+                              />
+                            )}
+                            {q.help_text && q.input_type !== "number" ? (
+                              <div className="text-[10px] text-white/40 mt-1">{q.help_text}</div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={loadSelectedBundleIntoBid}
+                          disabled={loadingBundleIntoBid}
+                          className="bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loadingBundleIntoBid ? "Applying…" : "Apply to Bid"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setOpenBundleCardId(null); setSelectedBundleId(""); setBundleQuestions([]); }}
+                          className="text-white/40 hover:text-white/70 text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )}
           <div className="border rounded-lg">
   <div className="bg-gray-50 border-b px-5 py-3 rounded-t-lg">
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
-        <button
-          type="button"
-          onClick={() => setShowBundlePanel((v) => !v)}
-          className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${showBundlePanel ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600"}`}
-        >
-          {showBundlePanel ? "Hide Bundles" : "+ Bundle"}
-        </button>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -1837,85 +1961,6 @@ async function addLabor() {
       </div>
     </div>
   </div>
-  {showBundlePanel && (
-  <div className="border-b bg-amber-50/30 p-4 space-y-3">
-    <div className="grid grid-cols-12 gap-4 items-end">
-      <div className="col-span-8">
-        <label className="block text-xs font-semibold text-gray-600 mb-1">Bundle</label>
-        <select
-          className="border p-2 rounded w-full h-10"
-          value={selectedBundleId}
-          onChange={async (e) => {
-            const nextId = e.target.value;
-            setSelectedBundleId(nextId);
-            await loadBundleQuestions(nextId);
-          }}
-        >
-          <option value="">— Select Bundle —</option>
-          {scopeBundles.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="col-span-4">
-        <button
-          onClick={loadSelectedBundleIntoBid}
-          disabled={!selectedBundleId || loadingBundleIntoBid || loadingBundleQuestions}
-          className="bg-emerald-700 text-white rounded px-4 py-2 h-10 w-full disabled:opacity-50"
-        >
-          {loadingBundleIntoBid ? "Loading…" : "Load Bundle"}
-        </button>
-      </div>
-    </div>
-    {loadingBundles ? <div className="text-sm text-gray-500">Loading bundles…</div> : null}
-    {selectedBundleId && bundleQuestions.length > 0 ? (
-    <div className="border rounded p-3 bg-white text-sm space-y-3">
-      <div className="font-semibold mb-1">Bundle Questions</div>
-      {bundleQuestions.map((q) => (
-        <div key={q.id} className="space-y-1">
-          <label className="block text-xs font-semibold text-gray-600">
-            {q.label}{q.unit ? ` (${q.unit})` : ""}
-          </label>
-          {q.input_type === "number" ? (
-            <div className="space-y-1">
-              <input type="number" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: Number(e.target.value) }))} />
-              {bidMeasurements.filter((m) => m.unit === q.unit).length > 0 && (
-                <select
-                  className="border border-green-200 bg-green-50 rounded px-2 py-1.5 text-xs w-full text-green-800 focus:outline-none focus:ring-1 focus:ring-green-400"
-                  defaultValue=""
-                  onChange={(e) => {
-                    const m = bidMeasurements.find((x) => x.id === e.target.value);
-                    if (m) setBundleAnswers((prev) => ({ ...prev, [q.question_key]: m.computed_value }));
-                  }}
-                >
-                  <option value="">📐 Use a measurement…</option>
-                  {bidMeasurements.filter((m) => m.unit === q.unit).map((m) => (
-                    <option key={m.id} value={m.id}>{m.label} — {m.computed_value.toLocaleString()} {m.unit}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-          ) : q.input_type === "checkbox" ? (
-            <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={bundleAnswers[q.question_key] === true} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.checked }))} />
-              <span>{q.label}</span>
-            </label>
-          ) : (q.input_type === "material_select" || q.options_json?.widget === "material_select") ? (
-            <MaterialSelectInput
-              questionKey={q.question_key}
-              value={bundleAnswers[q.question_key] ?? ""}
-              onChange={(id, name) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: id, [`${q.question_key}__name`]: name }))}
-            />
-          ) : (
-            <input type="text" className="border p-2 rounded w-full" value={bundleAnswers[q.question_key] ?? ""} onChange={(e) => setBundleAnswers((prev) => ({ ...prev, [q.question_key]: e.target.value }))} />
-          )}
-          {q.help_text ? <div className="text-xs text-gray-500">{q.help_text}</div> : null}
-        </div>
-      ))}
-    </div>
-    ) : null}
-  </div>
-  )}
   <div className="p-5 space-y-4">
 
   {/* Add row */}
