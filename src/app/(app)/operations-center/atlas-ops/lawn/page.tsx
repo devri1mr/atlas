@@ -373,18 +373,21 @@ type CalcRow = {
   id: number;
   employee_id: string;
   pay_rate: string;
-  revenue: string;
   time_in: string;
 };
 
 function RevenueCalculator({ employees }: { employees: Employee[] }) {
+  const [totalRevenue, setTotalRevenue] = useState("");
   const [rows, setRows] = useState<CalcRow[]>(() =>
-    Array.from({ length: 4 }, (_, i) => ({ id: i, employee_id: "", pay_rate: "", revenue: "", time_in: "07:30" }))
+    Array.from({ length: 4 }, (_, i) => ({ id: i, employee_id: "", pay_rate: "", time_in: "07:30" }))
   );
   const nextId = React.useRef(4);
 
+  const total    = parseFloat(totalRevenue) || 0;
+  const perPerson = rows.length > 0 && total > 0 ? total / rows.length : 0;
+
   function addRow() {
-    setRows(prev => [...prev, { id: nextId.current++, employee_id: "", pay_rate: "", revenue: "", time_in: "07:30" }]);
+    setRows(prev => [...prev, { id: nextId.current++, employee_id: "", pay_rate: "", time_in: "07:30" }]);
   }
 
   function removeRow(id: number) {
@@ -405,7 +408,7 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
 
   function calcResult(row: CalcRow): { hours: number | null; time_out: string | null } {
     const rate = parseFloat(row.pay_rate);
-    const rev  = parseFloat(row.revenue);
+    const rev  = perPerson;
     if (!rate || !rev || rate <= 0 || rev <= 0) return { hours: null, time_out: null };
     let hours = (rev * 0.39) / (rate * PAYROLL_BURDEN);
     if (hours >= 6) hours += 0.5;
@@ -419,6 +422,9 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
     return { hours, time_out: outFmt };
   }
 
+  const fmtMoney = (n: number) =>
+    n > 0 ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n) : "—";
+
   return (
     <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
       <SectionHeader
@@ -429,16 +435,45 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
             onClick={addRow}
             className="text-xs rounded-lg border border-white/25 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 font-semibold transition-colors"
           >
-            + Add Row
+            + Add Person
           </button>
         }
       />
+
+      {/* Total crew revenue input */}
+      <div className="bg-white px-5 py-4 border-b border-gray-100 flex items-center gap-5 flex-wrap">
+        <div>
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Total Crew Revenue</div>
+          <div className="inline-flex items-center border-2 border-emerald-400 rounded-xl bg-emerald-50 focus-within:border-emerald-500 overflow-hidden shadow-sm">
+            <span className="pl-3 text-emerald-700 font-bold text-sm select-none">$</span>
+            <input
+              type="number"
+              value={totalRevenue}
+              onChange={e => setTotalRevenue(e.target.value)}
+              placeholder="0"
+              className="w-32 pr-3 py-2.5 text-sm font-bold bg-transparent text-emerald-900 focus:outline-none"
+            />
+          </div>
+        </div>
+        {total > 0 && rows.length > 0 && (
+          <div className="flex items-center gap-4 text-sm text-gray-500 mt-4">
+            <span className="text-gray-300">÷</span>
+            <span><span className="font-bold text-gray-700">{rows.length}</span> crew members</span>
+            <span className="text-gray-300">=</span>
+            <span>
+              <span className="font-black text-emerald-700 text-base">{fmtMoney(perPerson)}</span>
+              <span className="text-gray-400 text-xs ml-1">/ person</span>
+            </span>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white overflow-x-auto">
-        <table className="w-full text-sm border-collapse min-w-[540px]">
+        <table className="w-full text-sm border-collapse min-w-[480px]">
           <thead>
             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
               <th className="px-5 py-3 text-center">Team Member</th>
-              <th className="px-4 py-3 text-center">Target Revenue</th>
+              <th className="px-4 py-3 text-center">Revenue Share</th>
               <th className="px-4 py-3 text-center">Start Time</th>
               <th className="px-4 py-3 text-center">Hrs Needed</th>
               <th className="px-4 py-3 text-center">Clock Out</th>
@@ -465,17 +500,11 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                       ))}
                     </select>
                   </td>
+                  {/* Revenue share — computed, read-only */}
                   <td className="px-3 py-2.5 text-center">
-                    <div className="inline-flex items-center w-28 border border-gray-200 rounded-lg bg-gray-50 focus-within:border-emerald-400 overflow-hidden">
-                      <span className="pl-2.5 text-gray-400 text-xs select-none">$</span>
-                      <input
-                        type="number"
-                        value={row.revenue}
-                        onChange={e => update(row.id, "revenue", e.target.value)}
-                        placeholder="0"
-                        className="flex-1 min-w-0 pr-2 py-2 text-xs bg-transparent focus:outline-none"
-                      />
-                    </div>
+                    <span className={`inline-block font-semibold text-sm ${perPerson > 0 ? "text-gray-700" : "text-gray-300"}`}>
+                      {perPerson > 0 ? fmtMoney(perPerson) : "—"}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <input
