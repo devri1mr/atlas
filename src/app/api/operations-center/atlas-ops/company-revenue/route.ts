@@ -300,11 +300,14 @@ export async function GET(req: NextRequest) {
     let adminYtdPrior = 0;
     const adminPriorMap = nonLawnCogsMap.get("admin");
     if (adminPriorMap) for (const [, v] of adminPriorMap) adminYtdPrior += v;
-    // Current month actual from COGS
+    // Current month actual from COGS (overrides auto)
     const adminMonthActual = curCogsMap.get("admin") ?? 0;
-    const adminMonthTotal  = adminMonthActual;
+    // Auto default: -10% of Fertilization's month total
+    const fertDiv          = results.find(d => d.key === "fertilization");
+    const adminMonthAuto   = fertDiv ? Math.round(-0.1 * fertDiv.month_total) : 0;
+    const adminMonthTotal  = adminMonthActual !== 0 ? adminMonthActual : adminMonthAuto;
     const adminYtd         = adminYtdPrior + adminMonthTotal;
-    if (adminMonthBudget !== 0 || adminYtdBudget !== 0 || adminYtd !== 0) {
+    if (adminMonthBudget !== 0 || adminYtdBudget !== 0 || adminYtd !== 0 || adminMonthTotal !== 0) {
       results.push({
         key:          "admin",
         name:         "Admin",
