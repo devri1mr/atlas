@@ -229,20 +229,24 @@ function MaterialSelectInput({
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<{ id: string; name: string; default_unit?: string | null; default_unit_cost?: number | null }[]>([]);
   const [selectedName, setSelectedName] = useState("");
-  const [searched, setSearched] = useState(false);
+  const [open, setOpen] = useState(false);
 
+  async function fetchResults(q: string) {
+    const r = await fetch(`/api/materials-catalog?q=${encodeURIComponent(q)}`).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setResults(j?.data ?? []);
+  }
+
+  // Debounced search while typing
   useEffect(() => {
-    if (search.length < 2) { setResults([]); setSearched(false); return; }
-    const t = setTimeout(async () => {
-      const r = await fetch(`/api/materials-catalog?q=${encodeURIComponent(search)}`);
-      const j = await r.json();
-      setResults(j?.data ?? []);
-      setSearched(true);
-    }, 250);
+    if (selectedName) return;
+    const t = setTimeout(() => fetchResults(search), 200);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, selectedName]);
 
-  function clear() { onChange("", ""); setSelectedName(""); setSearch(""); setResults([]); setSearched(false); }
+  function clear() { onChange("", ""); setSelectedName(""); setSearch(""); setResults([]); setOpen(false); }
+
+  const showDropdown = open && !selectedName && results.length > 0;
 
   return (
     <div className="relative">
@@ -252,14 +256,16 @@ function MaterialSelectInput({
           className="border p-2 rounded w-full text-sm text-gray-900 bg-white placeholder:text-gray-400"
           placeholder="Search materials catalog…"
           value={selectedName || search}
-          onChange={e => { setSearch(e.target.value); setSelectedName(""); onChange("", ""); }}
+          onFocus={() => { setOpen(true); if (!selectedName) fetchResults(search); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={e => { setSearch(e.target.value); setSelectedName(""); onChange("", ""); setOpen(true); }}
         />
         {(selectedName || value) && (
           <button type="button" onClick={clear} className="px-2 text-gray-400 hover:text-gray-600 text-sm">✕</button>
         )}
       </div>
       {selectedName && <p className="text-xs text-emerald-300 mt-0.5 font-medium">✓ {selectedName}</p>}
-      {results.length > 0 && !selectedName && (
+      {showDropdown && (
         <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-full max-h-48 overflow-y-auto">
           {results.map(m => (
             <button
@@ -272,6 +278,7 @@ function MaterialSelectInput({
                 setSelectedName(m.name);
                 setSearch("");
                 setResults([]);
+                setOpen(false);
               }}
             >
               <span className="font-medium">{m.name}</span>
@@ -280,7 +287,7 @@ function MaterialSelectInput({
           ))}
         </div>
       )}
-      {searched && results.length === 0 && !selectedName && (
+      {open && !selectedName && results.length === 0 && search.length > 0 && (
         <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow p-3 w-full text-sm text-gray-400 text-center">
           No materials found
         </div>
