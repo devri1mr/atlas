@@ -136,7 +136,7 @@ export default function CompanyRevenuePage() {
           {/* ── Main header ──────────────────────────────────────────────── */}
           <div className="px-6 py-5 flex items-center justify-between" style={{ background: BG }}>
             <div>
-              <div className="text-lg font-bold text-white tracking-wide">Revenue Outlook</div>
+              <div className="text-lg font-bold text-white tracking-wide">Upcoming Revenue</div>
               <div className="text-xs text-white/50 mt-0.5">All divisions · Actuals + projected</div>
             </div>
             <div className="flex items-center gap-2">
