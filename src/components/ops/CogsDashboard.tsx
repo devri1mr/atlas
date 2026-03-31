@@ -483,6 +483,43 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                       </td>
                     </tr>
 
+                    {/* GP Over / Under (vs YTD budget) */}
+                    <tr>
+                      <td className="px-3 py-1" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                        <span className="text-xs font-black text-white/50 uppercase tracking-wider">GP Over/Under</span>
+                      </td>
+                      {data.map(r => {
+                        const future    = isFuture(r.month, year);
+                        const isCurrCol = !future && year === CUR_YEAR && r.month === CUR_MONTH;
+                        const bGP       = r.budget_revenue - r.budget_labor - r.budget_job_materials - r.budget_fuel - r.budget_equipment - (r.budget_subcontractors ?? 0);
+                        const diff      = r.gross_profit - bGP;
+                        const hasAny    = r.revenue > 0 || r.gross_profit !== 0;
+                        return (
+                          <td
+                            key={r.month}
+                            className="px-1.5 py-1.5 text-center"
+                            style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.12)" }}
+                          >
+                            {!future && hasAny && bGP !== 0 && (
+                              <span className={`text-xs font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
+                                {diff > 0 ? "+" : ""}{fmt.format(diff)}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-1 py-1 text-center" style={{ background: BG_FOOT_TOT, borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                        {ytdBudgetGP !== 0 && (ytd.revenue !== 0 || ytd.gp !== 0) && (() => {
+                          const diff = ytd.gp - ytdBudgetGP;
+                          return (
+                            <span className={`text-sm font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
+                              {diff > 0 ? "+" : ""}{fmt.format(diff)}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+
                   </tfoot>
                 </table>
               </div>
