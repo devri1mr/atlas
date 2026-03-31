@@ -199,11 +199,17 @@ function getDifficultyMultiplier(row: LaborRow): number {
   return 1 + level * 0.1;
 }
 
+// Default season multipliers applied to ALL labor when no catalog override is set
+const SEASON_DEFAULTS: Record<string, number> = { spring: 2, summer: 1, fall: 3, winter: 4 };
+
 function getSeasonMultiplier(row: LaborRow, season: string): number {
-  if (!season || !row.task_catalog) return 1;
+  if (!season) return 1;
+  const defaultMult = SEASON_DEFAULTS[season] ?? 1;
+  if (!row.task_catalog) return defaultMult;
   const key = `${season}_multiplier` as keyof typeof row.task_catalog;
   const v = Number(row.task_catalog[key]) || 0;
-  return v > 1 ? v : 1;
+  // Use catalog-specific value if set; otherwise fall back to global defaults
+  return v > 0 ? v : defaultMult;
 }
 
 function effectiveHours(row: LaborRow, season: string): number {
@@ -914,7 +920,7 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
         });
       }
 
-      const sources = [...inv, ...vendors, ...catalogVendor];
+      const sources = [...inv, ...vendors, ...catalogVendor].filter(s => Number(s.cost) > 0);
       setMatSourcesCache((prev) => ({ ...prev, [materialId]: sources }));
 
       // Auto-confirm if there's exactly one source and the row still needs confirmation
@@ -2009,8 +2015,8 @@ async function addLabor() {
           const bundleTotal = g.rows.reduce((sum, r) => sum + effectiveHours(r, season) * (Number(r.hourly_rate) || 0), 0);
           return (
             <div key={g.runId}>
-              <div className="flex items-center justify-between px-5 py-2.5 bg-gray-50/70">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-5 py-2.5 bg-gray-50/70">
+                <div className="flex-1 min-w-0">
                   {editingBundleNameId === g.runId ? (
                     <input autoFocus className="border rounded px-2 h-7 text-sm font-semibold w-44"
                       value={bundleNameDraft}
@@ -2024,33 +2030,36 @@ async function addLabor() {
                     >{g.name} <span className="text-gray-300 group-hover:text-gray-400 text-xs">✎</span></button>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-gray-700 tabular-nums">{money(bundleTotal)}</span>
+                {/* Right columns mirror sub-row layout: cost(w-20) + actions(w-14) */}
+                <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-right shrink-0">{money(bundleTotal)}</span>
+                <div className="w-14 shrink-0 flex justify-end">
                   <button onClick={() => deleteBundleRun(g.runId)} className="text-xs text-red-400 hover:text-red-600 transition-colors">Remove</button>
                 </div>
               </div>
               {g.rows.map(row => {
                 const rowEffHrs = effectiveHours(row, season);
                 const rowCost = rowEffHrs * (Number(row.hourly_rate) || 0);
-                const seasonMult = season && row.task_catalog ? getSeasonMultiplier(row, season) : 1;
+                const seasonMult = season ? getSeasonMultiplier(row, season) : 1;
                 const isHidden = !!row.hidden_from_proposal;
                 return (
                   <div key={row.id} className={`flex items-center gap-2 px-5 pl-9 py-2.5 hover:bg-gray-50/50 group border-b border-gray-50 last:border-0 ${isHidden ? "opacity-50" : ""}`}>
                     <span className="flex-1 min-w-0 text-sm text-gray-700 truncate">{row.task}</span>
-                    {row.quantity > 0 && <span className="text-xs text-gray-400 tabular-nums shrink-0">{row.quantity} {row.unit}</span>}
+                    <span className="text-xs text-gray-400 tabular-nums shrink-0 w-20 text-right">{row.quantity > 0 ? `${row.quantity} ${row.unit}` : ""}</span>
                     {seasonMult > 1 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 shrink-0">{season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{seasonMult.toFixed(1)}</span>}
-                    <span className="text-sm font-medium text-gray-600 tabular-nums w-16 text-right shrink-0">{money(rowCost)}</span>
-                    <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
-                      className="opacity-0 group-hover:opacity-100 shrink-0 transition-all"
-                      onClick={async () => {
-                        const patch = { hidden_from_proposal: !isHidden };
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-                        setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
-                      }}
-                    >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
-                    <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all shrink-0" title="Delete">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-                    </button>
+                    <span className="text-sm font-medium text-gray-600 tabular-nums w-20 text-right shrink-0">{money(rowCost)}</span>
+                    <div className="w-14 shrink-0 flex items-center justify-end gap-1.5">
+                      <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
+                        className="opacity-0 group-hover:opacity-100 transition-all"
+                        onClick={async () => {
+                          const patch = { hidden_from_proposal: !isHidden };
+                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+                          setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
+                        }}
+                      >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
+                      <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all" title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -2060,25 +2069,27 @@ async function addLabor() {
         const row = g.row;
         const rowEffHrs = effectiveHours(row, season);
         const rowCost = rowEffHrs * (Number(row.hourly_rate) || 0);
-        const seasonMult = season && row.task_catalog ? getSeasonMultiplier(row, season) : 1;
+        const seasonMult = season ? getSeasonMultiplier(row, season) : 1;
         const isHidden = !!row.hidden_from_proposal;
         return (
           <div key={row.id} className={`flex items-center gap-2 px-5 py-2.5 hover:bg-gray-50/50 group ${isHidden ? "opacity-50" : ""}`}>
             <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{row.task}</span>
-            {row.quantity > 0 && <span className="text-xs text-gray-400 tabular-nums shrink-0">{row.quantity} {row.unit}</span>}
+            <span className="text-xs text-gray-400 tabular-nums shrink-0 w-20 text-right">{row.quantity > 0 ? `${row.quantity} ${row.unit}` : ""}</span>
             {seasonMult > 1 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 shrink-0">{season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{seasonMult.toFixed(1)}</span>}
-            <span className="text-sm font-semibold text-gray-700 tabular-nums w-16 text-right shrink-0">{money(rowCost)}</span>
-            <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
-              className="opacity-0 group-hover:opacity-100 shrink-0 transition-all"
-              onClick={async () => {
-                const patch = { hidden_from_proposal: !isHidden };
-                await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-                setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
-              }}
-            >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
-            <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all shrink-0" title="Delete">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-            </button>
+            <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-right shrink-0">{money(rowCost)}</span>
+            <div className="w-14 shrink-0 flex items-center justify-end gap-1.5">
+              <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
+                className="opacity-0 group-hover:opacity-100 transition-all"
+                onClick={async () => {
+                  const patch = { hidden_from_proposal: !isHidden };
+                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+                  setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
+                }}
+              >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
+              <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all" title="Delete">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+            </div>
           </div>
         );
       })}
@@ -2120,7 +2131,7 @@ async function addLabor() {
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-gray-800">Materials</h2>
                 {materials.length > 0 && <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-semibold tabular-nums">{materials.length}</span>}
-                {materials.some(m => needsSourceConfirm(m.source_type)) && <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">⚠ confirm sources</span>}
+                {materials.some(m => needsSourceConfirm(m.source_type)) && <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">⚠ Confirm Sources</span>}
               </div>
               <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
             </div>
@@ -2226,7 +2237,7 @@ async function addLabor() {
                                 setMaterials(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
                               }}
                             >
-                              <option value="">{needsSourceConfirm(row.source_type) ? "⚠ confirm source" : `Source: ${row.source_type}`}</option>
+                              <option value="">{needsSourceConfirm(row.source_type) ? "⚠ Confirm Source" : `Source: ${row.source_type}`}</option>
                               {(matSourcesCache[row.material_id] || []).map((s: any, i: number) => {
                                 const avail = s.available_qty == null ? null : Number(s.available_qty);
                                 const availText = avail === null ? "" : avail < 0 ? ` (LOW: ${avail.toFixed(2).replace(/\.00$/, "")})` : ` (${avail.toFixed(2).replace(/\.00$/, "")} avail)`;
