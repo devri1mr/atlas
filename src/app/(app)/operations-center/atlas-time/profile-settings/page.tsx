@@ -2,6 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+
+const SETTINGS_TABS = [
+  { label: "Time Clock",        href: "/operations-center/atlas-time/settings" },
+  { label: "Departments",       href: "/operations-center/atlas-time/departments" },
+  { label: "Profile Settings",  href: "/operations-center/atlas-time/profile-settings" },
+];
 
 type SectionCfg = { id: string; section: string; label: string; sort_order: number; visible: boolean };
 type FieldOption = { id: string; field_key: string; label: string; cost: number | null; sort_order: number; active: boolean; is_default?: boolean; default_qty?: number | null; subsection?: string | null; requires_size?: boolean };
@@ -35,6 +42,7 @@ const BUILT_IN_FIELDS: { key: string; label: string; hasCost?: boolean; hasDefau
 const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f] transition-all";
 
 export default function ProfileSettingsPage() {
+  const pathname = usePathname();
   const [tab, setTab] = useState<"sections" | "custom" | "dropdowns" | "columns">("sections");
 
   // ── Sections ──
@@ -429,8 +437,18 @@ export default function ProfileSettingsPage() {
             <span>/</span>
             <span className="text-white/80">Profile Settings</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Profile Settings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Settings</h1>
           <p className="text-white/50 text-sm mt-1">Manage sections, custom fields, and dropdown options on team member profiles.</p>
+          <div className="flex gap-1 mt-4">
+            {SETTINGS_TABS.map(t => (
+              <Link key={t.href} href={t.href}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  pathname === t.href ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+                }`}>
+                {t.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 

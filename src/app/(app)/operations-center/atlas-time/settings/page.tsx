@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const SETTINGS_TABS = [
+  { label: "Time Clock",        href: "/operations-center/atlas-time/settings" },
+  { label: "Departments",       href: "/operations-center/atlas-time/departments" },
+  { label: "Profile Settings",  href: "/operations-center/atlas-time/profile-settings" },
+];
 
 type Settings = {
   pay_cycle: string;
@@ -85,6 +92,7 @@ function TwoCol({ children }: { children: React.ReactNode }) {
 }
 
 export default function AtlasTimeSettingsPage() {
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -153,8 +161,19 @@ export default function AtlasTimeSettingsPage() {
             <span>/</span>
             <span className="text-white/80">Settings</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Time Clock Settings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Settings</h1>
           <p className="text-white/50 text-sm mt-1">Pay cycle, overtime, lunch deductions, geofencing, kiosk, and compliance.</p>
+          {/* Settings sub-nav */}
+          <div className="flex gap-1 mt-4">
+            {SETTINGS_TABS.map(t => (
+              <Link key={t.href} href={t.href}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  pathname === t.href ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"
+                }`}>
+                {t.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 

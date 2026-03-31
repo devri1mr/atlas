@@ -16,7 +16,7 @@ const sections = [
     color: "text-green-600 bg-green-50",
   },
   {
-    title: "Manager Clock View",
+    title: "Punch Log",
     description: "Clock team members in and out, see who's live right now, and view today's completed punches.",
     href: "/operations-center/atlas-time/clock",
     icon: (
@@ -60,7 +60,7 @@ const sections = [
     color: "text-slate-600 bg-slate-50",
   },
   {
-    title: "Import Team Members",
+    title: "Import Roster",
     description: "Import new hires from a QuickBooks HR export. Run anytime — existing team members are skipped automatically.",
     href: "/operations-center/atlas-time/import",
     icon: (
@@ -71,7 +71,7 @@ const sections = [
     color: "text-violet-600 bg-violet-50",
   },
   {
-    title: "Team Members",
+    title: "Roster",
     description: "Team member profiles, pay rates, hire dates, uniform info, and termination workflow.",
     href: "/operations-center/atlas-time/employees",
     icon: (

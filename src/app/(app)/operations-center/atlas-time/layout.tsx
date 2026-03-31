@@ -3,20 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS = [
-  { label: "Overview", href: "/operations-center/atlas-time" },
-  { label: "Team Members", href: "/operations-center/atlas-time/employees" },
-  { label: "Time Clock", href: "/operations-center/atlas-time/clock" },
-  { label: "Kiosk", href: "/operations-center/atlas-time/punch" },
-  { label: "Departments", href: "/operations-center/atlas-time/departments" },
-  { label: "Timesheets", href: "/operations-center/atlas-time/timesheets" },
-  { label: "PTO & Time Off", href: "/operations-center/atlas-time/pto" },
-  { label: "Payroll", href: "/operations-center/atlas-time/payroll" },
-  { label: "Uniforms", href: "/operations-center/atlas-time/uniforms" },
-  { label: "Import", href: "/operations-center/atlas-time/import" },
-  { label: "Reports", href: "/operations-center/atlas-time/reports" },
-  { label: "Settings", href: "/operations-center/atlas-time/settings" },
-  { label: "Profile", href: "/operations-center/atlas-time/profile-settings" },
+type Tab = {
+  label: string;
+  href: string;
+  exact?: boolean;
+  alsoActive?: string[];
+};
+
+const TABS: Tab[] = [
+  { label: "Overview",  href: "/operations-center/atlas-time", exact: true },
+  { label: "Roster",    href: "/operations-center/atlas-time/employees" },
+  { label: "Punch Log", href: "/operations-center/atlas-time/clock" },
+  { label: "Kiosk",     href: "/operations-center/atlas-time/punch" },
+  {
+    label: "Payroll",
+    href: "/operations-center/atlas-time/payroll",
+    alsoActive: [
+      "/operations-center/atlas-time/timesheets",
+      "/operations-center/atlas-time/pto",
+      "/operations-center/atlas-time/reports",
+    ],
+  },
+  { label: "Uniforms",  href: "/operations-center/atlas-time/uniforms" },
+  {
+    label: "Settings",
+    href: "/operations-center/atlas-time/settings",
+    alsoActive: [
+      "/operations-center/atlas-time/departments",
+      "/operations-center/atlas-time/profile-settings",
+    ],
+  },
 ];
 
 export default function AtlasTimeLayout({ children }: { children: React.ReactNode }) {
@@ -31,10 +47,13 @@ export default function AtlasTimeLayout({ children }: { children: React.ReactNod
       >
         <div className="flex gap-0.5 px-4 min-w-max">
           {TABS.map((tab) => {
-            const exact = tab.href === "/operations-center/atlas-time";
-            const active = exact
+            const active = tab.exact
               ? pathname === tab.href
-              : pathname === tab.href || pathname.startsWith(tab.href + "/");
+              : pathname === tab.href ||
+                pathname.startsWith(tab.href + "/") ||
+                (tab.alsoActive?.some(
+                  (a) => pathname === a || pathname.startsWith(a + "/")
+                ) ?? false);
             return (
               <Link
                 key={tab.href}

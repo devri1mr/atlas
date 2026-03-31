@@ -239,13 +239,27 @@ export default function PayrollPage() {
           <h1 className="text-2xl font-bold text-white tracking-tight">Payroll</h1>
           <p className="text-white/50 text-sm mt-0.5">Pay adjustments, deductions, and QB export</p>
           {/* Sub-nav */}
-          <div className="flex gap-1 mt-4">
-            {(["adjustments", "export"] as const).map(v => (
-              <button key={v} onClick={() => setSubView(v)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${subView === v ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"}`}>
-                {v === "adjustments" ? "Pay Adjustments" : "QB Export"}
-              </button>
-            ))}
+          <div className="flex gap-1 mt-4 flex-wrap">
+            <button onClick={() => setSubView("adjustments")}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${subView === "adjustments" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"}`}>
+              Pay Adjustments
+            </button>
+            <a href="/operations-center/atlas-time/timesheets"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors text-white/40 hover:text-white/70">
+              Timesheets
+            </a>
+            <a href="/operations-center/atlas-time/pto"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors text-white/40 hover:text-white/70">
+              PTO &amp; Time Off
+            </a>
+            <a href="/operations-center/atlas-time/reports"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors text-white/40 hover:text-white/70">
+              Reports
+            </a>
+            <button onClick={() => setSubView("export")}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${subView === "export" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"}`}>
+              QB Export
+            </button>
           </div>
         </div>
       </div>
@@ -275,26 +289,34 @@ export default function PayrollPage() {
               <>
                 {/* Paycheck date tabs */}
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {dates.map(d => {
-                    const isActive   = d === activeDate;
-                    const isPast     = d < today;
-                    const isFuture   = d > today;
-                    return (
-                      <button key={d} onClick={() => setActiveDate(d)}
-                        className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-semibold transition-colors border ${
-                          isActive
-                            ? "bg-[#123b1f] text-white border-[#123b1f]"
-                            : isPast
-                            ? "bg-white text-gray-400 border-gray-100 hover:border-gray-300"
-                            : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        {fmtPaycheckDate(d)}
-                        {isFuture && <span className="ml-1 text-[9px] opacity-60">upcoming</span>}
-                      </button>
-                    );
-                  })}
+                  {(() => {
+                    const nextIdx = dates.findIndex(x => x >= today);
+                    return dates.map((d, idx) => {
+                      const isActive = d === activeDate;
+                      const isPast   = d < today;
+                      const isNext   = idx === nextIdx;
+                      const isFuture = d > today && !isNext;
+                      return (
+                        <button key={d} onClick={() => setActiveDate(d)}
+                          className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-semibold transition-colors border ${
+                            isActive
+                              ? "bg-[#123b1f] text-white border-[#123b1f]"
+                              : isPast
+                              ? "bg-white text-gray-400 border-gray-100 hover:border-gray-300"
+                              : isNext
+                              ? "bg-green-50 text-green-700 border-green-200 hover:border-green-300"
+                              : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          {fmtPaycheckDate(d)}
+                          {isNext && <span className="ml-1 text-[9px] font-bold text-green-600 uppercase tracking-wide">Next</span>}
+                          {isFuture && <span className="ml-1 text-[9px] opacity-60">upcoming</span>}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
+
 
                 {activeDate && (
                   <div className="space-y-4">

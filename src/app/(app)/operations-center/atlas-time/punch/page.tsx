@@ -416,14 +416,24 @@ export default function KioskPage() {
 
       {/* Top bar — lock status */}
       <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-0">
+        {/* Desktop: always show back; Mobile: only show when unlocked */}
+        <Link
+          href="/operations-center/atlas-time"
+          className="hidden md:flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back
+        </Link>
         {!locked ? (
-          <Link href="/operations-center/atlas-time" className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition-colors">
+          <Link href="/operations-center/atlas-time" className="flex md:hidden items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
             Exit Kiosk
           </Link>
-        ) : <div />}
+        ) : <div className="md:hidden" />}
         <button
           onClick={() => locked ? setShowUnlock(true) : setLocked(true)}
           className="text-white/20 hover:text-white/40 transition-colors ml-auto"
