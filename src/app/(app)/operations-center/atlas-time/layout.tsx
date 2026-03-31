@@ -26,7 +26,7 @@ export default function AtlasTimeLayout({ children }: { children: React.ReactNod
     <div className="flex flex-col min-h-screen">
       {/* Tab bar */}
       <div
-        className="shrink-0 border-b border-white/10 overflow-x-auto"
+        className="shrink-0 border-b border-white/10 overflow-x-auto sticky top-0 z-20"
         style={{ background: "linear-gradient(180deg, #0d2616 0%, #123b1f 100%)" }}
       >
         <div className="flex gap-0.5 px-4 min-w-max">

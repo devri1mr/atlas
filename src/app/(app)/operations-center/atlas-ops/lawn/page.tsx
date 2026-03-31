@@ -383,8 +383,9 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
   );
   const nextId = React.useRef(4);
 
-  const total    = parseFloat(totalRevenue) || 0;
-  const perPerson = rows.length > 0 && total > 0 ? total / rows.length : 0;
+  const total        = parseFloat(totalRevenue) || 0;
+  const selectedCount = rows.filter(r => r.employee_id !== "").length;
+  const perPerson    = selectedCount > 0 && total > 0 ? total / selectedCount : 0;
 
   function addRow() {
     setRows(prev => [...prev, { id: nextId.current++, employee_id: "", pay_rate: "", time_in: "07:30" }]);
@@ -455,10 +456,10 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
             />
           </div>
         </div>
-        {total > 0 && rows.length > 0 && (
+        {total > 0 && selectedCount > 0 && (
           <div className="flex items-center gap-4 text-sm text-gray-500 mt-4">
             <span className="text-gray-300">÷</span>
-            <span><span className="font-bold text-gray-700">{rows.length}</span> crew members</span>
+            <span><span className="font-bold text-gray-700">{selectedCount}</span> {selectedCount === 1 ? "person" : "people"} selected</span>
             <span className="text-gray-300">=</span>
             <span>
               <span className="font-black text-emerald-700 text-base">{fmtMoney(perPerson)}</span>
@@ -500,10 +501,10 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                       ))}
                     </select>
                   </td>
-                  {/* Revenue share — computed, read-only */}
+                  {/* Revenue share — only shown for selected people */}
                   <td className="px-3 py-2.5 text-center">
-                    <span className={`inline-block font-semibold text-sm ${perPerson > 0 ? "text-gray-700" : "text-gray-300"}`}>
-                      {perPerson > 0 ? fmtMoney(perPerson) : "—"}
+                    <span className={`inline-block font-semibold text-sm ${row.employee_id && perPerson > 0 ? "text-gray-700" : "text-gray-300"}`}>
+                      {row.employee_id && perPerson > 0 ? fmtMoney(perPerson) : "—"}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">

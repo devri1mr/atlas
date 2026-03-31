@@ -28,7 +28,7 @@ export default function LawnLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex flex-col min-h-screen">
       <div
-        className="no-print shrink-0 border-b border-white/10 overflow-x-auto"
+        className="no-print shrink-0 border-b border-white/10 overflow-x-auto sticky top-0 z-20"
         style={{ background: "linear-gradient(180deg, #0d2616 0%, #123b1f 100%)" }}
       >
         <div className="flex gap-0.5 px-4 min-w-max">
