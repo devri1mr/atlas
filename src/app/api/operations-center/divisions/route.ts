@@ -35,10 +35,21 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
 
-    const { data, error } = await supabase
+    // Try with fuel_charge_pct first; fall back if column hasn't been migrated yet
+    let { data, error } = await supabase
       .from("divisions")
       .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
       .order("name", { ascending: true });
+
+    if (error && error.message?.includes("fuel_charge_pct")) {
+      const fallback = await supabase
+        .from("divisions")
+        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+        .order("name", { ascending: true });
+      if (fallback.error) return json({ error: fallback.error.message }, { status: 500 });
+      data = (fallback.data ?? []).map((r: any) => ({ ...r, fuel_charge_pct: 0 }));
+      error = null;
+    }
 
     if (error) return json({ error: error.message }, { status: 500 });
     return json({ data: data ?? [] });
