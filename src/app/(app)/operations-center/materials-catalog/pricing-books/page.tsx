@@ -82,7 +82,7 @@ export default function PricingBooksPage() {
   const [importStep, setImportStep] = useState<"loading" | "mapping" | "preview" | "importing" | "done">("loading");
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<string[][]>([]);
-  const [columnMap, setColumnMap] = useState<ColumnMap>({ name: null, unit: null, cost: null, vendor: null });
+  const [columnMap, setColumnMap] = useState<ColumnMap>({ name: null, unit: null, cost: null, vendor: null, page: null });
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
