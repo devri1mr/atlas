@@ -243,7 +243,7 @@ function MaterialSelectInput({
       <div className="flex gap-1">
         <input
           type="text"
-          className="border p-2 rounded w-full text-sm"
+          className="border p-2 rounded w-full text-sm text-gray-900 bg-white placeholder:text-gray-400"
           placeholder="Search materials catalog…"
           value={selectedName || search}
           onChange={e => { setSearch(e.target.value); setSelectedName(""); onChange("", ""); }}
@@ -252,7 +252,7 @@ function MaterialSelectInput({
           <button type="button" onClick={clear} className="px-2 text-gray-400 hover:text-gray-600 text-sm">✕</button>
         )}
       </div>
-      {selectedName && <p className="text-xs text-emerald-700 mt-0.5 font-medium">✓ {selectedName}</p>}
+      {selectedName && <p className="text-xs text-emerald-300 mt-0.5 font-medium">✓ {selectedName}</p>}
       {results.length > 0 && !selectedName && (
         <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-full max-h-48 overflow-y-auto">
           {results.map(m => (
