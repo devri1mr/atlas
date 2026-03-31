@@ -137,6 +137,8 @@ export async function GET() {
     type ServiceWeekKey = string;
     type ServiceMetrics = { ot_hrs: number; ot_cost: number; total_hrs: number; total_payroll: number; total_revenue: number; week_label: string; service: string };
     const byServiceWeek = new Map<ServiceWeekKey, ServiceMetrics>();
+    // Full crew payroll per week (includes downtime, not just production hours)
+    const byWeekFullPayroll = new Map<string, number>();
 
     for (const r of reports ?? []) {
       const date = r.report_date as string;
@@ -197,6 +199,10 @@ export async function GET() {
             day.payroll_cost += m.payroll_cost ?? 0;
             day.total_hrs    += dayTotalHrs;
             day.ot_hrs       += m.ot_hours ?? 0;
+            // Accumulate full crew payroll per week (includes downtime)
+            if (m.payroll_cost) {
+              byWeekFullPayroll.set(weekKey, (byWeekFullPayroll.get(weekKey) ?? 0) + Number(m.payroll_cost));
+            }
           }
         }
       }
@@ -296,7 +302,12 @@ export async function GET() {
     const serviceBreakdown = [...byServiceWeek.entries()]
       .map(([key, v]) => {
         const weekKey = key.split("||")[1];
-        return { week_key: weekKey, ...v, labor_pct: v.total_revenue > 0 ? v.total_payroll / v.total_revenue : null };
+        return {
+          week_key: weekKey,
+          ...v,
+          labor_pct: v.total_revenue > 0 ? v.total_payroll / v.total_revenue : null,
+          week_payroll_total: byWeekFullPayroll.get(weekKey) ?? v.total_payroll,
+        };
       })
       .sort((a, b) => b.week_key.localeCompare(a.week_key) || a.service.localeCompare(b.service));
 

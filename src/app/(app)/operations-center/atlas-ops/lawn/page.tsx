@@ -31,6 +31,7 @@ type ServiceBreakdown = {
   total_payroll: number;
   total_revenue: number;
   labor_pct: number | null;
+  week_payroll_total: number;
 };
 
 type DashData = {
@@ -292,6 +293,8 @@ function ServiceBreakdownCard({ data }: { data: ServiceBreakdown[] }) {
     total_payroll: t.total_payroll + r.total_payroll,
     total_revenue: t.total_revenue + r.total_revenue,
   }), { ot_hrs: 0, ot_cost: 0, total_hrs: 0, total_payroll: 0, total_revenue: 0 });
+  // Full week payroll including downtime (not just production-hours portion)
+  const fullWeekPayroll = rows[0]?.week_payroll_total ?? totals.total_payroll;
 
   const weekLabel = rows[0]?.week_label ?? selectedWeek;
 
@@ -353,10 +356,10 @@ function ServiceBreakdownCard({ data }: { data: ServiceBreakdown[] }) {
                 <td className="px-4 py-3 text-center text-white/60 text-xs">{totals.ot_hrs > 0 ? totals.ot_hrs.toFixed(2) : "—"}</td>
                 <td className="px-4 py-3 text-center text-white/60 text-xs">{totals.ot_cost > 0 ? moneyDec.format(totals.ot_cost) : "—"}</td>
                 <td className="px-4 py-3 text-center text-white/80 font-semibold text-xs">{totals.total_hrs.toFixed(2)}</td>
-                <td className="px-4 py-3 text-center text-white/80 font-semibold text-xs">{moneyDec.format(totals.total_payroll)}</td>
+                <td className="px-4 py-3 text-center text-white/80 font-semibold text-xs">{moneyDec.format(fullWeekPayroll)}</td>
                 <td className="px-4 py-3 text-center text-white font-bold">{money.format(totals.total_revenue)}</td>
                 <td className="px-4 py-3 text-center">
-                  {laborBadge(totals.total_revenue > 0 ? totals.total_payroll / totals.total_revenue : null)}
+                  {laborBadge(totals.total_revenue > 0 ? fullWeekPayroll / totals.total_revenue : null)}
                 </td>
               </tr>
             </tfoot>
@@ -382,6 +385,7 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
     Array.from({ length: 4 }, (_, i) => ({ id: i, employee_id: "", pay_rate: "", time_in: "07:30" }))
   );
   const nextId = React.useRef(4);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const total        = parseFloat(totalRevenue) || 0;
   const selectedCount = rows.filter(r => r.employee_id !== "").length;
@@ -407,12 +411,15 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
     }));
   }
 
-  function calcResult(row: CalcRow): { hours: number | null; time_out: string | null } {
+  function calcResult(row: CalcRow) {
     const rate = parseFloat(row.pay_rate);
     const rev  = perPerson;
-    if (!rate || !rev || rate <= 0 || rev <= 0) return { hours: null, time_out: null };
-    let hours = (rev * 0.39) / (rate * PAYROLL_BURDEN);
-    if (hours >= 6) hours += 0.5;
+    if (!rate || !rev || rate <= 0 || rev <= 0) return { hours: null, time_out: null, breakdown: null };
+    const burdenedRate  = rate * PAYROLL_BURDEN;
+    const targetPayroll = rev * 0.39;
+    const rawHours      = targetPayroll / burdenedRate;
+    const lunchAdded    = rawHours >= 6;
+    const hours         = lunchAdded ? rawHours + 0.5 : rawHours;
     const [hh, mm] = (row.time_in || "07:30").split(":").map(Number);
     const startMin = hh * 60 + mm;
     const endMin   = startMin + Math.round(hours * 60);
@@ -420,7 +427,11 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
     const outM = endMin % 60;
     const outStr = `${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}`;
     const outFmt = new Date(`2000-01-01T${outStr}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    return { hours, time_out: outFmt };
+    return {
+      hours,
+      time_out: outFmt,
+      breakdown: { rate, burdenedRate, targetPayroll, rawHours, lunchAdded, rev },
+    };
   }
 
   const fmtMoney = (n: number) =>
@@ -483,10 +494,14 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
           </thead>
           <tbody>
             {rows.map(row => {
-              const { hours, time_out } = calcResult(row);
+              const { hours, time_out, breakdown } = calcResult(row);
               const hasResult = hours != null;
+              const isExpanded = expanded.has(row.id);
+              const fmt2 = (n: number) => n.toFixed(2);
+              const fmtD = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
               return (
-                <tr key={row.id} className={`border-t border-gray-50 transition-colors ${hasResult ? "hover:bg-emerald-50/20" : ""}`}>
+                <React.Fragment key={row.id}>
+                <tr className={`border-t border-gray-50 transition-colors ${hasResult ? "hover:bg-emerald-50/20" : ""}`}>
                   <td className="px-4 py-2.5 text-center">
                     <select
                       value={row.employee_id}
@@ -533,11 +548,45 @@ function RevenueCalculator({ employees }: { employees: Employee[] }) {
                     ) : <span className="text-gray-200 text-lg">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <button onClick={() => removeRow(row.id)} className="text-gray-200 hover:text-red-400 transition-colors">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      {hasResult && (
+                        <button
+                          onClick={() => setExpanded(prev => {
+                            const next = new Set(prev);
+                            next.has(row.id) ? next.delete(row.id) : next.add(row.id);
+                            return next;
+                          })}
+                          className={`text-xs rounded transition-colors px-1.5 py-0.5 ${isExpanded ? "text-emerald-600 bg-emerald-50" : "text-gray-300 hover:text-emerald-500"}`}
+                          title="Show calculation breakdown"
+                        >
+                          {isExpanded ? "▲" : "▼"}
+                        </button>
+                      )}
+                      <button onClick={() => removeRow(row.id)} className="text-gray-200 hover:text-red-400 transition-colors">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
+                {isExpanded && breakdown && (
+                  <tr className="border-t border-emerald-100 bg-emerald-50/40">
+                    <td colSpan={6} className="px-6 py-3">
+                      <div className="text-xs text-gray-600 space-y-1 font-mono">
+                        <div className="font-sans font-semibold text-emerald-800 text-[11px] uppercase tracking-wide mb-2">Calculation Breakdown</div>
+                        <div><span className="text-gray-400 w-52 inline-block">Revenue share</span> {fmtD(breakdown.rev)}</div>
+                        <div><span className="text-gray-400 w-52 inline-block">× Labor target (39%)</span> {fmtD(breakdown.rev)} × 0.39 = <span className="font-bold text-gray-800">{fmtD(breakdown.targetPayroll)}</span> target payroll</div>
+                        <div><span className="text-gray-400 w-52 inline-block">Pay rate</span> {fmtD(breakdown.rate)}/hr</div>
+                        <div><span className="text-gray-400 w-52 inline-block">× Payroll burden (1.15)</span> {fmtD(breakdown.rate)} × 1.15 = <span className="font-bold text-gray-800">{fmtD(breakdown.burdenedRate)}/hr</span> effective cost</div>
+                        <div><span className="text-gray-400 w-52 inline-block">Raw hours</span> {fmtD(breakdown.targetPayroll)} ÷ {fmtD(breakdown.burdenedRate)} = <span className="font-bold text-gray-800">{fmt2(breakdown.rawHours)} hrs</span></div>
+                        {breakdown.lunchAdded
+                          ? <div><span className="text-gray-400 w-52 inline-block">+ Lunch (≥ 6 hrs)</span> {fmt2(breakdown.rawHours)} + 0.5 = <span className="font-bold text-emerald-700">{fmt2(breakdown.rawHours + 0.5)} hrs total</span></div>
+                          : <div><span className="text-gray-400 w-52 inline-block">Lunch</span> <span className="text-gray-400">not added (&lt; 6 hrs)</span></div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </tbody>
