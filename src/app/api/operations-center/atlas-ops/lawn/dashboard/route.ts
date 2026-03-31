@@ -151,6 +151,19 @@ export async function GET() {
 
       const seenPerson = new Set<string>();
 
+      // Pre-aggregate each person's total PRODUCTION hours across all jobs this day.
+      // We use this (not payroll_hours) as the denominator when prorating payroll across
+      // services — payroll_hours includes downtime/travel that sits outside production jobs,
+      // which caused under-counting when a person had fewer production hrs than clock hrs.
+      const personProdHrs = new Map<string, number>();
+      for (const job of (r as any).lawn_production_jobs ?? []) {
+        for (const m of (job as any).lawn_production_members ?? []) {
+          const pk = m.employee_id ?? m.resource_name ?? "";
+          if (!pk) continue;
+          personProdHrs.set(pk, (personProdHrs.get(pk) ?? 0) + (m.actual_hours ?? 0));
+        }
+      }
+
       for (const job of (r as any).lawn_production_jobs ?? []) {
         const service = (job.service as string) || "Other";
         const swKey: ServiceWeekKey = `${service}||${weekKey}`;
@@ -164,16 +177,19 @@ export async function GET() {
           const personKey    = m.employee_id ?? m.resource_name ?? "";
           const jobActualHrs = m.actual_hours ?? 0;
           const dayTotalHrs  = m.total_payroll_hours ?? 0;
+          const totalProdHrs = personKey ? (personProdHrs.get(personKey) ?? 0) : 0;
 
           day.revenue      += m.earned_amount ?? 0;
           sw.total_revenue += m.earned_amount ?? 0;
           sw.total_hrs     += jobActualHrs;
 
-          const ratio = dayTotalHrs > 0 && jobActualHrs > 0 ? jobActualHrs / dayTotalHrs : 0;
+          // Prorate payroll by share of this person's total production hours,
+          // not by clock hours — ensures payroll sums fully across all services.
+          const ratio = totalProdHrs > 0 && jobActualHrs > 0 ? jobActualHrs / totalProdHrs : 0;
           sw.ot_hrs += (m.ot_hours ?? 0) * ratio;
           if (m.payroll_cost) {
             sw.total_payroll += m.payroll_cost * ratio;
-            sw.ot_cost += (m.ot_hours ?? 0) > 0 ? m.payroll_cost * ratio * ((m.ot_hours ?? 0) / dayTotalHrs) : 0;
+            sw.ot_cost += (m.ot_hours ?? 0) > 0 ? m.payroll_cost * ratio * ((m.ot_hours ?? 0) / Math.max(dayTotalHrs, 1)) : 0;
           }
 
           if (personKey && !seenPerson.has(personKey)) {
