@@ -284,6 +284,7 @@ export default function PricingBooksPage() {
   }
 
   async function handleImport() {
+    if (!importBook) return;
     setImportStep("importing");
     setImportError(null);
     let imported = 0;
