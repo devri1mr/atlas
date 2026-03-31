@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import UnitInput from "@/components/UnitInput";
 
@@ -32,6 +32,8 @@ type Material = {
   taxable: boolean;
   in_inventory?: boolean;
   inventory_material_id?: string | null;
+  parent_material_id?: string | null;
+  variant_label?: string | null;
 };
 
 type Tab = "materials" | "categories";
@@ -200,11 +202,12 @@ function CategoryMgmtRow({
 
 // ── Material Drawer ────────────────────────────────────────────────────────────
 function MaterialDrawer({
-  mode, material, categories, onSave, onDelete, onAddToInventory, onUnregister, onClose, saving, deleting, addingToInventory,
+  mode, material, categories, parentCandidates, onSave, onDelete, onAddToInventory, onUnregister, onClose, saving, deleting, addingToInventory,
 }: {
   mode: DrawerMode;
   material: Partial<Material>;
   categories: Category[];
+  parentCandidates: Material[];
   onSave: (data: Partial<Material>) => void;
   onDelete?: () => void;
   onAddToInventory?: () => void;
@@ -283,6 +286,38 @@ function MaterialDrawer({
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">SKU / Item #</label>
             <input className={inputCls} value={form.sku ?? ""} onChange={e => setForm(f => ({ ...f, sku: e.target.value || null }))} placeholder="Optional" />
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Variant Grouping</div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Variant of (parent material)</label>
+                <select
+                  className={inputCls}
+                  value={form.parent_material_id ?? ""}
+                  onChange={e => setForm(f => ({ ...f, parent_material_id: e.target.value || null }))}
+                >
+                  <option value="">— Standalone (no parent) —</option>
+                  {parentCandidates
+                    .filter(p => p.id !== material.id)
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.name}{p.vendor ? ` (${p.vendor})` : ""}</option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Link this as a variant under another material to group them together.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Variant label</label>
+                <input
+                  className={inputCls}
+                  value={form.variant_label ?? ""}
+                  onChange={e => setForm(f => ({ ...f, variant_label: e.target.value || null }))}
+                  placeholder="e.g. 2 cu ft bag, 3 cu ft bulk, wholesale"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Shown as a badge to distinguish this variant from others.</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 pt-1">
@@ -411,6 +446,9 @@ export default function MaterialsCatalogPage() {
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "recent">("name");
+
+  // ── variant grouping
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
   // ── drawer
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; material: Partial<Material> } | null>(null);
@@ -606,6 +644,25 @@ export default function MaterialsCatalogPage() {
     ? [...materials].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     : materials; // API already returns A–Z
 
+  // Build variant grouping (only when not filtering — search or category filter shows flat list)
+  const isFiltering = !!search || !!selectedCatId;
+  const variantsByParent = new Map<string, Material[]>();
+  for (const m of displayMaterials) {
+    if (m.parent_material_id) {
+      const list = variantsByParent.get(m.parent_material_id) ?? [];
+      list.push(m);
+      variantsByParent.set(m.parent_material_id, list);
+    }
+  }
+  // Top-level rows: when grouped, exclude materials that are variants of a visible parent
+  const visibleParentIds = new Set(displayMaterials.map(m => m.id));
+  const topLevelMaterials = isFiltering
+    ? displayMaterials
+    : displayMaterials.filter(m => !m.parent_material_id || !visibleParentIds.has(m.parent_material_id));
+
+  // All non-variant parent materials — used in drawer "Variant of" dropdown
+  const parentCandidates = allMaterials.filter(m => !m.parent_material_id);
+
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
       {/* Header */}
@@ -734,95 +791,214 @@ export default function MaterialsCatalogPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {displayMaterials.map((m, i) => {
+                      {topLevelMaterials.map((m, i) => {
                         const cat = m.category_id ? catById.get(m.category_id) : null;
                         const isNew = new Date(m.created_at).getTime() > sevenDaysAgo;
-                        return (
-                          <tr
-                            key={m.id}
-                            className={`border-b last:border-0 cursor-pointer hover:bg-green-50 transition-colors ${i % 2 === 0 ? "" : "bg-gray-50/50"}`}
-                            onClick={() => setDrawer({ mode: "edit", material: m })}
-                          >
-                            <td className="px-4 py-3 font-medium text-gray-900">
-                              <span className="flex items-center gap-2">
-                                {m.name}
-                                {isNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {cat ? (
-                                <span className="inline-flex items-center gap-1 text-xs text-gray-600">
-                                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: cat.color || "#9ca3af" }} />
-                                  {cat.name}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-300">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600">{m.default_unit}</td>
-                            <td className="px-4 py-3 text-right font-medium text-gray-900">
-                              {m.default_unit_cost > 0 ? `$${m.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={m.taxable}
-                                className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                                onChange={async e => {
-                                  const checked = e.target.checked;
-                                  setMaterials(prev => prev.map(r => r.id === m.id ? { ...r, taxable: checked } : r));
-                                  await fetch(`/api/materials-catalog/${m.id}`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ taxable: checked }),
-                                  });
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-right font-medium text-gray-900">
-                              {m.default_unit_cost > 0
-                                ? `$${(m.default_unit_cost * (m.taxable ? 1.06 : 1)).toFixed(2)}`
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 text-xs">{m.vendor || <span className="text-gray-300">—</span>}</td>
-                            <td className="px-4 py-3 text-center">
-                              {m.in_inventory
-                                ? <span className="text-green-600 font-semibold text-xs">✓ In inventory</span>
-                                : <span className="text-gray-300 text-xs">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>
-                                {m.is_active ? "Active" : "Inactive"}
-                              </span>
-                            </td>
-                            <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
-                              {m.source_pricing_book_id && (
-                                <button
-                                  title="View in pricing book"
-                                  className="inline-flex items-center justify-center rounded hover:opacity-75 transition-opacity"
-                                  onClick={() => window.open(
-                                    `/api/materials-catalog/pricing-books/${m.source_pricing_book_id}/view${m.source_page && m.source_page > 1 ? `#page=${m.source_page}` : ""}`,
-                                    "pricingbook",
-                                    "width=900,height=750,resizable=yes,scrollbars=yes"
+                        const variants = !isFiltering ? (variantsByParent.get(m.id) ?? []) : [];
+                        const hasVariants = variants.length > 0;
+                        const isExpanded = expandedParents.has(m.id);
+
+                        const renderRow = (mat: Material, isVariant: boolean, rowIdx: number) => {
+                          const mCat = mat.category_id ? catById.get(mat.category_id) : null;
+                          const mNew = new Date(mat.created_at).getTime() > sevenDaysAgo;
+                          return (
+                            <tr
+                              key={mat.id}
+                              className={`border-b last:border-0 cursor-pointer hover:bg-green-50 transition-colors ${isVariant ? "bg-amber-50/40 hover:bg-amber-50" : rowIdx % 2 === 0 ? "" : "bg-gray-50/50"}`}
+                              onClick={() => setDrawer({ mode: "edit", material: mat })}
+                            >
+                              <td className="px-4 py-3 font-medium text-gray-900">
+                                <span className="flex items-center gap-2">
+                                  {isVariant && <span className="text-gray-300 text-xs ml-3">↳</span>}
+                                  {mat.name}
+                                  {mat.variant_label && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{mat.variant_label}</span>
                                   )}
-                                >
-                                  <svg width="16" height="20" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <rect width="28" height="34" rx="3" fill="#E8E8E8"/>
-                                    <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
-                                    <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
-                                    <rect x="2" y="17" width="24" height="11" rx="1.5" fill="#E02020"/>
-                                    <text x="14" y="25.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="700" fontFamily="Arial, sans-serif" letterSpacing="0.5">PDF</text>
-                                  </svg>
-                                </button>
-                              )}
-                            </td>
-                          </tr>
+                                  {mNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {mCat ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: mCat.color || "#9ca3af" }} />
+                                    {mCat.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-300">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">{mat.default_unit}</td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                {mat.default_unit_cost > 0 ? `$${mat.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={mat.taxable}
+                                  className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                  onChange={async e => {
+                                    const checked = e.target.checked;
+                                    setMaterials(prev => prev.map(r => r.id === mat.id ? { ...r, taxable: checked } : r));
+                                    await fetch(`/api/materials-catalog/${mat.id}`, {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ taxable: checked }),
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                {mat.default_unit_cost > 0
+                                  ? `$${(mat.default_unit_cost * (mat.taxable ? 1.06 : 1)).toFixed(2)}`
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 text-xs">{mat.vendor || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-3 text-center">
+                                {mat.in_inventory
+                                  ? <span className="text-green-600 font-semibold text-xs">✓ In inventory</span>
+                                  : <span className="text-gray-300 text-xs">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${mat.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>
+                                  {mat.is_active ? "Active" : "Inactive"}
+                                </span>
+                              </td>
+                              <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                                {mat.source_pricing_book_id && (
+                                  <button
+                                    title="View in pricing book"
+                                    className="inline-flex items-center justify-center rounded hover:opacity-75 transition-opacity"
+                                    onClick={() => window.open(
+                                      `/api/materials-catalog/pricing-books/${mat.source_pricing_book_id}/view${mat.source_page && mat.source_page > 1 ? `#page=${mat.source_page}` : ""}`,
+                                      "pricingbook",
+                                      "width=900,height=750,resizable=yes,scrollbars=yes"
+                                    )}
+                                  >
+                                    <svg width="16" height="20" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <rect width="28" height="34" rx="3" fill="#E8E8E8"/>
+                                      <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
+                                      <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
+                                      <rect x="2" y="17" width="24" height="11" rx="1.5" fill="#E02020"/>
+                                      <text x="14" y="25.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="700" fontFamily="Arial, sans-serif" letterSpacing="0.5">PDF</text>
+                                    </svg>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        };
+
+                        return (
+                          <React.Fragment key={m.id}>
+                            <tr
+                              className={`border-b cursor-pointer hover:bg-green-50 transition-colors ${i % 2 === 0 ? "" : "bg-gray-50/50"}`}
+                              onClick={() => setDrawer({ mode: "edit", material: m })}
+                            >
+                              <td className="px-4 py-3 font-medium text-gray-900">
+                                <span className="flex items-center gap-2">
+                                  {hasVariants && (
+                                    <button
+                                      className="text-gray-400 hover:text-gray-700 text-xs w-4 shrink-0"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setExpandedParents(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(m.id)) next.delete(m.id);
+                                          else next.add(m.id);
+                                          return next;
+                                        });
+                                      }}
+                                    >
+                                      {isExpanded ? "▾" : "▸"}
+                                    </button>
+                                  )}
+                                  {m.name}
+                                  {m.variant_label && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{m.variant_label}</span>
+                                  )}
+                                  {isNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
+                                  {hasVariants && !isExpanded && (
+                                    <span className="text-[10px] text-gray-400 font-medium">{variants.length} vendor option{variants.length !== 1 ? "s" : ""}</span>
+                                  )}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {cat ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: cat.color || "#9ca3af" }} />
+                                    {cat.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-300">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">{m.default_unit}</td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                {m.default_unit_cost > 0 ? `$${m.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={m.taxable}
+                                  className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                  onChange={async e => {
+                                    const checked = e.target.checked;
+                                    setMaterials(prev => prev.map(r => r.id === m.id ? { ...r, taxable: checked } : r));
+                                    await fetch(`/api/materials-catalog/${m.id}`, {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ taxable: checked }),
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                {m.default_unit_cost > 0
+                                  ? `$${(m.default_unit_cost * (m.taxable ? 1.06 : 1)).toFixed(2)}`
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 text-xs">{m.vendor || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-3 text-center">
+                                {m.in_inventory
+                                  ? <span className="text-green-600 font-semibold text-xs">✓ In inventory</span>
+                                  : <span className="text-gray-300 text-xs">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>
+                                  {m.is_active ? "Active" : "Inactive"}
+                                </span>
+                              </td>
+                              <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                                {m.source_pricing_book_id && (
+                                  <button
+                                    title="View in pricing book"
+                                    className="inline-flex items-center justify-center rounded hover:opacity-75 transition-opacity"
+                                    onClick={() => window.open(
+                                      `/api/materials-catalog/pricing-books/${m.source_pricing_book_id}/view${m.source_page && m.source_page > 1 ? `#page=${m.source_page}` : ""}`,
+                                      "pricingbook",
+                                      "width=900,height=750,resizable=yes,scrollbars=yes"
+                                    )}
+                                  >
+                                    <svg width="16" height="20" viewBox="0 0 28 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <rect width="28" height="34" rx="3" fill="#E8E8E8"/>
+                                      <path d="M17 2H4a2 2 0 00-2 2v26a2 2 0 002 2h20a2 2 0 002-2V11L17 2z" fill="white" stroke="#D1D5DB" strokeWidth="1"/>
+                                      <path d="M17 2v9h9" fill="none" stroke="#D1D5DB" strokeWidth="1"/>
+                                      <rect x="2" y="17" width="24" height="11" rx="1.5" fill="#E02020"/>
+                                      <text x="14" y="25.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="700" fontFamily="Arial, sans-serif" letterSpacing="0.5">PDF</text>
+                                    </svg>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                            {hasVariants && isExpanded && variants.map((v, vi) => renderRow(v, true, vi))}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
                   </table>
                   <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-400 text-right">
                     {displayMaterials.length} item{displayMaterials.length !== 1 ? "s" : ""}
+                    {!isFiltering && variantsByParent.size > 0 && ` (${[...variantsByParent.values()].reduce((s, v) => s + v.length, 0)} variants grouped)`}
                     {selectedCatId || search ? " (filtered)" : ""}
                     {sortBy === "recent" && " · sorted by newest"}
                   </div>
@@ -924,6 +1100,7 @@ export default function MaterialsCatalogPage() {
           mode={drawer.mode}
           material={drawer.material}
           categories={categories}
+          parentCandidates={parentCandidates}
           onSave={handleSave}
           onDelete={drawer.mode === "edit" ? handleDelete : undefined}
           onAddToInventory={drawer.mode === "edit" && !drawer.material.in_inventory ? handleAddToInventory : undefined}

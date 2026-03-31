@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const supabase = supabaseAdmin();
   const body = await req.json().catch(() => ({}));
 
-  const allowed = ["name", "default_unit", "default_unit_cost", "taxable", "vendor", "sku", "is_active", "category_id", "source_pricing_book_id", "source_page"];
+  const allowed = ["name", "default_unit", "default_unit_cost", "taxable", "vendor", "sku", "is_active", "category_id", "source_pricing_book_id", "source_page", "parent_material_id", "variant_label"];
   const patch: Record<string, any> = {};
   for (const key of allowed) {
     if (key in body) patch[key] = body[key];
@@ -21,11 +21,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (patch.category_id && !isUuid(patch.category_id)) patch.category_id = null;
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "No fields to update" }, { status: 400 });
 
+  if ("parent_material_id" in patch && patch.parent_material_id && !isUuid(patch.parent_material_id as string)) patch.parent_material_id = null;
+
   const { data, error } = await supabase
     .from("materials_catalog")
     .update(patch)
     .eq("id", id)
-    .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
+    .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page, parent_material_id, variant_label")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

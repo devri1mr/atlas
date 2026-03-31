@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("materials_catalog")
-      .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
+      .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page, parent_material_id, variant_label")
       .order("name", { ascending: true });
 
     if (include_inactive === "true") query = query.eq("is_active", false);
@@ -87,11 +87,13 @@ export async function POST(req: NextRequest) {
     const taxable = body?.taxable !== undefined ? Boolean(body.taxable) : true;
     const source_pricing_book_id = body?.source_pricing_book_id && isUuid(body.source_pricing_book_id) ? body.source_pricing_book_id : null;
     const source_page = body?.source_page != null ? (parseInt(String(body.source_page), 10) || null) : null;
+    const parent_material_id = body?.parent_material_id && isUuid(body.parent_material_id) ? body.parent_material_id : null;
+    const variant_label = body?.variant_label ? String(body.variant_label).trim() || null : null;
 
     const { data, error } = await supabase
       .from("materials_catalog")
-      .insert({ name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, division_id, source_pricing_book_id, source_page })
-      .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
+      .insert({ name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, division_id, source_pricing_book_id, source_page, parent_material_id, variant_label })
+      .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page, parent_material_id, variant_label")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -65,12 +65,6 @@ const NAV: NavItem[] = [
     ],
   },
   {
-    label: "Performance",
-    href: "/atlasperformance",
-    permKey: "perf_view",
-    icon: <Image src="/atlas-performance-logo.png" alt="Performance" width={18} height={18} className="object-contain" />,
-  },
-  {
     label: "Users",
     href: "/operations-center/users",
     permKey: "users_view",
@@ -128,17 +122,20 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   }, []);
 
   const fullNav = useMemo<NavItem[]>(() => {
-    if (!opsDivisions.length) return NAV;
     const opsItem: NavItem = {
       label: "Operations",
-      href: "/operations-center/atlas-ops",
+      href: "/atlasperformance",
+      permKey: "perf_view",
       icon: <Image src="/atlas-ops-logo.png" alt="Atlas Ops" width={18} height={18} className="object-contain" />,
-      children: opsDivisions.map(d => ({
-        label: d.name,
-        href: `/operations-center/atlas-ops/${d.name.toLowerCase().replace(/\s+/g, "-")}`,
-      })),
+      children: [
+        { label: "Upcoming Revenue", href: "/operations-center/atlas-ops" },
+        ...opsDivisions.map(d => ({
+          label: d.name,
+          href: `/operations-center/atlas-ops/${d.name.toLowerCase().replace(/\s+/g, "-")}`,
+        })),
+      ],
     };
-    return [...NAV.slice(0, 4), opsItem, ...NAV.slice(4)];
+    return [...NAV.slice(0, 3), opsItem, ...NAV.slice(3)];
   }, [opsDivisions]);
 
   // Auto-expand groups whose children include the current path
