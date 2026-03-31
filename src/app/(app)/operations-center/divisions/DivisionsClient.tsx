@@ -7,6 +7,7 @@ type Division = {
   name: string;
   labor_rate: number;
   target_gross_profit_percent: number;
+  fuel_charge_pct: number;
   allow_overtime: boolean;
   active: boolean;
   show_in_ops: boolean;
@@ -53,6 +54,7 @@ export default function DivisionsClient() {
   const [name, setName] = useState("");
   const [laborRate, setLaborRate] = useState<string>("30");
   const [targetGp, setTargetGp] = useState<string>("50");
+  const [fuelCharge, setFuelCharge] = useState<string>("0");
   const [allowOt, setAllowOt] = useState(true);
   const [active, setActive] = useState(true);
   const [deptId, setDeptId] = useState<string>("");
@@ -64,6 +66,7 @@ export default function DivisionsClient() {
   const [editName, setEditName] = useState("");
   const [editLaborRate, setEditLaborRate] = useState<string>("0");
   const [editTargetGp, setEditTargetGp] = useState<string>("0");
+  const [editFuelCharge, setEditFuelCharge] = useState<string>("0");
   const [editAllowOt, setEditAllowOt] = useState(true);
   const [editActive, setEditActive] = useState(true);
   const [editSheetUrl, setEditSheetUrl] = useState<string>("");
@@ -98,6 +101,7 @@ export default function DivisionsClient() {
     setName("");
     setLaborRate("30");
     setTargetGp("50");
+    setFuelCharge("0");
     setAllowOt(true);
     setActive(true);
     setDeptId("");
@@ -110,6 +114,7 @@ export default function DivisionsClient() {
     setEditName(row.name ?? "");
     setEditLaborRate(String(row.labor_rate ?? 0));
     setEditTargetGp(String(row.target_gross_profit_percent ?? 0));
+    setEditFuelCharge(String(row.fuel_charge_pct ?? 0));
     setEditAllowOt(Boolean(row.allow_overtime));
     setEditActive(Boolean(row.active));
     setEditSheetUrl(row.performance_sheet_url ?? "");
@@ -137,6 +142,7 @@ export default function DivisionsClient() {
           name: n,
           labor_rate: lr,
           target_gross_profit_percent: gp,
+          fuel_charge_pct: Number(fuelCharge) || 0,
           allow_overtime: allowOt,
           active,
           department_id: deptId || null,
@@ -177,6 +183,7 @@ export default function DivisionsClient() {
           name: n,
           labor_rate: lr,
           target_gross_profit_percent: gp,
+          fuel_charge_pct: Number(editFuelCharge) || 0,
           allow_overtime: editAllowOt,
           active: editActive,
           performance_sheet_url: editSheetUrl.trim() || null,
@@ -322,6 +329,7 @@ export default function DivisionsClient() {
                     <th className="px-4 py-3 font-semibold">Department</th>
                     <th className="px-4 py-3 font-semibold">Labor Rate</th>
                     <th className="px-4 py-3 font-semibold">Target GP%</th>
+                    <th className="px-4 py-3 font-semibold">Fuel Charge</th>
                     <th className="px-4 py-3 font-semibold">Allow OT</th>
                     <th className="px-4 py-3 font-semibold">Show in Ops</th>
                     <th className="px-4 py-3 font-semibold">Active</th>
@@ -347,6 +355,12 @@ export default function DivisionsClient() {
 
                         <td className="px-4 py-3 text-emerald-950">
                           {asPercentFromWholeNumber(Number(r.target_gross_profit_percent ?? 0))}
+                        </td>
+
+                        <td className="px-4 py-3 text-emerald-950">
+                          {Number(r.fuel_charge_pct ?? 0) > 0
+                            ? `${Number(r.fuel_charge_pct)}%`
+                            : <span className="text-emerald-900/30">—</span>}
                         </td>
 
                         <td className="px-4 py-3">
@@ -470,7 +484,7 @@ export default function DivisionsClient() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
                     <input
@@ -491,6 +505,18 @@ export default function DivisionsClient() {
                       className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
                       placeholder="50"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Fuel Charge (%)</label>
+                    <input
+                      value={fuelCharge}
+                      onChange={(e) => setFuelCharge(e.target.value)}
+                      inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                      placeholder="0"
+                    />
+                    <p className="mt-1 text-xs text-emerald-900/40">Added to bid cost (e.g. 4 = 4%)</p>
                   </div>
                 </div>
 
@@ -586,7 +612,7 @@ export default function DivisionsClient() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-semibold text-emerald-900/80">Labor Rate ($)</label>
                     <input
@@ -605,6 +631,18 @@ export default function DivisionsClient() {
                       inputMode="numeric"
                       className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-900/80">Fuel Charge (%)</label>
+                    <input
+                      value={editFuelCharge}
+                      onChange={(e) => setEditFuelCharge(e.target.value)}
+                      inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                      placeholder="0"
+                    />
+                    <p className="mt-1 text-xs text-emerald-900/40">Added to bid cost (e.g. 4 = 4%)</p>
                   </div>
                 </div>
 

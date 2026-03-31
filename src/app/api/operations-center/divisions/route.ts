@@ -17,6 +17,7 @@ type DivisionRow = {
   name: string;
   labor_rate: number;
   target_gross_profit_percent: number;
+  fuel_charge_pct: number;
   allow_overtime: boolean;
   active: boolean;
   show_in_ops: boolean;
@@ -36,7 +37,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("divisions")
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
       .order("name", { ascending: true });
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     const name = String(body.name ?? "").trim();
     const labor_rate = Number(body.labor_rate);
     const target_gross_profit_percent = Number(body.target_gross_profit_percent);
+    const fuel_charge_pct = Number(body.fuel_charge_pct ?? 0);
     const allow_overtime = Boolean(body.allow_overtime ?? true);
     const active = body.active === undefined ? true : Boolean(body.active);
     const show_in_ops = Boolean(body.show_in_ops ?? false);
@@ -73,6 +75,7 @@ export async function POST(req: NextRequest) {
       name,
       labor_rate,
       target_gross_profit_percent,
+      fuel_charge_pct: Number.isFinite(fuel_charge_pct) ? fuel_charge_pct : 0,
       allow_overtime,
       active,
       show_in_ops,
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("divisions")
       .insert(insertPayload)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });
@@ -110,6 +113,7 @@ export async function PATCH(req: NextRequest) {
     if (body.labor_rate !== undefined) patch.labor_rate = Number(body.labor_rate);
     if (body.target_gross_profit_percent !== undefined)
       patch.target_gross_profit_percent = Number(body.target_gross_profit_percent);
+    if (body.fuel_charge_pct !== undefined) patch.fuel_charge_pct = Number(body.fuel_charge_pct ?? 0);
     if (body.allow_overtime !== undefined) patch.allow_overtime = Boolean(body.allow_overtime);
     if (body.active !== undefined) patch.active = Boolean(body.active);
     if (body.show_in_ops !== undefined) patch.show_in_ops = Boolean(body.show_in_ops);
@@ -133,7 +137,7 @@ export async function PATCH(req: NextRequest) {
       .from("divisions")
       .update(patch)
       .eq("id", id)
-      .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
       .single();
 
     if (error) return json({ error: error.message }, { status: 500 });

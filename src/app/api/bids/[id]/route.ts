@@ -43,6 +43,7 @@ const BID_SELECT = `
   trucking_cost,
   total_cost,
   target_gp_pct,
+  fuel_charge_pct,
   sell_rounded,
   prepay_enabled,
   prepay_price
@@ -251,6 +252,18 @@ export async function PATCH(
         );
       }
       patch.prepay_price = n;
+    }
+
+    if (body?.fuel_charge_pct !== undefined) {
+      if (body.fuel_charge_pct === null) {
+        patch.fuel_charge_pct = null;
+      } else {
+        const n = Number(body.fuel_charge_pct);
+        if (!Number.isFinite(n) || n < 0 || n > 100) {
+          return NextResponse.json({ error: "Invalid fuel_charge_pct" }, { status: 400 });
+        }
+        patch.fuel_charge_pct = n;
+      }
     }
 
     if (Object.keys(patch).length === 0) {

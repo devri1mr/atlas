@@ -8,6 +8,8 @@ type PricingResponse = {
   labor_cost: number;
   material_cost: number;
   trucking_cost: number;
+  fuel_cost: number;
+  fuel_charge_pct: number;
   total_cost: number;
   suggested_price: number;
   final_price: number;
@@ -40,6 +42,7 @@ export default function PricingPage() {
   const [error, setError] = useState("");
 
   const [targetGpPct, setTargetGpPct] = useState<number>(50);
+  const [fuelChargePct, setFuelChargePct] = useState<string>("");
   const [manualPrice, setManualPrice] = useState<string>("");
   const [prepayEnabled, setPrepayEnabled] = useState(false);
   const [data, setData] = useState<PricingResponse | null>(null);
@@ -47,7 +50,8 @@ export default function PricingPage() {
   async function calculate(
     nextGpPct = targetGpPct,
     nextPrepay = prepayEnabled,
-    nextManualPrice = manualPrice
+    nextManualPrice = manualPrice,
+    nextFuelPct = fuelChargePct
   ) {
     if (!bidId) return;
     setError("");
@@ -59,6 +63,7 @@ export default function PricingPage() {
         target_gp_pct: Number(nextGpPct || 0),
         prepay_enabled: nextPrepay,
         manual_price: nextManualPrice !== "" && !Number.isNaN(Number(nextManualPrice)) ? Number(nextManualPrice) : null,
+        fuel_charge_pct: nextFuelPct !== "" && !Number.isNaN(Number(nextFuelPct)) ? Number(nextFuelPct) : null,
       }),
     });
     const json = await res.json().catch(() => null);
@@ -67,6 +72,8 @@ export default function PricingPage() {
       labor_cost: Number(json?.labor_cost ?? 0),
       material_cost: Number(json?.material_cost ?? 0),
       trucking_cost: Number(json?.trucking_cost ?? 0),
+      fuel_cost: Number(json?.fuel_cost ?? 0),
+      fuel_charge_pct: Number(json?.fuel_charge_pct ?? 0),
       total_cost: Number(json?.total_cost ?? 0),
       suggested_price: Number(json?.suggested_price ?? 0),
       final_price: Number(json?.final_price ?? 0),
@@ -98,6 +105,7 @@ export default function PricingPage() {
           trucking_cost: data.trucking_cost,
           total_cost: data.total_cost,
           target_gp_pct: targetGpPct,
+          fuel_charge_pct: fuelChargePct !== "" ? Number(fuelChargePct) : null,
           sell_rounded: data.final_price,
           prepay_enabled: prepayEnabled,
           prepay_price: data.prepay_price,
@@ -128,15 +136,17 @@ export default function PricingPage() {
           if (row) {
             const nextTargetGp = Number(row?.target_gp_pct ?? 50);
             const nextPrepayEnabled = Boolean(row?.prepay_enabled ?? false);
+            const nextFuelPct = row?.fuel_charge_pct != null ? String(row.fuel_charge_pct) : "";
             setTargetGpPct(nextTargetGp);
             setPrepayEnabled(nextPrepayEnabled);
+            setFuelChargePct(nextFuelPct);
             setManualPrice("");
-            await calculate(nextTargetGp, nextPrepayEnabled, "");
+            await calculate(nextTargetGp, nextPrepayEnabled, "", nextFuelPct);
           } else {
-            await calculate(50, false, "");
+            await calculate(50, false, "", "");
           }
         } else {
-          await calculate(50, false, "");
+          await calculate(50, false, "", "");
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load pricing.");
@@ -151,12 +161,12 @@ export default function PricingPage() {
   useEffect(() => {
     if (!bidId || loading) return;
     const t = setTimeout(() => {
-      calculate(targetGpPct, prepayEnabled, manualPrice).catch((e: any) => {
+      calculate(targetGpPct, prepayEnabled, manualPrice, fuelChargePct).catch((e: any) => {
         setError(e?.message || "Failed to calculate pricing.");
       });
     }, 200);
     return () => clearTimeout(t);
-  }, [targetGpPct, prepayEnabled, manualPrice]);
+  }, [targetGpPct, prepayEnabled, manualPrice, fuelChargePct]);
 
   // Auto-save prepay_enabled to DB when toggled so scope + proposal stay in sync
   useEffect(() => {
@@ -181,6 +191,9 @@ export default function PricingPage() {
     { label: "Labor", value: data?.labor_cost ?? 0 },
     { label: "Materials", value: data?.material_cost ?? 0 },
     { label: "Trucking", value: data?.trucking_cost ?? 0 },
+    ...(Number(data?.fuel_cost ?? 0) > 0
+      ? [{ label: `Fuel (${Number(data?.fuel_charge_pct ?? 0)}%)`, value: data?.fuel_cost ?? 0 }]
+      : []),
   ];
 
   if (loading) {
@@ -283,6 +296,24 @@ export default function PricingPage() {
                   {overrideAmount > 0 ? "+" : ""}{money(overrideAmount)} vs suggested
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className={labelCls}>
+                Fuel Charge (%)
+                <span className="ml-1 font-normal normal-case text-gray-400">— from division default</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={fuelChargePct}
+                  onChange={(e) => setFuelChargePct(e.target.value)}
+                  className={inputCls + " pr-8"}
+                  min={0} max={100} step={0.1}
+                  placeholder={String(data?.fuel_charge_pct ?? 0)}
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">%</span>
+              </div>
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer select-none">

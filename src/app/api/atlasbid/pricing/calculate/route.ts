@@ -86,6 +86,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: bidError.message }, { status: 500 });
     }
 
+    // Look up division's default fuel_charge_pct
+    let divisionFuelPct = 0;
+    if (bidRow?.division_id) {
+      const { data: divRow } = await supabase
+        .from("divisions")
+        .select("fuel_charge_pct")
+        .eq("id", bidRow.division_id)
+        .maybeSingle();
+      divisionFuelPct = num(divRow?.fuel_charge_pct, 0);
+    }
+    // Per-bid override takes precedence if set
+    const fuel_charge_pct =
+      body?.fuel_charge_pct !== null && body?.fuel_charge_pct !== undefined
+        ? num(body.fuel_charge_pct, divisionFuelPct)
+        : bidRow?.fuel_charge_pct != null
+          ? num(bidRow.fuel_charge_pct, divisionFuelPct)
+          : divisionFuelPct;
+
     const labor_cost =
       laborRows?.reduce((sum, r) => {
         const hours = num(r.man_hours);
@@ -110,7 +128,9 @@ export async function POST(req: NextRequest) {
         ? num(bidRow.trucking_cost)
         : trucking_hours * trucking_rate;
 
-    const total_cost = round2(labor_cost + material_cost + trucking_cost);
+    const base_cost = round2(labor_cost + material_cost + trucking_cost);
+    const fuel_cost = round2(base_cost * fuel_charge_pct / 100);
+    const total_cost = round2(base_cost + fuel_cost);
 
     // Read settings from bid_settings (same source as scope page)
     const { data: bidSettings } = await supabase
@@ -171,6 +191,8 @@ const minimum_gp_pct = getDivisionMinimumGpPct(bidRow);
       labor_cost: round2(labor_cost),
       material_cost: round2(material_cost),
       trucking_cost: round2(trucking_cost),
+      fuel_cost: round2(fuel_cost),
+      fuel_charge_pct,
       total_cost,
 
       suggested_price,
