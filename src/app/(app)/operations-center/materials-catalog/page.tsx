@@ -56,6 +56,13 @@ function countMaterials(node: CategoryNode, matsByCat: Map<string, number>): num
   return own + child;
 }
 
+function collectDescendantIds(catId: string, flat: Category[]): string[] {
+  const ids: string[] = [catId];
+  const children = flat.filter(c => c.parent_id === catId);
+  for (const child of children) ids.push(...collectDescendantIds(child.id, flat));
+  return ids;
+}
+
 const COLORS = [
   "#22c55e","#10b981","#3b82f6","#f59e0b","#f97316",
   "#ef4444","#a855f7","#ec4899","#6b7280","#92400e",
@@ -416,14 +423,21 @@ export default function MaterialsCatalogPage() {
     setCatsLoading(true);
     const r = await fetch("/api/material-categories", { cache: "no-store" });
     const j = await r.json();
-    setCategories(j?.data ?? []);
+    const cats = j?.data ?? [];
+    setCategories(cats);
     setCatsLoading(false);
+    // Re-run materials load with the fresh category list so descendant IDs are correct
+    if (selectedCatId) loadMaterials(cats);
   }
 
-  async function loadMaterials() {
+  async function loadMaterials(cats?: Category[]) {
     setMatsLoading(true);
+    const catList = cats ?? categories;
     const params = new URLSearchParams({ include_inactive: showInactive ? "true" : "false" });
-    if (selectedCatId) params.set("category_id", selectedCatId);
+    if (selectedCatId) {
+      const ids = collectDescendantIds(selectedCatId, catList);
+      params.set("category_ids", ids.join(","));
+    }
     if (search) params.set("q", search);
     const r = await fetch(`/api/materials-catalog?${params}`, { cache: "no-store" });
     const j = await r.json();

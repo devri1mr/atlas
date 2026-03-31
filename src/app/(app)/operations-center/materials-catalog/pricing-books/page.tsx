@@ -23,6 +23,7 @@ type ColumnMap = {
   unit: number | null;
   cost: number | null;
   vendor: number | null;
+  page: number | null;
 };
 
 type ImportRow = {
@@ -30,6 +31,7 @@ type ImportRow = {
   unit: string;
   cost: number;
   vendor: string;
+  page: number | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -208,7 +210,7 @@ export default function PricingBooksPage() {
     setImportError(null);
     setRawHeaders([]);
     setRawRows([]);
-    setColumnMap({ name: null, unit: null, cost: null, vendor: null });
+    setColumnMap({ name: null, unit: null, cost: null, vendor: null, page: null });
     setImportRows([]);
     setImportResult(null);
 
@@ -238,13 +240,14 @@ export default function PricingBooksPage() {
       }
 
       // Auto-detect column mapping by header name
-      const autoMap: ColumnMap = { name: null, unit: null, cost: null, vendor: null };
+      const autoMap: ColumnMap = { name: null, unit: null, cost: null, vendor: null, page: null };
       headers.forEach((h, i) => {
         const lower = h.toLowerCase().trim();
         if (/name|description|item|material/.test(lower) && autoMap.name === null) autoMap.name = i;
         else if (/unit/.test(lower) && autoMap.unit === null) autoMap.unit = i;
         else if (/cost|price|rate|each|per unit/.test(lower) && autoMap.cost === null) autoMap.cost = i;
         else if (/vendor|supplier|brand/.test(lower) && autoMap.vendor === null) autoMap.vendor = i;
+        else if (/page|pg/.test(lower) && autoMap.page === null) autoMap.page = i;
       });
 
       setRawHeaders(headers);
@@ -265,6 +268,7 @@ export default function PricingBooksPage() {
         unit: columnMap.unit !== null ? String(row[columnMap.unit] ?? "").trim() : "ea",
         cost: columnMap.cost !== null ? parseFloat(String(row[columnMap.cost] ?? "0").replace(/[^0-9.]/g, "")) || 0 : 0,
         vendor: columnMap.vendor !== null ? String(row[columnMap.vendor] ?? "").trim() : (importBook?.vendor ?? ""),
+        page: columnMap.page !== null ? (parseInt(String(row[columnMap.page] ?? ""), 10) || null) : null,
       }))
       .filter(r => r.name.length > 0);
   }
@@ -296,6 +300,8 @@ export default function PricingBooksPage() {
           default_unit_cost: row.cost,
           vendor: row.vendor || null,
           is_active: true,
+          source_pricing_book_id: importBook.id,
+          source_page: row.page ?? null,
         }),
       });
       if (res.ok) imported++;
@@ -672,10 +678,10 @@ export default function PricingBooksPage() {
                     <>
                       <p className="text-sm text-gray-600">Match each field to the correct column from your file. Name is required.</p>
                       <div className="grid grid-cols-2 gap-4">
-                        {(["name", "unit", "cost", "vendor"] as const).map(field => (
+                        {(["name", "unit", "cost", "vendor", "page"] as const).map(field => (
                           <div key={field}>
                             <label className="block text-xs font-semibold text-gray-700 mb-1 capitalize">
-                              {field === "name" ? "Material Name *" : field === "unit" ? "Unit" : field === "cost" ? "Unit Cost" : "Vendor"}
+                              {field === "name" ? "Material Name *" : field === "unit" ? "Unit" : field === "cost" ? "Unit Cost" : field === "vendor" ? "Vendor" : "Page Number"}
                             </label>
                             <select
                               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -733,6 +739,7 @@ export default function PricingBooksPage() {
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Unit</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Cost</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Vendor</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Page</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -742,6 +749,7 @@ export default function PricingBooksPage() {
                             <td className="px-3 py-1.5 text-gray-600">{row.unit || "ea"}</td>
                             <td className="px-3 py-1.5 text-gray-600">${row.cost.toFixed(2)}</td>
                             <td className="px-3 py-1.5 text-gray-500">{row.vendor || "—"}</td>
+                            <td className="px-3 py-1.5 text-gray-400">{row.page ?? "—"}</td>
                           </tr>
                         ))}
                       </tbody>

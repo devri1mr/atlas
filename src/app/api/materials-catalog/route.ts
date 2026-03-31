@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
 
     const q = (searchParams.get("q") || "").trim();
     const category_id = (searchParams.get("category_id") || "").trim();
+    const category_ids_raw = (searchParams.get("category_ids") || "").trim();
     const division_id = (searchParams.get("division_id") || "").trim();
     const include_inactive = searchParams.get("include_inactive");
     // "true"  → show only inactive
@@ -29,7 +30,13 @@ export async function GET(req: NextRequest) {
     if (include_inactive === "true") query = query.eq("is_active", false);
     else query = query.eq("is_active", true);
     if (division_id && isUuid(division_id)) query = query.eq("division_id", division_id);
-    if (category_id && isUuid(category_id)) query = query.eq("category_id", category_id);
+    if (category_ids_raw) {
+      const ids = category_ids_raw.split(",").map(s => s.trim()).filter(isUuid);
+      if (ids.length === 1) query = query.eq("category_id", ids[0]);
+      else if (ids.length > 1) query = query.in("category_id", ids);
+    } else if (category_id && isUuid(category_id)) {
+      query = query.eq("category_id", category_id);
+    }
     if (q) query = query.or(`name.ilike.%${q}%,vendor.ilike.%${q}%`);
 
     const { data, error } = await query;
@@ -77,12 +84,13 @@ export async function POST(req: NextRequest) {
     const vendor = body?.vendor || null;
     const sku = body?.sku || null;
     const is_active = body?.is_active !== undefined ? Boolean(body.is_active) : true;
-
     const taxable = body?.taxable !== undefined ? Boolean(body.taxable) : true;
+    const source_pricing_book_id = body?.source_pricing_book_id && isUuid(body.source_pricing_book_id) ? body.source_pricing_book_id : null;
+    const source_page = body?.source_page != null ? (parseInt(String(body.source_page), 10) || null) : null;
 
     const { data, error } = await supabase
       .from("materials_catalog")
-      .insert({ name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, division_id })
+      .insert({ name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, division_id, source_pricing_book_id, source_page })
       .select("id, name, default_unit, default_unit_cost, taxable, vendor, sku, is_active, category_id, created_at, source_pricing_book_id, source_page")
       .single();
 
