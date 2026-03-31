@@ -591,7 +591,7 @@ async function mergeMaterialRow(
 
   // Auto-confirm sources for template materials as they load
   useEffect(() => {
-    const templateRows = materials.filter(r => r.material_id && (!r.source_type || r.source_type === "template"));
+    const templateRows = materials.filter(r => r.material_id && needsSourceConfirm(r.source_type));
     for (const row of templateRows) {
       ensureMatSources(row.material_id!);
     }
@@ -876,6 +876,10 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
     setBundleNameDraft("");
   }
 
+  function needsSourceConfirm(sourceType: string | null | undefined): boolean {
+    return !sourceType || sourceType === "template" || sourceType === "bundle";
+  }
+
   async function ensureMatSources(materialId: string) {
     if (!materialId || matSourcesCache[materialId]) return;
     const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
@@ -886,17 +890,31 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
       ]);
       const invJson = await invRes.json();
       const vendorJson = await vendorRes.json();
+      // Use already-loaded catalog state for vendor fallback (no extra fetch needed)
+      const catalogEntry = materialsCatalog.find(c => c.id === materialId) ?? null;
+
       const inv = Array.isArray(invJson?.data) ? invJson.data.map((s: any) => ({
-        source_name: s.source_label || "Inventory",
+        source_name: s.source_label || "Inventory On Hand",
         unit: s.unit || "ea",
-        cost: s.unit_cost ?? 0,
+        cost: s.unit_cost ?? s.cost ?? 0,
       })) : [];
       const vendors = Array.isArray(vendorJson?.data) ? vendorJson.data.map((s: any) => ({
         source_name: s.vendor_name || s.source_name || "Vendor",
         unit: s.unit || "ea",
-        cost: s.unit_cost ?? 0,
+        cost: s.cost ?? s.unit_cost ?? 0,  // API returns 'cost', not 'unit_cost'
       })) : [];
-      const sources = [...inv, ...vendors];
+
+      // Fallback: if no vendor pricing rows, use the catalog entry's vendor field
+      const catalogVendor: any[] = [];
+      if (vendors.length === 0 && catalogEntry?.vendor && catalogEntry.default_unit_cost != null) {
+        catalogVendor.push({
+          source_name: catalogEntry.vendor,
+          unit: catalogEntry.default_unit || "ea",
+          cost: Number(catalogEntry.default_unit_cost) || 0,
+        });
+      }
+
+      const sources = [...inv, ...vendors, ...catalogVendor];
       setMatSourcesCache((prev) => ({ ...prev, [materialId]: sources }));
 
       // Auto-confirm if there's exactly one source and the row still needs confirmation
@@ -904,7 +922,7 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
         const src = sources[0];
         setMaterials(prev => prev.map(row => {
           if (row.material_id !== materialId) return row;
-          if (row.source_type && row.source_type !== "template") return row; // already confirmed
+          if (!needsSourceConfirm(row.source_type)) return row; // already confirmed
           const patch = { source_type: src.source_name, unit: src.unit || row.unit, unit_cost: Number(Number(src.cost).toFixed(2)) };
           fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).catch(() => {});
           return { ...row, ...patch };
@@ -2102,7 +2120,7 @@ async function addLabor() {
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-gray-800">Materials</h2>
                 {materials.length > 0 && <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-semibold tabular-nums">{materials.length}</span>}
-                {materials.some(m => !m.source_type || m.source_type === "template") && <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">⚠ confirm sources</span>}
+                {materials.some(m => needsSourceConfirm(m.source_type)) && <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">⚠ confirm sources</span>}
               </div>
               <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
             </div>
@@ -2195,20 +2213,20 @@ async function addLabor() {
                         {row.material_id && (
                           <div className="border-t border-gray-100 px-3 py-1.5 bg-gray-50/60">
                             <select
-                              className={`w-full border rounded text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${!row.source_type || row.source_type === "template" ? "border-amber-300 bg-amber-50 text-amber-700 font-semibold" : "border-gray-200 text-gray-500"}`}
+                              className={`w-full border rounded text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${needsSourceConfirm(row.source_type) ? "border-amber-300 bg-amber-50 text-amber-700 font-semibold" : "border-gray-200 text-gray-500"}`}
                               value=""
                               onFocus={() => ensureMatSources(row.material_id!)}
                               onChange={async (e) => {
                                 const idx = Number(e.target.value);
                                 const src = (matSourcesCache[row.material_id!] || [])[idx];
                                 if (!src) return;
-                                const patch: Partial<MaterialRow> = { source_type: src.source_type, unit: src.unit || row.unit };
+                                const patch: Partial<MaterialRow> = { source_type: src.source_name, unit: src.unit || row.unit };
                                 if (src.cost !== undefined) { patch.unit_cost = Number(Number(src.cost).toFixed(2)); }
                                 await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
                                 setMaterials(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
                               }}
                             >
-                              <option value="">{!row.source_type || row.source_type === "template" ? "⚠ confirm source" : `Source: ${row.source_type}`}</option>
+                              <option value="">{needsSourceConfirm(row.source_type) ? "⚠ confirm source" : `Source: ${row.source_type}`}</option>
                               {(matSourcesCache[row.material_id] || []).map((s: any, i: number) => {
                                 const avail = s.available_qty == null ? null : Number(s.available_qty);
                                 const availText = avail === null ? "" : avail < 0 ? ` (LOW: ${avail.toFixed(2).replace(/\.00$/, "")})` : ` (${avail.toFixed(2).replace(/\.00$/, "")} avail)`;

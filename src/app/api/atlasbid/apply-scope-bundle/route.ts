@@ -570,7 +570,7 @@ export async function POST(req: NextRequest) {
             qty: d.qty,
             unit: d.unit,
             unit_cost: d.unit_cost,
-            source_type: "bundle",
+            source_type: null,
             source_task_id: d.source_task_id,
           });
 

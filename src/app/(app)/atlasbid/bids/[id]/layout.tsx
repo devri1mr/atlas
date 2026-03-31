@@ -32,10 +32,10 @@ export default async function BidLayout({
   const tabs = [
     { name: "Overview", href: `/atlasbid/bids/${id}` },
     { name: "Scope", href: `/atlasbid/bids/${id}/scope` },
-    { name: "Measurements", href: `/atlasbid/bids/${id}/measurements` },
+    // { name: "Measurements", href: `/atlasbid/bids/${id}/measurements` },
     { name: "Pricing", href: `/atlasbid/bids/${id}/pricing` },
     { name: "Photos/Videos", href: `/atlasbid/bids/${id}/photos` },
-    { name: "Design", href: `/atlasbid/bids/${id}/design` },
+    // { name: "Design", href: `/atlasbid/bids/${id}/design` },
     { name: "Proposal", href: `/atlasbid/bids/${id}/proposal` },
     { name: "SAP", href: `/atlasbid/bids/${id}/sap` },
   ];
