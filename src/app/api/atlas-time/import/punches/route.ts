@@ -159,11 +159,13 @@ export async function POST(req: NextRequest) {
       let div = divList.find(d => normalize(d.name) === n);
       if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
-      // 2. Starts-with either direction
-      atDiv = atDivList.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
+      // 2. Division-name starts with the CSV term (not the reverse — avoids
+      //    "Snow Training" matching the "Snow" division because "snowtraining"
+      //    starts with "snow")
+      atDiv = atDivList.find(d => normalize(d.name).startsWith(n));
       if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
 
-      div = divList.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
+      div = divList.find(d => normalize(d.name).startsWith(n));
       if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
       // 3. Word-prefix fuzzy ("Holiday Lighting" → "Holiday Lights")
@@ -173,19 +175,9 @@ export async function POST(req: NextRequest) {
       div = divList.find(d => wordPrefixMatch(d.name, punchItem));
       if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
-      // 4. Word-suffix: CSV name matches the trailing words of an at_division name
-      //    e.g. "Tree Farm" matches "Admin: DRDG Tree Farm"
-      atDiv = atDivList.find(d => {
-        const atWords  = d.name.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
-        const csvWords = punchItem.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
-        if (csvWords.length === 0 || csvWords.length >= atWords.length) return false;
-        const tail = atWords.slice(atWords.length - csvWords.length);
-        return csvWords.every((w, i) => {
-          const len = Math.min(w.length, tail[i].length, 4);
-          return w.slice(0, len) === tail[i].slice(0, len);
-        });
-      });
-      if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };
+      // Step 4 (word-suffix) removed — it caused false positives like
+      // "Shop - Field Punch" matching an at_division named "Admin Shop Field Punch".
+      // Use csv_name aliases on at_divisions for explicit CSV-to-item mappings instead.
 
       return null;
     }
