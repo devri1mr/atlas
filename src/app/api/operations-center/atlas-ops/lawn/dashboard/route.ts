@@ -239,6 +239,25 @@ export async function GET() {
       iterDate.setUTCDate(iterDate.getUTCDate() + 1);
     }
 
+    // ── Fold admin pay into byWeekFullPayroll ────────────────────────────────
+    // Production days: admin already added to byDate.payroll_cost; also roll into weekly total
+    for (const [date] of byDate.entries()) {
+      if (date <= todayStr) {
+        const adminCost = adminDailyRate(date, adminConfig, adminOverrideMap);
+        if (adminCost > 0) {
+          const mon = isoWeekStart(new Date(date + "T12:00:00Z"));
+          const wk  = mon.toISOString().slice(0, 10);
+          byWeekFullPayroll.set(wk, (byWeekFullPayroll.get(wk) ?? 0) + adminCost);
+        }
+      }
+    }
+    // Admin-only days (no production): add their cost to the week total too
+    for (const [date, cost] of adminOnlyPayroll.entries()) {
+      const mon = isoWeekStart(new Date(date + "T12:00:00Z"));
+      const wk  = mon.toISOString().slice(0, 10);
+      byWeekFullPayroll.set(wk, (byWeekFullPayroll.get(wk) ?? 0) + cost);
+    }
+
     // ── Current & last week ───────────────────────────────────────────────────
 
     const today  = new Date();
