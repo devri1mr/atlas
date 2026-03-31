@@ -35,28 +35,11 @@ const NAV: NavItem[] = [
     href: "/atlasbid/bids",
     permKey: "bids_view",
     icon: <Image src="/atlas-bid-logo.png" alt="AtlasBid" width={18} height={18} className="object-contain" />,
-  },
-  {
-    label: "Takeoff",
-    href: "/atlastakeoff",
-    permKey: "takeoff_view",
-    icon: <Image src="/atlas-takeoff-logo.png" alt="AtlasTakeoff" width={18} height={18} className="object-contain" />,
-  },
-  {
-    label: "Materials",
-    href: "/operations-center/materials-catalog",
-    permKey: "mat_catalog_view",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a10 10 0 0 1 10 10" /><path d="M12 2a10 10 0 0 0-6.88 17.24" />
-        <path d="M12 8c-2.5 2-3.5 4.5-2 7.5" /><path d="M12 8c2 1.5 4 4 3 7" />
-        <circle cx="12" cy="19" r="1" />
-      </svg>
-    ),
     children: [
-      { label: "Catalog", href: "/operations-center/materials-catalog", permKey: "mat_catalog_view" },
-      { label: "Inventory", href: "/operations-center/inventory", permKey: "mat_inventory_view" },
-      { label: "Pricing Books", href: "/operations-center/materials-catalog/pricing-books", permKey: "mat_pricing_view" },
+      { label: "Bids",           href: "/atlasbid/bids",                                     permKey: "bids_view" },
+      { label: "Catalog",        href: "/operations-center/materials-catalog",                permKey: "mat_catalog_view" },
+      { label: "Inventory",      href: "/operations-center/inventory",                        permKey: "mat_inventory_view" },
+      { label: "Pricing Books",  href: "/operations-center/materials-catalog/pricing-books",  permKey: "mat_pricing_view" },
     ],
   },
   {
