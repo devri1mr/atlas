@@ -77,7 +77,8 @@ export async function GET(req: NextRequest) {
       .eq("show_in_ops", true)
       .order("name");
 
-    const divisions = divRows ?? [];
+    // Exclude "admin" — it is handled separately as a cost-centre row below
+    const divisions = (divRows ?? []).filter(d => d.name.toLowerCase() !== "admin");
     const isLawnDiv = (name: string) => name.toLowerCase() === "lawn";
 
     // ── YTD prior months: lawn production reports ─────────────────────────────

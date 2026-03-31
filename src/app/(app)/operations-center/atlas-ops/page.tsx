@@ -263,9 +263,11 @@ export default function CompanyRevenuePage() {
 
                       {/* YTD Actual — thick separator */}
                       <td className={`${CELL} border-l-[3px] border-l-gray-400`}>
-                        {div.ytd > 0
-                          ? <span className="font-bold text-emerald-700">{money(div.ytd)}</span>
-                          : <span className="text-gray-300">—</span>
+                        {div.ytd === 0
+                          ? <span className="text-gray-300">—</span>
+                          : div.ytd > 0
+                            ? <span className="font-bold text-emerald-700">{money(div.ytd)}</span>
+                            : <span className="font-bold text-red-500">{money(div.ytd)}</span>
                         }
                       </td>
 
