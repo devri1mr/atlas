@@ -381,11 +381,13 @@ const [selectedBundleId, setSelectedBundleId] = useState<string>("");
 
 const [bundleQuestions, setBundleQuestions] = useState<any[]>([]);
 const [bundleAnswers, setBundleAnswers] = useState<Record<string, any>>({});
+const [lastBundleAnswers, setLastBundleAnswers] = useState<Record<string, any>>({});
 
 const [loadingBundles, setLoadingBundles] = useState(false);
 const [loadingBundleQuestions, setLoadingBundleQuestions] = useState(false);
 const [loadingBundleIntoBid, setLoadingBundleIntoBid] = useState(false);
 const [openBundleCardId, setOpenBundleCardId] = useState<string | null>(null);
+const [showCustomLaborForm, setShowCustomLaborForm] = useState(false);
 const [calcOpenForRow, setCalcOpenForRow] = useState<string | null>(null);
 const [rowCalcValues, setRowCalcValues] = useState<Record<string, { sqft: string; depth: string }>>({});
 
@@ -508,6 +510,7 @@ async function mergeMaterialRow(
 
       setBid(b);
       setPrepayEnabled(Boolean(b?.prepay_enabled ?? false));
+      if (b?.target_gp_pct != null) setTargetGpPct(Number(b.target_gp_pct));
       setBidPricingDate(
         b?.pricing_date ? String(b.pricing_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
       );
@@ -553,7 +556,7 @@ async function mergeMaterialRow(
       // Bid settings
       const settings: BidSettings | null = sJson?.settings ?? sJson?.data ?? null;
       if (settings) {
-        setTargetGpPct(normalizePercent(settings.margin_default) || 50);
+        if (b?.target_gp_pct == null) setTargetGpPct(normalizePercent(settings.margin_default) || 50);
         setContingencyPct(normalizePercent(settings.contingency_pct) || 0);
         setPrepayDiscountPct(normalizePercent(settings.prepay_discount_pct) || 0);
         setRoundUpIncrement(Number(settings.round_up_increment || 0) || 0);
@@ -585,6 +588,15 @@ async function mergeMaterialRow(
   useEffect(() => {
     loadAll();
   }, [bidId]);
+
+  // Auto-confirm sources for template materials as they load
+  useEffect(() => {
+    const templateRows = materials.filter(r => r.material_id && (!r.source_type || r.source_type === "template"));
+    for (const row of templateRows) {
+      ensureMatSources(row.material_id!);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materials.length]);
 
   // Trucking autosave
   useEffect(() => {
@@ -884,7 +896,20 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
         unit: s.unit || "ea",
         cost: s.unit_cost ?? 0,
       })) : [];
-      setMatSourcesCache((prev) => ({ ...prev, [materialId]: [...inv, ...vendors] }));
+      const sources = [...inv, ...vendors];
+      setMatSourcesCache((prev) => ({ ...prev, [materialId]: sources }));
+
+      // Auto-confirm if there's exactly one source and the row still needs confirmation
+      if (sources.length === 1) {
+        const src = sources[0];
+        setMaterials(prev => prev.map(row => {
+          if (row.material_id !== materialId) return row;
+          if (row.source_type && row.source_type !== "template") return row; // already confirmed
+          const patch = { source_type: src.source_name, unit: src.unit || row.unit, unit_cost: Number(Number(src.cost).toFixed(2)) };
+          fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).catch(() => {});
+          return { ...row, ...patch };
+        }));
+      }
     } catch {}
   }
 
@@ -1016,6 +1041,7 @@ useEffect(() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sell_rounded: Number(sellRounded) || 0,
+          target_gp_pct: Number(targetGpPct) || 0,
           prepay_enabled: prepayEnabled,
           prepay_price: prepayEnabled ? Number(sellWithPrepay) || 0 : null,
         }),
@@ -1039,7 +1065,7 @@ useEffect(() => {
   }, 600);
 
   return () => clearTimeout(t);
-}, [bid?.id, loading, sellRounded, sellWithPrepay, prepayEnabled]);
+}, [bid?.id, loading, sellRounded, sellWithPrepay, prepayEnabled, targetGpPct]);
   async function saveDivision() {
     if (!divisionPick) return;
 
@@ -1101,7 +1127,8 @@ async function loadBundleQuestions(bundleId: string) {
   })
 );
 
-setBundleAnswers(normalized);
+// Merge last-used answers into defaults (carry over measurements from previous bundle)
+setBundleAnswers({ ...lastBundleAnswers, ...normalized });
   } catch {
     setBundleQuestions([]);
   } finally {
@@ -1145,6 +1172,7 @@ if (json?.bundle_run?.id) {
     { id: json.bundle_run.id, bundle_id: selectedBundleId, bundle_name: bundleName },
   ]);
 }
+setLastBundleAnswers(bundleAnswers);
 setOpenBundleCardId(null);
 setSelectedBundleId("");
 setBundleQuestions([]);
@@ -1928,1058 +1956,344 @@ async function addLabor() {
               )}
             </div>
           )}
-          <div className="border rounded-lg">
-  <div className="bg-gray-50 border-b px-5 py-3 rounded-t-lg">
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-800">Labor Builder</h2>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Season</span>
-          <select
-            className="border border-gray-200 rounded-lg px-2 py-1 text-sm h-8 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={season}
-            onChange={async (e) => {
-              const s = e.target.value;
-              setSeason(s);
-              await fetch(`/api/bids/${bidId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ season: s || null }),
-              });
-            }}
-          >
-            <option value="">— None —</option>
-            <option value="spring">🌱 Spring</option>
-            <option value="summer">☀️ Summer</option>
-            <option value="fall">🍂 Fall</option>
-            <option value="winter">❄️ Winter</option>
-          </select>
-        </div>
-        <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
-      </div>
-    </div>
-  </div>
-  <div className="p-5 space-y-4">
-
-  {/* Add row */}
-  <div className="space-y-2">
-  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-    {/* Column headers — hidden on mobile, shown on sm+ */}
-    <div className="hidden sm:flex items-center gap-2 px-0.5">
-      <div className="flex-1 min-w-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Task</div>
-      <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Qty</div>
-      <div className="w-24 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit</div>
-      <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Hrs</div>
-      <div className="w-[68px] shrink-0" />
-    </div>
-    {/* Task search — full width */}
-    <div className="flex-1 min-w-0" ref={taskDropdownRef}>
-      <div className="relative">
-        <input
-          className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          placeholder="Search or enter task name…"
-          value={taskSearch}
-          onChange={(e) => {
-            const v = e.target.value;
-            setTaskSearch(v);
-            setTask(v);
-            setShowTaskResults(true);
-            setSelectedTaskCatalogId("");
-            setSelectedTaskMinutesPerUnit(null);
-            setSelectedTaskTemplate("");
-            setDetailsFromTemplate(false);
-          }}
-          onFocus={() => setShowTaskResults(true)}
-        />
-        {showTaskResults && filteredTasks.length > 0 ? (
-          <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
-            {filteredTasks.map((t) => (
-              <div
-                key={t.id}
-                className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
-                onClick={() => applyTaskSelection(t)}
-              >
-                {t.name}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-    {/* Qty / Unit / Hrs / Add — single row on all sizes */}
-    <div className="flex items-center gap-2">
-      <div className="w-20 shrink-0">
-        <input
-          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-          type="number"
-          placeholder="Qty"
-          value={quantity === 0 ? "" : quantity}
-          onChange={(e) => {
-            const newQty = Number(e.target.value) || 0;
-            setQuantity(newQty);
-            if (selectedTaskMinutesPerUnit && newQty > 0) {
-              const computed = hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, newQty);
-              setHours(Number.isFinite(computed) ? Number(computed.toFixed(2)) : 0);
-            }
-            if (detailsFromTemplate && selectedTaskTemplate && newQty > 0) {
-              const matNames = templateMaterials.map((r: any) => r.materials_catalog?.name || "").filter(Boolean);
-              setDetails(renderDescriptionTemplate(selectedTaskTemplate, newQty, unit, matNames));
-            }
-          }}
-        />
-      </div>
-      <div className="w-24 shrink-0">
-        <UnitInput
-          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-          value={unit}
-          onChange={(v) => {
-            setUnit(v);
-            if (v !== "yd") { setCalcSqft(""); setCalcDepth("3"); }
-          }}
-        />
-      </div>
-      <div className="w-20 shrink-0">
-        <input
-          className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-          type="number"
-          placeholder="Hrs"
-          value={hours === 0 ? "" : hours}
-          onChange={(e) => setHours(Number(e.target.value))}
-        />
-      </div>
-      <button
-        onClick={addLabor}
-        className="shrink-0 bg-[#123b1f] text-white rounded-lg h-9 px-5 text-sm font-semibold hover:bg-[#1a5c2e]"
-      >
-        Add
-      </button>
-    </div>
-    {/* Row 2: description + AI + save to catalog */}
-    <div className="flex items-center gap-2">
-      <div className="flex-1 min-w-0 relative">
-        <input
-          className="border border-gray-200 rounded-lg w-full h-9 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-          placeholder="Description / proposal text…"
-          autoComplete="off"
-          value={details}
-          onFocus={() => setShowTaskResults(false)}
-          onChange={(e) => { setDetails(e.target.value); setSuggestion(""); setSuggestionFor(null); setDetailsFromTemplate(false); }}
-        />
-        {task.trim() && (
-          <button
-            type="button"
-            title="Atlas suggest description"
-            disabled={suggestingFor === "add"}
-            onClick={async () => { await suggestDescription("add", task.trim(), quantity, unit); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
-          >
-            {suggestingFor === "add" ? "…" : "✨"}
-          </button>
-        )}
-        {suggestion && suggestionFor === "add" && suggestingFor === null && (
-          <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-            <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-            <div className="flex gap-2">
-              <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={() => { setDetails(suggestion); setSuggestion(""); setSuggestionFor(null); }}>Use this</button>
-              <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
-            </div>
-          </div>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={() => setSaveToCatalog((v) => !v)}
-        className={`shrink-0 text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors whitespace-nowrap ${
-          saveToCatalog
-            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
-            : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500"
-        }`}
-      >
-        {savingToCatalog ? "Saving…" : saveToCatalog ? "✓ Catalog" : "+ Catalog"}
-      </button>
-    </div>
-  </div>
-
-  {unit === "yd" && (
-    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 ml-2">
-      <span className="text-xs font-semibold text-amber-700">Yd calc:</span>
-      <input
-        className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-center"
-        type="number"
-        placeholder="sq ft"
-        value={calcSqft}
-        onChange={(e) => {
-          setCalcSqft(e.target.value);
-          const sqft = Number(e.target.value);
-          const depth = Number(calcDepth) || 3;
-          if (sqft > 0) {
-            const yds = Math.ceil((sqft * depth) / 324);
-            setQuantity(yds);
-            if (selectedTaskMinutesPerUnit && yds > 0) {
-              setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
-            }
-          }
-        }}
-      />
-      <span className="text-xs text-gray-500">sq ft @</span>
-      <input
-        className="w-14 border border-gray-200 rounded px-2 py-1 text-xs text-center"
-        type="number"
-        placeholder="in"
-        value={calcDepth}
-        onChange={(e) => {
-          setCalcDepth(e.target.value);
-          const sqft = Number(calcSqft);
-          const depth = Number(e.target.value) || 3;
-          if (sqft > 0) {
-            const yds = Math.ceil((sqft * depth) / 324);
-            setQuantity(yds);
-            if (selectedTaskMinutesPerUnit && yds > 0) {
-              setHours(Number(hoursFromMinutesPerUnit(selectedTaskMinutesPerUnit, yds).toFixed(2)));
-            }
-          }
-        }}
-      />
-      <span className="text-xs text-gray-500">in deep</span>
-      {calcSqft && Number(calcSqft) > 0 && (
-        <span className="text-xs font-semibold text-amber-800 ml-1">= {Math.ceil((Number(calcSqft) * (Number(calcDepth) || 3)) / 324)} yds</span>
-      )}
-    </div>
-  )}
-  </div>
-
-  {labor.length === 0 ? (
-  <div className="text-gray-400 text-sm py-6 text-center">
-    No labor added yet.
-  </div>
-) : (
-  <div className="space-y-2 pt-1 border-t">
-    {laborGroups.map((g) => {
-      if (g.type === "row") {
-        const row = g.row;
-        const rowEffectiveHrs = effectiveHours(row, season);
-        const rowTotal = rowEffectiveHrs * (Number(row.hourly_rate) || 0);
-        return (
-          <div key={row.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            {/* Row 1: show checkbox + task name + controls + total + delete */}
-            <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-              {(() => {
-                const isHidden = !!row.hidden_from_proposal;
-                const toggleHidden = async () => {
-                  const patch = { hidden_from_proposal: !isHidden };
-                  await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(patch),
-                  });
-                  setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, ...patch } : r));
-                };
-                return (
-                  <div className="flex shrink-0 border border-gray-200 rounded overflow-hidden text-[9px] font-bold leading-none" title="Proposal visibility">
-                    <button type="button" onClick={() => isHidden && toggleHidden()}
-                      className={`px-1.5 py-1 transition-colors ${!isHidden ? "bg-green-700 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
-                      title="Show on proposal"
-                    >Show</button>
-                    <button type="button" onClick={() => !isHidden && toggleHidden()}
-                      className={`px-1.5 py-1 transition-colors ${isHidden ? "bg-gray-400 text-white" : "text-gray-400 hover:text-gray-600 bg-white"}`}
-                      title="Hide from proposal"
-                    >Hide</button>
-                  </div>
-                );
-              })()}
-              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.task}</span>
-              {season && row.task_catalog && getSeasonMultiplier(row, season) > 1 && (
-                <span className="shrink-0 text-xs bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 font-medium whitespace-nowrap">
-                  {season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{getSeasonMultiplier(row, season).toFixed(1)}
-                </span>
-              )}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <input
-                  className="w-16 border border-gray-200 rounded-lg h-8 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  type="number"
-                  title="Quantity"
-                  value={row.quantity === 0 ? "" : row.quantity}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                    const mpu = row.task_catalog?.minutes_per_unit;
-                    let newHours: number;
-                    if (mpu && value > 0) {
-                      newHours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                    } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
-                      newHours = Number((row.man_hours / row.quantity * value).toFixed(2));
-                    } else {
-                      newHours = row.man_hours;
-                    }
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
-                  }}
-                  onBlur={async (e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                    const mpu = row.task_catalog?.minutes_per_unit;
-                    const patchBody: any = { quantity: value, unit: row.unit };
-                    if (mpu && value > 0) {
-                      patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                    } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
-                      patchBody.man_hours = Number((row.man_hours / row.quantity * value).toFixed(2));
-                    }
-                    try {
-                      const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
-                      if (!res.ok) console.error("Failed to save labor row", await res.json());
-                    } catch (err) { console.error("Labor autosave failed", err); }
-                  }}
-                />
-                <span className="text-xs text-gray-500 w-14 shrink-0">{pluralUnit(row.unit, row.quantity)}</span>
-                <input
-                  className="w-16 border border-gray-200 rounded-lg h-8 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums"
-                  type="number"
-                  step="0.01"
-                  title="Man hours"
-                  value={row.man_hours === 0 ? "" : row.man_hours}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r));
-                  }}
-                  onBlur={async (e) => {
-                    const raw = e.target.value;
-                    const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ man_hours: value, is_overridden: true }) });
-                  }}
-                />
-                <span className="text-xs text-gray-400 shrink-0">hrs</span>
-                <select
-                  title="Difficulty level"
-                  value={row.difficulty_level ?? 0}
-                  className="w-32 border border-gray-200 rounded-lg h-8 px-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-                  onChange={async (e) => {
-                    const level = Number(e.target.value);
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ difficulty_level: level }) });
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, difficulty_level: level } : r));
-                  }}
-                >
-                  {DIFFICULTY_LABELS.map((label, i) => (
-                    <option key={i} value={i}>{i === 0 ? "Difficulty —" : `${i} ${label}`}</option>
-                  ))}
-                </select>
-                {row.unit === "yd" && (
-                  <button
-                    type="button"
-                    title="Yd calculator"
-                    onClick={() => setCalcOpenForRow(calcOpenForRow === row.id ? null : row.id)}
-                    className={`text-sm px-1.5 h-8 rounded border transition-colors ${calcOpenForRow === row.id ? "bg-amber-100 border-amber-400 text-amber-700" : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600"}`}
-                  >
-                    📐
-                  </button>
-                )}
-                <span className="text-sm font-semibold text-gray-800 tabular-nums w-20 text-center shrink-0">{money(rowTotal)}</span>
-                <button onClick={() => deleteLaborRow(row.id)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-1" title="Delete row">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-              </div>
-            </div>
-            {/* Row 2: yd calc (if open) */}
-            {calcOpenForRow === row.id && row.unit === "yd" && (
-              <div className="border-t border-amber-200 px-3 py-2 flex items-center gap-2 bg-amber-50/60">
-                <span className="text-xs font-semibold text-amber-700 shrink-0">Yd calc:</span>
-                <input
-                  className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-center"
-                  type="number"
-                  placeholder="sq ft"
-                  value={rowCalcValues[row.id]?.sqft ?? ""}
-                  onChange={(e) => {
-                    const sqft = e.target.value;
-                    const depth = Number(rowCalcValues[row.id]?.depth ?? "3") || 3;
-                    setRowCalcValues((prev) => ({ ...prev, [row.id]: { sqft, depth: prev[row.id]?.depth ?? "3" } }));
-                    if (Number(sqft) > 0) {
-                      const yds = Math.ceil((Number(sqft) * depth) / 324);
-                      const mpu = row.task_catalog?.minutes_per_unit;
-                      const newHours = mpu && yds > 0 ? Number(hoursFromMinutesPerUnit(mpu, yds).toFixed(2)) : row.man_hours;
-                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: yds, man_hours: newHours } : r));
-                    }
-                  }}
-                />
-                <span className="text-xs text-gray-500">sq ft @</span>
-                <input
-                  className="w-14 border border-gray-200 rounded px-2 py-1 text-xs text-center"
-                  type="number"
-                  placeholder="in"
-                  value={rowCalcValues[row.id]?.depth ?? "3"}
-                  onChange={(e) => {
-                    const depth = e.target.value;
-                    const sqft = Number(rowCalcValues[row.id]?.sqft ?? "0");
-                    setRowCalcValues((prev) => ({ ...prev, [row.id]: { sqft: prev[row.id]?.sqft ?? "", depth } }));
-                    if (sqft > 0 && Number(depth) > 0) {
-                      const yds = Math.ceil((sqft * Number(depth)) / 324);
-                      const mpu = row.task_catalog?.minutes_per_unit;
-                      const newHours = mpu && yds > 0 ? Number(hoursFromMinutesPerUnit(mpu, yds).toFixed(2)) : row.man_hours;
-                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: yds, man_hours: newHours } : r));
-                    }
-                  }}
-                />
-                <span className="text-xs text-gray-500">in deep</span>
-                {Number(rowCalcValues[row.id]?.sqft) > 0 && (
-                  <span className="text-xs font-semibold text-amber-800 ml-1">
-                    = {Math.ceil((Number(rowCalcValues[row.id]?.sqft) * (Number(rowCalcValues[row.id]?.depth ?? "3") || 3)) / 324)} yds
-                  </span>
-                )}
-              </div>
-            )}
-            {/* Row 3: description + AI */}
-            <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2 bg-gray-50/50">
-              <div className="flex-1 min-w-0 relative">
-                <input
-                  className="border border-gray-200 rounded-lg w-full h-8 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  autoComplete="off"
-                  placeholder="Proposal description…"
-                  value={row.proposal_text ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r));
-                  }}
-                  onBlur={async (e) => {
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: e.target.value }) });
-                  }}
-                />
-                <button
-                  type="button"
-                  title="Atlas suggest description"
-                  disabled={suggestingFor === row.id}
-                  onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none disabled:opacity-40"
-                >
-                  {suggestingFor === row.id ? "…" : "✨"}
-                </button>
-                {suggestion && suggestionFor === row.id && suggestingFor === null && (
-                  <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-                    <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-                    <div className="flex gap-2">
-                      <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={async () => {
-                        setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
-                        setSuggestion(""); setSuggestionFor(null);
-                      }}>Use this</button>
-                      <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Row 4: Section assignment */}
-            {!row.hidden_from_proposal && (
-              <div className="border-t border-gray-100 px-3 py-1.5 flex items-center gap-2 bg-gray-50/30">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide shrink-0">Section</span>
-                <input
-                  list={`sections-${row.id}`}
-                  className="flex-1 border border-gray-200 rounded h-7 px-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-green-500 placeholder:text-gray-300"
-                  placeholder="Group on proposal (optional)…"
-                  value={row.proposal_section ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: value } : r));
-                  }}
-                  onBlur={async (e) => {
-                    const value = e.target.value.trim() || null;
-                    await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ proposal_section: value }),
-                    });
-                    setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: value } : r));
-                  }}
-                />
-                <datalist id={`sections-${row.id}`}>
-                  {laborSections.filter(s => s !== row.proposal_section).map(s => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-                {row.proposal_section && (
-                  <button
-                    type="button"
-                    className="text-gray-300 hover:text-gray-500 text-base shrink-0 leading-none"
-                    title="Clear section"
-                    onClick={async () => {
-                      await fetch(`/api/atlasbid/bid-labor/${row.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ proposal_section: null }),
-                      });
-                      setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_section: null } : r));
-                    }}
-                  >×</button>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      const bundleTotal = g.rows.reduce(
-        (sum, r) => sum + effectiveHours(r, season) * (Number(r.hourly_rate) || 0),
-        0
-      );
-
-      return (
-        <div key={g.runId} className="border rounded overflow-hidden">
-          <div className="flex items-center justify-between bg-gray-50 px-3 py-2 border-b">
-            <div className="flex items-center gap-2">
-              {editingBundleNameId === g.runId ? (
-                <input
-                  autoFocus
-                  className="border rounded px-2 h-7 text-sm font-semibold text-gray-700 w-48"
-                  value={bundleNameDraft}
-                  onChange={(e) => setBundleNameDraft(e.target.value)}
-                  onBlur={() => saveBundleName(g.runId, bundleNameDraft || g.name)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveBundleName(g.runId, bundleNameDraft || g.name);
-                    if (e.key === "Escape") { setEditingBundleNameId(null); setBundleNameDraft(""); }
-                  }}
-                />
-              ) : (
-                <>
-                  <span className="text-sm font-semibold text-gray-700">{g.name}</span>
-                  <button
-                    type="button"
-                    title="Edit scope name"
-                    onClick={() => { setEditingBundleNameId(g.runId); setBundleNameDraft(g.name); }}
-                    className="text-gray-400 hover:text-gray-600 text-xs"
-                  >
-                    ✏️
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm tabular-nums text-gray-600">
-                {money(bundleTotal)}
-              </span>
-              <button
-                onClick={() => deleteBundleRun(g.runId)}
-                className="text-red-600 hover:underline text-sm"
-              >
-                Remove Bundle
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1 p-2">
-            {g.rows.map((row) => {
-              const bundleRowEffHrs = effectiveHours(row, season);
-              const rowTotal = bundleRowEffHrs * (Number(row.hourly_rate) || 0);
-              return (
-                <div key={row.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                  {/* Row 1: show + task + controls */}
-                  <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <input
-                      className="w-4 h-4 shrink-0 accent-green-700"
-                      type="checkbox"
-                      title="Show on proposal"
-                      checked={row.show_as_line_item === true}
-                      onChange={async (e) => {
-                        const checked = e.target.checked;
-                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ show_as_line_item: checked }) });
-                        setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, show_as_line_item: checked } : r));
-                      }}
-                    />
-                    <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{row.task}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <input
-                        className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
-                        type="number"
-                        title="Quantity"
-                        value={row.quantity === 0 ? "" : row.quantity}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                          const mpu = row.task_catalog?.minutes_per_unit;
-                          let newHours: number;
-                          if (mpu && value > 0) {
-                            newHours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                          } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
-                            newHours = Number((row.man_hours / row.quantity * value).toFixed(2));
-                          } else {
-                            newHours = row.man_hours;
-                          }
-                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, quantity: value, man_hours: newHours } : r));
-                        }}
-                        onBlur={async (e) => {
-                          const raw = e.target.value;
-                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                          const mpu = row.task_catalog?.minutes_per_unit;
-                          const patchBody: any = { quantity: value, unit: row.unit };
-                          if (mpu && value > 0) {
-                            patchBody.man_hours = Number(hoursFromMinutesPerUnit(mpu, value).toFixed(2));
-                          } else if (row.quantity > 0 && row.man_hours > 0 && value > 0) {
-                            patchBody.man_hours = Number((row.man_hours / row.quantity * value).toFixed(2));
-                          }
-                          try {
-                            const res = await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody) });
-                            if (!res.ok) console.error("Failed to save labor row", await res.json());
-                          } catch (err) { console.error("Labor autosave failed", err); }
-                        }}
-                      />
-                      <span className="text-xs text-gray-500 w-14 shrink-0">{pluralUnit(row.unit, row.quantity)}</span>
-                      <input
-                        className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500 tabular-nums"
-                        type="number"
-                        step="0.01"
-                        title="Man hours"
-                        value={row.man_hours === 0 ? "" : row.man_hours}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, man_hours: value } : r));
-                        }}
-                        onBlur={async (e) => {
-                          const raw = e.target.value;
-                          const value = raw === "" ? 0 : Math.max(0, parseFloat(raw) || 0);
-                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ man_hours: value, is_overridden: true }) });
-                        }}
-                      />
-                      <span className="text-xs text-gray-400 shrink-0">hrs</span>
-                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-center shrink-0">{money(rowTotal)}</span>
-                      <button onClick={() => deleteLaborRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0 ml-1" title="Delete">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                  {/* Row 2: description */}
-                  <div className="border-t border-gray-100 px-3 py-1.5 flex items-center gap-2 bg-gray-50/50">
-                    <div className="flex-1 min-w-0 relative">
-                      <input
-                        className="border border-gray-200 rounded w-full h-7 px-3 pr-9 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                        autoComplete="off"
-                        placeholder="Proposal description…"
-                        value={row.proposal_text ?? ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: value } : r));
-                        }}
-                        onBlur={async (e) => {
-                          await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: e.target.value }) });
-                        }}
-                      />
-                      <button
-                        type="button"
-                        title="Atlas suggest description"
-                        disabled={suggestingFor === row.id}
-                        onClick={() => suggestDescription(row.id, row.task, row.quantity, row.unit)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-sm leading-none disabled:opacity-40"
-                      >
-                        {suggestingFor === row.id ? "…" : "✨"}
-                      </button>
-                      {suggestion && suggestionFor === row.id && suggestingFor === null && (
-                        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-emerald-300 rounded-lg shadow-lg px-3 py-2.5 text-sm w-full">
-                          <div className="text-gray-800 mb-2">✨ {suggestion}</div>
-                          <div className="flex gap-2">
-                            <button type="button" className="bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded hover:bg-emerald-700" onClick={async () => {
-                              setLabor((prev) => prev.map((r) => r.id === row.id ? { ...r, proposal_text: suggestion } : r));
-                              await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposal_text: suggestion }) });
-                              setSuggestion(""); setSuggestionFor(null);
-                            }}>Use this</button>
-                            <button type="button" className="text-gray-400 text-xs px-2 py-1 hover:text-gray-600" onClick={() => { setSuggestion(""); setSuggestionFor(null); }}>Dismiss</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)}
-</div>
-</div>
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
+          {/* ── SCOPE ──────────────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+            <div className="px-5 py-3.5 border-b flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-800">Scope</h2>
               <div className="flex items-center gap-3">
-                <h2 className="text-base font-semibold text-gray-800">Materials</h2>
-                {materials.length > 0 && (
-                  <span className="text-xs bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 font-semibold tabular-nums">{materials.length}</span>
-                )}
-                {materials.some(m => !m.source_type || m.source_type === "template") && (
-                  <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-semibold">⚠ confirm sources</span>
-                )}
-              </div>
-              <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
-            </div>
-            <div className="p-5 space-y-3">
-
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-              {/* Column headers */}
-              <div className="flex items-center gap-2 px-0.5">
-                <div className="flex-1 min-w-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Material</div>
-                <div className="w-20 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Qty</div>
-                <div className="w-24 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit</div>
-                <div className="w-28 shrink-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide text-center">Unit Cost</div>
-                <div className="w-[68px] shrink-0" />
-              </div>
-              {/* Row 1: search + qty + unit + unit cost + add */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0" ref={materialDropdownRef}>
-                  <div className="relative">
-                    <input
-                      className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="Search materials catalog…"
-                      value={materialSearch}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setSelectedMaterialId("");
-                        setMaterialSearch(v);
-                        setMaterialName(v);
-                        setShowMaterialResults(true);
-                      }}
-                      onFocus={() => setShowMaterialResults(true)}
-                    />
-                    {showMaterialResults && filteredMaterialsCatalog.length > 0 ? (
-                      <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-60 overflow-auto mt-1">
-                        {filteredMaterialsCatalog.map((m) => (
-                          <div key={m.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between" onClick={() => applyMaterialSelection(m)}>
-                            <span className="font-medium">{m.name}</span>
-                            {m.default_unit && <span className="text-xs text-gray-400 ml-2">{m.default_unit}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="w-20 shrink-0">
-                  <input
-                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    type="number"
-                    placeholder="Qty"
-                    value={materialQty === 0 ? "" : materialQty}
-                    onChange={(e) => setMaterialQty(Number(e.target.value))}
-                  />
-                </div>
-                <div className="w-24 shrink-0">
-                  <UnitInput
-                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    value={materialUnit}
-                    onChange={setMaterialUnit}
-                  />
-                </div>
-                <div className="w-28 shrink-0 relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
-                  <input
-                    className="border border-gray-200 rounded-lg w-full h-9 pl-6 pr-2 text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={materialCost === 0 ? "" : materialCost.toFixed(2)}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^0-9.]/g, "");
-                      setMaterialCost(raw === "" ? 0 : Number(raw));
-                    }}
-                    onBlur={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v)) setMaterialCost(Number(v.toFixed(2)));
-                    }}
-                  />
-                </div>
-                {materialQty > 0 && materialCost > 0 && (
-                  <span className="shrink-0 text-sm text-gray-600 font-medium whitespace-nowrap">
-                    = {money(materialQty * materialCost)}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={addMaterial}
-                  className="shrink-0 bg-[#123b1f] text-white rounded-lg h-9 px-5 text-sm font-semibold hover:bg-[#1a5c2e]"
-                >
-                  Add
-                </button>
-              </div>
-              {/* Labor qty match suggestion */}
-              {laborQtyMatch && laborQtyMatch.quantity > 0 && (
-                <button
-                  type="button"
-                  className="flex items-center gap-2 w-full bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-100 transition-colors text-left"
-                  onClick={() => {
-                    setMaterialQty(laborQtyMatch.quantity);
-                    if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit);
+                <select
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-sm h-8 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={season}
+                  onChange={async (e) => {
+                    const s = e.target.value;
+                    setSeason(s);
+                    await fetch(`/api/bids/${bidId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ season: s || null }) });
                   }}
                 >
-                  <span className="text-base leading-none">↩</span>
-                  <span className="font-semibold whitespace-nowrap">{laborQtyMatch.quantity} {laborQtyMatch.unit}</span>
-                  <span className="text-emerald-600 text-xs truncate">from "{laborQtyMatch.task}"</span>
-                </button>
-              )}
-              {/* Row 2: source + details */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <select
-                    className="border border-gray-200 rounded-lg w-full h-9 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    value={selectedSourceIndex ?? ""}
-                    onChange={(e) => {
-                      const idx = Number(e.target.value);
-                      setSelectedSourceIndex(idx);
-                      const src = materialSources[idx];
-                      if (!src) return;
-                      if (src.unit) setMaterialUnit(src.unit);
-                      if (src.cost !== undefined) setMaterialCost(Number(Number(src.cost).toFixed(2)) || 0);
-                    }}
-                  >
-                    <option value="">Source (optional)</option>
-                    {materialSources.map((s, i) => {
-                      const qty = s.available_qty == null ? null : Number(s.available_qty);
-                      const qtyText = qty === null ? "" : qty < 0 ? ` (LOW: ${qty.toFixed(2).replace(/\.00$/, "")})` : ` (${qty.toFixed(2).replace(/\.00$/, "")} avail)`;
-                      return <option key={i} value={i}>{s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}{qtyText}</option>;
-                    })}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <input
-                    className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Details (optional)"
-                    value={materialDetails}
-                    onChange={(e) => setMaterialDetails(e.target.value)}
-                  />
-                </div>
+                  <option value="">Season</option>
+                  <option value="spring">🌱 Spring</option>
+                  <option value="summer">☀️ Summer</option>
+                  <option value="fall">🍂 Fall</option>
+                  <option value="winter">❄️ Winter</option>
+                </select>
+                <span className="text-sm font-bold text-gray-800">{money(laborSubtotal)}</span>
               </div>
             </div>
-
-            {materials.length === 0 ? (
-              <div className="text-gray-400 text-sm py-6 text-center border-t mt-1">No materials added yet.</div>
-            ) : (
-              <div className="space-y-2 pt-1 border-t mt-1">
-              {materials.map((row) => {
-                const isEditing = editingMaterialId === row.id;
-
-                const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
-                const cost = isEditing ? Number(mEditUnitCost) || 0 : Number(row.unit_cost) || 0;
-                const total = qty * cost;
-
+  {/* ── scope list ── */}
+  {labor.length === 0 ? (
+    <div className="py-14 text-center text-gray-400 text-sm px-5">
+      No scope added yet — use <span className="font-semibold text-gray-500">Add Work</span> above to get started.
+    </div>
+  ) : (
+    <div className="divide-y divide-gray-100">
+      {laborGroups.map((g) => {
+        if (g.type === "bundle") {
+          const bundleTotal = g.rows.reduce((sum, r) => sum + effectiveHours(r, season) * (Number(r.hourly_rate) || 0), 0);
+          return (
+            <div key={g.runId}>
+              <div className="flex items-center justify-between px-5 py-2.5 bg-gray-50/70">
+                <div className="flex items-center gap-2">
+                  {editingBundleNameId === g.runId ? (
+                    <input autoFocus className="border rounded px-2 h-7 text-sm font-semibold w-44"
+                      value={bundleNameDraft}
+                      onChange={e => setBundleNameDraft(e.target.value)}
+                      onBlur={() => saveBundleName(g.runId, bundleNameDraft || g.name)}
+                      onKeyDown={e => { if (e.key === "Enter") saveBundleName(g.runId, bundleNameDraft || g.name); if (e.key === "Escape") { setEditingBundleNameId(null); setBundleNameDraft(""); } }}
+                    />
+                  ) : (
+                    <button type="button" className="text-sm font-semibold text-gray-700 hover:text-gray-900 flex items-center gap-1.5 group"
+                      onClick={() => { setEditingBundleNameId(g.runId); setBundleNameDraft(g.name); }}
+                    >{g.name} <span className="text-gray-300 group-hover:text-gray-400 text-xs">✎</span></button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-700 tabular-nums">{money(bundleTotal)}</span>
+                  <button onClick={() => deleteBundleRun(g.runId)} className="text-xs text-red-400 hover:text-red-600 transition-colors">Remove</button>
+                </div>
+              </div>
+              {g.rows.map(row => {
+                const rowEffHrs = effectiveHours(row, season);
+                const rowCost = rowEffHrs * (Number(row.hourly_rate) || 0);
+                const seasonMult = season && row.task_catalog ? getSeasonMultiplier(row, season) : 1;
+                const isHidden = !!row.hidden_from_proposal;
                 return (
-                  <div
-                    key={row.id}
-                    className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
-                  >
-                    {/* Row 1: name + qty + unit cost + total + actions */}
-                    <div className="flex items-center gap-2 px-3 py-2.5">
-                      {isEditing ? (
-                        <input
-                          className="flex-1 min-w-0 border border-gray-200 rounded-lg h-8 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
-                          value={mEditName}
-                          onChange={(e) => setMEditName(e.target.value)}
-                        />
-                      ) : (
-                        <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{row.name}</span>
-                      )}
-
-                      {isEditing ? (
-                        <>
-                          <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={(e) => setMEditQty(Number(e.target.value))} min="0" />
-                          <UnitInput className="w-20 border border-gray-200 rounded h-7 px-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500" value={mEditUnit} onChange={setMEditUnit} />
-                          <span className="text-xs text-gray-400">@</span>
-                          <input className="w-20 border border-gray-200 rounded h-7 px-2 text-center text-sm focus:outline-none focus:ring-1 focus:ring-green-500" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={(e) => setMEditUnitCost(Number(e.target.value))} />
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-xs text-gray-500 tabular-nums shrink-0">{qty} {pluralUnit(row.unit ?? "", qty)}</span>
-                          <span className="text-xs text-gray-400 shrink-0">@</span>
-                          <span className="text-xs text-gray-500 tabular-nums shrink-0">{money(row.unit_cost)}</span>
-                        </>
-                      )}
-                      <span className="text-sm font-semibold text-gray-700 tabular-nums w-20 text-center shrink-0 ml-auto">{money(total)}</span>
-                      {isEditing ? (
-                        <>
-                          <button onClick={() => saveEditMaterial(row.id)} className="text-emerald-600 hover:text-emerald-700 shrink-0" title="Save">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          </button>
-                          <button onClick={cancelEditMaterial} className="text-gray-400 hover:text-gray-600 shrink-0" title="Cancel">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEditMaterial(row)} className="text-gray-300 hover:text-blue-500 transition-colors shrink-0" title="Edit">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          </button>
-                          <button onClick={() => deleteMaterialRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0" title="Delete">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    {/* Row 2: source + details */}
-                    <div className="border-t border-gray-100 px-3 py-1.5 bg-gray-50/50 flex items-center gap-2">
-                      {row.material_id ? (
-                        <select
-                          className={`flex-1 border rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500 ${!row.source_type || row.source_type === "template" ? "border-amber-400 bg-amber-50 text-amber-700 font-semibold" : "border-gray-200"}`}
-                          value=""
-                          onFocus={() => ensureMatSources(row.material_id!)}
-                          onChange={async (e) => {
-                            const idx = Number(e.target.value);
-                            const src = (matSourcesCache[row.material_id!] || [])[idx];
-                            if (!src) return;
-                            const newCost = Number(Number(src.cost).toFixed(2));
-                            const newUnit = src.unit || row.unit;
-                            const newSource = src.source_name;
-                            const duplicate = materials.find(r =>
-                              r.id !== row.id && r.material_id && row.material_id &&
-                              r.material_id === row.material_id &&
-                              normalizeMaterialText(r.source_type) === normalizeMaterialText(newSource) &&
-                              r.unit === newUnit
-                            );
-                            if (duplicate) {
-                              const mergedQty = Number((Number(duplicate.qty || 0) + Number(row.qty || 0)).toFixed(2));
-                              await Promise.all([
-                                fetch(`/api/atlasbid/bid-materials/${duplicate.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ qty: mergedQty }) }),
-                                fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "DELETE" }),
-                              ]);
-                              setMaterials((prev) => prev.map(r => r.id === duplicate.id ? { ...r, qty: mergedQty } : r).filter(r => r.id !== row.id));
-                            } else {
-                              setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, source_type: newSource, unit: newUnit, unit_cost: newCost } : r));
-                              await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_type: newSource, unit: newUnit, unit_cost: newCost }) });
-                            }
-                          }}
-                        >
-                          <option value="" disabled>{!row.source_type || row.source_type === "template" ? "⚠ Select source" : row.source_type}</option>
-                          {(matSourcesCache[row.material_id] || []).map((s, i) => (
-                            <option key={i} value={i}>{s.source_name} @ ${Number(s.cost).toFixed(2)}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          className="flex-1 border border-gray-200 rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500"
-                          placeholder="Source"
-                          value={row.source_type || ""}
-                          onChange={(e) => { const value = e.target.value; setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, source_type: value } : r)); }}
-                          onBlur={async (e) => { await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_type: e.target.value.trim() || null }) }); }}
-                        />
-                      )}
-                      <input
-                        className="flex-1 border border-gray-200 rounded-lg text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-green-500"
-                        placeholder="Details"
-                        value={row.details || ""}
-                        onChange={(e) => { const value = e.target.value; setMaterials((prev) => prev.map((r) => r.id === row.id ? { ...r, details: value } : r)); }}
-                        onBlur={async (e) => { await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ details: e.target.value.trim() || null }) }); }}
-                      />
-                    </div>
+                  <div key={row.id} className={`flex items-center gap-2 px-5 pl-9 py-2.5 hover:bg-gray-50/50 group border-b border-gray-50 last:border-0 ${isHidden ? "opacity-50" : ""}`}>
+                    <span className="flex-1 min-w-0 text-sm text-gray-700 truncate">{row.task}</span>
+                    {row.quantity > 0 && <span className="text-xs text-gray-400 tabular-nums shrink-0">{row.quantity} {row.unit}</span>}
+                    {seasonMult > 1 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 shrink-0">{season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{seasonMult.toFixed(1)}</span>}
+                    <span className="text-sm font-medium text-gray-600 tabular-nums w-16 text-right shrink-0">{money(rowCost)}</span>
+                    <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
+                      className="opacity-0 group-hover:opacity-100 shrink-0 transition-all"
+                      onClick={async () => {
+                        const patch = { hidden_from_proposal: !isHidden };
+                        await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+                        setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
+                      }}
+                    >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
+                    <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all shrink-0" title="Delete">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                    </button>
                   </div>
                 );
               })}
+            </div>
+          );
+        }
+        const row = g.row;
+        const rowEffHrs = effectiveHours(row, season);
+        const rowCost = rowEffHrs * (Number(row.hourly_rate) || 0);
+        const seasonMult = season && row.task_catalog ? getSeasonMultiplier(row, season) : 1;
+        const isHidden = !!row.hidden_from_proposal;
+        return (
+          <div key={row.id} className={`flex items-center gap-2 px-5 py-2.5 hover:bg-gray-50/50 group ${isHidden ? "opacity-50" : ""}`}>
+            <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{row.task}</span>
+            {row.quantity > 0 && <span className="text-xs text-gray-400 tabular-nums shrink-0">{row.quantity} {row.unit}</span>}
+            {seasonMult > 1 && <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 shrink-0">{season === "spring" ? "🌱" : season === "summer" ? "☀️" : season === "fall" ? "🍂" : "❄️"} ×{seasonMult.toFixed(1)}</span>}
+            <span className="text-sm font-semibold text-gray-700 tabular-nums w-16 text-right shrink-0">{money(rowCost)}</span>
+            <button type="button" title={isHidden ? "Hidden from proposal — click to show" : "Shown on proposal — click to hide"}
+              className="opacity-0 group-hover:opacity-100 shrink-0 transition-all"
+              onClick={async () => {
+                const patch = { hidden_from_proposal: !isHidden };
+                await fetch(`/api/atlasbid/bid-labor/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+                setLabor(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
+              }}
+            >{isHidden ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 hover:text-gray-500"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button>
+            <button onClick={() => deleteLaborRow(row.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all shrink-0" title="Delete">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  )}
+  {/* Custom task entry */}
+  <div className="border-t border-gray-100 px-5 py-3">
+    {showCustomLaborForm ? (
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-[160px] relative" ref={taskDropdownRef}>
+          <input
+            className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="Task name…"
+            value={taskSearch}
+            onChange={e => { const v = e.target.value; setTaskSearch(v); setTask(v); setShowTaskResults(true); setSelectedTaskCatalogId(""); setSelectedTaskMinutesPerUnit(null); setSelectedTaskTemplate(""); setDetailsFromTemplate(false); }}
+            onFocus={() => setShowTaskResults(true)}
+          />
+          {showTaskResults && filteredTasks.length > 0 && (
+            <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-48 overflow-auto mt-1">
+              {filteredTasks.map(t => <div key={t.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm" onClick={() => applyTaskSelection(t)}>{t.name}</div>)}
+            </div>
+          )}
+        </div>
+        <input type="number" className="border border-gray-200 rounded-lg h-9 w-20 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Qty" value={quantity === 0 ? "" : quantity} onChange={e => setQuantity(Number(e.target.value) || 0)} />
+        <UnitInput className="border border-gray-200 rounded-lg h-9 w-24 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={unit} onChange={setUnit} />
+        <input type="number" className="border border-gray-200 rounded-lg h-9 w-20 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Hrs" value={hours === 0 ? "" : hours} onChange={e => setHours(Number(e.target.value))} />
+        <button onClick={addLabor} disabled={!task.trim()} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm h-9 px-4 rounded-lg disabled:opacity-40 transition-colors">Add</button>
+        <button type="button" onClick={() => { setShowCustomLaborForm(false); setTaskSearch(""); setTask(""); }} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">×</button>
+      </div>
+    ) : (
+      <button type="button" onClick={() => setShowCustomLaborForm(true)} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">+ Add custom task</button>
+    )}
+  </div>
+          </div>
+
+          {/* ── MATERIALS ────────────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+            <div className="px-5 py-3.5 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-800">Materials</h2>
+                {materials.length > 0 && <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-semibold tabular-nums">{materials.length}</span>}
+                {materials.some(m => !m.source_type || m.source_type === "template") && <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">⚠ confirm sources</span>}
               </div>
-            )}
+              <span className="text-sm font-bold text-gray-800">{money(materialsSubtotal)}</span>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2" ref={materialDropdownRef}>
+                <div className="flex-1 relative">
+                  <input
+                    className="border border-gray-200 rounded-lg w-full h-9 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Search materials catalog…"
+                    value={materialSearch}
+                    onChange={e => { const v = e.target.value; setSelectedMaterialId(""); setMaterialSearch(v); setMaterialName(v); setShowMaterialResults(true); }}
+                    onFocus={() => setShowMaterialResults(true)}
+                  />
+                  {showMaterialResults && filteredMaterialsCatalog.length > 0 && (
+                    <div className="absolute z-20 bg-white border rounded-lg shadow-lg w-full max-h-48 overflow-auto mt-1">
+                      {filteredMaterialsCatalog.map(m => (
+                        <div key={m.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex justify-between"
+                          onClick={() => { setSelectedMaterialId(m.id); setMaterialName(m.name); setMaterialSearch(m.name); setMaterialUnit(m.default_unit || "ea"); setMaterialCost(m.default_unit_cost ?? 0); setShowMaterialResults(false); }}
+                        >
+                          <span className="font-medium">{m.name}</span>
+                          <span className="text-gray-400 text-xs">{m.default_unit}{m.default_unit_cost != null ? ` · $${m.default_unit_cost}` : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <input type="number" min="0" step="any" placeholder="Qty"
+                  className="border border-gray-200 rounded-lg h-9 w-20 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={materialQty === 0 ? "" : materialQty} onChange={e => setMaterialQty(Number(e.target.value))} />
+                <UnitInput className="border border-gray-200 rounded-lg h-9 w-24 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={materialUnit} onChange={setMaterialUnit} />
+                <div className="relative w-28">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                  <input type="number" min="0" step="0.01" placeholder="0.00"
+                    className="border border-gray-200 rounded-lg h-9 w-full pl-6 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={materialCost === 0 ? "" : materialCost} onChange={e => setMaterialCost(Number(e.target.value))} />
+                </div>
+                <button onClick={addMaterial} disabled={!materialName.trim()}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm h-9 px-4 rounded-lg disabled:opacity-40 transition-colors">Add</button>
+              </div>
+              {laborQtyMatch && (
+                <button type="button"
+                  className="flex items-center gap-2 w-full bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-100 transition-colors text-left"
+                  onClick={() => { setMaterialQty(laborQtyMatch.quantity); if (laborQtyMatch.unit) setMaterialUnit(laborQtyMatch.unit); }}
+                >
+                  <span>↩</span>
+                  <span className="font-semibold">{laborQtyMatch.quantity} {laborQtyMatch.unit}</span>
+                  <span className="text-emerald-600 text-xs">from "{laborQtyMatch.task}"</span>
+                </button>
+              )}
+              {materials.length === 0 ? (
+                <div className="text-gray-400 text-sm text-center py-4">No materials added yet.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {materials.map(row => {
+                    const isEditing = editingMaterialId === row.id;
+                    const qty = isEditing ? Number(mEditQty) || 0 : Number(row.qty) || 0;
+                    const cost = isEditing ? Number(mEditUnitCost) || 0 : Number(row.unit_cost) || 0;
+                    const total = qty * cost;
+                    return (
+                      <div key={row.id} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2.5">
+                          {isEditing ? (
+                            <input className="flex-1 min-w-0 border border-gray-200 rounded-lg h-8 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={mEditName} onChange={e => setMEditName(e.target.value)} />
+                          ) : (
+                            <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{row.name}</span>
+                          )}
+                          {isEditing ? (
+                            <>
+                              <input className="w-16 border border-gray-200 rounded h-7 px-2 text-center text-sm" type="number" value={mEditQty === 0 ? "" : mEditQty} onChange={e => setMEditQty(Number(e.target.value))} />
+                              <UnitInput className="w-20 border border-gray-200 rounded h-7 px-1 text-sm" value={mEditUnit} onChange={setMEditUnit} />
+                              <span className="text-xs text-gray-400">@</span>
+                              <input className="w-20 border border-gray-200 rounded h-7 px-2 text-center text-sm" type="number" step="0.01" value={mEditUnitCost === 0 ? "" : mEditUnitCost} onChange={e => setMEditUnitCost(Number(e.target.value))} />
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-400 tabular-nums shrink-0">{qty} {pluralUnit(row.unit ?? "", qty)} @ {money(row.unit_cost)}</span>
+                          )}
+                          <span className="text-sm font-semibold text-gray-700 tabular-nums w-16 text-right shrink-0 ml-auto">{money(total)}</span>
+                          {isEditing ? (
+                            <>
+                              <button onClick={() => saveEditMaterial(row.id)} className="text-emerald-600 hover:text-emerald-700 shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+                              <button onClick={cancelEditMaterial} className="text-gray-400 hover:text-gray-600 shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => startEditMaterial(row)} className="text-gray-300 hover:text-blue-500 transition-colors shrink-0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                              <button onClick={() => deleteMaterialRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
+                            </>
+                          )}
+                        </div>
+                        {row.material_id && (
+                          <div className="border-t border-gray-100 px-3 py-1.5 bg-gray-50/60">
+                            <select
+                              className={`w-full border rounded text-xs px-2 h-7 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${!row.source_type || row.source_type === "template" ? "border-amber-300 bg-amber-50 text-amber-700 font-semibold" : "border-gray-200 text-gray-500"}`}
+                              value=""
+                              onFocus={() => ensureMatSources(row.material_id!)}
+                              onChange={async (e) => {
+                                const idx = Number(e.target.value);
+                                const src = (matSourcesCache[row.material_id!] || [])[idx];
+                                if (!src) return;
+                                const patch: Partial<MaterialRow> = { source_type: src.source_type, unit: src.unit || row.unit };
+                                if (src.cost !== undefined) { patch.unit_cost = Number(Number(src.cost).toFixed(2)); }
+                                await fetch(`/api/atlasbid/bid-materials/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+                                setMaterials(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r));
+                              }}
+                            >
+                              <option value="">{!row.source_type || row.source_type === "template" ? "⚠ confirm source" : `Source: ${row.source_type}`}</option>
+                              {(matSourcesCache[row.material_id] || []).map((s: any, i: number) => {
+                                const avail = s.available_qty == null ? null : Number(s.available_qty);
+                                const availText = avail === null ? "" : avail < 0 ? ` (LOW: ${avail.toFixed(2).replace(/\.00$/, "")})` : ` (${avail.toFixed(2).replace(/\.00$/, "")} avail)`;
+                                return <option key={i} value={i}>{s.source_name} — {s.unit} @ ${Number(s.cost).toFixed(2)}{availText}</option>;
+                              })}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* TRUCKING */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-800">Trucking</h2>
-                <div className="text-xs text-gray-500 mt-0.5">Single trucking entry (Landscaping only).</div>
-              </div>
-              <div className="flex items-center gap-3">
-                {savingTrucking ? <span className="text-xs text-gray-500">Saving…</span> : null}
-                <span className="text-sm font-bold text-gray-800">{money(truckingCost)}</span>
-              </div>
-            </div>
-            <div className="p-5">
-            {truckingSaveError ? <div className="text-sm text-red-600 mb-3">{truckingSaveError}</div> : null}
-
-            <div className="grid grid-cols-3 gap-4 max-w-sm items-end">
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Hours</div>
+          {/* ── TRUCKING ─────────────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+            <div className="px-5 py-3.5 flex items-center gap-4">
+              <h2 className="text-base font-semibold text-gray-800">Trucking</h2>
+              <div className="flex items-center gap-2">
                 <input
-                  className="border rounded h-9 px-3 w-full text-center"
                   type="number"
+                  className="border border-gray-200 rounded-lg h-9 w-20 px-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="0"
                   value={truckingHours === 0 ? "" : truckingHours}
-                  onChange={(e) => setTruckingHours(Number(e.target.value))}
+                  onChange={e => setTruckingHours(Number(e.target.value))}
                 />
+                <span className="text-sm text-gray-400 whitespace-nowrap">hrs × {money(divisionRate)}/hr</span>
               </div>
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Rate ($/hr)</div>
-                <div className="border rounded h-9 px-3 flex items-center justify-center bg-gray-50 text-sm tabular-nums">{money(divisionRate)}</div>
+              <div className="ml-auto flex items-center gap-2">
+                {savingTrucking && <span className="text-xs text-gray-400">Saving…</span>}
+                <span className="text-sm font-bold text-gray-700 tabular-nums">{money(truckingCost)}</span>
               </div>
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 text-center">Cost</div>
-                <div className="border rounded h-9 px-3 flex items-center justify-center bg-gray-50 text-sm font-semibold tabular-nums">{money(truckingCost)}</div>
-              </div>
-            </div>
             </div>
           </div>
 
-          {/* PRICING PREVIEW */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-50 border-b px-5 py-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-800">Pricing Preview</h2>
-              <span className="text-sm font-bold text-emerald-700">{money(sellRounded)}</span>
-            </div>
-            <div className="p-5">
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <label className="block text-sm text-gray-600">
-                  Target Gross Profit % (editable)
-                </label>
-                <div className="relative max-w-[120px]">
-                  <input
-                    className="border p-2 rounded w-full pr-7"
-                    type="number"
-                    value={targetGpPct === 0 ? "" : targetGpPct}
-                    onChange={(e) => setTargetGpPct(Number(e.target.value))}
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+          {/* ── PRICING ──────────────────────────────────────────────────────── */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}>
+            <div className="px-5 py-5">
+              <div className="flex flex-wrap items-start gap-6">
+                <div className="space-y-3 shrink-0">
+                  <p className="text-[10px] font-bold text-emerald-400/80 uppercase tracking-widest">Gross Profit Target</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 w-20 text-white text-sm text-center caret-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      value={targetGpPct === 0 ? "" : targetGpPct}
+                      onChange={e => setTargetGpPct(Number(e.target.value))}
+                    />
+                    <span className="text-white/50 text-sm">%</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-white/50 text-xs cursor-pointer select-none">
+                    <input type="checkbox" className="accent-emerald-400" checked={prepayEnabled} onChange={e => setPrepayEnabled(e.target.checked)} />
+                    Prepay discount
+                  </label>
                 </div>
-
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 pt-2">
-                  <input
-                    type="checkbox"
-                    checked={prepayEnabled}
-                    onChange={(e) => setPrepayEnabled(e.target.checked)}
-                  />
-                  Apply prepay discount (100% payment via check up-front)
-                </label>
-
-                <div className="text-xs text-gray-500">
-                  Rounding + contingency are “baked in” from Ops Settings (hidden from sales).
+                <div className="flex-1 min-w-[140px] space-y-1 text-sm pt-0.5">
+                  <div className="flex justify-between text-white/40">
+                    <span>Labor</span><span className="tabular-nums">{money(laborSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-white/40">
+                    <span>Materials</span><span className="tabular-nums">{money(materialsSubtotal)}</span>
+                  </div>
+                  {truckingCost > 0 && (
+                    <div className="flex justify-between text-white/40">
+                      <span>Trucking</span><span className="tabular-nums">{money(truckingCost)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-white/70 border-t border-white/10 pt-1.5 mt-1">
+                    <span>Total cost</span><span className="tabular-nums font-semibold">{money(totalCost)}</span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Labor cost</span>
-                  <span className="font-semibold">{money(laborSubtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Materials cost</span>
-                  <span className="font-semibold">{money(materialsSubtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Trucking cost</span>
-                  <span className="font-semibold">{money(truckingCost)}</span>
-                </div>
-
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-800">Total cost</span>
-                  <span className="font-bold">{money(totalCost)}</span>
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <span className="text-gray-800">Project price</span>
-                  <span className="font-bold text-emerald-700">{money(sellRounded)}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-800">Project price (with prepay)</span>
-                  <span className="font-bold text-emerald-700">{money(sellWithPrepay)}</span>
-                </div>
-
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-800">Effective GP%</span>
-                  <span className="font-bold">{effectiveGpPct.toFixed(2)}%</span>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] font-bold text-emerald-400/80 uppercase tracking-widest mb-1.5">Project Price</p>
+                  <p className="text-3xl font-bold text-white tabular-nums leading-none">{money(sellRounded)}</p>
+                  {prepayEnabled && sellWithPrepay !== sellRounded && (
+                    <p className="text-sm text-emerald-300/70 mt-1.5 tabular-nums">w/ prepay: {money(sellWithPrepay)}</p>
+                  )}
+                  <p className="text-xs text-white/40 mt-2">GP {effectiveGpPct.toFixed(1)}%</p>
                 </div>
               </div>
-            </div>
             </div>
           </div>
+
         </>
       )}
       </div>
