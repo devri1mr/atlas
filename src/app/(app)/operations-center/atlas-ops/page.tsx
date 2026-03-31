@@ -101,10 +101,11 @@ function FOverUnder({ v }: { v: number }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CompanyRevenuePage() {
-  const [month,   setMonth]   = useState<string>(today);
-  const [data,    setData]    = useState<CompanyRevenue | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [month,      setMonth]      = useState<string>(today);
+  const [data,       setData]       = useState<CompanyRevenue | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [showAdmin,  setShowAdmin]  = useState(false);
 
   const load = useCallback(async (m: string) => {
     setLoading(true);
@@ -139,6 +140,10 @@ export default function CompanyRevenuePage() {
               <div className="text-xs text-white/50 mt-0.5">All divisions · Actuals + projected</div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAdmin(v => !v)}
+                className={`text-xs border rounded-lg px-2.5 py-1 transition-colors ${showAdmin ? "text-white/80 border-white/40 bg-white/10" : "text-white/30 border-white/10 hover:text-white/60 hover:border-white/20"}`}
+              >Admin</button>
               <button
                 onClick={() => setMonth(m => prevMonth(m))}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors text-lg"
@@ -190,12 +195,12 @@ export default function CompanyRevenuePage() {
                       </th>
                     ))}
 
-                    {/* Month Actual — thick left border separates weeks from summary cols */}
+                    {/* Month Projected — thick left border separates weeks from summary cols */}
                     <th
                       className={HCELL}
                       style={{ background: BG_HEAD, color: "rgba(255,255,255,0.9)", borderLeft: "3px solid rgba(255,255,255,0.5)", minWidth: 100 }}
                     >
-                      {MONTHS[mNum - 1]} Actual
+                      {MONTHS[mNum - 1]} Projected
                     </th>
 
                     {/* Month Budget */}
@@ -234,7 +239,7 @@ export default function CompanyRevenuePage() {
 
                 {/* Division rows */}
                 <tbody>
-                  {data.divisions.map((div, ri) => (
+                  {data.divisions.filter(div => div.key !== "admin" || showAdmin).map((div, ri) => (
                     <tr
                       key={div.key}
                       className={`border-b border-gray-100 hover:bg-emerald-50/30 transition-colors ${ri % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
@@ -316,14 +321,6 @@ export default function CompanyRevenuePage() {
                 </tfoot>
 
               </table>
-            </div>
-          )}
-
-          {/* Legend */}
-          {!loading && !error && (
-            <div className="px-5 py-2 flex gap-4 text-xs text-gray-400 border-t border-gray-100 bg-white">
-              <span>Weeks: Mon – Sun, clipped to month</span>
-              <span className="ml-auto">YTD = prior months (COGS actuals) + {monthLabel} projection</span>
             </div>
           )}
 
