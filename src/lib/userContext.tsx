@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type React from "react";
 import { getSupabaseClient } from "./supabaseClient";
 import { can as _can, type Permissions } from "./permissions";
+import { isSuperAdmin } from "./superAdmin";
 
 export type UserProfile = {
   id: string;
@@ -15,6 +16,7 @@ export type UserProfile = {
   role_is_admin: boolean;
   role_permissions: Permissions;
   permissions: Permissions; // per-user overrides
+  is_super_admin: boolean;
 };
 
 type UserContextValue = {
@@ -46,7 +48,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => null);
       const json = await res?.json().catch(() => null);
 
-      if (json?.data) setUser(json.data);
+      if (json?.data) setUser({ ...json.data, is_super_admin: isSuperAdmin(json.data.email) });
       setLoading(false);
     }
 
@@ -69,6 +71,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   function can(key: string): boolean {
     if (loading) return true;
     if (!user) return false;
+    if (user.is_super_admin) return true;
     // Fall back to legacy role check if role_id not yet migrated
     if (!user.role_id && user.role === "admin") return true;
     return _can(user.role_is_admin, user.role_permissions ?? {}, user.permissions ?? {}, key);

@@ -326,7 +326,7 @@ export default function AdminPayPage() {
 
   // Admin gate
   if (userLoading) return null;
-  if (user?.email !== "matthew@garpielgroup.com") {
+  if (!user?.is_super_admin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
         <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
