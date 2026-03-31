@@ -95,11 +95,23 @@ export async function POST(req: NextRequest) {
       qb_class_name,
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("divisions")
       .insert(insertPayload)
       .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
       .single();
+
+    if (error && error.message?.includes("fuel_charge_pct")) {
+      const { fuel_charge_pct: _dropped, ...payloadWithout } = insertPayload as any;
+      const fallback = await supabase
+        .from("divisions")
+        .insert(payloadWithout)
+        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+        .single();
+      if (fallback.error) return json({ error: fallback.error.message }, { status: 500 });
+      data = { ...fallback.data, fuel_charge_pct: 0 } as any;
+      error = null;
+    }
 
     if (error) return json({ error: error.message }, { status: 500 });
     return json({ data });
@@ -144,12 +156,29 @@ export async function PATCH(req: NextRequest) {
     )
       return json({ error: "target_gross_profit_percent must be a number" }, { status: 400 });
 
-    const { data, error } = await supabase
+    const SELECT_FULL = "id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name";
+    const SELECT_BASE = "id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name";
+
+    let { data, error } = await supabase
       .from("divisions")
       .update(patch)
       .eq("id", id)
-      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select(SELECT_FULL)
       .single();
+
+    // Retry without fuel_charge_pct if the column doesn't exist yet
+    if (error && error.message?.includes("fuel_charge_pct")) {
+      const { fuel_charge_pct: _dropped, ...patchWithout } = patch as any;
+      const fallback = await supabase
+        .from("divisions")
+        .update(patchWithout)
+        .eq("id", id)
+        .select(SELECT_BASE)
+        .single();
+      if (fallback.error) return json({ error: fallback.error.message }, { status: 500 });
+      data = { ...fallback.data, fuel_charge_pct: 0 } as any;
+      error = null;
+    }
 
     if (error) return json({ error: error.message }, { status: 500 });
     return json({ data });
