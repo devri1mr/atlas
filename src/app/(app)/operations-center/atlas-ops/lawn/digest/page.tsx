@@ -769,9 +769,9 @@ export default function DigestPage() {
               <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
                 <CalcSection title="Revenue">
-                  <CalcRow label="Actual revenue" value={fmtMoney(sc.revenue)} />
-                  <CalcRow label="Budgeted revenue (from jobs)" value={fmtMoney(sc.budgeted_revenue)} />
-                  <CalcRow label="Revenue vs budget" value={fmtPct(sc.revenue_vs_budget)} sub="actual ÷ budget" />
+                  <CalcRow label="Revenue (sum of job contract amounts)" value={fmtMoney(sc.revenue)} sub="budgeted_amount — same as COGS" />
+                  <CalcRow label="Division budget for period" value={fmtMoney(sc.budgeted_revenue)} sub="prorated from division_budgets" />
+                  <CalcRow label="Revenue vs division budget" value={fmtPct(sc.revenue_vs_budget)} sub="revenue ÷ budget" />
                 </CalcSection>
 
                 <CalcSection title="Hours">

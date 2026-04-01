@@ -170,11 +170,10 @@ export async function GET(req: NextRequest) {
     const empOnJob = new Map<string, { hours: number; payroll: number }>();
     const seenPerReport = new Map<string, Set<string>>();
 
-    let totalRevenue         = 0;
-    let totalBudgetedRevenue = 0;
-    let totalOnJobHours      = 0;
-    let totalBudgetedHours   = 0;
-    let totalOnJobPayroll    = 0;
+    let totalRevenue      = 0; // sum of budgeted_amount (contract/invoice value — matches COGS)
+    let totalOnJobHours   = 0;
+    let totalBudgetedHours = 0;
+    let totalOnJobPayroll  = 0;
 
     const crewMap = new Map<string, {
       jobs: number;
@@ -209,10 +208,9 @@ export async function GET(req: NextRequest) {
         const varH   = Number(job.variance_hours   ?? 0);
         const crew   = (job.crew_code as string) || "Unknown";
 
-        totalRevenue         += actAmt;
-        totalBudgetedRevenue += budAmt;
-        totalOnJobHours      += actH;
-        totalBudgetedHours   += budH;
+        totalRevenue       += budAmt; // budgeted_amount = contract/invoice value (same as COGS)
+        totalOnJobHours    += actH;
+        totalBudgetedHours += budH;
 
         allJobs.push({
           work_order:     job.work_order    ?? null,
@@ -342,7 +340,8 @@ export async function GET(req: NextRequest) {
     const downTimePct     = safeDiv(totalDownTimeHours, totalClockedHours);
     const otPct           = safeDiv(totalOtHours,       totalClockedHours);
     const hoursEfficiency = safeDiv(totalBudgetedHours, totalOnJobHours);
-    const revenueVsBudget = safeDiv(totalRevenue,       totalBudgetedRevenue);
+    // Compare actual revenue against the pro-rated division budget for the period
+    const revenueVsBudget = safeDiv(totalRevenue, proratedBudgetRevenue);
 
     // ── Dynamic labor % goals from budget ─────────────────────────────────────
     // total_labor_goal  = prorated_labor / prorated_revenue  (field + admin combined)
@@ -528,7 +527,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       scorecard: {
         revenue:               totalRevenue,
-        budgeted_revenue:      totalBudgetedRevenue,
+        budgeted_revenue:      proratedBudgetRevenue,
         total_payroll:         totalPayroll,
         field_payroll:         totalFieldPayroll,
         on_job_payroll:        totalOnJobPayroll,
