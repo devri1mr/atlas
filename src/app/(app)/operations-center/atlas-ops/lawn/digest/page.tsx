@@ -807,30 +807,30 @@ export default function DigestPage() {
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                       <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide">On-Job</span>
                     </div>
-                    <div className="text-lg font-semibold text-emerald-900 tabular-nums">{fmtMoney(sc.on_job_payroll)}</div>
-                    <div className="text-xs text-emerald-700/60 tabular-nums">
-                      {sc.total_payroll > 0 ? ((sc.on_job_payroll / sc.total_payroll) * 100).toFixed(1) : "—"}% of payroll
+                    <div className="text-2xl font-semibold text-emerald-900 tabular-nums">
+                      {sc.total_payroll > 0 ? ((sc.on_job_payroll / sc.total_payroll) * 100).toFixed(1) + "%" : "—"}
                     </div>
+                    <div className="text-xs text-emerald-700/60">of payroll</div>
                   </div>
                   <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                       <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">Down Time</span>
                     </div>
-                    <div className="text-lg font-semibold text-amber-900 tabular-nums">{fmtMoney(sc.down_time_payroll)}</div>
-                    <div className="text-xs text-amber-700/60 tabular-nums">
-                      {sc.total_payroll > 0 ? ((sc.down_time_payroll / sc.total_payroll) * 100).toFixed(1) : "—"}% of payroll
+                    <div className="text-2xl font-semibold text-amber-900 tabular-nums">
+                      {sc.total_payroll > 0 ? ((sc.down_time_payroll / sc.total_payroll) * 100).toFixed(1) + "%" : "—"}
                     </div>
+                    <div className="text-xs text-amber-700/60">of payroll</div>
                   </div>
                   <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                       <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Admin</span>
                     </div>
-                    <div className="text-lg font-semibold text-slate-800 tabular-nums">{fmtMoney(sc.admin_payroll)}</div>
-                    <div className="text-xs text-slate-500/70 tabular-nums">
-                      {sc.total_payroll > 0 ? ((sc.admin_payroll / sc.total_payroll) * 100).toFixed(1) : "—"}% of payroll
+                    <div className="text-2xl font-semibold text-slate-800 tabular-nums">
+                      {sc.total_payroll > 0 ? ((sc.admin_payroll / sc.total_payroll) * 100).toFixed(1) + "%" : "—"}
                     </div>
+                    <div className="text-xs text-slate-500/70">of payroll</div>
                   </div>
                 </div>
               </>
@@ -860,7 +860,7 @@ export default function DigestPage() {
                     <tr key={row.service} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 font-semibold text-gray-800">{row.service}</td>
                       <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.jobs}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}h</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.actual_hours)}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${effBadge(row.hours_efficiency)}`}>
                           {row.hours_efficiency !== null ? (row.hours_efficiency * 100).toFixed(0) + "%" : "—"}
@@ -883,50 +883,6 @@ export default function DigestPage() {
           </div>
         )}
 
-        {/* ── Crew Performance ── */}
-        {!loading && (data?.crew_performance?.length ?? 0) > 0 && (
-          <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
-            <SectionHeader title="Crew Performance" sub="sorted by labor % — lowest to highest (best first)" />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/70">
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data!.crew_performance.map((row) => (
-                    <tr key={row.crew_code} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.crew_code}</td>
-                      <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.jobs}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}h</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${effBadge(row.efficiency)}`}>
-                          {row.efficiency !== null ? (row.efficiency * 100).toFixed(0) + "%" : "—"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
-                        {row.revenue_per_manhour !== null ? "$" + row.revenue_per_manhour.toFixed(2) : "—"}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
-                          {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* ── Team Member Leaderboard ── */}
         <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
@@ -946,8 +902,11 @@ export default function DigestPage() {
                   <tr className="border-b border-gray-100 bg-gray-50/70">
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Name</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time %</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Cost</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
@@ -955,16 +914,14 @@ export default function DigestPage() {
                   {data.member_leaderboard.map((row) => (
                     <tr key={row.name} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.name}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.total_payroll_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.ot_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.down_time_hours)}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
-                        <div>{fmtHrs(row.total_payroll_hours)}</div>
-                        {row.ot_hours > 0 && (
-                          <div className="text-[10px] text-amber-500">{row.ot_hours.toFixed(1)}h OT</div>
-                        )}
+                        {row.down_time_pct !== null ? (row.down_time_pct * 100).toFixed(1) + "%" : "—"}
                       </td>
                       <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
-                        {row.revenue_per_manhour !== null ? "$" + row.revenue_per_manhour.toFixed(2) : "—"}
-                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
                           {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
@@ -1017,15 +974,15 @@ export default function DigestPage() {
                           <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
                           <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
                           <td className="px-4 py-3 text-center tabular-nums">
-                            <div className="text-gray-700 font-semibold">{job.budgeted_hours.toFixed(1)}h</div>
+                            <div className="text-gray-700 font-semibold">{fmtHrs(job.budgeted_hours)}</div>
                             {job.proposed_budgeted_hours !== null && (
-                              <div className="text-[10px] text-gray-400 leading-tight">prop {job.proposed_budgeted_hours.toFixed(1)}h</div>
+                              <div className="text-[10px] text-gray-400 leading-tight">prop {job.proposed_budgeted_hours.toFixed(1)} hrs</div>
                             )}
                             {job.real_budgeted_hours !== null && (
-                              <div className="text-[10px] text-gray-400 leading-tight">sap {job.sap_budgeted_hours.toFixed(1)}h</div>
+                              <div className="text-[10px] text-gray-400 leading-tight">sap {job.sap_budgeted_hours.toFixed(1)} hrs</div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(job.actual_hours)}</td>
                           <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
                             {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
                           </td>
@@ -1099,7 +1056,7 @@ export default function DigestPage() {
                                                           : fromTimeInput(jobTimeData.job.service_date, e.target.value);
                                                         updateMemberTime(idx, "start_time", newTs);
                                                       }}
-                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-24"
+                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
                                                     />
                                                   </td>
                                                   <td className="py-2 px-3 text-center">
@@ -1112,7 +1069,7 @@ export default function DigestPage() {
                                                           : fromTimeInput(jobTimeData.job.service_date, e.target.value);
                                                         updateMemberTime(idx, "end_time", newTs);
                                                       }}
-                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-24"
+                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
                                                     />
                                                   </td>
                                                 </>
@@ -1140,10 +1097,10 @@ export default function DigestPage() {
                                                 m.actual_hours > (jobTimeData.job.budgeted_hours / (editedMembers.length || 1)) * 1.3
                                                   ? "text-red-500" : "text-gray-700"
                                               }`}>
-                                                {m.actual_hours.toFixed(2)}h
+                                                {m.actual_hours.toFixed(2)} hrs
                                               </td>
                                               <td className="py-2 px-3 text-center tabular-nums text-gray-400">
-                                                {(jobTimeData.job.budgeted_hours / (editedMembers.length || 1)).toFixed(2)}h
+                                                {(jobTimeData.job.budgeted_hours / (editedMembers.length || 1)).toFixed(2)} hrs
                                               </td>
                                             </tr>
                                           );
@@ -1155,10 +1112,10 @@ export default function DigestPage() {
                                           {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
                                           {!editedMembers[0]?.start_time && <td />}
                                           <td className="pt-2 px-3 text-center tabular-nums">
-                                            {editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)}h
+                                            {editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)} hrs
                                           </td>
                                           <td className="pt-2 px-3 text-center tabular-nums text-gray-400">
-                                            {jobTimeData.job.budgeted_hours.toFixed(2)}h
+                                            {jobTimeData.job.budgeted_hours.toFixed(2)} hrs
                                           </td>
                                         </tr>
                                       </tfoot>

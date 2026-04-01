@@ -113,6 +113,8 @@ Defined in `src/components/Sidebar.tsx`. Structure:
 - Brand colors: `#0d2616` (darkest), `#123b1f` (dark green), `#1a5c2a` (mid green)
 - Font weights: use `font-semibold` for data values, `font-bold` for headings — avoid `font-black` (renders poorly on Windows)
 - Gradient header pattern: `linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)`
+- Hours format: always display as `X,XXX hrs` (rounded integer, comma-formatted) — never use `h` suffix
+- **Payroll calculations**: unless explicitly specified otherwise, always use 100% of a person's total payroll cost (all hours they are paid for — on-job + down time combined). Never attribute only the on-job portion. If someone worked 45 hrs and generated $1,000 revenue, labor % = total_payroll_cost / $1,000 and rev/hr = $1,000 / 45.
 
 ## Database Notes
 - Supabase MCP is configured — can query DB directly in Claude Code sessions
