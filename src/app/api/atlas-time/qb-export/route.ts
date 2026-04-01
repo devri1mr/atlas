@@ -9,6 +9,12 @@ function fmtDate(iso: string): string {
   return `${m}/${d}/${y}`;
 }
 
+function decimalToHHMM(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("start");
@@ -116,25 +122,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ summary, total_reg: totalReg, total_ot: totalOt, warnings, punch_count: rows.length });
   }
 
-  // ── IIF generation ────────────────────────────────────────────────────────
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const nowStr = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
-
+  // ── IIF generation (TIMEACT format) ──────────────────────────────────────
+  // Import via: File → Utilities → Import → IIF Files
+  // Columns: DATE, EMP, CUSTOMER, SERVICE, DURATION (H:MM), NOTE, BILLSTATUS, XFERTOPAYROLL, ITEM, CLASS, RATE
   const lines: string[] = [
-    "!TIMERHDR\tVER\tREV\tDATETIME\tIMPORTMODE\tSHORTNAME\tLONGNAME\tHIDETIME\tOFFSET",
-    `TIMERHDR\t6\t0\t${nowStr}\tADD\tGGI\tGarpiel Group\t0\t-240`,
-    "",
-    "!TIMER\tDATE\tNAME\tCLASS\tDURATION\tNOTE\tTAXABLE\tBILLINGSTATUS\tITEM\tBILLRATE",
+    "!TIMEACT\tDATE\tEMP\tCUSTOMER\tSERVICE\tDURATION\tNOTE\tBILLSTATUS\tXFERTOPAYROLL\tITEM\tCLASS\tRATE",
   ];
 
   for (const r of rows) {
     const d = fmtDate(r.date);
     if (r.reg_hours > 0 && r.reg_item) {
-      lines.push(`TIMER\t${d}\t${r.employee_qb}\t${r.qb_class}\t${r.reg_hours.toFixed(2)}\t\tN\t0\t${r.reg_item}\t0.00`);
+      lines.push(`TIMEACT\t${d}\t${r.employee_qb}\t\t\t${decimalToHHMM(r.reg_hours)}\t\t0\t1\t${r.reg_item}\t${r.qb_class}\t0.00`);
     }
     if (r.ot_hours > 0 && r.ot_item) {
-      lines.push(`TIMER\t${d}\t${r.employee_qb}\t${r.qb_class}\t${r.ot_hours.toFixed(2)}\t\tN\t0\t${r.ot_item}\t0.00`);
+      lines.push(`TIMEACT\t${d}\t${r.employee_qb}\t\t\t${decimalToHHMM(r.ot_hours)}\t\t0\t1\t${r.ot_item}\t${r.qb_class}\t0.00`);
     }
   }
 
