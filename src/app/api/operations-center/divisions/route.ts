@@ -38,13 +38,13 @@ export async function GET() {
     // Try with fuel_charge_pct first; fall back if column hasn't been migrated yet
     let { data, error } = await supabase
       .from("divisions")
-      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name,qb_payroll_item_reg,qb_payroll_item_ot")
       .order("name", { ascending: true });
 
     if (error && error.message?.includes("fuel_charge_pct")) {
       const fallback = await supabase
         .from("divisions")
-        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name,qb_payroll_item_reg,qb_payroll_item_ot")
         .order("name", { ascending: true });
       if (fallback.error) return json({ error: fallback.error.message }, { status: 500 });
       data = (fallback.data ?? []).map((r: any) => ({ ...r, fuel_charge_pct: 0 }));
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     let { data, error } = await supabase
       .from("divisions")
       .insert(insertPayload)
-      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+      .select("id,name,labor_rate,target_gross_profit_percent,fuel_charge_pct,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name,qb_payroll_item_reg,qb_payroll_item_ot")
       .single();
 
     if (error && error.message?.includes("fuel_charge_pct")) {
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       const fallback = await supabase
         .from("divisions")
         .insert(payloadWithout)
-        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name")
+        .select("id,name,labor_rate,target_gross_profit_percent,allow_overtime,active,show_in_ops,created_at,performance_sheet_url,department_id,qb_class_name,qb_payroll_item_reg,qb_payroll_item_ot")
         .single();
       if (fallback.error) return json({ error: fallback.error.message }, { status: 500 });
       data = { ...fallback.data, fuel_charge_pct: 0 } as any;
@@ -146,6 +146,10 @@ export async function PATCH(req: NextRequest) {
       patch.department_id = body.department_id ? String(body.department_id) : null;
     if (body.qb_class_name !== undefined)
       patch.qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
+    if (body.qb_payroll_item_reg !== undefined)
+      (patch as any).qb_payroll_item_reg = body.qb_payroll_item_reg ? String(body.qb_payroll_item_reg).trim() : null;
+    if (body.qb_payroll_item_ot !== undefined)
+      (patch as any).qb_payroll_item_ot = body.qb_payroll_item_ot ? String(body.qb_payroll_item_ot).trim() : null;
 
     if (patch.name !== undefined && !patch.name) return json({ error: "name cannot be blank" }, { status: 400 });
     if (patch.labor_rate !== undefined && !Number.isFinite(patch.labor_rate))

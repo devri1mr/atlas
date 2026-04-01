@@ -13,7 +13,7 @@ const SETTINGS_TABS = [
 // Time-clock-only extras live in `at_divisions` (time_clock_only = true).
 
 type Department = { id: string; name: string; code: string | null; sort_order: number; active: boolean };
-type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null; division_id?: string | null; csv_name?: string | null };
+type Division = { id: string; name: string; active: boolean; time_clock_only: boolean; source: "company" | "time_clock"; department_id?: string | null; qb_class_name?: string | null; division_id?: string | null; csv_name?: string | null; qb_payroll_item_reg?: string | null; qb_payroll_item_ot?: string | null };
 type PayrollItem = { id: string; department_id: string; name: string; type: string; sort_order: number; active: boolean };
 
 const PAYROLL_TYPES = ["regular", "overtime", "doubletime", "pto", "sick", "holiday", "bonus", "other"] as const;
@@ -81,6 +81,10 @@ export default function DepartmentsPage() {
   const [editDivParentId, setEditDivParentId] = useState("");
   const [editDivCsvName, setEditDivCsvName] = useState("");
   const [editDivSaving, setEditDivSaving] = useState(false);
+
+  // QB Payroll Item Mapping
+  const [qbDraft, setQbDraft] = useState<Record<string, { reg: string; ot: string }>>({});
+  const [qbSaving, setQbSaving] = useState<Set<string>>(new Set());
 
   // Payroll items — expanded dept + add form
   const [expandedDeptId, setExpandedDeptId] = useState<string | null>(null);
@@ -263,6 +267,47 @@ export default function DepartmentsPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  // Seed qbDraft from divisions on first load (don't overwrite rows already touched)
+  useEffect(() => {
+    setQbDraft(prev => {
+      const next = { ...prev };
+      for (const div of divisions) {
+        if (!(div.id in next)) {
+          next[div.id] = { reg: div.qb_payroll_item_reg ?? "", ot: div.qb_payroll_item_ot ?? "" };
+        }
+      }
+      return next;
+    });
+  }, [divisions]);
+
+  async function saveQbMapping(div: Division) {
+    const draft = qbDraft[div.id];
+    if (!draft) return;
+    setQbSaving(prev => new Set(prev).add(div.id));
+    try {
+      const body = {
+        qb_payroll_item_reg: draft.reg.trim() || null,
+        qb_payroll_item_ot: draft.ot.trim() || null,
+      };
+      const url = div.source === "time_clock"
+        ? `/api/atlas-time/divisions/${div.id}`
+        : `/api/operations-center/divisions`;
+      const fullBody = div.source === "company" ? { id: div.id, ...body } : body;
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fullBody),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? "Failed to save");
+      setDivisions(prev => prev.map(d => d.id === div.id ? { ...d, ...body } : d));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to save QB mapping");
+    } finally {
+      setQbSaving(prev => { const next = new Set(prev); next.delete(div.id); return next; });
+    }
+  }
 
   const EditButtons = ({ onSave, onCancel, saving }: { onSave: () => void; onCancel: () => void; saving: boolean }) => (
     <>
@@ -696,6 +741,78 @@ export default function DepartmentsPage() {
                   <p className="text-[10px] text-gray-400">This division will only appear in the Time Clock, not in bids or other modules.</p>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+        {/* ── QB Payroll Item Mapping ──────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h2 className="text-sm font-semibold text-gray-800">QB Payroll Item Mapping</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Map each punch item to its exact QuickBooks payroll item name for regular and overtime hours. These names must match QB exactly.</p>
+          </div>
+
+          {!loading && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 w-48">Punch Item</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 w-36">QB Class</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">Regular Pay Item</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">OT Pay Item</th>
+                    <th className="px-3 py-2.5 w-16" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {divisions.filter(d => d.active).map(div => {
+                    const draft = qbDraft[div.id] ?? { reg: div.qb_payroll_item_reg ?? "", ot: div.qb_payroll_item_ot ?? "" };
+                    const isSaving = qbSaving.has(div.id);
+                    const isDirty = draft.reg !== (div.qb_payroll_item_reg ?? "") || draft.ot !== (div.qb_payroll_item_ot ?? "");
+                    return (
+                      <tr key={div.id} className="hover:bg-gray-50/50">
+                        <td className="px-5 py-2.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-gray-800 text-xs">{div.name}</span>
+                            {div.source === "time_clock" && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
+                                <ClockIcon /> TC
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-xs text-gray-400">{div.qb_class_name ?? "—"}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            value={draft.reg}
+                            onChange={e => setQbDraft(prev => ({ ...prev, [div.id]: { ...draft, reg: e.target.value } }))}
+                            placeholder="e.g. HR - Field"
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white min-w-[160px]"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            value={draft.ot}
+                            onChange={e => setQbDraft(prev => ({ ...prev, [div.id]: { ...draft, ot: e.target.value } }))}
+                            placeholder="e.g. OT HR - Field"
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white min-w-[160px]"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => saveQbMapping(div)}
+                            disabled={isSaving || !isDirty}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#123b1f] text-white hover:bg-[#1a5c2e] disabled:opacity-30 transition-colors whitespace-nowrap"
+                          >
+                            {isSaving ? "…" : "Save"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

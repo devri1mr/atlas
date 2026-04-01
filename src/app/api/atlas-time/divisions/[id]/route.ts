@@ -16,7 +16,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("department_id" in body) patch.department_id = body.department_id ? String(body.department_id) : null;
     if ("qb_class_name" in body) patch.qb_class_name = body.qb_class_name ? String(body.qb_class_name).trim() : null;
     if ("division_id"   in body) patch.division_id   = body.division_id   ? String(body.division_id)   : null;
-    if ("csv_name"      in body) patch.csv_name      = body.csv_name      ? String(body.csv_name).trim() : null;
+    if ("csv_name"           in body) patch.csv_name           = body.csv_name           ? String(body.csv_name).trim()           : null;
+    if ("qb_payroll_item_reg" in body) patch.qb_payroll_item_reg = body.qb_payroll_item_reg ? String(body.qb_payroll_item_reg).trim() : null;
+    if ("qb_payroll_item_ot"  in body) patch.qb_payroll_item_ot  = body.qb_payroll_item_ot  ? String(body.qb_payroll_item_ot).trim()  : null;
 
     if (!patch.name && "name" in body) {
       return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -26,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from("at_divisions")
       .update(patch)
       .eq("id", id)
-      .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id, csv_name")
+      .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id, csv_name, qb_payroll_item_reg, qb_payroll_item_ot")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
