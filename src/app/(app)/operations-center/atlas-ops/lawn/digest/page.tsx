@@ -71,6 +71,8 @@ type MemberTime = {
   resource_name: string;
   actual_hours: number;
   pay_rate: number;
+  reg_hours: number;
+  ot_hours: number;
   dispatch_time_id: string | null;
   dispatch_job_id: string | null;
   time_varies: boolean;
