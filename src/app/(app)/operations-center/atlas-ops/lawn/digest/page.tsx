@@ -144,7 +144,7 @@ function fmtPct(n: number | null): string {
 }
 
 function fmtHrs(n: number): string {
-  return n.toFixed(1) + "h";
+  return Math.round(n).toLocaleString() + " hrs";
 }
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
@@ -457,9 +457,7 @@ export default function DigestPage() {
                   <div className="text-2xl font-semibold text-white tabular-nums">
                     {fmtMoney(sc.total_payroll)}
                   </div>
-                  <div className="text-[11px] text-white/35 mt-1 tabular-nums">
-                    Field {fmtMoney(sc.field_payroll)} + Admin {fmtMoney(sc.admin_payroll)}
-                  </div>
+                  <div className="text-[11px] text-white/35 mt-1">total payroll</div>
                 </div>
               </div>
 
