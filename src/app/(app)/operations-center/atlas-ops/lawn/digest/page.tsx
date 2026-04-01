@@ -54,6 +54,8 @@ type Scorecard = {
   total_ot_hours: number;
   days_in_range: number;
   reports_count: number;
+  field_labor_goal: number | null;
+  total_labor_goal: number | null;
 };
 
 type DigestData = {
@@ -63,7 +65,7 @@ type DigestData = {
   job_flags: JobFlag[];
 };
 
-type Preset = "last7" | "thisWeek" | "lastWeek" | "thisMonth";
+type Preset = "yesterday" | "last7" | "thisWeek" | "lastWeek" | "thisMonth" | "custom";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 
@@ -71,9 +73,17 @@ function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function getPresetRange(preset: Preset): { start: string; end: string } {
+function getPresetRange(preset: Preset): { start: string; end: string } | null {
+  if (preset === "custom") return null;
+
   const now   = new Date();
   const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+  if (preset === "yesterday") {
+    const y = new Date(today);
+    y.setUTCDate(today.getUTCDate() - 1);
+    return { start: toIsoDate(y), end: toIsoDate(y) };
+  }
 
   if (preset === "last7") {
     const s = new Date(today);
@@ -110,7 +120,7 @@ function fmtDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: "UTC" };
   const s = new Date(start + "T12:00:00Z").toLocaleDateString("en-US", opts);
   const e = new Date(end   + "T12:00:00Z").toLocaleDateString("en-US", { ...opts, year: "numeric" });
-  return `${s} – ${e}`;
+  return start === end ? s + `, ${new Date(end + "T12:00:00Z").getUTCFullYear()}` : `${s} – ${e}`;
 }
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
@@ -136,10 +146,11 @@ function fmtHrs(n: number): string {
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
 
-function fieldLaborColor(v: number | null): string {
+function fieldLaborColor(v: number | null, goal: number | null): string {
   if (v === null) return "text-white";
-  if (v <= 0.36) return "text-emerald-400";
-  if (v <= 0.42) return "text-amber-400";
+  const g = goal ?? 0.39;
+  if (v <= g * 0.95) return "text-emerald-400";
+  if (v <= g * 1.05) return "text-amber-400";
   return "text-red-400";
 }
 
@@ -150,9 +161,8 @@ function downTimeColor(v: number | null): string {
   return "text-red-400";
 }
 
-function efficiencyColor(v: number | null, dark = false): string {
-  const base = dark ? "" : "";
-  if (v === null) return dark ? "text-gray-400" : "text-gray-500";
+function efficiencyColor(v: number | null): string {
+  if (v === null) return "text-gray-500";
   if (v >= 0.95) return "text-emerald-600";
   if (v >= 0.85) return "text-amber-500";
   return "text-red-500";
@@ -172,8 +182,9 @@ function onJobColor(v: number | null): string {
   return "text-red-500";
 }
 
+// variance_pct: positive = over budget (bad), negative = under budget (good)
 function varianceCellColor(v: number): string {
-  if (v > 0.05) return "text-red-600 font-semibold";
+  if (v > 0.05)  return "text-red-600 font-semibold";
   if (v < -0.05) return "text-emerald-600 font-semibold";
   return "text-gray-700";
 }
@@ -189,9 +200,7 @@ function crewEffColor(v: number | null): string {
 
 function SkeletonCard({ dark = false, h = "h-28" }: { dark?: boolean; h?: string }) {
   return (
-    <div
-      className={`rounded-xl ${h} animate-pulse ${dark ? "bg-white/10" : "bg-gray-200"}`}
-    />
+    <div className={`rounded-xl ${h} animate-pulse ${dark ? "bg-white/10" : "bg-gray-200"}`} />
   );
 }
 
@@ -232,18 +241,48 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 const PRESETS: { key: Preset; label: string }[] = [
-  { key: "last7",     label: "Last 7 Days" },
-  { key: "thisWeek",  label: "This Week"   },
-  { key: "lastWeek",  label: "Last Week"   },
-  { key: "thisMonth", label: "This Month"  },
+  { key: "yesterday",  label: "Yesterday"   },
+  { key: "last7",      label: "Last 7 Days" },
+  { key: "thisWeek",   label: "This Week"   },
+  { key: "lastWeek",   label: "Last Week"   },
+  { key: "thisMonth",  label: "This Month"  },
+  { key: "custom",     label: "Custom"      },
 ];
 
+// ── Calculation Breakdown ─────────────────────────────────────────────────────
+
+function CalcRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+      <span className="text-xs text-gray-500">{label}</span>
+      <div className="text-right">
+        <span className="text-xs font-semibold text-gray-800 tabular-nums">{value}</span>
+        {sub && <span className="text-[11px] text-gray-400 ml-2 tabular-nums">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function CalcSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1 mt-4 first:mt-0">{title}</div>
+      <div className="rounded-lg border border-gray-200 bg-gray-50/50 px-4 divide-y divide-gray-100">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function DigestPage() {
-  const [preset,  setPreset]  = useState<Preset>("last7");
-  const [range,   setRange]   = useState<{ start: string; end: string }>(getPresetRange("last7"));
-  const [data,    setData]    = useState<DigestData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [preset,      setPreset]      = useState<Preset>("last7");
+  const [showCalc,    setShowCalc]    = useState(false);
+  const [range,       setRange]       = useState<{ start: string; end: string }>(getPresetRange("last7")!);
+  const [customStart, setCustomStart] = useState<string>("");
+  const [customEnd,   setCustomEnd]   = useState<string>("");
+  const [data,        setData]        = useState<DigestData | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
 
   async function fetchDigest(r: { start: string; end: string }) {
     setLoading(true);
@@ -266,21 +305,27 @@ export default function DigestPage() {
     }
   }
 
-  // Auto-fetch on mount
   useEffect(() => {
     fetchDigest(range);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectPreset(p: Preset) {
-    const r = getPresetRange(p);
     setPreset(p);
+    if (p === "custom") return; // wait for user to fill dates
+    const r = getPresetRange(p)!;
+    setRange(r);
+    fetchDigest(r);
+  }
+
+  function applyCustom() {
+    if (!customStart || !customEnd || customStart > customEnd) return;
+    const r = { start: customStart, end: customEnd };
     setRange(r);
     fetchDigest(r);
   }
 
   const sc = data?.scorecard;
 
-  // Sort findings: bad → watch → good
   const sortedFindings = (data?.findings ?? []).slice().sort((a, b) => {
     const order = { bad: 0, watch: 1, good: 2 };
     return order[a.severity] - order[b.severity];
@@ -312,7 +357,7 @@ export default function DigestPage() {
           </div>
 
           {/* Preset selector */}
-          <div className="mt-4 flex items-center gap-1">
+          <div className="mt-4 flex items-center gap-1 flex-wrap">
             {PRESETS.map((p) => (
               <button
                 key={p.key}
@@ -327,6 +372,33 @@ export default function DigestPage() {
               </button>
             ))}
           </div>
+
+          {/* Custom date inputs */}
+          {preset === "custom" && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="rounded-md px-3 py-1.5 text-xs bg-white/10 text-white border border-white/20 focus:outline-none focus:border-emerald-400"
+              />
+              <span className="text-white/40 text-xs">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="rounded-md px-3 py-1.5 text-xs bg-white/10 text-white border border-white/20 focus:outline-none focus:border-emerald-400"
+              />
+              <button
+                onClick={applyCustom}
+                disabled={!customStart || !customEnd || customStart > customEnd}
+                className="px-4 py-1.5 rounded-md text-xs font-semibold bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-400 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+
           <div className="mt-1.5 text-[11px] text-white/30 tabular-nums">
             {fmtDateRange(range.start, range.end)}
           </div>
@@ -395,10 +467,12 @@ export default function DigestPage() {
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Field Labor</div>
                 <div>
-                  <div className={`text-2xl font-semibold tabular-nums ${fieldLaborColor(sc.field_labor_pct)}`}>
+                  <div className={`text-2xl font-semibold tabular-nums ${fieldLaborColor(sc.field_labor_pct, sc.field_labor_goal)}`}>
                     {fmtPct(sc.field_labor_pct)}
                   </div>
-                  <div className="text-[11px] text-white/35 mt-1">of revenue</div>
+                  <div className="text-[11px] text-white/35 mt-1">
+                    goal {fmtPct(sc.field_labor_goal)} of rev
+                  </div>
                 </div>
               </div>
 
@@ -448,7 +522,7 @@ export default function DigestPage() {
                   {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
                 </div>
                 <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  budgeted {fmtHrs(sc.total_on_job_hours > 0 ? sc.total_on_job_hours * (sc.hours_efficiency ?? 1) : 0)} / actual {fmtHrs(sc.total_on_job_hours)}
+                  {fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} budgeted / {fmtHrs(sc.total_on_job_hours)} actual
                 </div>
               </div>
 
@@ -534,7 +608,6 @@ export default function DigestPage() {
               </div>
             ) : sc ? (
               <>
-                {/* Stacked bar */}
                 {sc.total_payroll > 0 && (
                   <div className="mb-5 h-5 rounded-full overflow-hidden flex">
                     <div
@@ -555,8 +628,8 @@ export default function DigestPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3">
-                    <div className="flex items-center gap-1.5 mb-1">
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                       <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide">On-Job</span>
                     </div>
@@ -565,8 +638,8 @@ export default function DigestPage() {
                       {sc.total_payroll > 0 ? ((sc.on_job_payroll / sc.total_payroll) * 100).toFixed(1) : "—"}% of payroll
                     </div>
                   </div>
-                  <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
-                    <div className="flex items-center gap-1.5 mb-1">
+                  <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                       <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">Down Time</span>
                     </div>
@@ -575,8 +648,8 @@ export default function DigestPage() {
                       {sc.total_payroll > 0 ? ((sc.down_time_payroll / sc.total_payroll) * 100).toFixed(1) : "—"}% of payroll
                     </div>
                   </div>
-                  <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                    <div className="flex items-center gap-1.5 mb-1">
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                       <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Admin</span>
                     </div>
@@ -607,23 +680,23 @@ export default function DigestPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
-                    <th className="text-left px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget Hrs</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-right px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {data.crew_performance.map((row) => (
                     <tr key={row.crew_code} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 font-semibold text-gray-900">{row.crew_code}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{row.jobs}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{row.budgeted_hours.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{fmtMoney(row.actual_amount)}</td>
-                      <td className="px-5 py-3 text-right">
+                      <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.crew_code}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.jobs}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.budgeted_hours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.actual_amount)}</td>
+                      <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${crewEffColor(row.efficiency)}`}>
                           {row.efficiency !== null ? fmtPct(row.efficiency) : "—"}
                         </span>
@@ -644,25 +717,25 @@ export default function DigestPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
-                    <th className="text-left px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Work Order</th>
-                    <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Client</th>
-                    <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
-                    <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual</th>
-                    <th className="text-right px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Variance</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Work Order</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Client</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Variance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {data.job_flags.map((job, i) => (
                     <tr key={i} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs text-gray-700">{job.work_order ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{job.service ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{job.crew_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{job.budgeted_hours.toFixed(1)}h</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
-                      <td className={`px-5 py-3 text-right tabular-nums ${varianceCellColor(job.variance_pct)}`}>
+                      <td className="px-5 py-3 text-center font-mono text-xs text-gray-700">{job.work_order ?? "—"}</td>
+                      <td className="px-4 py-3 text-center text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
+                      <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
+                      <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.budgeted_hours.toFixed(1)}h</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
+                      <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
                         {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
                       </td>
                     </tr>
@@ -670,6 +743,75 @@ export default function DigestPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* ── Calculation Breakdown ── */}
+        {sc && (
+          <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
+            <button
+              onClick={() => setShowCalc((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors"
+              style={{ background: showCalc ? undefined : undefined }}
+            >
+              <div
+                className="flex items-baseline gap-3"
+                style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+              >
+                <span className="text-sm font-semibold tracking-wide">Calculation Breakdown</span>
+                <span className="text-xs opacity-60">show your work</span>
+              </div>
+              <span className="text-xs text-gray-400 font-semibold">{showCalc ? "▲ Hide" : "▼ Show"}</span>
+            </button>
+
+            {showCalc && (
+              <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <CalcSection title="Revenue">
+                  <CalcRow label="Actual revenue" value={fmtMoney(sc.revenue)} />
+                  <CalcRow label="Budgeted revenue (from jobs)" value={fmtMoney(sc.budgeted_revenue)} />
+                  <CalcRow label="Revenue vs budget" value={fmtPct(sc.revenue_vs_budget)} sub="actual ÷ budget" />
+                </CalcSection>
+
+                <CalcSection title="Hours">
+                  <CalcRow label="Total clocked hours (punches)" value={fmtHrs(sc.total_clocked_hours)} />
+                  <CalcRow label="On-job hours (production)" value={fmtHrs(sc.total_on_job_hours)} />
+                  <CalcRow label="Down time hours" value={fmtHrs(sc.total_down_time_hours)} sub="clocked − on-job" />
+                  <CalcRow label="OT hours" value={fmtHrs(sc.total_ot_hours)} />
+                  <CalcRow label="Budgeted hours" value={fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} />
+                  <CalcRow label="Hours efficiency" value={fmtPct(sc.hours_efficiency)} sub="budgeted ÷ actual" />
+                  <CalcRow label="On-job %" value={fmtPct(sc.on_job_pct)} sub="on-job ÷ clocked" />
+                  <CalcRow label="Down time %" value={fmtPct(sc.down_time_pct)} sub="down time ÷ clocked" />
+                  <CalcRow label="OT %" value={fmtPct(sc.ot_pct)} sub="OT ÷ clocked" />
+                </CalcSection>
+
+                <CalcSection title="Payroll">
+                  <CalcRow label="On-job payroll" value={fmtMoney(sc.on_job_payroll)} sub="from production members" />
+                  <CalcRow label="Down time payroll" value={fmtMoney(sc.down_time_payroll)} sub="down hrs × avg rate" />
+                  <CalcRow label="Field payroll" value={fmtMoney(sc.field_payroll)} sub="on-job + down time" />
+                  <CalcRow label="Admin payroll" value={fmtMoney(sc.admin_payroll)} sub="from admin pay config" />
+                  <CalcRow label="Total payroll" value={fmtMoney(sc.total_payroll)} sub="field + admin" />
+                </CalcSection>
+
+                <CalcSection title="Labor % (actuals)">
+                  <CalcRow label="Field labor %" value={fmtPct(sc.field_labor_pct)} sub="field payroll ÷ revenue" />
+                  <CalcRow label="Admin burden %" value={fmtPct(sc.admin_burden_pct)} sub="admin payroll ÷ revenue" />
+                  <CalcRow label="Total labor %" value={fmtPct(sc.total_labor_pct)} sub="total payroll ÷ revenue" />
+                </CalcSection>
+
+                <CalcSection title="Labor % Goals (from budget)">
+                  <CalcRow label="Total labor goal" value={fmtPct(sc.total_labor_goal)} sub="prorated budget labor ÷ rev" />
+                  <CalcRow
+                    label="Field labor goal"
+                    value={fmtPct(sc.field_labor_goal)}
+                    sub="(budget labor − admin) ÷ rev"
+                  />
+                  <CalcRow label="Calendar days in range" value={String(sc.days_in_range)} sub="used for pro-rating" />
+                  <CalcRow label="Complete reports" value={String(sc.reports_count)} />
+                </CalcSection>
+
+              </div>
+            )}
           </div>
         )}
 

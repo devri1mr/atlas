@@ -69,8 +69,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "start and end query params required (YYYY-MM-DD)" }, { status: 400 });
     }
 
-    const sb   = supabaseAdmin();
-    const year = new Date(start + "T12:00:00Z").getUTCFullYear();
+    const sb        = supabaseAdmin();
+    const startYear = new Date(start + "T12:00:00Z").getUTCFullYear();
+    const endYear   = new Date(end   + "T12:00:00Z").getUTCFullYear();
+    const years     = [...new Set([startYear, endYear])];
 
     // ── Parallel DB fetches ──────────────────────────────────────────────────
 
@@ -78,6 +80,7 @@ export async function GET(req: NextRequest) {
       { data: reports, error: reportsErr },
       { data: adminConfig },
       { data: adminOverrides },
+      { data: budgetRows },
     ] = await Promise.all([
       sb
         .from("lawn_production_reports")
@@ -99,13 +102,19 @@ export async function GET(req: NextRequest) {
       sb
         .from("lawn_admin_pay_config")
         .select("*")
-        .eq("year", year)
+        .eq("year", startYear)
         .maybeSingle(),
       sb
         .from("lawn_admin_pay_overrides")
         .select("date, payroll_cost")
         .gte("date", start)
         .lte("date", end),
+      sb
+        .from("division_budgets")
+        .select("year, month, revenue, labor")
+        .eq("division", "lawn")
+        .in("year", years)
+        .order("year").order("month"),
     ]);
 
     if (reportsErr) {
@@ -135,24 +144,27 @@ export async function GET(req: NextRequest) {
       adminOverrideMap.set(ov.date as string, ov.payroll_cost != null ? Number(ov.payroll_cost) : null);
     }
 
+    // ── Build budget map: "year-month" → { revenue, labor } ──────────────────
+
+    const budgetMap = new Map<string, { revenue: number; labor: number }>();
+    for (const row of budgetRows ?? []) {
+      budgetMap.set(`${row.year}-${row.month}`, {
+        revenue: Number(row.revenue),
+        labor:   Number(row.labor),
+      });
+    }
+
     // ── Per-employee aggregation ──────────────────────────────────────────────
 
-    // empKey -> { onJobHours, onJobPayroll }
     const empOnJob = new Map<string, { hours: number; payroll: number }>();
-
-    // For de-duping: per report, only count each member's payroll once
-    // (they may appear in multiple jobs within same report)
-    // reportId -> Set<resource_name>
     const seenPerReport = new Map<string, Set<string>>();
 
-    // Collect totals from production
     let totalRevenue         = 0;
     let totalBudgetedRevenue = 0;
     let totalOnJobHours      = 0;
     let totalBudgetedHours   = 0;
-    let totalOnJobPayroll    = 0; // de-duped by person per report
+    let totalOnJobPayroll    = 0;
 
-    // Crew aggregation
     const crewMap = new Map<string, {
       jobs: number;
       budgeted_hours: number;
@@ -160,7 +172,6 @@ export async function GET(req: NextRequest) {
       actual_amount: number;
     }>();
 
-    // Job flags source
     type JobRow = {
       work_order: string | null;
       client_name: string | null;
@@ -193,38 +204,34 @@ export async function GET(req: NextRequest) {
         totalBudgetedHours   += budH;
 
         allJobs.push({
-          work_order:    job.work_order    ?? null,
-          client_name:   job.client_name   ?? null,
-          service:       job.service       ?? null,
-          crew_code:     job.crew_code     ?? null,
-          budgeted_hours: budH,
-          actual_hours:   actH,
-          variance_hours: varH,
-          actual_amount:  actAmt,
+          work_order:     job.work_order    ?? null,
+          client_name:    job.client_name   ?? null,
+          service:        job.service       ?? null,
+          crew_code:      job.crew_code     ?? null,
+          budgeted_hours:  budH,
+          actual_hours:    actH,
+          variance_hours:  varH,
+          actual_amount:   actAmt,
           budgeted_amount: budAmt,
         });
 
-        // Crew aggregation
         if (!crewMap.has(crew)) {
           crewMap.set(crew, { jobs: 0, budgeted_hours: 0, actual_hours: 0, actual_amount: 0 });
         }
         const crewEntry = crewMap.get(crew)!;
-        crewEntry.jobs          += 1;
+        crewEntry.jobs           += 1;
         crewEntry.budgeted_hours += budH;
-        crewEntry.actual_hours  += actH;
-        crewEntry.actual_amount += actAmt;
+        crewEntry.actual_hours   += actH;
+        crewEntry.actual_amount  += actAmt;
 
-        // Member aggregation (per-employee on-job)
         for (const member of (job as any).lawn_production_members ?? []) {
           const name = (member.resource_name as string) || "Unknown";
           const mHrs = Number(member.actual_hours ?? 0);
           const mPay = Number(member.payroll_cost ?? 0);
 
-          // Always accumulate on-job hours per employee across all jobs
           if (!empOnJob.has(name)) empOnJob.set(name, { hours: 0, payroll: 0 });
           empOnJob.get(name)!.hours += mHrs;
 
-          // Only count payroll once per person per report (de-dupe)
           if (!seenNames.has(name)) {
             seenNames.add(name);
             empOnJob.get(name)!.payroll += mPay;
@@ -236,7 +243,6 @@ export async function GET(req: NextRequest) {
 
     // ── Punch aggregation ─────────────────────────────────────────────────────
 
-    // empKey -> { regularHours, otHours }
     const empPunches = new Map<string, { regular: number; ot: number }>();
 
     for (const punch of punches) {
@@ -246,7 +252,6 @@ export async function GET(req: NextRequest) {
       empPunches.get(name)!.ot     += Number(punch.ot_hours      ?? 0);
     }
 
-    // Total clocked / OT from punches
     let totalClockedHours = 0;
     let totalOtHours      = 0;
     for (const [, v] of empPunches) {
@@ -259,7 +264,6 @@ export async function GET(req: NextRequest) {
     let totalDownTimeHours   = 0;
     let totalDownTimePayroll = 0;
 
-    // Union of all employees seen in either punches or on-job
     const allEmployees = new Set<string>([...empOnJob.keys(), ...empPunches.keys()]);
 
     for (const name of allEmployees) {
@@ -275,19 +279,34 @@ export async function GET(req: NextRequest) {
       totalDownTimePayroll += downPay;
     }
 
-    // ── Admin payroll ─────────────────────────────────────────────────────────
+    // ── Admin payroll + pro-rated budget (one pass over days in range) ────────
 
-    let adminPayroll = 0;
+    let adminPayroll          = 0;
+    let proratedBudgetRevenue = 0;
+    let proratedBudgetLabor   = 0;
+    let daysInRange           = 0;
 
-    // Iterate each calendar day in range
     const iterDate = new Date(start + "T12:00:00Z");
     const endDate  = new Date(end   + "T12:00:00Z");
-    let daysInRange = 0;
 
     while (iterDate <= endDate) {
-      const dateStr = iterDate.toISOString().slice(0, 10);
+      const dateStr   = iterDate.toISOString().slice(0, 10);
+      const iterYear  = iterDate.getUTCFullYear();
+      const iterMonth = iterDate.getUTCMonth() + 1; // 1-12
+      const daysInMo  = new Date(iterYear, iterMonth, 0).getDate();
+
       daysInRange++;
+
+      // Admin pay for this day
       adminPayroll += adminDailyRate(dateStr, adminConfig as Record<string, unknown> | null, adminOverrideMap);
+
+      // Pro-rate this month's budget across its calendar days
+      const budRow = budgetMap.get(`${iterYear}-${iterMonth}`);
+      if (budRow) {
+        proratedBudgetRevenue += budRow.revenue / daysInMo;
+        proratedBudgetLabor   += budRow.labor   / daysInMo;
+      }
+
       iterDate.setUTCDate(iterDate.getUTCDate() + 1);
     }
 
@@ -298,14 +317,28 @@ export async function GET(req: NextRequest) {
 
     // ── Derived ratios ────────────────────────────────────────────────────────
 
-    const fieldLaborPct    = safeDiv(totalFieldPayroll,  totalRevenue);
-    const adminBurdenPct   = safeDiv(adminPayroll,        totalRevenue);
-    const totalLaborPct    = safeDiv(totalPayroll,        totalRevenue);
-    const onJobPct         = safeDiv(totalOnJobHours,    totalClockedHours);
-    const downTimePct      = safeDiv(totalDownTimeHours, totalClockedHours);
-    const otPct            = safeDiv(totalOtHours,       totalClockedHours);
-    const hoursEfficiency  = safeDiv(totalBudgetedHours, totalOnJobHours);
-    const revenueVsBudget  = safeDiv(totalRevenue,       totalBudgetedRevenue);
+    const fieldLaborPct   = safeDiv(totalFieldPayroll,  totalRevenue);
+    const adminBurdenPct  = safeDiv(adminPayroll,        totalRevenue);
+    const totalLaborPct   = safeDiv(totalPayroll,        totalRevenue);
+    const onJobPct        = safeDiv(totalOnJobHours,    totalClockedHours);
+    const downTimePct     = safeDiv(totalDownTimeHours, totalClockedHours);
+    const otPct           = safeDiv(totalOtHours,       totalClockedHours);
+    const hoursEfficiency = safeDiv(totalBudgetedHours, totalOnJobHours);
+    const revenueVsBudget = safeDiv(totalRevenue,       totalBudgetedRevenue);
+
+    // ── Dynamic labor % goals from budget ─────────────────────────────────────
+    // total_labor_goal  = prorated_labor / prorated_revenue  (field + admin combined)
+    // field_labor_goal  = (prorated_labor - admin_for_period) / prorated_revenue
+    //                   = budget labor minus the actual admin cost, over budgeted revenue
+    //                     matches how the ~39% baseline was originally derived
+
+    const totalLaborGoal = proratedBudgetRevenue > 0
+      ? proratedBudgetLabor / proratedBudgetRevenue
+      : null;
+
+    const fieldLaborGoal = proratedBudgetRevenue > 0
+      ? (proratedBudgetLabor - adminPayroll) / proratedBudgetRevenue
+      : null;
 
     // ── Crew performance ──────────────────────────────────────────────────────
 
@@ -321,26 +354,31 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => (b.efficiency ?? 0) - (a.efficiency ?? 0));
 
     // ── Job flags ─────────────────────────────────────────────────────────────
+    // variance_pct: (actual − budget) / budget  →  positive = over budget (bad), negative = under (good)
 
     const jobFlags = allJobs
-      .filter(j => j.budgeted_hours >= 0.5 && Math.abs(j.variance_hours / j.budgeted_hours) >= 0.30)
+      .filter(j => j.budgeted_hours >= 0.5 && Math.abs(j.actual_hours - j.budgeted_hours) / j.budgeted_hours >= 0.30)
       .map(j => ({
-        work_order:    j.work_order,
-        client_name:   j.client_name,
-        service:       j.service,
-        crew_code:     j.crew_code,
+        work_order:     j.work_order,
+        client_name:    j.client_name,
+        service:        j.service,
+        crew_code:      j.crew_code,
         budgeted_hours: j.budgeted_hours,
         actual_hours:   j.actual_hours,
-        variance_pct:   j.variance_hours / j.budgeted_hours,
+        variance_pct:   (j.actual_hours - j.budgeted_hours) / j.budgeted_hours,
       }))
-      .sort((a, b) => b.variance_pct - a.variance_pct)
-      .slice(0, 10);
+      .sort((a, b) => b.variance_pct - a.variance_pct) // worst over-budget first
+      .slice(0, 15);
 
     // ── Auto-findings ─────────────────────────────────────────────────────────
 
     type Severity = "good" | "watch" | "bad";
     type Finding  = { severity: Severity; category: string; message: string; detail?: string };
     const findings: Finding[] = [];
+
+    // Fallback goals if no budget data
+    const effectiveTotalGoal = totalLaborGoal ?? 0.45;
+    const effectiveFieldGoal = fieldLaborGoal ?? 0.39;
 
     // 1. Hours over budget
     if (totalBudgetedHours > 0) {
@@ -370,25 +408,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Total labor %
-    if (totalLaborPct !== null) {
-      if (totalLaborPct > 0.50) {
+    // 2. Field labor % vs dynamic goal
+    if (fieldLaborPct !== null) {
+      const goalPct = fmt1(effectiveFieldGoal);
+      if (fieldLaborPct > effectiveFieldGoal * 1.12) {
         findings.push({
           severity: "bad",
           category: "Labor %",
-          message: `Total labor at ${fmt1(totalLaborPct)}% — critically above 39% target`,
+          message: `Field labor at ${fmt1(fieldLaborPct)}% — critically above ${goalPct}% target`,
         });
-      } else if (totalLaborPct > 0.42) {
+      } else if (fieldLaborPct > effectiveFieldGoal * 1.05) {
         findings.push({
           severity: "watch",
           category: "Labor %",
-          message: `Labor at ${fmt1(totalLaborPct)}% — above 39% target`,
+          message: `Field labor at ${fmt1(fieldLaborPct)}% — above ${goalPct}% target`,
         });
-      } else if (totalLaborPct <= 0.36) {
+      } else if (fieldLaborPct <= effectiveFieldGoal * 0.95) {
         findings.push({
           severity: "good",
           category: "Labor %",
-          message: `Labor efficiency strong at ${fmt1(totalLaborPct)}% — under target`,
+          message: `Field labor strong at ${fmt1(fieldLaborPct)}% — under ${goalPct}% target`,
         });
       }
     }
@@ -452,31 +491,46 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 6. Admin burden context (if high relative to total goal)
+    if (adminBurdenPct !== null && totalLaborGoal !== null) {
+      const adminShare = adminBurdenPct / totalLaborGoal;
+      if (adminShare > 0.30) {
+        findings.push({
+          severity: "watch",
+          category: "Admin",
+          message: `Admin pay is ${fmt1(adminBurdenPct)}% of revenue — ${(adminShare * 100).toFixed(0)}% of your total labor budget`,
+        });
+      }
+    }
+
     // ── Response ──────────────────────────────────────────────────────────────
 
     return NextResponse.json({
       scorecard: {
-        revenue:              totalRevenue,
-        budgeted_revenue:     totalBudgetedRevenue,
-        total_payroll:        totalPayroll,
-        field_payroll:        totalFieldPayroll,
-        on_job_payroll:       totalOnJobPayroll,
-        down_time_payroll:    totalDownTimePayroll,
-        admin_payroll:        adminPayroll,
-        field_labor_pct:      fieldLaborPct,
-        admin_burden_pct:     adminBurdenPct,
-        total_labor_pct:      totalLaborPct,
-        on_job_pct:           onJobPct,
-        down_time_pct:        downTimePct,
-        ot_pct:               otPct,
-        hours_efficiency:     hoursEfficiency,
-        revenue_vs_budget:    revenueVsBudget,
-        total_clocked_hours:  totalClockedHours,
-        total_on_job_hours:   totalOnJobHours,
+        revenue:               totalRevenue,
+        budgeted_revenue:      totalBudgetedRevenue,
+        total_payroll:         totalPayroll,
+        field_payroll:         totalFieldPayroll,
+        on_job_payroll:        totalOnJobPayroll,
+        down_time_payroll:     totalDownTimePayroll,
+        admin_payroll:         adminPayroll,
+        field_labor_pct:       fieldLaborPct,
+        admin_burden_pct:      adminBurdenPct,
+        total_labor_pct:       totalLaborPct,
+        on_job_pct:            onJobPct,
+        down_time_pct:         downTimePct,
+        ot_pct:                otPct,
+        hours_efficiency:      hoursEfficiency,
+        revenue_vs_budget:     revenueVsBudget,
+        total_clocked_hours:   totalClockedHours,
+        total_on_job_hours:    totalOnJobHours,
         total_down_time_hours: totalDownTimeHours,
-        total_ot_hours:       totalOtHours,
-        days_in_range:        daysInRange,
-        reports_count:        reportList.length,
+        total_ot_hours:        totalOtHours,
+        days_in_range:         daysInRange,
+        reports_count:         reportList.length,
+        // Dynamic goals derived from lawn budget for this period
+        field_labor_goal:      fieldLaborGoal,
+        total_labor_goal:      totalLaborGoal,
       },
       findings,
       crew_performance: crewPerformance,
