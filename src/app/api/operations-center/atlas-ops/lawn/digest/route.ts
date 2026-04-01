@@ -446,6 +446,7 @@ export async function GET(req: NextRequest) {
     const jobFlags = allJobs
       .filter(j => j.budgeted_hours >= 0.5 && Math.abs(j.actual_hours - j.budgeted_hours) / j.budgeted_hours >= 0.30)
       .map(j => ({
+        job_id:         j.job_id,
         client_name:    j.client_name,
         service:        j.service,
         crew_code:      j.crew_code,

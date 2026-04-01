@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ type MemberRow = {
 };
 
 type JobFlag = {
+  job_id: string;
   client_name: string | null;
   service: string | null;
   crew_code: string | null;
@@ -33,6 +34,27 @@ type JobFlag = {
   variance_pct: number;
   revenue: number;
   labor_pct: number | null;
+};
+
+type MemberTime = {
+  member_id: string;
+  resource_name: string;
+  actual_hours: number;
+  pay_rate: number;
+  dispatch_time_id: string | null;
+  dispatch_job_id: string | null;
+  time_varies: boolean;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+type JobTimeData = {
+  job: {
+    id: string; work_order: string; service_date: string;
+    actual_hours: number; budgeted_hours: number;
+    dispatch_job_id: string | null; time_varies: boolean;
+  };
+  members: MemberTime[];
 };
 
 type Scorecard = {
@@ -71,7 +93,7 @@ type DigestData = {
   job_flags: JobFlag[];
 };
 
-type Preset = "yesterday" | "last7" | "thisWeek" | "lastWeek" | "thisMonth" | "custom";
+type Preset = "yesterday" | "lastMonth" | "thisWeek" | "lastWeek" | "thisMonth" | "custom";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 
@@ -91,10 +113,12 @@ function getPresetRange(preset: Preset): { start: string; end: string } | null {
     return { start: toIsoDate(y), end: toIsoDate(y) };
   }
 
-  if (preset === "last7") {
-    const s = new Date(today);
-    s.setUTCDate(today.getUTCDate() - 6);
-    return { start: toIsoDate(s), end: toIsoDate(today) };
+  if (preset === "lastMonth") {
+    const y = today.getUTCFullYear();
+    const m = today.getUTCMonth(); // 0-indexed month of last month
+    const first = new Date(Date.UTC(m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1, 1));
+    const last  = new Date(Date.UTC(y, m, 0)); // day 0 of current month = last day of previous
+    return { start: toIsoDate(first), end: toIsoDate(last) };
   }
 
   if (preset === "thisWeek") {
@@ -257,7 +281,7 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
 
 const PRESETS: { key: Preset; label: string }[] = [
   { key: "yesterday",  label: "Yesterday"   },
-  { key: "last7",      label: "Last 7 Days" },
+  { key: "lastMonth",  label: "Last Month"  },
   { key: "thisWeek",   label: "This Week"   },
   { key: "lastWeek",   label: "Last Week"   },
   { key: "thisMonth",  label: "This Month"  },
@@ -290,14 +314,23 @@ function CalcSection({ title, children }: { title: string; children: React.React
 }
 
 export default function DigestPage() {
-  const [preset,      setPreset]      = useState<Preset>("last7");
+  const [preset,      setPreset]      = useState<Preset>("lastMonth");
   const [showCalc,    setShowCalc]    = useState(false);
-  const [range,       setRange]       = useState<{ start: string; end: string }>(getPresetRange("last7")!);
+  const [range,       setRange]       = useState<{ start: string; end: string }>(getPresetRange("lastMonth")!);
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd,   setCustomEnd]   = useState<string>("");
   const [data,        setData]        = useState<DigestData | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
+
+  // ── Job time editing state ──────────────────────────────────────────────────
+  const [expandedJob,    setExpandedJob]    = useState<string | null>(null);
+  const [jobTimeData,    setJobTimeData]    = useState<JobTimeData | null>(null);
+  const [jobTimeLoading, setJobTimeLoading] = useState(false);
+  const [editedMembers,  setEditedMembers]  = useState<MemberTime[]>([]);
+  const [saving,         setSaving]         = useState(false);
+  const [saveError,      setSaveError]      = useState<string | null>(null);
+  const rangeRef = useRef(range);
 
   async function fetchDigest(r: { start: string; end: string }) {
     setLoading(true);
@@ -317,6 +350,87 @@ export default function DigestPage() {
       setError(e?.message ?? "Failed to load");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Keep rangeRef in sync so job-time save can re-fetch with current range
+  useEffect(() => { rangeRef.current = range; }, [range]);
+
+  async function openJobTime(jobId: string) {
+    if (expandedJob === jobId) { setExpandedJob(null); setJobTimeData(null); return; }
+    setExpandedJob(jobId);
+    setJobTimeData(null);
+    setSaveError(null);
+    setJobTimeLoading(true);
+    try {
+      const res = await fetch(`/api/operations-center/atlas-ops/lawn/job-time?job_id=${jobId}`, { cache: "no-store" });
+      const d: JobTimeData = await res.json();
+      setJobTimeData(d);
+      setEditedMembers(d.members.map(m => ({ ...m })));
+    } catch { /* ignore */ }
+    setJobTimeLoading(false);
+  }
+
+  function updateMemberTime(idx: number, field: "start_time" | "end_time" | "actual_hours", val: string | number) {
+    setEditedMembers(prev => {
+      const next = prev.map((m, i) => i === idx ? { ...m, [field]: val } : m);
+
+      // Auto-calculate hours when start or end changes
+      if (field === "start_time" || field === "end_time") {
+        const m = next[idx];
+        if (m.start_time && m.end_time) {
+          const diff = (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000;
+          if (diff > 0) next[idx] = { ...m, actual_hours: Math.round(diff * 100) / 100 };
+        }
+        // For shared time (time_varies=false): apply same start/end to all members
+        if (!next[idx].time_varies) {
+          return next.map(row => ({
+            ...row,
+            start_time: next[idx].start_time,
+            end_time:   next[idx].end_time,
+            actual_hours: next[idx].actual_hours,
+          }));
+        }
+      }
+      return next;
+    });
+  }
+
+  /** Convert a timestamptz string to HH:MM for a time input. */
+  function toTimeInput(ts: string | null): string {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  }
+
+  /** Rebuild a full ISO timestamp from a date string + HH:MM input (UTC). */
+  function fromTimeInput(dateStr: string, hhmm: string): string {
+    const [hh, mm] = hhmm.split(":").map(Number);
+    return `${dateStr}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00+00:00`;
+  }
+
+  async function saveJobTime() {
+    if (!jobTimeData || editedMembers.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/operations-center/atlas-ops/lawn/job-time", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobTimeData.job.id, members: editedMembers }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error ?? `HTTP ${res.status}`);
+      }
+      // Close the editor and re-fetch digest — flag disappears automatically if variance < 30%
+      setExpandedJob(null);
+      setJobTimeData(null);
+      fetchDigest(rangeRef.current);
+    } catch (e: any) {
+      setSaveError(e?.message ?? "Save failed");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -731,11 +845,12 @@ export default function DigestPage() {
         {/* ── Flagged Jobs ── */}
         {!loading && data?.job_flags && data.job_flags.length > 0 && (
           <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
-            <SectionHeader title="Jobs Needing Attention" sub={`${data.job_flags.length} flagged — ≥30% variance`} />
+            <SectionHeader title="Jobs Needing Attention" sub={`${data.job_flags.length} flagged — ≥30% variance · click a row to review times`} />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
+                    <th className="px-3 py-2.5 w-8" />
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Client</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
@@ -746,25 +861,190 @@ export default function DigestPage() {
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.job_flags.map((job, i) => (
-                    <tr key={i} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-4 py-3 text-center text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.budgeted_hours.toFixed(1)}h</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
-                      <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
-                        {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(job.revenue)}</td>
-                      <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${jobLaborBadge(job.labor_pct, sc?.field_labor_goal ?? null)}`}>
-                          {job.labor_pct !== null ? fmtPct(job.labor_pct) : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {data.job_flags.map((job, i) => {
+                    const isOpen = expandedJob === job.job_id;
+                    const isThisLoading = isOpen && jobTimeLoading;
+                    return (
+                      <>
+                        {/* ── Main job row ── */}
+                        <tr
+                          key={`row-${i}`}
+                          onClick={() => openJobTime(job.job_id)}
+                          className={`border-t border-gray-50 cursor-pointer transition-colors ${isOpen ? "bg-emerald-50/60" : "hover:bg-gray-50/60"}`}
+                        >
+                          <td className="px-3 py-3 text-center">
+                            <span className={`text-xs text-gray-400 transition-transform inline-block ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.budgeted_hours.toFixed(1)}h</td>
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
+                          <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
+                            {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(job.revenue)}</td>
+                          <td className="px-5 py-3 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${jobLaborBadge(job.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                              {job.labor_pct !== null ? fmtPct(job.labor_pct) : "—"}
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* ── Expandable time editor ── */}
+                        {isOpen && (
+                          <tr key={`edit-${i}`} className="border-t border-emerald-100">
+                            <td colSpan={9} className="p-0">
+                              <div className="bg-emerald-50/40 px-6 py-4">
+                                {isThisLoading ? (
+                                  <div className="text-xs text-gray-400 py-2">Loading times…</div>
+                                ) : !jobTimeData ? (
+                                  <div className="text-xs text-red-500 py-2">Could not load time data.</div>
+                                ) : (
+                                  <>
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                        {jobTimeData.job.work_order} · {jobTimeData.job.service_date}
+                                        {jobTimeData.job.time_varies
+                                          ? " · Per-person times"
+                                          : jobTimeData.members[0]?.start_time
+                                          ? " · Shared crew time"
+                                          : " · Hours only (no dispatch times)"}
+                                      </div>
+                                      {saveError && <div className="text-xs text-red-500">{saveError}</div>}
+                                    </div>
+
+                                    {/* Member rows */}
+                                    <table className="w-full text-xs mb-3">
+                                      <thead>
+                                        <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-emerald-100">
+                                          <th className="pb-1.5 text-left pr-4">Personnel</th>
+                                          {editedMembers[0]?.start_time !== undefined && editedMembers[0]?.start_time !== null || editedMembers[0]?.end_time !== null ? (
+                                            <>
+                                              <th className="pb-1.5 text-center px-3">Start</th>
+                                              <th className="pb-1.5 text-center px-3">End</th>
+                                            </>
+                                          ) : null}
+                                          <th className="pb-1.5 text-center px-3">Hours</th>
+                                          <th className="pb-1.5 text-center px-3">Budgeted</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-emerald-50">
+                                        {editedMembers.map((m, idx) => {
+                                          const hasDispatch = m.start_time !== null || m.end_time !== null;
+                                          const showOnce = !m.time_varies && idx > 0; // shared time: only show inputs on first row
+                                          return (
+                                            <tr key={m.member_id} className="py-1">
+                                              <td className="py-2 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
+
+                                              {hasDispatch && !showOnce && (
+                                                <>
+                                                  <td className="py-2 px-3 text-center">
+                                                    <input
+                                                      type="time"
+                                                      value={toTimeInput(m.start_time)}
+                                                      onChange={e => {
+                                                        const newTs = m.start_time
+                                                          ? fromTimeInput(new Date(m.start_time).toISOString().slice(0, 10), e.target.value)
+                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                        updateMemberTime(idx, "start_time", newTs);
+                                                      }}
+                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-24"
+                                                    />
+                                                  </td>
+                                                  <td className="py-2 px-3 text-center">
+                                                    <input
+                                                      type="time"
+                                                      value={toTimeInput(m.end_time)}
+                                                      onChange={e => {
+                                                        const newTs = m.end_time
+                                                          ? fromTimeInput(new Date(m.end_time).toISOString().slice(0, 10), e.target.value)
+                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                        updateMemberTime(idx, "end_time", newTs);
+                                                      }}
+                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-24"
+                                                    />
+                                                  </td>
+                                                </>
+                                              )}
+                                              {hasDispatch && showOnce && (
+                                                <>
+                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                </>
+                                              )}
+                                              {!hasDispatch && (
+                                                // No dispatch times — edit hours directly
+                                                <td className="py-2 px-3 text-center" colSpan={2}>
+                                                  <input
+                                                    type="number"
+                                                    step="0.25"
+                                                    min="0"
+                                                    value={m.actual_hours}
+                                                    onChange={e => updateMemberTime(idx, "actual_hours", parseFloat(e.target.value) || 0)}
+                                                    className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-20 text-center"
+                                                  />
+                                                </td>
+                                              )}
+                                              <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
+                                                m.actual_hours > (jobTimeData.job.budgeted_hours / (editedMembers.length || 1)) * 1.3
+                                                  ? "text-red-500" : "text-gray-700"
+                                              }`}>
+                                                {m.actual_hours.toFixed(2)}h
+                                              </td>
+                                              <td className="py-2 px-3 text-center tabular-nums text-gray-400">
+                                                {(jobTimeData.job.budgeted_hours / (editedMembers.length || 1)).toFixed(2)}h
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr className="border-t border-emerald-100 font-semibold text-gray-600">
+                                          <td className="pt-2 pr-4">Total</td>
+                                          {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
+                                          {!editedMembers[0]?.start_time && <td />}
+                                          <td className="pt-2 px-3 text-center tabular-nums">
+                                            {editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)}h
+                                          </td>
+                                          <td className="pt-2 px-3 text-center tabular-nums text-gray-400">
+                                            {jobTimeData.job.budgeted_hours.toFixed(2)}h
+                                          </td>
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={saveJobTime}
+                                        disabled={saving}
+                                        className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                                        style={{ background: "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)" }}
+                                      >
+                                        {saving ? "Saving…" : "Save Changes"}
+                                      </button>
+                                      <button
+                                        onClick={() => { setExpandedJob(null); setJobTimeData(null); }}
+                                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <span className="text-xs text-gray-400 ml-auto">
+                                        If corrected variance drops below 30%, this job will be removed from the list on save.
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
