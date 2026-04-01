@@ -22,6 +22,31 @@ type MemberRow = {
   revenue: number;
   labor_cost: number;
   labor_pct: number | null;
+  revenue_per_manhour: number | null;
+};
+
+type CrewPerformance = {
+  crew_code: string;
+  jobs: number;
+  budgeted_hours: number;
+  actual_hours: number;
+  revenue: number;
+  labor_cost: number;
+  labor_pct: number | null;
+  revenue_per_manhour: number | null;
+  efficiency: number | null;
+};
+
+type ServiceBreakdown = {
+  service: string;
+  jobs: number;
+  actual_hours: number;
+  budgeted_hours: number;
+  revenue: number;
+  labor_cost: number;
+  labor_pct: number | null;
+  revenue_per_manhour: number | null;
+  hours_efficiency: number | null;
 };
 
 type JobFlag = {
@@ -29,11 +54,16 @@ type JobFlag = {
   client_name: string | null;
   service: string | null;
   crew_code: string | null;
-  budgeted_hours: number;
+  budgeted_hours: number;           // primary = real (or SAP if real null)
+  real_budgeted_hours: number | null;
+  proposed_budgeted_hours: number | null;
+  sap_budgeted_hours: number;       // SAP Est. (secondary)
   actual_hours: number;
   variance_pct: number;
   revenue: number;
+  revenue_per_manhour: number | null;
   labor_pct: number | null;
+  dollar_impact: number;
 };
 
 type MemberTime = {
@@ -90,6 +120,8 @@ type DigestData = {
   scorecard: Scorecard;
   findings: Finding[];
   member_leaderboard: MemberRow[];
+  crew_performance: CrewPerformance[];
+  service_breakdown: ServiceBreakdown[];
   job_flags: JobFlag[];
 };
 
@@ -233,6 +265,21 @@ function jobLaborBadge(v: number | null, goal: number | null): string {
   if (v <= g)         return "bg-emerald-100 text-emerald-700";
   if (v <= g * 1.15)  return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
+}
+
+function effBadge(v: number | null): string {
+  if (v === null) return "bg-gray-100 text-gray-400";
+  if (v >= 0.95) return "bg-emerald-100 text-emerald-700";
+  if (v >= 0.80) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
+
+function laborBadgeColor(v: number | null, goal: number | null): string {
+  if (v === null) return "text-gray-400";
+  const g = goal ?? 0.39;
+  if (v <= g)         return "text-emerald-600 font-semibold";
+  if (v <= g * 1.10)  return "text-amber-600 font-semibold";
+  return "text-red-600 font-semibold";
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
@@ -634,50 +681,6 @@ export default function DigestPage() {
           ) : null}
         </div>
 
-        {/* ── Row 2: Secondary metrics (white cards) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <SkeletonCard key={i} h="h-24" />
-            ))
-          ) : sc ? (
-            <>
-              {/* Hours Efficiency */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
-                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Hours Efficiency</div>
-                <div className={`text-3xl font-semibold tabular-nums ${efficiencyColor(sc.hours_efficiency)}`}>
-                  {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
-                </div>
-                <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} budgeted / {fmtHrs(sc.total_on_job_hours)} actual
-                </div>
-              </div>
-
-              {/* OT Exposure */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
-                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">OT Exposure</div>
-                <div className={`text-3xl font-semibold tabular-nums ${otColor(sc.ot_pct)}`}>
-                  {fmtPct(sc.ot_pct)}
-                </div>
-                <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_ot_hours)} overtime
-                </div>
-              </div>
-
-              {/* On-Job Time */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
-                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">On-Job Time</div>
-                <div className={`text-3xl font-semibold tabular-nums ${onJobColor(sc.on_job_pct)}`}>
-                  {fmtPct(sc.on_job_pct)}
-                </div>
-                <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_on_job_hours)} of {fmtHrs(sc.total_clocked_hours)} clocked
-                </div>
-              </div>
-            </>
-          ) : null}
-        </div>
-
         {/* ── Findings ── */}
         <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
           <SectionHeader title="What Happened" sub={loading ? "" : `${sortedFindings.length} findings`} />
@@ -721,6 +724,50 @@ export default function DigestPage() {
               ))
             )}
           </div>
+        </div>
+
+        {/* ── Row 2: Secondary metrics (white cards) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} h="h-24" />
+            ))
+          ) : sc ? (
+            <>
+              {/* Hours Efficiency */}
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
+                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Hours Efficiency</div>
+                <div className={`text-3xl font-semibold tabular-nums ${efficiencyColor(sc.hours_efficiency)}`}>
+                  {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 tabular-nums">
+                  {fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} budgeted / {fmtHrs(sc.total_on_job_hours)} actual
+                </div>
+              </div>
+
+              {/* OT Exposure */}
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
+                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">OT Exposure</div>
+                <div className={`text-3xl font-semibold tabular-nums ${otColor(sc.ot_pct)}`}>
+                  {fmtPct(sc.ot_pct)}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 tabular-nums">
+                  {fmtHrs(sc.total_ot_hours)} overtime
+                </div>
+              </div>
+
+              {/* On-Job Time */}
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
+                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">On-Job Time</div>
+                <div className={`text-3xl font-semibold tabular-nums ${onJobColor(sc.on_job_pct)}`}>
+                  {fmtPct(sc.on_job_pct)}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 tabular-nums">
+                  {fmtHrs(sc.total_on_job_hours)} of {fmtHrs(sc.total_clocked_hours)} clocked
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
 
         {/* ── Payroll Breakdown ── */}
@@ -791,6 +838,96 @@ export default function DigestPage() {
           </div>
         </div>
 
+        {/* ── Service Breakdown ── */}
+        {!loading && (data?.service_breakdown?.length ?? 0) > 0 && (
+          <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
+            <SectionHeader title="By Service Type" sub="labor % and efficiency by service — worst to best" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/70">
+                    <th className="text-left px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {data!.service_breakdown.map((row) => (
+                    <tr key={row.service} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-5 py-3 font-semibold text-gray-800">{row.service}</td>
+                      <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.jobs}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}h</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${effBadge(row.hours_efficiency)}`}>
+                          {row.hours_efficiency !== null ? (row.hours_efficiency * 100).toFixed(0) + "%" : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        {row.revenue_per_manhour !== null ? "$" + row.revenue_per_manhour.toFixed(2) : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                          {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Crew Performance ── */}
+        {!loading && (data?.crew_performance?.length ?? 0) > 0 && (
+          <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
+            <SectionHeader title="Crew Performance" sub="sorted by labor % — lowest to highest (best first)" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/70">
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {data!.crew_performance.map((row) => (
+                    <tr key={row.crew_code} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.crew_code}</td>
+                      <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.jobs}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}h</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${effBadge(row.efficiency)}`}>
+                          {row.efficiency !== null ? (row.efficiency * 100).toFixed(0) + "%" : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        {row.revenue_per_manhour !== null ? "$" + row.revenue_per_manhour.toFixed(2) : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                          {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ── Team Member Leaderboard ── */}
         <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
           <SectionHeader title="Team Member Leaderboard" sub="sorted by labor % — lowest to highest" />
@@ -809,11 +946,8 @@ export default function DigestPage() {
                   <tr className="border-b border-gray-100 bg-gray-50/70">
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Name</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Hrs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time Hrs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time %</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor Cost</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
@@ -821,14 +955,16 @@ export default function DigestPage() {
                   {data.member_leaderboard.map((row) => (
                     <tr key={row.name} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.name}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.total_payroll_hours)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.ot_hours)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.down_time_hours)}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
-                        {row.down_time_pct !== null ? (row.down_time_pct * 100).toFixed(1) + "%" : "—"}
+                        <div>{fmtHrs(row.total_payroll_hours)}</div>
+                        {row.ot_hours > 0 && (
+                          <div className="text-[10px] text-amber-500">{row.ot_hours.toFixed(1)}h OT</div>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.revenue)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        {row.revenue_per_manhour !== null ? "$" + row.revenue_per_manhour.toFixed(2) : "—"}
+                      </td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
                           {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
@@ -854,10 +990,11 @@ export default function DigestPage() {
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Client</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budgeted Hrs</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Variance</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Rev / Hr</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
@@ -879,12 +1016,23 @@ export default function DigestPage() {
                           <td className="px-4 py-3 text-center text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
                           <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
                           <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
-                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.budgeted_hours.toFixed(1)}h</td>
+                          <td className="px-4 py-3 text-center tabular-nums">
+                            <div className="text-gray-700 font-semibold">{job.budgeted_hours.toFixed(1)}h</div>
+                            {job.proposed_budgeted_hours !== null && (
+                              <div className="text-[10px] text-gray-400 leading-tight">prop {job.proposed_budgeted_hours.toFixed(1)}h</div>
+                            )}
+                            {job.real_budgeted_hours !== null && (
+                              <div className="text-[10px] text-gray-400 leading-tight">sap {job.sap_budgeted_hours.toFixed(1)}h</div>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
                           <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
                             {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
                           </td>
                           <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(job.revenue)}</td>
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                            {job.revenue_per_manhour !== null ? "$" + job.revenue_per_manhour.toFixed(2) : "—"}
+                          </td>
                           <td className="px-5 py-3 text-center">
                             <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${jobLaborBadge(job.labor_pct, sc?.field_labor_goal ?? null)}`}>
                               {job.labor_pct !== null ? fmtPct(job.labor_pct) : "—"}
@@ -895,7 +1043,7 @@ export default function DigestPage() {
                         {/* ── Expandable time editor ── */}
                         {isOpen && (
                           <tr key={`edit-${i}`} className="border-t border-emerald-100">
-                            <td colSpan={9} className="p-0">
+                            <td colSpan={10} className="p-0">
                               <div className="bg-emerald-50/40 px-6 py-4">
                                 {isThisLoading ? (
                                   <div className="text-xs text-gray-400 py-2">Loading times…</div>

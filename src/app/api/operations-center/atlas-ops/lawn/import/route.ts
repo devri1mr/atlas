@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import * as XLSX from "xlsx";
+import { calcRealBudgetedHours } from "@/lib/lawnBudgetCalc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -575,21 +576,24 @@ export async function POST(req: NextRequest) {
     if (repErr) return NextResponse.json({ error: repErr.message }, { status: 500 });
 
     for (const j of resolvedJobs) {
+      const realBudgetedHours = calcRealBudgetedHours(j.budgeted_amount, j.members);
+
       const { data: job, error: jobErr } = await sb
         .from("lawn_production_jobs")
         .insert({
-          report_id:       report.id,
-          work_order:      j.work_order || null,
-          client_name:     j.client_name,
-          client_address:  j.client_address || null,
-          service:         j.service || null,
-          service_date:    j.service_date || null,
-          crew_code:       j.crew_code || null,
-          budgeted_hours:  j.budgeted_hours,
-          actual_hours:    j.actual_hours,
-          variance_hours:  j.variance_hours,
-          budgeted_amount: j.budgeted_amount,
-          actual_amount:   j.actual_amount,
+          report_id:            report.id,
+          work_order:           j.work_order || null,
+          client_name:          j.client_name,
+          client_address:       j.client_address || null,
+          service:              j.service || null,
+          service_date:         j.service_date || null,
+          crew_code:            j.crew_code || null,
+          budgeted_hours:       j.budgeted_hours,
+          actual_hours:         j.actual_hours,
+          variance_hours:       j.variance_hours,
+          budgeted_amount:      j.budgeted_amount,
+          actual_amount:        j.actual_amount,
+          real_budgeted_hours:  realBudgetedHours,
         })
         .select("id")
         .single();

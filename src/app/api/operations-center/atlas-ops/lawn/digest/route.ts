@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { calcProposedBudgetedHours } from "@/lib/lawnBudgetCalc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,7 +94,7 @@ export async function GET(req: NextRequest) {
           lawn_production_jobs (
             id, work_order, client_name, service, crew_code,
             budgeted_hours, actual_hours, variance_hours,
-            budgeted_amount,
+            budgeted_amount, real_budgeted_hours,
             lawn_production_members (
               resource_name, actual_hours, earned_amount,
               total_payroll_hours, payroll_cost,
@@ -236,16 +237,19 @@ export async function GET(req: NextRequest) {
     type JobRow = {
       job_id: string; work_order: string | null; client_name: string | null;
       service: string | null; crew_code: string | null;
-      budgeted_hours: number; actual_hours: number; revenue: number; labor_cost: number;
+      budgeted_hours: number; real_budgeted_hours: number | null;
+      proposed_budgeted_hours: number | null;
+      actual_hours: number; revenue: number; labor_cost: number;
     };
     const allJobs: JobRow[] = [];
 
     // Crew aggregation
-    const crewMap = new Map<string, { jobs: number; budgeted_hours: number; actual_hours: number; revenue: number }>();
+    const crewMap = new Map<string, { jobs: number; budgeted_hours: number; real_budgeted_hours: number; actual_hours: number; revenue: number; labor_cost: number }>();
 
-    let totalRevenue       = 0;
-    let totalOnJobHours    = 0;
-    let totalBudgetedHours = 0;
+    let totalRevenue           = 0;
+    let totalOnJobHours        = 0;
+    let totalBudgetedHours     = 0;  // SAP imported (kept for legacy aggregations)
+    let totalRealBudgetedHours = 0;  // weighted real budgeted hours (primary)
 
     for (const report of reportList) {
       const rid         = report.id as string;
@@ -254,20 +258,23 @@ export async function GET(req: NextRequest) {
       const seenNames = seenPerReport.get(rid)!;
 
       for (const job of (report as any).lawn_production_jobs ?? []) {
-        const budH   = Number(job.budgeted_hours  ?? 0);
-        const actH   = Number(job.actual_hours     ?? 0);
-        const budAmt = Number(job.budgeted_amount  ?? 0);
-        const crew   = (job.crew_code as string) || "Unknown";
-        const wo     = (job.work_order as string) ?? "";
+        const budH      = Number(job.budgeted_hours      ?? 0);
+        const realBudH  = job.real_budgeted_hours != null ? Number(job.real_budgeted_hours) : null;
+        const propBudH  = calcProposedBudgetedHours(Number(job.budgeted_amount ?? 0));
+        const actH      = Number(job.actual_hours     ?? 0);
+        const budAmt    = Number(job.budgeted_amount  ?? 0);
+        const crew      = (job.crew_code as string) || "Unknown";
+        const wo        = (job.work_order as string) ?? "";
 
-        totalRevenue       += budAmt;
-        totalOnJobHours    += actH;
-        totalBudgetedHours += budH;
+        totalRevenue           += budAmt;
+        totalOnJobHours        += actH;
+        totalBudgetedHours     += budH;
+        totalRealBudgetedHours += realBudH ?? budH;  // fallback to SAP if null
 
         // Crew aggregation
-        if (!crewMap.has(crew)) crewMap.set(crew, { jobs: 0, budgeted_hours: 0, actual_hours: 0, revenue: 0 });
+        if (!crewMap.has(crew)) crewMap.set(crew, { jobs: 0, budgeted_hours: 0, real_budgeted_hours: 0, actual_hours: 0, revenue: 0, labor_cost: 0 });
         const crewEntry = crewMap.get(crew)!;
-        crewEntry.jobs++; crewEntry.budgeted_hours += budH; crewEntry.actual_hours += actH; crewEntry.revenue += budAmt;
+        crewEntry.jobs++; crewEntry.budgeted_hours += budH; crewEntry.real_budgeted_hours += realBudH ?? budH; crewEntry.actual_hours += actH; crewEntry.revenue += budAmt;
 
         let jobLaborCost = 0;
 
@@ -324,16 +331,20 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        crewEntry.labor_cost += jobLaborCost;
+
         allJobs.push({
-          job_id:         job.id as string,
-          work_order:     job.work_order    ?? null,
-          client_name:    job.client_name   ?? null,
-          service:        job.service       ?? null,
-          crew_code:      job.crew_code     ?? null,
-          budgeted_hours: budH,
-          actual_hours:   actH,
-          revenue:        budAmt,
-          labor_cost:     jobLaborCost,
+          job_id:                  job.id as string,
+          work_order:              job.work_order    ?? null,
+          client_name:             job.client_name   ?? null,
+          service:                 job.service       ?? null,
+          crew_code:               job.crew_code     ?? null,
+          budgeted_hours:          budH,
+          real_budgeted_hours:     realBudH,
+          proposed_budgeted_hours: propBudH,
+          actual_hours:            actH,
+          revenue:                 budAmt,
+          labor_cost:              jobLaborCost,
         });
       }
     }
@@ -410,7 +421,7 @@ export async function GET(req: NextRequest) {
     const onJobPct        = safeDiv(totalOnJobHours,    totalClockedHours);
     const downTimePct     = safeDiv(totalDownTimeHours, totalClockedHours);
     const otPct           = safeDiv(totalOtHours,       totalClockedHours);
-    const hoursEfficiency = safeDiv(totalBudgetedHours, totalOnJobHours);
+    const hoursEfficiency = safeDiv(totalRealBudgetedHours, totalOnJobHours);
     const revenueVsBudget = safeDiv(totalRevenue,       proratedBudgetRevenue);
 
     const totalLaborGoal = proratedBudgetRevenue > 0 ? proratedBudgetLabor / proratedBudgetRevenue : null;
@@ -431,7 +442,8 @@ export async function GET(req: NextRequest) {
           down_time_pct:       clockedTotal > 0 ? downTimeHours / clockedTotal : null,
           revenue:             emp.revenue,
           labor_cost:          emp.totalPay,
-          labor_pct:           emp.revenue > 0 ? emp.totalPay / emp.revenue : null,
+          labor_pct:              emp.revenue > 0 ? emp.totalPay / emp.revenue : null,
+          revenue_per_manhour:    emp.onJobHours > 0 ? emp.revenue / emp.onJobHours : null,
         };
       })
       .sort((a, b) => {
@@ -443,33 +455,79 @@ export async function GET(req: NextRequest) {
       });
 
     // ── Job flags ─────────────────────────────────────────────────────────────
+    // Use real_budgeted_hours as the primary threshold; fall back to SAP budgeted_hours
+    // Sort by dollar impact: |variance hours| × revenue-per-manhour
     const jobFlags = allJobs
-      .filter(j => j.budgeted_hours >= 0.5 && Math.abs(j.actual_hours - j.budgeted_hours) / j.budgeted_hours >= 0.30)
-      .map(j => ({
-        job_id:         j.job_id,
-        client_name:    j.client_name,
-        service:        j.service,
-        crew_code:      j.crew_code,
-        budgeted_hours: j.budgeted_hours,
-        actual_hours:   j.actual_hours,
-        variance_pct:   (j.actual_hours - j.budgeted_hours) / j.budgeted_hours,
-        revenue:        j.revenue,
-        labor_pct:      j.revenue > 0 ? j.labor_cost / j.revenue : null,
-      }))
-      .sort((a, b) => b.variance_pct - a.variance_pct)
+      .filter(j => {
+        const refHrs = j.real_budgeted_hours ?? j.budgeted_hours;
+        return refHrs >= 0.5 && Math.abs(j.actual_hours - refHrs) / refHrs >= 0.30;
+      })
+      .map(j => {
+        const refHrs = j.real_budgeted_hours ?? j.budgeted_hours;
+        const revPerHr = j.actual_hours > 0 ? j.revenue / j.actual_hours : 0;
+        const dollarImpact = Math.abs(j.actual_hours - refHrs) * revPerHr;
+        return {
+          job_id:                  j.job_id,
+          client_name:             j.client_name,
+          service:                 j.service,
+          crew_code:               j.crew_code,
+          budgeted_hours:          j.real_budgeted_hours ?? j.budgeted_hours,
+          real_budgeted_hours:     j.real_budgeted_hours,
+          proposed_budgeted_hours: j.proposed_budgeted_hours,
+          sap_budgeted_hours:      j.budgeted_hours,
+          actual_hours:            j.actual_hours,
+          variance_pct:            (j.actual_hours - refHrs) / refHrs,
+          revenue:                 j.revenue,
+          revenue_per_manhour:     revPerHr > 0 ? revPerHr : null,
+          labor_pct:               j.revenue > 0 ? j.labor_cost / j.revenue : null,
+          dollar_impact:           dollarImpact,
+        };
+      })
+      .sort((a, b) => b.dollar_impact - a.dollar_impact)
       .slice(0, 15);
 
     // ── Crew performance ─────────────────────────────────────────────────────
     const crewPerformance = [...crewMap.entries()]
       .map(([crew_code, v]) => ({
         crew_code,
-        jobs:           v.jobs,
-        budgeted_hours: v.budgeted_hours,
-        actual_hours:   v.actual_hours,
-        actual_amount:  v.revenue,
-        efficiency:     v.actual_hours > 0 ? v.budgeted_hours / v.actual_hours : null,
+        jobs:                  v.jobs,
+        budgeted_hours:        v.real_budgeted_hours,
+        sap_budgeted_hours:    v.budgeted_hours,
+        actual_hours:          v.actual_hours,
+        revenue:               v.revenue,
+        labor_cost:            v.labor_cost,
+        labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
+        revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
+        efficiency:            v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
       }))
-      .sort((a, b) => (b.efficiency ?? 0) - (a.efficiency ?? 0));
+      .sort((a, b) => (a.labor_pct ?? 1) - (b.labor_pct ?? 1));
+
+    // ── Service type breakdown ────────────────────────────────────────────────
+    const serviceMap = new Map<string, { jobs: number; actual_hours: number; real_budgeted_hours: number; revenue: number; labor_cost: number }>();
+    for (const j of allJobs) {
+      const svc = j.service || "Unspecified";
+      if (!serviceMap.has(svc)) serviceMap.set(svc, { jobs: 0, actual_hours: 0, real_budgeted_hours: 0, revenue: 0, labor_cost: 0 });
+      const s = serviceMap.get(svc)!;
+      s.jobs++;
+      s.actual_hours        += j.actual_hours;
+      s.real_budgeted_hours += j.real_budgeted_hours ?? j.budgeted_hours;
+      s.revenue             += j.revenue;
+      s.labor_cost          += j.labor_cost;
+    }
+    const serviceBreakdown = [...serviceMap.entries()]
+      .map(([service, v]) => ({
+        service,
+        jobs:                  v.jobs,
+        actual_hours:          v.actual_hours,
+        budgeted_hours:        v.real_budgeted_hours,
+        revenue:               v.revenue,
+        labor_cost:            v.labor_cost,
+        labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
+        revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
+        hours_efficiency:      v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
+      }))
+      .filter(s => s.revenue > 0)
+      .sort((a, b) => (b.labor_pct ?? 0) - (a.labor_pct ?? 0));
 
     // ── Auto-findings ─────────────────────────────────────────────────────────
     type Severity = "good" | "watch" | "bad";
@@ -478,8 +536,8 @@ export async function GET(req: NextRequest) {
 
     const effectiveFieldGoal = fieldLaborGoal ?? 0.39;
 
-    if (totalBudgetedHours > 0) {
-      const overPct = (totalOnJobHours - totalBudgetedHours) / totalBudgetedHours;
+    if (totalRealBudgetedHours > 0) {
+      const overPct = (totalOnJobHours - totalRealBudgetedHours) / totalRealBudgetedHours;
       if (overPct > 0.25) {
         const extra   = totalOnJobHours - totalBudgetedHours;
         const avgRate = totalOnJobHours > 0 ? totalOnJobPayroll / totalOnJobHours : 0;
@@ -558,6 +616,7 @@ export async function GET(req: NextRequest) {
       findings,
       member_leaderboard: memberLeaderboard,
       crew_performance:   crewPerformance,
+      service_breakdown:  serviceBreakdown,
       job_flags:          jobFlags,
     });
   } catch (e: any) {
