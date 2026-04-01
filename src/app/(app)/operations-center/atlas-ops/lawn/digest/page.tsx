@@ -974,12 +974,9 @@ export default function DigestPage() {
                           <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
                           <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
                           <td className="px-4 py-3 text-center tabular-nums">
-                            <div className="text-gray-700 font-semibold">{fmtHrs(job.budgeted_hours)}</div>
+                            <div className="text-gray-700 font-semibold">{job.budgeted_hours.toFixed(2)} hrs</div>
                             {job.proposed_budgeted_hours !== null && (
-                              <div className="text-[10px] text-gray-400 leading-tight">prop {job.proposed_budgeted_hours.toFixed(1)} hrs</div>
-                            )}
-                            {job.real_budgeted_hours !== null && (
-                              <div className="text-[10px] text-gray-400 leading-tight">sap {job.sap_budgeted_hours.toFixed(1)} hrs</div>
+                              <div className="text-[10px] text-gray-400 leading-tight">Prop: {job.proposed_budgeted_hours.toFixed(2)} hrs</div>
                             )}
                           </td>
                           <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(job.actual_hours)}</td>
@@ -1037,89 +1034,159 @@ export default function DigestPage() {
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-emerald-50">
-                                        {editedMembers.map((m, idx) => {
-                                          const hasDispatch = m.start_time !== null || m.end_time !== null;
-                                          const showOnce = !m.time_varies && idx > 0; // shared time: only show inputs on first row
-                                          return (
-                                            <tr key={m.member_id} className="py-1">
-                                              <td className="py-2 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
-
-                                              {hasDispatch && !showOnce && (
-                                                <>
-                                                  <td className="py-2 px-3 text-center">
-                                                    <input
-                                                      type="time"
-                                                      value={toTimeInput(m.start_time)}
-                                                      onChange={e => {
-                                                        const newTs = m.start_time
-                                                          ? fromTimeInput(new Date(m.start_time).toISOString().slice(0, 10), e.target.value)
-                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
-                                                        updateMemberTime(idx, "start_time", newTs);
-                                                      }}
-                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
-                                                    />
-                                                  </td>
-                                                  <td className="py-2 px-3 text-center">
-                                                    <input
-                                                      type="time"
-                                                      value={toTimeInput(m.end_time)}
-                                                      onChange={e => {
-                                                        const newTs = m.end_time
-                                                          ? fromTimeInput(new Date(m.end_time).toISOString().slice(0, 10), e.target.value)
-                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
-                                                        updateMemberTime(idx, "end_time", newTs);
-                                                      }}
-                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
-                                                    />
-                                                  </td>
-                                                </>
-                                              )}
-                                              {hasDispatch && showOnce && (
-                                                <>
-                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
-                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
-                                                </>
-                                              )}
-                                              {!hasDispatch && (
-                                                // No dispatch times — edit hours directly
-                                                <td className="py-2 px-3 text-center" colSpan={2}>
-                                                  <input
-                                                    type="number"
-                                                    step="0.25"
-                                                    min="0"
-                                                    value={m.actual_hours}
-                                                    onChange={e => updateMemberTime(idx, "actual_hours", parseFloat(e.target.value) || 0)}
-                                                    className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-20 text-center"
-                                                  />
-                                                </td>
-                                              )}
-                                              <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
-                                                m.actual_hours > (jobTimeData.job.budgeted_hours / (editedMembers.length || 1)) * 1.3
-                                                  ? "text-red-500" : "text-gray-700"
-                                              }`}>
-                                                {m.actual_hours.toFixed(2)} hrs
-                                              </td>
-                                              <td className="py-2 px-3 text-center tabular-nums text-gray-400">
-                                                {(jobTimeData.job.budgeted_hours / (editedMembers.length || 1)).toFixed(2)} hrs
-                                              </td>
-                                            </tr>
+                                        {(() => {
+                                          // Compute hours from dispatch times (source of truth); fall back to actual_hours
+                                          const memberHrs = editedMembers.map(m =>
+                                            m.start_time && m.end_time
+                                              ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
+                                              : m.actual_hours
                                           );
-                                        })}
+                                          const totalDispatchHrs = memberHrs.reduce((s, h) => s + h, 0);
+                                          return editedMembers.map((m, idx) => {
+                                            const computedHrs = memberHrs[idx];
+                                            const memberBudget = totalDispatchHrs > 0
+                                              ? jobTimeData.job.budgeted_hours * (computedHrs / totalDispatchHrs)
+                                              : jobTimeData.job.budgeted_hours / (editedMembers.length || 1);
+                                            const hasDispatch = m.start_time !== null || m.end_time !== null;
+                                            const showOnce = !m.time_varies && idx > 0;
+                                            return (
+                                              <tr key={m.member_id} className="py-1">
+                                                <td className="py-2 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
+
+                                                {hasDispatch && !showOnce && (
+                                                  <>
+                                                    <td className="py-2 px-3 text-center">
+                                                      <input
+                                                        type="time"
+                                                        value={toTimeInput(m.start_time)}
+                                                        onChange={e => {
+                                                          const newTs = m.start_time
+                                                            ? fromTimeInput(new Date(m.start_time).toISOString().slice(0, 10), e.target.value)
+                                                            : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                          updateMemberTime(idx, "start_time", newTs);
+                                                        }}
+                                                        className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
+                                                      />
+                                                    </td>
+                                                    <td className="py-2 px-3 text-center">
+                                                      <input
+                                                        type="time"
+                                                        value={toTimeInput(m.end_time)}
+                                                        onChange={e => {
+                                                          const newTs = m.end_time
+                                                            ? fromTimeInput(new Date(m.end_time).toISOString().slice(0, 10), e.target.value)
+                                                            : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                          updateMemberTime(idx, "end_time", newTs);
+                                                        }}
+                                                        className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
+                                                      />
+                                                    </td>
+                                                  </>
+                                                )}
+                                                {hasDispatch && showOnce && (
+                                                  <>
+                                                    <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                    <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                  </>
+                                                )}
+                                                {!hasDispatch && (
+                                                  <td className="py-2 px-3 text-center" colSpan={2}>
+                                                    <input
+                                                      type="number"
+                                                      step="0.25"
+                                                      min="0"
+                                                      value={m.actual_hours}
+                                                      onChange={e => updateMemberTime(idx, "actual_hours", parseFloat(e.target.value) || 0)}
+                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-20 text-center"
+                                                    />
+                                                  </td>
+                                                )}
+                                                <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
+                                                  computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
+                                                }`}>
+                                                  {computedHrs.toFixed(2)} hrs
+                                                </td>
+                                                <td className="py-2 px-3 text-center tabular-nums text-gray-400">
+                                                  {memberBudget.toFixed(2)} hrs
+                                                </td>
+                                              </tr>
+                                            );
+                                          });
+                                        })()}
                                       </tbody>
                                       <tfoot>
-                                        <tr className="border-t border-emerald-100 font-semibold text-gray-600">
-                                          <td className="pt-2 pr-4">Total</td>
-                                          {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
-                                          {!editedMembers[0]?.start_time && <td />}
-                                          <td className="pt-2 px-3 text-center tabular-nums">
-                                            {editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)} hrs
-                                          </td>
-                                          <td className="pt-2 px-3 text-center tabular-nums text-gray-400">
-                                            {jobTimeData.job.budgeted_hours.toFixed(2)} hrs
-                                          </td>
-                                        </tr>
+                                        {(() => {
+                                          const memberHrs = editedMembers.map(m =>
+                                            m.start_time && m.end_time
+                                              ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
+                                              : m.actual_hours
+                                          );
+                                          const totalHrs = memberHrs.reduce((s, h) => s + h, 0);
+                                          return (
+                                            <tr className="border-t border-emerald-100 font-semibold text-gray-600">
+                                              <td className="pt-2 pr-4">Total</td>
+                                              {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
+                                              {!editedMembers[0]?.start_time && <td />}
+                                              <td className="pt-2 px-3 text-center tabular-nums">{totalHrs.toFixed(2)} hrs</td>
+                                              <td className="pt-2 px-3 text-center tabular-nums text-gray-400">{jobTimeData.job.budgeted_hours.toFixed(2)} hrs</td>
+                                            </tr>
+                                          );
+                                        })()}
                                       </tfoot>
                                     </table>
+
+                                    {/* ── Per-member cost breakdown ── */}
+                                    <div className="mt-4 border-t border-emerald-100 pt-3">
+                                      <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Cost Breakdown</div>
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-emerald-100">
+                                            <th className="pb-1.5 text-left pr-4">Personnel</th>
+                                            <th className="pb-1.5 text-center px-3">Hours</th>
+                                            <th className="pb-1.5 text-center px-3">Rate</th>
+                                            <th className="pb-1.5 text-center px-3">OT Day?</th>
+                                            <th className="pb-1.5 text-center px-3">Est. Cost</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-emerald-50">
+                                          {(() => {
+                                            const BURDEN = 1.15;
+                                            const memberHrs = editedMembers.map(m =>
+                                              m.start_time && m.end_time
+                                                ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
+                                                : m.actual_hours
+                                            );
+                                            const totalCost = memberHrs.reduce((s, h, i) => s + h * (editedMembers[i].pay_rate || 0) * BURDEN, 0);
+                                            return editedMembers.map((m, idx) => {
+                                              const hrs = memberHrs[idx];
+                                              const cost = hrs * (m.pay_rate || 0) * BURDEN;
+                                              return (
+                                                <tr key={m.member_id}>
+                                                  <td className="py-1.5 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
+                                                  <td className="py-1.5 px-3 text-center tabular-nums text-gray-600">{hrs.toFixed(2)} hrs</td>
+                                                  <td className="py-1.5 px-3 text-center tabular-nums text-gray-600">${m.pay_rate.toFixed(2)}/hr</td>
+                                                  <td className="py-1.5 px-3 text-center">
+                                                    {m.ot_hours > 0
+                                                      ? <span className="text-amber-500 font-semibold">{m.ot_hours.toFixed(2)} hrs OT</span>
+                                                      : <span className="text-gray-300">—</span>}
+                                                  </td>
+                                                  <td className="py-1.5 px-3 text-center tabular-nums font-semibold text-gray-800">${cost.toFixed(2)}</td>
+                                                </tr>
+                                              );
+                                            }).concat(
+                                              <tr key="total" className="border-t border-emerald-100 font-semibold text-gray-700">
+                                                <td className="pt-2 pr-4">Total</td>
+                                                <td className="pt-2 px-3 text-center tabular-nums">{memberHrs.reduce((s, h) => s + h, 0).toFixed(2)} hrs</td>
+                                                <td className="pt-2 px-3 text-center text-gray-400 text-[10px]">×{BURDEN} burden</td>
+                                                <td />
+                                                <td className="pt-2 px-3 text-center tabular-nums text-emerald-800">${totalCost.toFixed(2)}</td>
+                                              </tr>
+                                            );
+                                          })()}
+                                        </tbody>
+                                      </table>
+                                      <p className="text-[10px] text-gray-400 mt-2">Est. cost = dispatch hours × pay rate × 1.15 burden. OT premium applied in full-day digest calculation.</p>
+                                    </div>
 
                                     {/* Actions */}
                                     <div className="flex items-center gap-3">
