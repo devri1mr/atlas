@@ -1,0 +1,138 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${m}/${d}/${y}`;
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const startDate = searchParams.get("start");
+  const endDate   = searchParams.get("end");
+  const preview   = searchParams.get("preview") === "true";
+
+  if (!startDate || !endDate) {
+    return NextResponse.json({ error: "start and end dates required" }, { status: 400 });
+  }
+
+  const sb = supabaseAdmin();
+
+  const { data: punches, error } = await sb
+    .from("at_punches")
+    .select(`
+      id, date_for_payroll, regular_hours, ot_hours,
+      at_employees!inner(first_name, last_name),
+      divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot),
+      at_divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
+    `)
+    .eq("status", "approved")
+    .gte("date_for_payroll", startDate)
+    .lte("date_for_payroll", endDate)
+    .order("date_for_payroll", { ascending: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  type Row = {
+    date: string;
+    employee: string;
+    qb_class: string;
+    reg_item: string;
+    ot_item: string;
+    reg_hours: number;
+    ot_hours: number;
+    warning: string;
+  };
+
+  const rows: Row[] = [];
+
+  for (const p of punches ?? []) {
+    const emp   = p.at_employees as any;
+    const div   = p.divisions   as any;
+    const atDiv = p.at_divisions as any;
+
+    const employee  = `${emp.first_name} ${emp.last_name}`;
+    const qb_class  = atDiv?.qb_class_name || div?.qb_class_name || "";
+    const reg_item  = atDiv?.qb_payroll_item_reg || div?.qb_payroll_item_reg || "";
+    const ot_item   = atDiv?.qb_payroll_item_ot  || div?.qb_payroll_item_ot  || "";
+    const reg_hours = Number(p.regular_hours ?? 0);
+    const ot_hours  = Number(p.ot_hours  ?? 0);
+
+    const warnings: string[] = [];
+    if (!reg_item && reg_hours > 0) warnings.push("missing regular pay item");
+    if (!ot_item  && ot_hours  > 0) warnings.push("missing OT pay item");
+
+    rows.push({
+      date: p.date_for_payroll,
+      employee,
+      qb_class,
+      reg_item,
+      ot_item,
+      reg_hours,
+      ot_hours,
+      warning: warnings.join("; "),
+    });
+  }
+
+  // ── Preview mode — return JSON summary ────────────────────────────────────
+  if (preview) {
+    // Aggregate by employee + class + payroll items for the summary table
+    const agg = new Map<string, {
+      employee: string; qb_class: string; reg_item: string; ot_item: string;
+      reg_hours: number; ot_hours: number; warning: string;
+    }>();
+
+    for (const r of rows) {
+      const key = `${r.employee}||${r.qb_class}||${r.reg_item}||${r.ot_item}`;
+      if (!agg.has(key)) {
+        agg.set(key, { employee: r.employee, qb_class: r.qb_class, reg_item: r.reg_item, ot_item: r.ot_item, reg_hours: 0, ot_hours: 0, warning: r.warning });
+      }
+      const entry = agg.get(key)!;
+      entry.reg_hours += r.reg_hours;
+      entry.ot_hours  += r.ot_hours;
+      if (r.warning) entry.warning = r.warning;
+    }
+
+    const summary = [...agg.values()].sort((a, b) => a.employee.localeCompare(b.employee) || a.qb_class.localeCompare(b.qb_class));
+    const totalReg = summary.reduce((s, r) => s + r.reg_hours, 0);
+    const totalOt  = summary.reduce((s, r) => s + r.ot_hours,  0);
+    const warnings = summary.filter(r => r.warning).length;
+
+    return NextResponse.json({ summary, total_reg: totalReg, total_ot: totalOt, warnings, punch_count: rows.length });
+  }
+
+  // ── IIF generation ────────────────────────────────────────────────────────
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const nowStr = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
+
+  const lines: string[] = [
+    "!TIMERHDR\tVER\tREV\tDATETIME\tIMPORTMODE\tSHORTNAME\tLONGNAME\tHIDETIME\tOFFSET",
+    `TIMERHDR\t6\t0\t${nowStr}\tADD\tGGI\tGarpiel Group\t0\t-240`,
+    "",
+    "!TIMER\tDATE\tNAME\tCLASS\tDURATION\tNOTE\tTAXABLE\tBILLINGSTATUS\tITEM\tBILLRATE",
+  ];
+
+  for (const r of rows) {
+    const d = fmtDate(r.date);
+    if (r.reg_hours > 0 && r.reg_item) {
+      lines.push(`TIMER\t${d}\t${r.employee}\t${r.qb_class}\t${r.reg_hours.toFixed(2)}\t\tN\t0\t${r.reg_item}\t0.00`);
+    }
+    if (r.ot_hours > 0 && r.ot_item) {
+      lines.push(`TIMER\t${d}\t${r.employee}\t${r.qb_class}\t${r.ot_hours.toFixed(2)}\t\tN\t0\t${r.ot_item}\t0.00`);
+    }
+  }
+
+  const iif      = lines.join("\r\n");
+  const filename = `garpiel_payroll_${startDate}_${endDate}.iif`;
+
+  return new NextResponse(iif, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}

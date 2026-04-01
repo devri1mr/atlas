@@ -36,6 +36,164 @@ function empName(e: { first_name: string; last_name: string } | null) {
   return e ? `${e.last_name}, ${e.first_name}` : "—";
 }
 
+// ─── QB Export Component ──────────────────────────────────────────────────────
+
+type QbRow = {
+  employee: string; qb_class: string; reg_item: string; ot_item: string;
+  reg_hours: number; ot_hours: number; warning: string;
+};
+
+function QbExport() {
+  const [startDate, setStartDate] = useState("2026-03-16");
+  const [endDate,   setEndDate]   = useState("2026-03-29");
+  const [loading,   setLoading]   = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error,     setError]     = useState("");
+  const [summary,   setSummary]   = useState<QbRow[] | null>(null);
+  const [totals,    setTotals]    = useState<{ reg: number; ot: number; warnings: number; punches: number } | null>(null);
+
+  async function loadPreview() {
+    setLoading(true); setError(""); setSummary(null); setTotals(null);
+    try {
+      const res  = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}&preview=true`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load preview");
+      setSummary(data.summary);
+      setTotals({ reg: data.total_reg, ot: data.total_ot, warnings: data.warnings, punches: data.punch_count });
+    } catch (e: any) { setError(e.message ?? "Error"); }
+    finally { setLoading(false); }
+  }
+
+  async function downloadIIF() {
+    setDownloading(true); setError("");
+    try {
+      const res = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}`);
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed"); }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `garpiel_payroll_${startDate}_${endDate}.iif`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) { setError(e.message ?? "Download failed"); }
+    finally { setDownloading(false); }
+  }
+
+  const hasWarnings = (totals?.warnings ?? 0) > 0;
+
+  return (
+    <div className="space-y-4 max-w-5xl">
+      {/* Date range + controls */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
+        <h2 className="text-sm font-bold text-gray-800 mb-4">QuickBooks Payroll Export — IIF</h2>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Pay Period Start</label>
+            <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setSummary(null); }}
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Pay Period End</label>
+            <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setSummary(null); }}
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
+          </div>
+          <button onClick={loadPreview} disabled={loading || !startDate || !endDate}
+            className="bg-[#123b1f] text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-[#1a5c2a] disabled:opacity-40 transition-colors">
+            {loading ? "Loading…" : "Preview"}
+          </button>
+          {summary && (
+            <button onClick={downloadIIF} disabled={downloading || hasWarnings}
+              title={hasWarnings ? "Resolve warnings before downloading" : undefined}
+              className="bg-emerald-600 text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+              {downloading ? "Generating…" : "Download IIF"}
+            </button>
+          )}
+        </div>
+        {error && <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>}
+      </div>
+
+      {/* Summary stats */}
+      {totals && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Employees", value: [...new Set(summary!.map(r => r.employee))].length.toString() },
+            { label: "Line Items", value: summary!.length.toString() },
+            { label: "Total Reg Hrs", value: totals.reg.toFixed(2) },
+            { label: "Total OT Hrs",  value: totals.ot.toFixed(2) },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+              <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">{s.label}</div>
+              <div className="text-xl font-bold text-[#123b1f] mt-0.5">{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Warnings banner */}
+      {hasWarnings && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <span className="font-bold">⚠ {totals!.warnings} line{totals!.warnings !== 1 ? "s" : ""} with missing QB payroll item mappings.</span>
+          {" "}Go to Settings → Departments and fill in the missing Regular/OT pay items, then re-preview.
+        </div>
+      )}
+
+      {/* Preview table */}
+      {summary && summary.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            Preview — {totals?.punches} approved punches · {startDate} to {endDate}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Employee</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">QB Class</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">Regular Pay Item</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500">Reg Hrs</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">OT Pay Item</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500">OT Hrs</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {summary.map((row, i) => (
+                  <tr key={i} className={row.warning ? "bg-amber-50" : "hover:bg-gray-50/40"}>
+                    <td className="px-5 py-2.5 font-semibold text-gray-800 text-xs whitespace-nowrap">{row.employee}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-500">{row.qb_class}</td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {row.reg_item
+                        ? <span className="text-gray-700">{row.reg_item}</span>
+                        : <span className="text-amber-600 font-semibold">⚠ Not mapped</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">{row.reg_hours.toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {row.ot_hours > 0
+                        ? row.ot_item
+                          ? <span className="text-gray-700">{row.ot_item}</span>
+                          : <span className="text-amber-600 font-semibold">⚠ Not mapped</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">
+                      {row.ot_hours > 0 ? row.ot_hours.toFixed(2) : <span className="text-gray-300">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {summary && summary.length === 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400 text-sm">
+          No approved punches found for this date range.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PayrollPage() {
@@ -266,12 +424,8 @@ export default function PayrollPage() {
 
       <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
 
-        {/* ── EXPORT placeholder ── */}
-        {subView === "export" && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-            <p className="text-gray-400 text-sm">QuickBooks export coming soon.</p>
-          </div>
-        )}
+        {/* ── QB EXPORT ── */}
+        {subView === "export" && <QbExport />}
 
         {/* ── PAY ADJUSTMENTS ── */}
         {subView === "adjustments" && (
