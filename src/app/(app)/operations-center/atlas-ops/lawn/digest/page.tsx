@@ -1047,8 +1047,8 @@ export default function DigestPage() {
                                           return editedMembers.map((m, idx) => {
                                             const computedHrs = memberHrs[idx];
                                             const memberBudget = totalDispatchHrs > 0
-                                              ? jobTimeData.job.budgeted_hours * (computedHrs / totalDispatchHrs)
-                                              : jobTimeData.job.budgeted_hours / (editedMembers.length || 1);
+                                              ? job.budgeted_hours * (computedHrs / totalDispatchHrs)
+                                              : job.budgeted_hours / (editedMembers.length || 1);
                                             const hasDispatch = m.start_time !== null || m.end_time !== null;
                                             const showOnce = !m.time_varies && idx > 0;
                                             return (
@@ -1092,7 +1092,9 @@ export default function DigestPage() {
                                                   </>
                                                 )}
                                                 {!hasDispatch && (
-                                                  <td className="py-2 px-3 text-center" colSpan={2}>
+                                                  <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
+                                                    computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
+                                                  }`}>
                                                     <input
                                                       type="number"
                                                       step="0.25"
@@ -1103,11 +1105,13 @@ export default function DigestPage() {
                                                     />
                                                   </td>
                                                 )}
-                                                <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
-                                                  computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
-                                                }`}>
-                                                  {computedHrs.toFixed(2)} hrs
-                                                </td>
+                                                {hasDispatch && (
+                                                  <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
+                                                    computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
+                                                  }`}>
+                                                    {computedHrs.toFixed(2)} hrs
+                                                  </td>
+                                                )}
                                                 <td className="py-2 px-3 text-center tabular-nums text-gray-400">
                                                   {memberBudget.toFixed(2)} hrs
                                                 </td>
@@ -1128,9 +1132,8 @@ export default function DigestPage() {
                                             <tr className="border-t border-emerald-100 font-semibold text-gray-600">
                                               <td className="pt-2 pr-4">Total</td>
                                               {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
-                                              {!editedMembers[0]?.start_time && <td />}
                                               <td className="pt-2 px-3 text-center tabular-nums">{totalHrs.toFixed(2)} hrs</td>
-                                              <td className="pt-2 px-3 text-center tabular-nums text-gray-400">{jobTimeData.job.budgeted_hours.toFixed(2)} hrs</td>
+                                              <td className="pt-2 px-3 text-center tabular-nums text-gray-400">{job.budgeted_hours.toFixed(2)} hrs</td>
                                             </tr>
                                           );
                                         })()}
