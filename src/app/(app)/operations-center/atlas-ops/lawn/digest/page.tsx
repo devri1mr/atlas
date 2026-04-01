@@ -205,7 +205,7 @@ function fmtPct(n: number | null): string {
 }
 
 function fmtHrs(n: number): string {
-  return Math.round(n).toLocaleString() + " hrs";
+  return n.toFixed(2) + " hrs";
 }
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
@@ -917,7 +917,7 @@ export default function DigestPage() {
                     <tr key={row.name} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.name}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.total_payroll_hours)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.ot_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.ot_hours > 0 ? fmtHrs(row.ot_hours) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.down_time_hours)}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
                         {row.down_time_pct !== null ? (row.down_time_pct * 100).toFixed(1) + "%" : "—"}
