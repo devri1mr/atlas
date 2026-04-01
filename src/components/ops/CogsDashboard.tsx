@@ -78,7 +78,7 @@ function ActualCell({ value, isAuto, color, onSave, onClear }: {
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-        className="w-full text-center text-xs font-black bg-white border border-emerald-400 rounded-lg px-1 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+        className="w-full text-center text-xs font-semibold bg-white border border-emerald-400 rounded-lg px-1 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300"
         autoFocus
       />
     );
@@ -87,7 +87,7 @@ function ActualCell({ value, isAuto, color, onSave, onClear }: {
   return (
     <button
       onClick={start} onFocus={start}
-      className="w-full text-center text-xs font-black rounded-lg py-0.5 transition-colors hover:bg-black/5"
+      className="w-full text-center text-xs font-semibold rounded-lg py-0.5 transition-colors hover:bg-black/5"
       style={{ color: value !== 0 ? color : "#e5e7eb" }}
     >
       {value !== 0 ? fmt.format(value) : "—"}
@@ -233,7 +233,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
           <div>
             <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">{divisionLabel}</div>
-            <div className="text-base font-black text-white leading-tight">Cost of Goods Sold</div>
+            <div className="text-base font-bold text-white leading-tight">Cost of Goods Sold</div>
           </div>
           {apiPath ? (
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1">
@@ -272,7 +272,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
           ].map(chip => (
             <div key={chip.label} className="bg-white/10 rounded-lg px-3 py-1 text-center">
               <div className="text-xs font-semibold text-white/50 uppercase tracking-wider">{chip.label}</div>
-              <div className="text-base font-black leading-tight" style={{ color: chip.color }}>{chip.value}</div>
+              <div className="text-base font-bold leading-tight" style={{ color: chip.color }}>{chip.value}</div>
               {chip.budget && <div className="text-xs text-white/40 leading-tight">{chip.budget}</div>}
             </div>
           ))}
@@ -332,7 +332,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                           >
                             <div className="flex items-center gap-2">
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: isRev ? "#0284c7" : "#10b981" }} />
-                              <span className="text-xs font-black text-gray-700 whitespace-nowrap">{row.label}</span>
+                              <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">{row.label}</span>
                             </div>
                           </td>
 
@@ -360,7 +360,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                                 ) : (
                                   <div className="flex flex-col items-center gap-1">
                                     {readOnly ? (
-                                      <div className="text-center text-xs font-black py-0.5" style={{ color: actualVal > 0 ? (isCurrCol && row.key !== "revenue" ? "#111827" : row.color) : "#e5e7eb" }}>
+                                      <div className="text-center text-xs font-semibold py-0.5" style={{ color: actualVal > 0 ? (isCurrCol && row.key !== "revenue" ? "#111827" : row.color) : "#e5e7eb" }}>
                                         {actualVal !== 0 ? fmt.format(actualVal) : "—"}
                                       </div>
                                     ) : (
@@ -390,7 +390,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                             style={{ background: "#f0fdf4", borderBottom: "1px solid #d1d5db", borderLeft: "1px solid #d1d5db" }}
                           >
                             <div className="flex flex-col items-center gap-1">
-                              <span className="text-xs font-black" style={{ color: ytdVal > 0 ? row.color : "#e5e7eb" }}>
+                              <span className="text-xs font-semibold" style={{ color: ytdVal > 0 ? row.color : "#e5e7eb" }}>
                                 {ytdVal > 0 ? fmt.format(ytdVal) : "—"}
                               </span>
                               {ytdBud !== 0 && (
@@ -412,7 +412,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                     {/* Gross Profit */}
                     <tr>
                       <td className="px-3 py-1.5" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
-                        <span className="text-sm font-black text-emerald-300 uppercase tracking-wider">Gross Profit</span>
+                        <span className="text-sm font-bold text-emerald-300 uppercase tracking-wider">Gross Profit</span>
                       </td>
                       {data.map(r => {
                         const future    = isFuture(r.month, year);
@@ -427,7 +427,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                           >
                             <div className="flex flex-col items-center gap-1">
                               {!future && (
-                                <span className={`text-sm font-black ${r.gross_profit > 0 ? "text-emerald-300" : r.gross_profit < 0 ? "text-red-400" : "text-white/20"}`}>
+                                <span className={`text-sm font-semibold ${r.gross_profit > 0 ? "text-emerald-300" : r.gross_profit < 0 ? "text-red-400" : "text-white/20"}`}>
                                   {hasAny ? fmt.format(r.gross_profit) : "—"}
                                 </span>
                               )}
@@ -438,7 +438,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                       })}
                       <td className="px-2 py-1.5 text-center" style={{ background: BG_FOOT_TOT, borderTop: "2px solid rgba(255,255,255,0.08)" }}>
                         <div className="flex flex-col items-center gap-1">
-                          <span className={`text-sm font-black ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
+                          <span className={`text-sm font-semibold ${ytd.gp > 0 ? "text-emerald-300" : ytd.gp < 0 ? "text-red-400" : "text-white/25"}`}>
                             {(ytd.revenue !== 0 || ytd.gp !== 0) ? fmt.format(ytd.gp) : "—"}
                           </span>
                           {ytdBudgetGP !== 0 && <span className="text-xs text-white/40">{fmt.format(ytdBudgetGP)}</span>}
@@ -449,7 +449,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                     {/* GP Margin */}
                     <tr>
                       <td className="px-3 py-1" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.25)" }}>
-                        <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">GP Margin</span>
+                        <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">GP Margin</span>
                       </td>
                       {data.map(r => {
                         const future    = isFuture(r.month, year);
@@ -462,7 +462,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                           >
                             {!future && r.margin_pct !== null && (
                               <span
-                                className={`inline-block text-xs font-black px-2 py-0.5 rounded-full ${marginTextColor(r.margin_pct)}`}
+                                className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${marginTextColor(r.margin_pct)}`}
                                 style={{ background: marginPillBg(r.margin_pct) }}
                               >
                                 {fmtPct(r.margin_pct)}
@@ -474,7 +474,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                       <td className="px-1 py-1 text-center" style={{ background: BG_FOOT_TOT, borderTop: "1px solid rgba(255,255,255,0.25)" }}>
                         {ytdMargin !== null && (
                           <span
-                            className={`inline-block text-xs font-black px-2 py-0.5 rounded-full ${marginTextColor(ytdMargin)}`}
+                            className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${marginTextColor(ytdMargin)}`}
                             style={{ background: marginPillBg(ytdMargin) }}
                           >
                             {fmtPct(ytdMargin)}
@@ -486,7 +486,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                     {/* GP Over / Under (vs YTD budget) */}
                     <tr>
                       <td className="px-3 py-1" style={{ background: BG_FOOT, borderRight: "1px solid rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                        <span className="text-xs font-black text-white/50 uppercase tracking-wider">GP Over/Under</span>
+                        <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">GP Over/Under</span>
                       </td>
                       {data.map(r => {
                         const future    = isFuture(r.month, year);
@@ -501,7 +501,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                             style={{ background: isCurrCol ? "#1a4a1a" : BG_FOOT, opacity: future ? 0.35 : 1, borderRight: "1px solid rgba(255,255,255,0.2)", borderTop: "1px solid rgba(255,255,255,0.12)" }}
                           >
                             {!future && hasAny && bGP !== 0 && (
-                              <span className={`text-xs font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
+                              <span className={`text-xs font-semibold ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
                                 {diff > 0 ? "+" : ""}{fmt.format(diff)}
                               </span>
                             )}
@@ -512,7 +512,7 @@ export default function CogsDashboard({ division, divisionLabel, apiPath, extern
                         {ytdBudgetGP !== 0 && (ytd.revenue !== 0 || ytd.gp !== 0) && (() => {
                           const diff = ytd.gp - ytdBudgetGP;
                           return (
-                            <span className={`text-sm font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
+                            <span className={`text-sm font-semibold ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-red-400" : "text-white/25"}`}>
                               {diff > 0 ? "+" : ""}{fmt.format(diff)}
                             </span>
                           );
