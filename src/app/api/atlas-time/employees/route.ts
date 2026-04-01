@@ -22,6 +22,7 @@ export async function GET() {
         pay_type, default_pay_rate, status, department_id, division_id,
         lunch_auto_deduct, lunch_deduct_after_hours, lunch_deduct_minutes,
         t_shirt_size, date_of_birth, phone, work_email, kiosk_pin, photo_url,
+        health_care_plan,
         drivers_license_expiration, dot_card_expiration, fert_license_expiration,
         cpr_expiration, first_aid_expiration,
         at_departments(id, name),

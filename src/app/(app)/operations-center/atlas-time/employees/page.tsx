@@ -19,6 +19,7 @@ type Employee = {
   work_email: string | null;
   kiosk_pin: string | null;
   photo_url: string | null;
+  health_care_plan: string | null;
   drivers_license_expiration: string | null;
   dot_card_expiration: string | null;
   fert_license_expiration: string | null;
@@ -90,7 +91,7 @@ function fmtDate(iso: string | null | undefined): string {
 const DEFAULT_COLS = {
   job_title: true, department: true, division: true,
   clock_status: true, last_active: true, cert_alerts: true,
-  hire_date: true, pay_rate: true, phone: false, email: false,
+  hire_date: true, pay_rate: true, health_plan: true, phone: false, email: false,
 };
 type ColKey = keyof typeof DEFAULT_COLS;
 
@@ -380,6 +381,7 @@ export default function EmployeesPage() {
                     {cols.cert_alerts  && <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Cert Alerts</th>}
                     {cols.pay_rate     && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Pay Rate</th>}
                     {cols.hire_date    && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Hired</th>}
+                    {cols.health_plan  && <th className="hidden md:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Benefits</th>}
                     <th className="hidden sm:table-cell text-center px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">PIN</th>
                     {cols.phone        && <th className="hidden lg:table-cell text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Phone</th>}
                     {cols.email        && <th className="hidden lg:table-cell text-left px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Email</th>}
@@ -508,6 +510,16 @@ export default function EmployeesPage() {
                           </td>
                         )}
                         {cols.hire_date  && <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center text-xs text-gray-500 tabular-nums">{fmtDate(emp.hire_date)}</td>}
+                        {cols.health_plan && (
+                          <td className="hidden md:table-cell px-3 py-3 whitespace-nowrap text-center">
+                            {emp.health_care_plan === "PPO"
+                              ? <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">PPO</span>
+                              : emp.health_care_plan === "HMO"
+                              ? <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">HMO</span>
+                              : <span className="text-gray-300 text-xs">—</span>
+                            }
+                          </td>
+                        )}
                         <td className="hidden sm:table-cell px-3 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
                           {emp.kiosk_pin ? (
                             <div className="flex items-center justify-center gap-1.5">
