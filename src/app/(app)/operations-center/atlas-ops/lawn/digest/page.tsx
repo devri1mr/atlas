@@ -427,7 +427,7 @@ export default function DigestPage() {
             <>
               {/* Revenue */}
               <div
-                className="rounded-xl px-5 py-4 flex flex-col justify-between"
+                className="rounded-xl px-5 py-4 flex flex-col items-center justify-between text-center"
                 style={{ background: "linear-gradient(145deg, #0d2616, #123b1f)" }}
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Revenue</div>
@@ -449,7 +449,7 @@ export default function DigestPage() {
 
               {/* Total Payroll */}
               <div
-                className="rounded-xl px-5 py-4 flex flex-col justify-between"
+                className="rounded-xl px-5 py-4 flex flex-col items-center justify-between text-center"
                 style={{ background: "linear-gradient(145deg, #0d2616, #123b1f)" }}
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Total Payroll</div>
@@ -463,7 +463,7 @@ export default function DigestPage() {
 
               {/* Field Labor % */}
               <div
-                className="rounded-xl px-5 py-4 flex flex-col justify-between"
+                className="rounded-xl px-5 py-4 flex flex-col items-center justify-between text-center"
                 style={{ background: "linear-gradient(145deg, #0d2616, #123b1f)" }}
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Field Labor</div>
@@ -479,7 +479,7 @@ export default function DigestPage() {
 
               {/* Admin Burden % */}
               <div
-                className="rounded-xl px-5 py-4 flex flex-col justify-between"
+                className="rounded-xl px-5 py-4 flex flex-col items-center justify-between text-center"
                 style={{ background: "linear-gradient(145deg, #0d2616, #123b1f)" }}
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Admin Burden</div>
@@ -493,7 +493,7 @@ export default function DigestPage() {
 
               {/* Down Time % */}
               <div
-                className="rounded-xl px-5 py-4 flex flex-col justify-between"
+                className="rounded-xl px-5 py-4 flex flex-col items-center justify-between text-center"
                 style={{ background: "linear-gradient(145deg, #0d2616, #123b1f)" }}
               >
                 <div className="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Down Time</div>
@@ -517,7 +517,7 @@ export default function DigestPage() {
           ) : sc ? (
             <>
               {/* Hours Efficiency */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm">
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Hours Efficiency</div>
                 <div className={`text-3xl font-semibold tabular-nums ${efficiencyColor(sc.hours_efficiency)}`}>
                   {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
@@ -528,18 +528,18 @@ export default function DigestPage() {
               </div>
 
               {/* OT Exposure */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm">
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">OT Exposure</div>
                 <div className={`text-3xl font-semibold tabular-nums ${otColor(sc.ot_pct)}`}>
                   {fmtPct(sc.ot_pct)}
                 </div>
                 <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_ot_hours)} OT hrs
+                  {fmtHrs(sc.total_ot_hours)} overtime
                 </div>
               </div>
 
               {/* On-Job Time */}
-              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm">
+              <div className="rounded-xl bg-white border border-[#d7e6db] px-5 py-4 shadow-sm text-center">
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">On-Job Time</div>
                 <div className={`text-3xl font-semibold tabular-nums ${onJobColor(sc.on_job_pct)}`}>
                   {fmtPct(sc.on_job_pct)}
