@@ -57,6 +57,19 @@ type MaterialRow = {
   category_id: string | null;
 };
 
+// Mirrors apply-groups: extracts size/grade suffix beyond the canonical name
+function computeVariantLabel(canonicalName: string, variantName: string): string {
+  const cLower = canonicalName.toLowerCase().trim();
+  const vLower = variantName.toLowerCase().trim();
+  if (cLower === vLower) return "";
+  if (vLower.startsWith(cLower)) {
+    return variantName.slice(canonicalName.length).trim().replace(/^[\s\-–]+/, "").trim();
+  }
+  const canonWords = new Set(cLower.split(/\s+/));
+  const variantWords = variantName.split(/\s+/);
+  return variantWords.filter((w) => !canonWords.has(w.toLowerCase())).join(" ").trim();
+}
+
 // ── Union-Find ────────────────────────────────────────────────────────────────
 function makeUF() {
   const parent: Record<string, string> = {};
@@ -164,6 +177,7 @@ export async function GET() {
         vendor: m.vendor,
         cost: Number(m.default_unit_cost),
         unit: m.default_unit,
+        proposed_label: m.id === suggestedParent.id ? "" : computeVariantLabel(suggestedParent.name, m.name),
       })),
     });
   }

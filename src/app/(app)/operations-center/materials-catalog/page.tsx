@@ -39,7 +39,7 @@ type Material = {
 type Tab = "materials" | "categories" | "groups";
 type DrawerMode = "add" | "edit";
 
-type GroupMember = { id: string; name: string; vendor: string | null; cost: number; unit: string };
+type GroupMember = { id: string; name: string; vendor: string | null; cost: number; unit: string; proposed_label: string };
 type GroupSuggestion = {
   id: string;
   canonical_name: string;
@@ -642,7 +642,7 @@ export default function MaterialsCatalogPage() {
           const canonName = editedNames[g.id] ?? g.canonical_name;
           const variants = g.members
             .filter((m) => m.id !== parentId)
-            .map((m) => ({ id: m.id, label: m.vendor ?? "" }));
+            .map((m) => ({ id: m.id, name: m.name }));
           return { parent_id: parentId, canonical_name: canonName, variants };
         });
 
@@ -991,9 +991,12 @@ export default function MaterialsCatalogPage() {
                                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{m.variant_label}</span>
                                   )}
                                   {isNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
-                                  {hasVariants && !isExpanded && (
-                                    <span className="text-[10px] text-gray-400 font-medium">{variants.length} vendor option{variants.length !== 1 ? "s" : ""}</span>
-                                  )}
+                                  {hasVariants && !isExpanded && (() => {
+                                    const uniqueLabels = new Set(variants.map(v => v.variant_label || "").filter(Boolean));
+                                    return uniqueLabels.size > 0
+                                      ? <span className="text-[10px] text-gray-400 font-medium">{uniqueLabels.size} size{uniqueLabels.size !== 1 ? "s" : ""}, {variants.length} option{variants.length !== 1 ? "s" : ""}</span>
+                                      : <span className="text-[10px] text-gray-400 font-medium">{variants.length} vendor option{variants.length !== 1 ? "s" : ""}</span>;
+                                  })()}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
@@ -1064,7 +1067,29 @@ export default function MaterialsCatalogPage() {
                                 )}
                               </td>
                             </tr>
-                            {hasVariants && isExpanded && variants.map((v, vi) => renderRow(v, true, vi))}
+                            {hasVariants && isExpanded && (() => {
+                              // Group variants by variant_label (size/grade)
+                              const labelGroups = new Map<string, Material[]>();
+                              for (const v of variants) {
+                                const key = v.variant_label || "";
+                                if (!labelGroups.has(key)) labelGroups.set(key, []);
+                                labelGroups.get(key)!.push(v);
+                              }
+                              const hasLabels = [...labelGroups.keys()].some(k => k !== "");
+                              return [...labelGroups.entries()].map(([label, lvars]) => (
+                                <React.Fragment key={label || "__base__"}>
+                                  {hasLabels && (
+                                    <tr className="border-b bg-amber-50/40">
+                                      <td className="pl-10 pr-4 py-1.5" colSpan={10}>
+                                        <span className="text-xs font-semibold text-amber-700">{label || "Base"}</span>
+                                        <span className="text-xs text-gray-400 ml-2">{lvars.length} vendor option{lvars.length !== 1 ? "s" : ""}</span>
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {lvars.map((v, vi) => renderRow(v, true, vi))}
+                                </React.Fragment>
+                              ));
+                            })()}
                           </React.Fragment>
                         );
                       })}
@@ -1319,6 +1344,11 @@ export default function MaterialsCatalogPage() {
                                   {isParent && (
                                     <span className="text-[10px] font-bold text-green-600 uppercase tracking-wide bg-green-50 rounded px-1">
                                       canonical
+                                    </span>
+                                  )}
+                                  {!isParent && m.proposed_label && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
+                                      {m.proposed_label}
                                     </span>
                                   )}
                                   <span className="text-gray-400 truncate max-w-[120px]">
