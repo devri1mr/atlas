@@ -56,6 +56,9 @@ type Scorecard = {
   reports_count: number;
   field_labor_goal: number | null;
   total_labor_goal: number | null;
+  prorated_budget_revenue: number;
+  prorated_budget_labor: number;
+  prorated_budget_admin: number;
 };
 
 type DigestData = {
@@ -800,12 +803,12 @@ export default function DigestPage() {
                 </CalcSection>
 
                 <CalcSection title="Labor % Goals (from budget)">
-                  <CalcRow label="Total labor goal" value={fmtPct(sc.total_labor_goal)} sub="prorated budget labor ÷ rev" />
-                  <CalcRow
-                    label="Field labor goal"
-                    value={fmtPct(sc.field_labor_goal)}
-                    sub="(budget labor − admin) ÷ rev"
-                  />
+                  <CalcRow label="Prorated budget revenue" value={fmtMoney(sc.prorated_budget_revenue)} sub="budget × days_in_range ÷ days_in_month" />
+                  <CalcRow label="Prorated budget labor (total)" value={fmtMoney(sc.prorated_budget_labor)} sub="field + admin combined" />
+                  <CalcRow label="Prorated budget admin" value={fmtMoney(sc.prorated_budget_admin)} sub="monthly admin total × same ratio" />
+                  <CalcRow label="Prorated budget field labor" value={fmtMoney(sc.prorated_budget_labor - sc.prorated_budget_admin)} sub="budget labor − budget admin" />
+                  <CalcRow label="Total labor goal" value={fmtPct(sc.total_labor_goal)} sub="budget labor ÷ budget revenue" />
+                  <CalcRow label="Field labor goal" value={fmtPct(sc.field_labor_goal)} sub="field labor ÷ budget revenue" />
                   <CalcRow label="Calendar days in range" value={String(sc.days_in_range)} sub="used for pro-rating" />
                   <CalcRow label="Complete reports" value={String(sc.reports_count)} />
                 </CalcSection>

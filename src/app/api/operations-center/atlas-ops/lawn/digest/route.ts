@@ -20,6 +20,17 @@ function weekdaysInMonth(year: number, month: number): number {
   return count;
 }
 
+// Returns the total admin pay budget for a full calendar month (from config rates).
+// Used for goal pro-ration — NOT for actual payroll computation.
+function monthlyAdminBudget(year: number, month: number, config: Record<string, unknown> | null): number {
+  if (!config) return 0;
+  const mk = MONTH_KEYS[month - 1];
+  const dailyRate = config[`${mk}_daily`];
+  if (dailyRate != null) return Number(dailyRate) * weekdaysInMonth(year, month);
+  const annualTotal = Number(config.manager_1_annual ?? 0) + Number(config.manager_2_annual ?? 0);
+  return annualTotal > 0 ? annualTotal / 12 : 0;
+}
+
 function adminDailyRate(
   dateStr: string,
   config: Record<string, unknown> | null,
@@ -284,10 +295,12 @@ export async function GET(req: NextRequest) {
     let adminPayroll          = 0;
     let proratedBudgetRevenue = 0;
     let proratedBudgetLabor   = 0;
+    let proratedBudgetAdmin   = 0; // monthly admin budget pro-rated, for goal calc only
     let daysInRange           = 0;
 
     const iterDate = new Date(start + "T12:00:00Z");
     const endDate  = new Date(end   + "T12:00:00Z");
+    const configData = adminConfig as Record<string, unknown> | null;
 
     while (iterDate <= endDate) {
       const dateStr   = iterDate.toISOString().slice(0, 10);
@@ -297,15 +310,20 @@ export async function GET(req: NextRequest) {
 
       daysInRange++;
 
-      // Admin pay for this day
-      adminPayroll += adminDailyRate(dateStr, adminConfig as Record<string, unknown> | null, adminOverrideMap);
+      // Actual admin pay for this specific day (weekday check + overrides)
+      adminPayroll += adminDailyRate(dateStr, configData, adminOverrideMap);
 
-      // Pro-rate this month's budget across its calendar days
+      // Pro-rate this month's budget figures uniformly across calendar days
       const budRow = budgetMap.get(`${iterYear}-${iterMonth}`);
       if (budRow) {
         proratedBudgetRevenue += budRow.revenue / daysInMo;
         proratedBudgetLabor   += budRow.labor   / daysInMo;
       }
+
+      // Pro-rate the full monthly admin budget (not actual) so the goal
+      // is consistent regardless of whether the range is 1 day or the full month.
+      // e.g. April: $9,290.38 total / 30 days = $309.68/day
+      proratedBudgetAdmin += monthlyAdminBudget(iterYear, iterMonth, configData) / daysInMo;
 
       iterDate.setUTCDate(iterDate.getUTCDate() + 1);
     }
@@ -336,8 +354,10 @@ export async function GET(req: NextRequest) {
       ? proratedBudgetLabor / proratedBudgetRevenue
       : null;
 
+    // field_labor_goal uses prorated monthly admin budget (not actual admin pay)
+    // so a 1-day range and a full-month range both yield the same % goal
     const fieldLaborGoal = proratedBudgetRevenue > 0
-      ? (proratedBudgetLabor - adminPayroll) / proratedBudgetRevenue
+      ? (proratedBudgetLabor - proratedBudgetAdmin) / proratedBudgetRevenue
       : null;
 
     // ── Crew performance ──────────────────────────────────────────────────────
@@ -529,8 +549,11 @@ export async function GET(req: NextRequest) {
         days_in_range:         daysInRange,
         reports_count:         reportList.length,
         // Dynamic goals derived from lawn budget for this period
-        field_labor_goal:      fieldLaborGoal,
-        total_labor_goal:      totalLaborGoal,
+        field_labor_goal:        fieldLaborGoal,
+        total_labor_goal:        totalLaborGoal,
+        prorated_budget_revenue: proratedBudgetRevenue,
+        prorated_budget_labor:   proratedBudgetLabor,
+        prorated_budget_admin:   proratedBudgetAdmin,
       },
       findings,
       crew_performance: crewPerformance,
