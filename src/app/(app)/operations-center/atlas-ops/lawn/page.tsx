@@ -712,6 +712,282 @@ function CogsWidget() {
   );
 }
 
+// ── Pace Intelligence Card ────────────────────────────────────────────────────
+
+/** Count weekdays (Mon–Fri) and weekend days from `fromDay` through end of month, inclusive. */
+function countRemainingDays(year: number, month: number, fromDay: number) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let weekdays = 0;
+  let weekends = 0;
+  for (let d = fromDay; d <= daysInMonth; d++) {
+    const dow = new Date(year, month - 1, d).getDay();
+    if (dow === 0 || dow === 6) weekends++;
+    else weekdays++;
+  }
+  return { weekdays, weekends };
+}
+
+/** Count weekdays in a full month. */
+function weekdaysInFullMonth(year: number, month: number) {
+  return countRemainingDays(year, month, 1).weekdays;
+}
+
+function PaceCard({ cogs }: { cogs: CogsMonth[] }) {
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear  = now.getFullYear();
+  const today    = now.getDate();
+  const daysInMonth = new Date(curYear, curMonth, 0).getDate();
+
+  const curMonthData = cogs.find(m => m.month === curMonth);
+  const monthBudget  = curMonthData?.budget_revenue ?? 0;
+  const actualMTD    = curMonthData?.revenue ?? 0;
+
+  // YTD
+  const ytdBudget  = cogs.filter(m => m.month <= curMonth).reduce((s, m) => s + (m.budget_revenue ?? 0), 0);
+  const actualYTD  = cogs.reduce((s, m) => s + (m.revenue ?? 0), 0);
+  const annualGoal = cogs.reduce((s, m) => s + (m.budget_revenue ?? 0), 0);
+  const fullMonthsRemaining = 12 - curMonth;
+  const requiredMonthlyAvg  = fullMonthsRemaining > 0 ? (annualGoal - actualYTD) / fullMonthsRemaining : null;
+
+  // ── Weekday-aware monthly pace ──────────────────────────────────────────────
+  // Count weekdays elapsed so far (days 1..today) to prorate against budget
+  const { weekdays: wdElapsed } = countRemainingDays(curYear, curMonth, 1);
+  const totalWeekdaysInMonth    = weekdaysInFullMonth(curYear, curMonth);
+  // Elapsed is days 1..today; remaining is days today..end (today still counts as available)
+  const { weekdays: wdRemaining, weekends: weRemaining } = countRemainingDays(curYear, curMonth, today);
+  // Prorated budget: budget / weekdays-in-month * weekdays-elapsed-before-today
+  const wdElapsedBefore = wdElapsed - wdRemaining; // weekdays strictly before today
+  const proratedBudget  = totalWeekdaysInMonth > 0
+    ? monthBudget * (wdElapsedBefore / totalWeekdaysInMonth)
+    : 0;
+
+  const monthRemaining   = monthBudget - actualMTD;
+  const monthGap         = proratedBudget - actualMTD; // positive = behind prorated pace
+  const onPaceMTD        = actualMTD >= proratedBudget;
+
+  // Normal daily rate = budget / weekdays in month (baseline expectation per workday)
+  const normalDailyRate  = totalWeekdaysInMonth > 0 ? monthBudget / totalWeekdaysInMonth : 0;
+
+  // Required rate: weekdays only
+  const reqPerWeekday    = wdRemaining > 0 && monthRemaining > 0 ? monthRemaining / wdRemaining : null;
+  // Required rate: if weekends are also used (all remaining days)
+  const totalDaysLeft    = wdRemaining + weRemaining;
+  const reqWithWeekends  = totalDaysLeft > 0 && monthRemaining > 0 ? monthRemaining / totalDaysLeft : null;
+  // "Required per week" = weekday-only rate × 5 (a normal 5-day production week)
+  const reqPerWeek       = reqPerWeekday != null ? reqPerWeekday * 5 : null;
+
+  // Flag: weekday rate is >20% above normal — weekends should be considered
+  const isOverpace       = reqPerWeekday != null && normalDailyRate > 0 && reqPerWeekday > normalDailyRate * 1.20;
+
+  // Progress bar: based on weekdays elapsed (prorated marker) vs calendar progress (bar fill)
+  const calendarMarkerPct = Math.min((today / daysInMonth) * 100, 100);
+  const mtdPct            = monthBudget > 0 ? Math.min(actualMTD / monthBudget, 1) : 0;
+  const ytdPct            = ytdBudget  > 0 ? Math.min(actualYTD  / ytdBudget,  1) : 0;
+  const onPaceYTD         = actualYTD >= ytdBudget;
+
+  if (monthBudget === 0 && ytdBudget === 0) return null;
+
+  const MO_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
+      <SectionHeader
+        title="Pace Intelligence"
+        subtitle={`${MONTHS_FULL[curMonth - 1]} ${curYear} · Targets based on weekday production days — auto-adjusting`}
+      />
+      <div className="bg-white divide-y divide-gray-100">
+
+        {/* ── Monthly pace ─────────────────────────────────────────────── */}
+        <div className="px-5 py-5">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Monthly Pace — {MONTHS_FULL[curMonth - 1]}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl font-bold text-gray-900">{money.format(actualMTD)}</span>
+                <span className="text-sm text-gray-400">earned of {money.format(monthBudget)}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                  onPaceMTD
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-red-50 text-red-600 border-red-200"
+                }`}>
+                  {onPaceMTD
+                    ? `${money.format(actualMTD - proratedBudget)} ahead of weekday pace`
+                    : `${money.format(Math.abs(monthGap))} behind weekday pace`}
+                </span>
+              </div>
+            </div>
+            <div className="text-right shrink-0 ml-4">
+              <div className="text-xs text-gray-400">{wdRemaining} weekday{wdRemaining !== 1 ? "s" : ""} left</div>
+              <div className="text-xs text-gray-400 mt-0.5">{weRemaining} weekend day{weRemaining !== 1 ? "s" : ""} available</div>
+            </div>
+          </div>
+
+          {/* Progress bar — fill = actual earned, amber tick = weekday-prorated target */}
+          <div className="relative h-3 rounded-full bg-gray-100 overflow-visible mb-1.5">
+            <div
+              className={`h-full rounded-full transition-all ${onPaceMTD ? "bg-emerald-500" : "bg-red-400"}`}
+              style={{ width: `${mtdPct * 100}%` }}
+            />
+            {/* Amber tick = where you "should be" based on weekdays elapsed */}
+            {totalWeekdaysInMonth > 0 && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-5 bg-amber-400 rounded-full z-10"
+                style={{ left: `${calendarMarkerPct}%` }}
+              />
+            )}
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 mb-4">
+            <span>{Math.round(mtdPct * 100)}% of monthly goal earned</span>
+            <span className="text-amber-600 font-medium">↑ weekday pace target</span>
+          </div>
+
+          {/* Target chips */}
+          {monthRemaining > 0 && reqPerWeekday != null ? (
+            <div className="space-y-3">
+              {/* Primary: weekdays-only targets */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`rounded-xl px-4 py-3 ${isOverpace ? "bg-amber-50 border border-amber-200" : "bg-gray-50"}`}>
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Required / Weekday</div>
+                  <div className={`text-lg font-bold ${isOverpace ? "text-amber-700" : "text-gray-900"}`}>
+                    {money.format(reqPerWeekday)}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    over {wdRemaining} remaining weekday{wdRemaining !== 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div className={`rounded-xl px-4 py-3 ${isOverpace ? "bg-amber-50 border border-amber-200" : "bg-gray-50"}`}>
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Required / Week</div>
+                  <div className={`text-lg font-bold ${isOverpace ? "text-amber-700" : "text-gray-900"}`}>
+                    {money.format(reqPerWeek!)}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">standard 5-day week</div>
+                </div>
+              </div>
+
+              {/* Weekend relief scenario — shown when behind or overpace */}
+              {weRemaining > 0 && reqWithWeekends != null && (
+                <div className={`rounded-xl px-4 py-3 border ${
+                  isOverpace
+                    ? "bg-blue-50 border-blue-200"
+                    : "bg-gray-50 border-gray-100"
+                }`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                        {isOverpace ? "Weekend Recovery Option" : "If Working Weekends"}
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-lg font-bold ${isOverpace ? "text-blue-700" : "text-gray-700"}`}>
+                          {money.format(reqWithWeekends)}
+                        </span>
+                        <span className="text-xs text-gray-400">/ day if all {totalDaysLeft} days used</span>
+                      </div>
+                      {isOverpace && (
+                        <div className="text-xs text-blue-600 mt-1 font-medium">
+                          Reduces daily target by {money.format(reqPerWeekday - reqWithWeekends)} vs weekdays only
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-gray-400">{weRemaining} weekend</div>
+                      <div className="text-xs text-gray-400">{weRemaining === 1 ? "day" : "days"} available</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Overpace warning */}
+              {isOverpace && (
+                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <svg className="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <div className="text-xs text-amber-800">
+                    <span className="font-semibold">Required weekday rate is {Math.round((reqPerWeekday / normalDailyRate - 1) * 100)}% above normal pace</span>
+                    {weRemaining > 0
+                      ? ` — consider scheduling weekend work to distribute the load. ${weRemaining} weekend day${weRemaining !== 1 ? "s" : ""} remain this month.`
+                      : " — no weekend days remain. Push weekday production."}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : monthRemaining <= 0 ? (
+            <div className="text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl">
+              Monthly goal achieved — {money.format(Math.abs(monthRemaining))} over budget
+            </div>
+          ) : null}
+        </div>
+
+        {/* ── YTD pace ─────────────────────────────────────────────────── */}
+        <div className="px-5 py-5">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">YTD Pace — {curYear}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl font-bold text-gray-900">{money.format(actualYTD)}</span>
+                <span className="text-sm text-gray-400">of {money.format(ytdBudget)} thru {MO_SHORT[curMonth - 1]}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                  onPaceYTD
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}>
+                  {onPaceYTD
+                    ? `${pct(actualYTD / ytdBudget - 1)} above YTD pace`
+                    : `${money.format(ytdBudget - actualYTD)} behind YTD`}
+                </span>
+              </div>
+            </div>
+            <div className="text-right shrink-0 ml-4">
+              <div className="text-xs text-gray-400">Annual Goal</div>
+              <div className="text-sm font-bold text-gray-700">{money.format(annualGoal)}</div>
+            </div>
+          </div>
+
+          {/* YTD progress bar */}
+          <div className="relative h-3 rounded-full bg-gray-100 overflow-hidden mb-1.5">
+            <div
+              className={`h-full rounded-full ${onPaceYTD ? "bg-emerald-500" : "bg-amber-400"}`}
+              style={{ width: `${ytdPct * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 mb-4">
+            <span>{Math.round(ytdPct * 100)}% of YTD budget earned</span>
+            <span>{annualGoal > 0 ? Math.round((actualYTD / annualGoal) * 100) : 0}% of annual goal</span>
+          </div>
+
+          {/* Required monthly avg */}
+          {requiredMonthlyAvg != null && fullMonthsRemaining > 0 && (
+            <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Needed Avg / Month</div>
+                <div className={`text-lg font-bold ${requiredMonthlyAvg > (annualGoal / 12) * 1.1 ? "text-amber-600" : "text-gray-900"}`}>
+                  {money.format(requiredMonthlyAvg)}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  over {fullMonthsRemaining} remaining {fullMonthsRemaining === 1 ? "month" : "months"} to reach {money.format(annualGoal)} annual goal
+                </div>
+              </div>
+              {requiredMonthlyAvg > (annualGoal / 12) && annualGoal > 0 && (
+                <div className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center shrink-0">
+                  {pct(requiredMonthlyAvg / (annualGoal / 12) - 1)} above<br />avg monthly goal
+                </div>
+              )}
+            </div>
+          )}
+          {(requiredMonthlyAvg == null || requiredMonthlyAvg <= 0) && actualYTD >= annualGoal && (
+            <div className="text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl">
+              Annual goal achieved — {money.format(actualYTD - annualGoal)} over target
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
 function StatChip({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -827,6 +1103,9 @@ export default function LawnDashboard() {
 
         {/* Monthly */}
         <MonthlyTable data={cogs} />
+
+        {/* Pace Intelligence */}
+        <PaceCard cogs={cogs} />
 
         {/* COGS */}
         <CogsWidget />
