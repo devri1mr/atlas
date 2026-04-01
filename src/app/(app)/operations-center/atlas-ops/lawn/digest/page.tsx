@@ -15,10 +15,10 @@ type Finding = {
 
 type MemberRow = {
   name: string;
-  days: number;
-  jobs: number;
-  on_job_hours: number;
+  total_payroll_hours: number;
   ot_hours: number;
+  down_time_hours: number;
+  down_time_pct: number | null;
   revenue: number;
   labor_cost: number;
   labor_pct: number | null;
@@ -679,7 +679,7 @@ export default function DigestPage() {
 
         {/* ── Team Member Leaderboard ── */}
         <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
-          <SectionHeader title="Team Member Leaderboard" sub="sorted by revenue" />
+          <SectionHeader title="Team Member Leaderboard" sub="sorted by labor % — lowest to highest" />
           <div className="overflow-x-auto">
             {loading ? (
               <div className="px-5 py-4 space-y-2">
@@ -694,10 +694,10 @@ export default function DigestPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Name</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Days</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">On-Job Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Hrs</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time %</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor Cost</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
@@ -707,10 +707,12 @@ export default function DigestPage() {
                   {data.member_leaderboard.map((row) => (
                     <tr key={row.name} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.name}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.days}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.jobs}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.on_job_hours.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.ot_hours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.total_payroll_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.ot_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtHrs(row.down_time_hours)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        {row.down_time_pct !== null ? (row.down_time_pct * 100).toFixed(1) + "%" : "—"}
+                      </td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.revenue)}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>
                       <td className="px-5 py-3 text-center">

@@ -44,6 +44,31 @@ function adminDailyRate(dateStr: string, config: Record<string, unknown> | null,
 function safeDiv(a: number, b: number): number | null { return b > 0 ? a / b : null; }
 function fmt1(n: number): string { return (n * 100).toFixed(1); }
 
+// ── OT-attributed per-job cost ────────────────────────────────────────────────
+// Given a job's time window and the person's OT threshold (clock_in + reg_hours),
+// compute exact cost split between regular and OT rates.
+function otAttributedCost(
+  jobStartMs: number,
+  jobEndMs: number,
+  otThresholdMs: number,
+  regRate: number,  // pay_rate × burden
+  otRate: number,   // pay_rate × 1.5 × burden
+): number {
+  if (jobEndMs <= jobStartMs) return 0;
+  if (otThresholdMs <= jobStartMs) {
+    // Entire window is OT
+    return ((jobEndMs - jobStartMs) / 3600000) * otRate;
+  }
+  if (otThresholdMs >= jobEndMs) {
+    // Entire window is regular
+    return ((jobEndMs - jobStartMs) / 3600000) * regRate;
+  }
+  // Window spans the threshold
+  const regHrs = (otThresholdMs - jobStartMs) / 3600000;
+  const otHrs  = (jobEndMs - otThresholdMs) / 3600000;
+  return regHrs * regRate + otHrs * otRate;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -61,6 +86,7 @@ export async function GET(req: NextRequest) {
       { data: adminConfig },
       { data: adminOverrides },
       { data: budgetRows },
+      { data: dispatchJobsRaw },
     ] = await Promise.all([
       sb.from("lawn_production_reports")
         .select(`id, report_date,
@@ -70,7 +96,8 @@ export async function GET(req: NextRequest) {
             budgeted_amount,
             lawn_production_members (
               resource_name, actual_hours, earned_amount,
-              total_payroll_hours, payroll_cost
+              total_payroll_hours, payroll_cost,
+              pay_rate, reg_hours, ot_hours
             )
           )`)
         .eq("is_complete", true)
@@ -80,40 +107,130 @@ export async function GET(req: NextRequest) {
       sb.from("lawn_admin_pay_overrides").select("date, payroll_cost").gte("date", start).lte("date", end),
       sb.from("division_budgets").select("year, month, revenue, labor")
         .eq("division", "lawn").in("year", years).order("year").order("month"),
+      sb.from("lawn_dispatch_jobs")
+        .select("id, work_order, report_date, start_time, end_time, time_varies")
+        .gte("report_date", start).lte("report_date", end),
     ]);
 
     if (reportsErr) return NextResponse.json({ error: reportsErr.message }, { status: 500 });
 
-    const reportList = reports ?? [];
-    const configData = adminConfig as Record<string, unknown> | null;
+    const reportList  = reports ?? [];
+    const configData  = adminConfig as Record<string, unknown> | null;
+    const dispatchJobs = (dispatchJobsRaw ?? []) as Array<{
+      id: string; work_order: string; report_date: string;
+      start_time: string | null; end_time: string | null; time_varies: boolean;
+    }>;
 
-    // Punch data
-    let punches: Array<{ report_id: string; resource_name: string; regular_hours: number; ot_hours: number }> = [];
-    if (reportList.length > 0) {
-      const reportIds = reportList.map((r: any) => r.id as string);
-      const { data: punchData } = await sb.from("lawn_report_punches")
-        .select("report_id, resource_name, regular_hours, ot_hours").in("report_id", reportIds);
-      punches = (punchData ?? []) as typeof punches;
-    }
+    // Fetch punches + dispatch job times in parallel
+    const reportIds      = reportList.map((r: any) => r.id as string);
+    const dispatchJobIds = dispatchJobs.map(dj => dj.id);
 
-    // Admin override map
+    type PunchRow = { report_id: string; resource_name: string; clock_in_at: string; regular_hours: number; ot_hours: number };
+    type DjtRow   = { dispatch_job_id: string; resource_name: string; start_time: string; end_time: string };
+
+    let punches: PunchRow[]  = [];
+    let djtRows: DjtRow[]    = [];
+
+    await Promise.all([
+      reportIds.length > 0
+        ? sb.from("lawn_report_punches")
+            .select("report_id, resource_name, clock_in_at, regular_hours, ot_hours")
+            .in("report_id", reportIds)
+            .then(({ data }) => { punches = (data ?? []) as PunchRow[]; })
+        : Promise.resolve(),
+      dispatchJobIds.length > 0
+        ? sb.from("lawn_dispatch_job_times")
+            .select("dispatch_job_id, resource_name, start_time, end_time")
+            .in("dispatch_job_id", dispatchJobIds)
+            .then(({ data }) => { djtRows = (data ?? []) as DjtRow[]; })
+        : Promise.resolve(),
+    ]);
+
+    // ── Admin override map ────────────────────────────────────────────────────
     const adminOverrideMap = new Map<string, number | null>();
     for (const ov of adminOverrides ?? []) {
       adminOverrideMap.set(ov.date as string, ov.payroll_cost != null ? Number(ov.payroll_cost) : null);
     }
 
-    // Budget map
+    // ── Budget map ────────────────────────────────────────────────────────────
     const budgetMap = new Map<string, { revenue: number; labor: number }>();
     for (const row of budgetRows ?? []) {
       budgetMap.set(`${row.year}-${row.month}`, { revenue: Number(row.revenue), labor: Number(row.labor) });
     }
 
+    // ── Report date map ───────────────────────────────────────────────────────
+    const reportDateMap = new Map<string, string>(); // report_id → report_date
+    for (const r of reportList) {
+      reportDateMap.set(r.id as string, r.report_date as string);
+    }
+
+    // ── Punch lookup: report_id::name → { clock_in_ms, ot_threshold_ms } ─────
+    type PunchInfo = { clock_in_ms: number; ot_threshold_ms: number };
+    const punchLookup = new Map<string, PunchInfo>();
+    for (const p of punches) {
+      const key       = `${p.report_id}::${p.resource_name}`;
+      const clockInMs = new Date(p.clock_in_at).getTime();
+      punchLookup.set(key, {
+        clock_in_ms:     clockInMs,
+        ot_threshold_ms: clockInMs + Number(p.regular_hours) * 3600000,
+      });
+    }
+
+    // ── Dispatch job map: work_order::report_date → job-level time window ─────
+    type DispatchWindow = { start_ms: number; end_ms: number };
+    const dispatchJobMap   = new Map<string, { window: DispatchWindow | null; time_varies: boolean }>();
+    const dispatchIdToKey  = new Map<string, string>(); // dispatch_job_id → work_order::report_date
+
+    for (const dj of dispatchJobs) {
+      const key = `${dj.work_order}::${dj.report_date}`;
+      if (!dispatchJobMap.has(key)) {
+        const window = (dj.start_time && dj.end_time)
+          ? { start_ms: new Date(dj.start_time).getTime(), end_ms: new Date(dj.end_time).getTime() }
+          : null;
+        dispatchJobMap.set(key, { window, time_varies: Boolean(dj.time_varies) });
+      }
+      dispatchIdToKey.set(dj.id, key);
+    }
+
+    // ── Member dispatch time map: work_order::report_date::name → window ──────
+    const memberDispatchMap = new Map<string, DispatchWindow>();
+    const seenDjt           = new Set<string>(); // dedup duplicate rows
+
+    for (const djt of djtRows) {
+      const dupeKey = `${djt.dispatch_job_id}::${djt.resource_name}`;
+      if (seenDjt.has(dupeKey)) continue;
+      seenDjt.add(dupeKey);
+
+      const baseKey = dispatchIdToKey.get(djt.dispatch_job_id);
+      if (!baseKey) continue;
+      const memberKey = `${baseKey}::${djt.resource_name}`;
+      if (!memberDispatchMap.has(memberKey)) {
+        memberDispatchMap.set(memberKey, {
+          start_ms: new Date(djt.start_time).getTime(),
+          end_ms:   new Date(djt.end_time).getTime(),
+        });
+      }
+    }
+
+    // Helper: get dispatch time window for a member on a specific job
+    function getDispatchWindow(workOrder: string, reportDate: string, name: string): DispatchWindow | null {
+      // Member-specific time (time_varies = true)
+      const memberKey = `${workOrder}::${reportDate}::${name}`;
+      if (memberDispatchMap.has(memberKey)) return memberDispatchMap.get(memberKey)!;
+      // Job-level time (time_varies = false)
+      const djEntry = dispatchJobMap.get(`${workOrder}::${reportDate}`);
+      if (djEntry && !djEntry.time_varies && djEntry.window) return djEntry.window;
+      return null;
+    }
+
     // ── Per-employee aggregation ──────────────────────────────────────────────
-    // empData tracks per-person totals across all reports
-    type EmpEntry = { onJobHours: number; revenue: number; totalPay: number; jobs: number; reports: Set<string> };
-    const empData = new Map<string, EmpEntry>();
-    // seenPerReport: de-dupe payroll (payroll_cost = full-day pay stored on every job)
-    const seenPerReport = new Map<string, Set<string>>();
+    type EmpEntry = {
+      onJobHours: number; revenue: number; totalPay: number;
+      laborCost: number;  // sum of OT-attributed per-job costs
+      jobs: number; reports: Set<string>;
+    };
+    const empData       = new Map<string, EmpEntry>();
+    const seenPerReport = new Map<string, Set<string>>(); // de-dupe payroll per report
 
     // Job-level aggregation
     type JobRow = {
@@ -131,15 +248,17 @@ export async function GET(req: NextRequest) {
     let totalBudgetedHours = 0;
 
     for (const report of reportList) {
-      const rid = report.id as string;
+      const rid         = report.id as string;
+      const reportDate  = report.report_date as string;
       if (!seenPerReport.has(rid)) seenPerReport.set(rid, new Set());
       const seenNames = seenPerReport.get(rid)!;
 
       for (const job of (report as any).lawn_production_jobs ?? []) {
         const budH   = Number(job.budgeted_hours  ?? 0);
         const actH   = Number(job.actual_hours     ?? 0);
-        const budAmt = Number(job.budgeted_amount  ?? 0); // contract revenue
+        const budAmt = Number(job.budgeted_amount  ?? 0);
         const crew   = (job.crew_code as string) || "Unknown";
+        const wo     = (job.work_order as string) ?? "";
 
         totalRevenue       += budAmt;
         totalOnJobHours    += actH;
@@ -150,25 +269,51 @@ export async function GET(req: NextRequest) {
         const crewEntry = crewMap.get(crew)!;
         crewEntry.jobs++; crewEntry.budgeted_hours += budH; crewEntry.actual_hours += actH; crewEntry.revenue += budAmt;
 
-        // Per-job labor cost and member aggregation
         let jobLaborCost = 0;
 
         for (const member of (job as any).lawn_production_members ?? []) {
-          const name          = (member.resource_name as string) || "Unknown";
-          const mActHrs       = Number(member.actual_hours       ?? 0);
-          const mEarned       = Number(member.earned_amount      ?? 0);
-          const mTotalPayHrs  = Number(member.total_payroll_hours ?? mActHrs);
-          const mPay          = Number(member.payroll_cost        ?? 0);
+          const name         = (member.resource_name as string) || "Unknown";
+          const mActHrs      = Number(member.actual_hours       ?? 0);
+          const mEarned      = Number(member.earned_amount      ?? 0);
+          const mTotalPayHrs = Number(member.total_payroll_hours ?? mActHrs);
+          const mPay         = Number(member.payroll_cost        ?? 0);
+          const mPayRate     = Number(member.pay_rate            ?? 0);
+          const mRegHrs      = Number(member.reg_hours           ?? 0);
+          const mOtHrs       = Number(member.ot_hours            ?? 0);
 
-          // Proportional per-job labor cost for this member
-          const fraction = mTotalPayHrs > 0 ? mActHrs / mTotalPayHrs : 0;
-          jobLaborCost += mPay * fraction;
+          // ── Per-job labor cost: OT-attributed if data available, else proportional ──
+          let memberJobCost: number;
 
-          // Employee data
-          if (!empData.has(name)) empData.set(name, { onJobHours: 0, revenue: 0, totalPay: 0, jobs: 0, reports: new Set() });
+          const punchInfo     = punchLookup.get(`${rid}::${name}`);
+          const dispatchWindow = getDispatchWindow(wo, reportDate, name);
+
+          if (punchInfo && dispatchWindow && mPayRate > 0) {
+            // Compute burdened reg + OT rates
+            const rawWages = mRegHrs * mPayRate + mOtHrs * mPayRate * 1.5;
+            const burden   = rawWages > 0 ? mPay / rawWages : 1.0;
+            memberJobCost  = otAttributedCost(
+              dispatchWindow.start_ms,
+              dispatchWindow.end_ms,
+              punchInfo.ot_threshold_ms,
+              mPayRate * burden,
+              mPayRate * 1.5 * burden,
+            );
+          } else {
+            // Fallback: proportional share of full-day pay
+            const fraction = mTotalPayHrs > 0 ? mActHrs / mTotalPayHrs : 0;
+            memberJobCost  = mPay * fraction;
+          }
+
+          jobLaborCost += memberJobCost;
+
+          // Employee aggregation
+          if (!empData.has(name)) {
+            empData.set(name, { onJobHours: 0, revenue: 0, totalPay: 0, laborCost: 0, jobs: 0, reports: new Set() });
+          }
           const emp = empData.get(name)!;
           emp.onJobHours += mActHrs;
           emp.revenue    += mEarned;
+          emp.laborCost  += memberJobCost;
           emp.jobs++;
           emp.reports.add(rid);
 
@@ -180,11 +325,11 @@ export async function GET(req: NextRequest) {
         }
 
         allJobs.push({
-          job_id: job.id as string,
-          work_order:    job.work_order    ?? null,
-          client_name:   job.client_name   ?? null,
-          service:       job.service       ?? null,
-          crew_code:     job.crew_code     ?? null,
+          job_id:         job.id as string,
+          work_order:     job.work_order    ?? null,
+          client_name:    job.client_name   ?? null,
+          service:        job.service       ?? null,
+          crew_code:      job.crew_code     ?? null,
           budgeted_hours: budH,
           actual_hours:   actH,
           revenue:        budAmt,
@@ -193,7 +338,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Punch aggregation ─────────────────────────────────────────────────────
+    // ── Punch aggregation (for OT/clocked hours totals) ───────────────────────
     const empPunches = new Map<string, { regular: number; ot: number }>();
     for (const punch of punches) {
       const name = punch.resource_name || "Unknown";
@@ -209,29 +354,24 @@ export async function GET(req: NextRequest) {
       totalOtHours      += v.ot;
     }
 
-    // ── Payroll split: proportional on-job vs down-time ───────────────────────
-    // payroll_cost = full-day burdened pay (already includes OT premium).
-    // Split each person's totalPay by hours ratio — don't add separate down-time cost.
-    let totalOnJobPayroll    = 0;
-    let totalDownTimePayroll = 0;
-    let totalDownTimeHours   = 0;
+    // ── Payroll totals ────────────────────────────────────────────────────────
+    // Field payroll = sum of deduped payroll_cost (authoritative)
+    // On-job payroll = sum of OT-attributed per-job costs (more accurate than proportional)
+    // Down-time payroll = field payroll - on-job payroll
+    let totalFieldPayroll = 0;
+    for (const [, emp] of empData) totalFieldPayroll += emp.totalPay;
 
-    const allEmployees = new Set<string>([...empData.keys(), ...empPunches.keys()]);
+    let totalOnJobPayroll = 0;
+    for (const j of allJobs) totalOnJobPayroll += j.labor_cost;
 
-    for (const name of allEmployees) {
-      const emp     = empData.get(name)   ?? { onJobHours: 0, revenue: 0, totalPay: 0, jobs: 0, reports: new Set() };
-      const clocked = empPunches.get(name) ?? { regular: 0, ot: 0 };
-      const clockedTotal = clocked.regular + clocked.ot;
-      const downTimeHours = Math.max(0, clockedTotal - emp.onJobHours);
-      totalDownTimeHours += downTimeHours;
+    const totalDownTimePayroll = Math.max(0, totalFieldPayroll - totalOnJobPayroll);
 
-      if (clockedTotal > 0 && emp.totalPay > 0) {
-        const onJobRatio = Math.min(1, emp.onJobHours / clockedTotal);
-        totalOnJobPayroll    += emp.totalPay * onJobRatio;
-        totalDownTimePayroll += emp.totalPay * (1 - onJobRatio);
-      } else {
-        totalOnJobPayroll += emp.totalPay;
-      }
+    // Down-time hours (from clocked vs on-job)
+    let totalDownTimeHours = 0;
+    for (const [name, clocked] of empPunches) {
+      const emp = empData.get(name);
+      const onJobHrs = emp?.onJobHours ?? 0;
+      totalDownTimeHours += Math.max(0, (clocked.regular + clocked.ot) - onJobHrs);
     }
 
     // ── Admin payroll + pro-rated budget ─────────────────────────────────────
@@ -261,8 +401,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Totals ────────────────────────────────────────────────────────────────
-    const totalFieldPayroll = totalOnJobPayroll + totalDownTimePayroll;
-    const totalPayroll      = totalFieldPayroll + adminPayroll;
+    const totalPayroll = totalFieldPayroll + adminPayroll;
 
     // ── Derived ratios ────────────────────────────────────────────────────────
     const fieldLaborPct   = safeDiv(totalFieldPayroll,  totalRevenue);
@@ -281,22 +420,27 @@ export async function GET(req: NextRequest) {
     const memberLeaderboard = [...empData.entries()]
       .filter(([, emp]) => emp.revenue > 0 || emp.onJobHours > 0)
       .map(([name, emp]) => {
-        const clocked = empPunches.get(name) ?? { regular: 0, ot: 0 };
-        const clockedTotal = clocked.regular + clocked.ot;
-        const onJobRatio = clockedTotal > 0 ? Math.min(1, emp.onJobHours / clockedTotal) : 1;
-        const memberPay = emp.totalPay * onJobRatio;
+        const clocked       = empPunches.get(name) ?? { regular: 0, ot: 0 };
+        const clockedTotal  = clocked.regular + clocked.ot;
+        const downTimeHours = Math.max(0, clockedTotal - emp.onJobHours);
         return {
           name,
-          days:         emp.reports.size,
-          jobs:         emp.jobs,
-          on_job_hours: emp.onJobHours,
-          ot_hours:     clocked.ot,
-          revenue:      emp.revenue,
-          labor_cost:   memberPay,
-          labor_pct:    emp.revenue > 0 ? memberPay / emp.revenue : null,
+          total_payroll_hours: clockedTotal,
+          ot_hours:            clocked.ot,
+          down_time_hours:     downTimeHours,
+          down_time_pct:       clockedTotal > 0 ? downTimeHours / clockedTotal : null,
+          revenue:             emp.revenue,
+          labor_cost:          emp.totalPay,
+          labor_pct:           emp.revenue > 0 ? emp.totalPay / emp.revenue : null,
         };
       })
-      .sort((a, b) => b.revenue - a.revenue);
+      .sort((a, b) => {
+        // Nulls last, then ascending (lowest labor % = best, shown first)
+        if (a.labor_pct === null && b.labor_pct === null) return 0;
+        if (a.labor_pct === null) return 1;
+        if (b.labor_pct === null) return -1;
+        return a.labor_pct - b.labor_pct;
+      });
 
     // ── Job flags ─────────────────────────────────────────────────────────────
     const jobFlags = allJobs
@@ -314,7 +458,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.variance_pct - a.variance_pct)
       .slice(0, 15);
 
-    // ── Crew performance (kept for internal use / future) ────────────────────
+    // ── Crew performance ─────────────────────────────────────────────────────
     const crewPerformance = [...crewMap.entries()]
       .map(([crew_code, v]) => ({
         crew_code,
@@ -336,7 +480,7 @@ export async function GET(req: NextRequest) {
     if (totalBudgetedHours > 0) {
       const overPct = (totalOnJobHours - totalBudgetedHours) / totalBudgetedHours;
       if (overPct > 0.25) {
-        const extra = totalOnJobHours - totalBudgetedHours;
+        const extra   = totalOnJobHours - totalBudgetedHours;
         const avgRate = totalOnJobHours > 0 ? totalOnJobPayroll / totalOnJobHours : 0;
         findings.push({ severity: "bad", category: "Hours", message: `Crews ran ${fmt1(overPct)}% over budgeted hours`, detail: `${extra.toFixed(0)} extra hours ≈ $${Math.round(extra * avgRate).toLocaleString()} unrecovered` });
       } else if (overPct > 0.10) {
