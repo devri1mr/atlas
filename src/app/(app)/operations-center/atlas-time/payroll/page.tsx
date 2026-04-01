@@ -41,6 +41,7 @@ function empName(e: { first_name: string; last_name: string } | null) {
 type QbRow = {
   employee: string; qb_class: string; reg_item: string; ot_item: string;
   reg_hours: number; ot_hours: number; warning: string;
+  at_division_id: string | null; division_id: string | null;
 };
 
 function QbExport() {
@@ -51,6 +52,13 @@ function QbExport() {
   const [error,     setError]     = useState("");
   const [summary,   setSummary]   = useState<QbRow[] | null>(null);
   const [totals,    setTotals]    = useState<{ reg: number; ot: number; warnings: number; punches: number } | null>(null);
+
+  // Inline mapping edit
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editReg,    setEditReg]    = useState("");
+  const [editOt,     setEditOt]     = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError,  setEditError]  = useState("");
 
   async function loadPreview() {
     setLoading(true); setError(""); setSummary(null); setTotals(null);
@@ -78,6 +86,32 @@ function QbExport() {
       URL.revokeObjectURL(url);
     } catch (e: any) { setError(e.message ?? "Download failed"); }
     finally { setDownloading(false); }
+  }
+
+  async function saveMapping(row: QbRow) {
+    setEditSaving(true); setEditError("");
+    try {
+      let res: Response;
+      if (row.at_division_id) {
+        res = await fetch(`/api/atlas-time/divisions/${row.at_division_id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qb_payroll_item_reg: editReg.trim() || null, qb_payroll_item_ot: editOt.trim() || null }),
+        });
+      } else if (row.division_id) {
+        res = await fetch("/api/operations-center/divisions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.division_id, qb_payroll_item_reg: editReg.trim() || null, qb_payroll_item_ot: editOt.trim() || null }),
+        });
+      } else {
+        setEditError("Cannot determine division to update"); setEditSaving(false); return;
+      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Save failed"); }
+      setEditingKey(null);
+      await loadPreview();
+    } catch (e: any) { setEditError(e.message ?? "Error"); }
+    finally { setEditSaving(false); }
   }
 
   const hasWarnings = (totals?.warnings ?? 0) > 0;
@@ -134,7 +168,7 @@ function QbExport() {
       {hasWarnings && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
           <span className="font-bold">⚠ {totals!.warnings} line{totals!.warnings !== 1 ? "s" : ""} with missing QB payroll item mappings.</span>
-          {" "}Go to Settings → Departments and fill in the missing Regular/OT pay items, then re-preview.
+          {" "}Click <span className="font-semibold">⚠ Not mapped</span> in the table below to set them inline.
         </div>
       )}
 
@@ -157,28 +191,63 @@ function QbExport() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {summary.map((row, i) => (
-                  <tr key={i} className={row.warning ? "bg-amber-50" : "hover:bg-gray-50/40"}>
-                    <td className="px-5 py-2.5 font-semibold text-gray-800 text-xs whitespace-nowrap">{row.employee}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500">{row.qb_class}</td>
-                    <td className="px-3 py-2.5 text-xs">
-                      {row.reg_item
-                        ? <span className="text-gray-700">{row.reg_item}</span>
-                        : <span className="text-amber-600 font-semibold">⚠ Not mapped</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">{row.reg_hours.toFixed(2)}</td>
-                    <td className="px-3 py-2.5 text-xs">
-                      {row.ot_hours > 0
-                        ? row.ot_item
-                          ? <span className="text-gray-700">{row.ot_item}</span>
-                          : <span className="text-amber-600 font-semibold">⚠ Not mapped</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">
-                      {row.ot_hours > 0 ? row.ot_hours.toFixed(2) : <span className="text-gray-300">—</span>}
-                    </td>
-                  </tr>
-                ))}
+                {summary.map((row, i) => {
+                  const rowKey = `${row.employee}||${row.qb_class}||${row.reg_item}||${row.ot_item}`;
+                  const isEditing = editingKey === rowKey;
+                  return (
+                    <tr key={i} className={row.warning ? "bg-amber-50" : "hover:bg-gray-50/40"}>
+                      <td className="px-5 py-2.5 font-semibold text-gray-800 text-xs whitespace-nowrap">{row.employee}</td>
+                      <td className="px-3 py-2.5 text-xs text-gray-500">{row.qb_class}</td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            value={editReg}
+                            onChange={e => setEditReg(e.target.value)}
+                            placeholder="e.g. HR - Field"
+                            className="border border-amber-300 rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          />
+                        ) : row.reg_item ? (
+                          <span className="text-gray-700">{row.reg_item}</span>
+                        ) : (
+                          <button onClick={() => { setEditingKey(rowKey); setEditReg(""); setEditOt(""); setEditError(""); }}
+                            className="text-amber-600 font-semibold hover:underline">⚠ Not mapped</button>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">{row.reg_hours.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={editOt}
+                              onChange={e => setEditOt(e.target.value)}
+                              placeholder="e.g. OT HR - Field"
+                              className="border border-amber-300 rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                            <button onClick={() => saveMapping(row)} disabled={editSaving}
+                              className="bg-[#123b1f] text-white text-xs font-semibold px-2.5 py-1 rounded hover:bg-[#1a5c2a] disabled:opacity-40">
+                              {editSaving ? "…" : "Save"}
+                            </button>
+                            <button onClick={() => { setEditingKey(null); setEditError(""); }}
+                              className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                          </div>
+                        ) : row.ot_hours > 0 ? (
+                          row.ot_item
+                            ? <span className="text-gray-700">{row.ot_item}</span>
+                            : <span className="text-amber-600 font-semibold">⚠ Not mapped</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-center font-semibold text-gray-700">
+                        {row.ot_hours > 0 ? row.ot_hours.toFixed(2) : <span className="text-gray-300">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {editError && (
+                  <tr><td colSpan={6} className="px-5 py-2 text-xs text-red-600">{editError}</td></tr>
+                )}
               </tbody>
             </table>
           </div>

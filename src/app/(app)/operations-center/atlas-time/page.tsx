@@ -134,7 +134,7 @@ export default function AtlasTimePage() {
                 <div className="flex items-center justify-between mb-5">
                   <div>
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Retention Tracker</div>
-                    <div className="text-sm text-gray-500 mt-0.5">{data.total_active} active employees</div>
+                    <div className="text-sm text-gray-500 mt-0.5">{data.total_active} active team members</div>
                   </div>
                   <div className="flex gap-3">
                     <div className="text-center">
@@ -433,7 +433,7 @@ export default function AtlasTimePage() {
               {/* Workforce Completeness */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Workforce Completeness</div>
-                <div className="text-sm text-gray-500 mb-5">Profile data coverage across {data.completeness.total} active employees</div>
+                <div className="text-sm text-gray-500 mb-5">Profile data coverage across {data.completeness.total} active team members</div>
 
                 {(() => {
                   const { completeness: c } = data;

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const { data: punches, error } = await sb
     .from("at_punches")
     .select(`
-      id, date_for_payroll, regular_hours, ot_hours,
+      id, date_for_payroll, regular_hours, ot_hours, division_id, at_division_id,
       at_employees!inner(first_name, last_name),
       divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot),
       at_divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
 
   type Row = {
     date: string;
-    employee: string;
+    employee_display: string; // "First Last" — for preview
+    employee_qb: string;      // "Last, First" — for IIF NAME field
+    at_division_id: string | null;
+    division_id: string | null;
     qb_class: string;
     reg_item: string;
     ot_item: string;
@@ -54,7 +57,8 @@ export async function GET(req: NextRequest) {
     const div   = p.divisions   as any;
     const atDiv = p.at_divisions as any;
 
-    const employee  = `${emp.first_name} ${emp.last_name}`;
+    const employee_display = `${emp.first_name} ${emp.last_name}`;
+    const employee_qb      = `${emp.last_name}, ${emp.first_name}`;
     const qb_class  = atDiv?.qb_class_name || div?.qb_class_name || "";
     const reg_item  = atDiv?.qb_payroll_item_reg || div?.qb_payroll_item_reg || "";
     const ot_item   = atDiv?.qb_payroll_item_ot  || div?.qb_payroll_item_ot  || "";
@@ -67,7 +71,10 @@ export async function GET(req: NextRequest) {
 
     rows.push({
       date: p.date_for_payroll,
-      employee,
+      employee_display,
+      employee_qb,
+      at_division_id: (p as any).at_division_id ?? null,
+      division_id:    (p as any).division_id    ?? null,
       qb_class,
       reg_item,
       ot_item,
@@ -79,16 +86,21 @@ export async function GET(req: NextRequest) {
 
   // ── Preview mode — return JSON summary ────────────────────────────────────
   if (preview) {
-    // Aggregate by employee + class + payroll items for the summary table
     const agg = new Map<string, {
       employee: string; qb_class: string; reg_item: string; ot_item: string;
       reg_hours: number; ot_hours: number; warning: string;
+      at_division_id: string | null; division_id: string | null;
     }>();
 
     for (const r of rows) {
-      const key = `${r.employee}||${r.qb_class}||${r.reg_item}||${r.ot_item}`;
+      const key = `${r.employee_display}||${r.qb_class}||${r.reg_item}||${r.ot_item}`;
       if (!agg.has(key)) {
-        agg.set(key, { employee: r.employee, qb_class: r.qb_class, reg_item: r.reg_item, ot_item: r.ot_item, reg_hours: 0, ot_hours: 0, warning: r.warning });
+        agg.set(key, {
+          employee: r.employee_display, qb_class: r.qb_class,
+          reg_item: r.reg_item, ot_item: r.ot_item,
+          reg_hours: 0, ot_hours: 0, warning: r.warning,
+          at_division_id: r.at_division_id, division_id: r.division_id,
+        });
       }
       const entry = agg.get(key)!;
       entry.reg_hours += r.reg_hours;
@@ -119,10 +131,10 @@ export async function GET(req: NextRequest) {
   for (const r of rows) {
     const d = fmtDate(r.date);
     if (r.reg_hours > 0 && r.reg_item) {
-      lines.push(`TIMER\t${d}\t${r.employee}\t${r.qb_class}\t${r.reg_hours.toFixed(2)}\t\tN\t0\t${r.reg_item}\t0.00`);
+      lines.push(`TIMER\t${d}\t${r.employee_qb}\t${r.qb_class}\t${r.reg_hours.toFixed(2)}\t\tN\t0\t${r.reg_item}\t0.00`);
     }
     if (r.ot_hours > 0 && r.ot_item) {
-      lines.push(`TIMER\t${d}\t${r.employee}\t${r.qb_class}\t${r.ot_hours.toFixed(2)}\t\tN\t0\t${r.ot_item}\t0.00`);
+      lines.push(`TIMER\t${d}\t${r.employee_qb}\t${r.qb_class}\t${r.ot_hours.toFixed(2)}\t\tN\t0\t${r.ot_item}\t0.00`);
     }
   }
 
