@@ -13,23 +13,26 @@ type Finding = {
   detail?: string;
 };
 
-type CrewRow = {
-  crew_code: string;
+type MemberRow = {
+  name: string;
+  days: number;
   jobs: number;
-  budgeted_hours: number;
-  actual_hours: number;
-  actual_amount: number;
-  efficiency: number | null;
+  on_job_hours: number;
+  ot_hours: number;
+  revenue: number;
+  labor_cost: number;
+  labor_pct: number | null;
 };
 
 type JobFlag = {
-  work_order: string | null;
   client_name: string | null;
   service: string | null;
   crew_code: string | null;
   budgeted_hours: number;
   actual_hours: number;
   variance_pct: number;
+  revenue: number;
+  labor_pct: number | null;
 };
 
 type Scorecard = {
@@ -64,7 +67,7 @@ type Scorecard = {
 type DigestData = {
   scorecard: Scorecard;
   findings: Finding[];
-  crew_performance: CrewRow[];
+  member_leaderboard: MemberRow[];
   job_flags: JobFlag[];
 };
 
@@ -192,11 +195,20 @@ function varianceCellColor(v: number): string {
   return "text-gray-700";
 }
 
-function crewEffColor(v: number | null): string {
-  if (v === null) return "text-gray-400";
-  if (v >= 0.95) return "text-emerald-700 bg-emerald-50";
-  if (v >= 0.85) return "text-amber-700 bg-amber-50";
-  return "text-red-700 bg-red-50";
+function memberLaborBadge(v: number | null, goal: number | null): string {
+  if (v === null) return "bg-gray-100 text-gray-400";
+  const g = goal ?? 0.39;
+  if (v <= g)        return "bg-emerald-100 text-emerald-700";
+  if (v <= g * 1.10) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
+
+function jobLaborBadge(v: number | null, goal: number | null): string {
+  if (v === null) return "bg-gray-100 text-gray-400";
+  const g = goal ?? 0.39;
+  if (v <= g)         return "bg-emerald-100 text-emerald-700";
+  if (v <= g * 1.15)  return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
@@ -665,9 +677,9 @@ export default function DigestPage() {
           </div>
         </div>
 
-        {/* ── Crew Leaderboard ── */}
+        {/* ── Team Member Leaderboard ── */}
         <div className="rounded-xl bg-white border border-[#d7e6db] shadow-sm overflow-hidden">
-          <SectionHeader title="Crew Leaderboard" sub="sorted by efficiency" />
+          <SectionHeader title="Team Member Leaderboard" sub="sorted by revenue" />
           <div className="overflow-x-auto">
             {loading ? (
               <div className="px-5 py-4 space-y-2">
@@ -675,31 +687,35 @@ export default function DigestPage() {
                   <div key={i} className="h-9 rounded-lg bg-gray-100 animate-pulse" />
                 ))}
               </div>
-            ) : !data?.crew_performance?.length ? (
-              <div className="px-5 py-8 text-sm text-gray-400 text-center">No crew data for this period.</div>
+            ) : !data?.member_leaderboard?.length ? (
+              <div className="px-5 py-8 text-sm text-gray-400 text-center">No member data for this period.</div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Name</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Days</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Jobs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget Hrs</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">On-Job Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Efficiency</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor Cost</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {data.crew_performance.map((row) => (
-                    <tr key={row.crew_code} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.crew_code}</td>
+                  {data.member_leaderboard.map((row) => (
+                    <tr key={row.name} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-5 py-3 text-center font-semibold text-gray-900">{row.name}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.days}</td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.jobs}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.budgeted_hours.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.actual_hours.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.actual_amount)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.on_job_hours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.ot_hours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>
                       <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${crewEffColor(row.efficiency)}`}>
-                          {row.efficiency !== null ? fmtPct(row.efficiency) : "—"}
+                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                          {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
                         </span>
                       </td>
                     </tr>
@@ -718,19 +734,19 @@ export default function DigestPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Work Order</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Client</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Service</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Crew</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Budget</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Actual</th>
                     <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Variance</th>
+                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
+                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {data.job_flags.map((job, i) => (
                     <tr key={i} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 text-center font-mono text-xs text-gray-700">{job.work_order ?? "—"}</td>
                       <td className="px-4 py-3 text-center text-gray-800 max-w-[160px] truncate">{job.client_name ?? "—"}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{job.service ?? "—"}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{job.crew_code ?? "—"}</td>
@@ -738,6 +754,12 @@ export default function DigestPage() {
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{job.actual_hours.toFixed(1)}h</td>
                       <td className={`px-5 py-3 text-center tabular-nums ${varianceCellColor(job.variance_pct)}`}>
                         {job.variance_pct > 0 ? "+" : ""}{(job.variance_pct * 100).toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(job.revenue)}</td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${jobLaborBadge(job.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                          {job.labor_pct !== null ? fmtPct(job.labor_pct) : "—"}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -769,7 +791,7 @@ export default function DigestPage() {
               <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
                 <CalcSection title="Revenue">
-                  <CalcRow label="Revenue (sum of job contract amounts)" value={fmtMoney(sc.revenue)} sub="budgeted_amount — same as COGS" />
+                  <CalcRow label="Revenue (sum of job contract amounts)" value={fmtMoney(sc.revenue)} sub="budgeted_amount — matches COGS" />
                   <CalcRow label="Division budget for period" value={fmtMoney(sc.budgeted_revenue)} sub="prorated from division_budgets" />
                   <CalcRow label="Revenue vs division budget" value={fmtPct(sc.revenue_vs_budget)} sub="revenue ÷ budget" />
                 </CalcSection>
