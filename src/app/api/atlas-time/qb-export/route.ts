@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     .from("at_punches")
     .select(`
       id, date_for_payroll, regular_hours, ot_hours, division_id, at_division_id,
-      at_employees!inner(first_name, last_name),
+      at_employees!inner(first_name, last_name, middle_initial),
       divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot),
       at_divisions(qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
     `)
@@ -64,7 +64,8 @@ export async function GET(req: NextRequest) {
     const atDiv = p.at_divisions as any;
 
     const employee_display = `${emp.first_name} ${emp.last_name}`;
-    const employee_qb      = `${emp.last_name}, ${emp.first_name}`;
+    const mi = emp.middle_initial ? ` ${emp.middle_initial}` : "";
+    const employee_qb      = `${emp.last_name}, ${emp.first_name}${mi}`;
     const qb_class  = atDiv?.qb_class_name || div?.qb_class_name || "";
     const reg_item  = atDiv?.qb_payroll_item_reg || div?.qb_payroll_item_reg || "";
     const ot_item   = atDiv?.qb_payroll_item_ot  || div?.qb_payroll_item_ot  || "";
