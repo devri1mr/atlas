@@ -36,8 +36,17 @@ type Material = {
   variant_label?: string | null;
 };
 
-type Tab = "materials" | "categories";
+type Tab = "materials" | "categories" | "groups";
 type DrawerMode = "add" | "edit";
+
+type GroupMember = { id: string; name: string; vendor: string | null; cost: number; unit: string };
+type GroupSuggestion = {
+  id: string;
+  canonical_name: string;
+  reason: string;
+  members: GroupMember[];
+  suggested_parent_id: string;
+};
 const btnSuccess = "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm px-4 py-2 rounded-lg shadow-sm transition-colors disabled:opacity-40";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -456,6 +465,16 @@ export default function MaterialsCatalogPage() {
   const [deleting, setDeleting] = useState(false);
   const [addingToInventory, setAddingToInventory] = useState(false);
 
+  // ── groups tab
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<GroupSuggestion[] | null>(null);
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+  const [parentChoices, setParentChoices] = useState<Record<string, string>>({});
+  const [editedNames, setEditedNames] = useState<Record<string, string>>({});
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ groups_applied: number; materials_linked: number } | null>(null);
+
   // ── Load ──────────────────────────────────────────────────────────────────
   async function loadCategories() {
     setCatsLoading(true);
@@ -590,6 +609,61 @@ export default function MaterialsCatalogPage() {
     setAddingToInventory(false);
   }
 
+  // ── Groups tab handlers ────────────────────────────────────────────────────
+  async function handleGenerateSuggestions() {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    setApplyResult(null);
+    try {
+      const res = await fetch("/api/materials-catalog/ai-suggest-groups");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate suggestions");
+      const groups: GroupSuggestion[] = data.groups ?? [];
+      setSuggestions(groups);
+      setApprovedIds(new Set(groups.map((g: GroupSuggestion) => g.id)));
+      setParentChoices({});
+      setEditedNames({});
+    } catch (e: any) {
+      setSuggestionsError(e?.message ?? "Unknown error");
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }
+
+  async function handleApplyGroups() {
+    if (!suggestions) return;
+    setApplying(true);
+    setSuggestionsError(null);
+    try {
+      const toApply = suggestions
+        .filter((g) => approvedIds.has(g.id))
+        .map((g) => {
+          const parentId = parentChoices[g.id] ?? g.suggested_parent_id;
+          const canonName = editedNames[g.id] ?? g.canonical_name;
+          const variants = g.members
+            .filter((m) => m.id !== parentId)
+            .map((m) => ({ id: m.id, label: m.vendor ?? "" }));
+          return { parent_id: parentId, canonical_name: canonName, variants };
+        });
+
+      const res = await fetch("/api/materials-catalog/apply-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groups: toApply }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to apply");
+      setApplyResult(data);
+      setSuggestions((prev) => prev?.filter((g) => !approvedIds.has(g.id)) ?? null);
+      setApprovedIds(new Set());
+      loadMaterials();
+    } catch (e: any) {
+      setSuggestionsError(e?.message ?? "Apply failed");
+    } finally {
+      setApplying(false);
+    }
+  }
+
   // ── Category CRUD (management tab) ────────────────────────────────────────
   async function handleAddCat(parentId: string | null) {
     if (!addCatForm.name.trim()) return;
@@ -674,7 +748,7 @@ export default function MaterialsCatalogPage() {
       {/* Tabs */}
       <div className="border-b bg-white px-4 md:px-8">
         <div className="flex gap-0">
-          {(["materials", "categories"] as Tab[]).map(t => (
+          {(["materials", "categories", "groups"] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -682,7 +756,7 @@ export default function MaterialsCatalogPage() {
                 tab === t ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              {t === "materials" ? `Materials (${totalMats})` : "Manage Categories"}
+              {t === "materials" ? `Materials (${totalMats})` : t === "categories" ? "Manage Categories" : "Review Groups"}
             </button>
           ))}
         </div>
@@ -1091,6 +1165,186 @@ export default function MaterialsCatalogPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── GROUPS TAB ─────────────────────────────────────────────────── */}
+      {tab === "groups" && (
+        <div className="max-w-4xl mx-auto px-6 py-6 space-y-5">
+          {/* Header card */}
+          <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm p-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="font-bold text-[#123b1f] text-base">AI-Suggested Groupings</h2>
+                <p className="text-xs text-gray-500 mt-1 max-w-lg">
+                  Claude analyzes all {totalMats} materials and identifies which ones are the same physical product
+                  under different vendor names. Review each suggestion, edit the canonical name if needed, then apply.
+                  Grouping sets a canonical parent — search will return one result with all vendor prices attached.
+                </p>
+              </div>
+              <button
+                onClick={handleGenerateSuggestions}
+                disabled={suggestionsLoading}
+                className={btnPrimary}
+              >
+                {suggestionsLoading ? "Analyzing…" : suggestions ? "Re-generate" : "Generate Suggestions"}
+              </button>
+            </div>
+            {suggestionsLoading && (
+              <div className="mt-3 text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                Sending {totalMats} materials to Claude for analysis… this may take 30–90 seconds.
+              </div>
+            )}
+            {suggestionsError && (
+              <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                ⚠ {suggestionsError}
+              </div>
+            )}
+          </div>
+
+          {suggestions && (
+            <>
+              {/* Action bar */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm text-gray-600">
+                  <span className="font-semibold text-[#123b1f]">{approvedIds.size}</span> of{" "}
+                  {suggestions.length} groups approved
+                  {suggestions.length === 0 && (
+                    <span className="ml-2 text-gray-400">(all applied or none found)</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {approvedIds.size < suggestions.length && (
+                    <button
+                      onClick={() => setApprovedIds(new Set(suggestions.map(g => g.id)))}
+                      className={btnGhost}
+                    >
+                      Select all
+                    </button>
+                  )}
+                  {approvedIds.size > 0 && (
+                    <button onClick={() => setApprovedIds(new Set())} className={btnGhost}>
+                      Deselect all
+                    </button>
+                  )}
+                  <button
+                    onClick={handleApplyGroups}
+                    disabled={applying || approvedIds.size === 0}
+                    className={btnSuccess}
+                  >
+                    {applying
+                      ? "Applying…"
+                      : `Apply ${approvedIds.size} Group${approvedIds.size !== 1 ? "s" : ""}`}
+                  </button>
+                </div>
+              </div>
+
+              {applyResult && (
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 font-medium">
+                  ✓ Applied {applyResult.groups_applied} groups, linked {applyResult.materials_linked} materials.
+                </div>
+              )}
+
+              {/* Group cards */}
+              <div className="space-y-3">
+                {suggestions.map((group) => {
+                  const isApproved = approvedIds.has(group.id);
+                  const parentId = parentChoices[group.id] ?? group.suggested_parent_id;
+                  const canonName = editedNames[group.id] ?? group.canonical_name;
+
+                  return (
+                    <div
+                      key={group.id}
+                      className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-opacity ${
+                        isApproved ? "border-green-300" : "border-gray-200 opacity-50"
+                      }`}
+                    >
+                      <div className="px-4 py-3 flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isApproved}
+                          onChange={(e) => {
+                            setApprovedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(group.id);
+                              else next.delete(group.id);
+                              return next;
+                            });
+                          }}
+                          className="mt-1 w-4 h-4 accent-green-600 flex-shrink-0 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          {/* Canonical name */}
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <input
+                              type="text"
+                              value={canonName}
+                              onChange={(e) =>
+                                setEditedNames((prev) => ({ ...prev, [group.id]: e.target.value }))
+                              }
+                              className="font-semibold text-sm text-[#123b1f] border-b border-dashed border-gray-300 focus:outline-none focus:border-green-500 bg-transparent"
+                              style={{ minWidth: "200px" }}
+                            />
+                            <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                              {group.members.length} variants
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 italic mb-2">{group.reason}</p>
+
+                          {/* Members list */}
+                          <div className="space-y-1">
+                            {group.members.map((m) => {
+                              const isParent = parentId === m.id;
+                              return (
+                                <label
+                                  key={m.id}
+                                  className="flex items-center gap-2 text-xs cursor-pointer group/member"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`parent-${group.id}`}
+                                    checked={isParent}
+                                    onChange={() =>
+                                      setParentChoices((prev) => ({ ...prev, [group.id]: m.id }))
+                                    }
+                                    className="accent-green-600 flex-shrink-0"
+                                  />
+                                  <span
+                                    className={`flex-1 truncate ${
+                                      isParent ? "font-semibold text-[#123b1f]" : "text-gray-600"
+                                    }`}
+                                  >
+                                    {m.name}
+                                  </span>
+                                  {isParent && (
+                                    <span className="text-[10px] font-bold text-green-600 uppercase tracking-wide bg-green-50 rounded px-1">
+                                      canonical
+                                    </span>
+                                  )}
+                                  <span className="text-gray-400 truncate max-w-[120px]">
+                                    {m.vendor ?? "—"}
+                                  </span>
+                                  <span className="text-gray-500 font-medium tabular-nums">
+                                    ${m.cost.toFixed(2)}/{m.unit}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {suggestions.length === 0 && (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    No ungrouped duplicates found — catalog is clean!
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
