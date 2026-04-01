@@ -115,6 +115,7 @@ Defined in `src/components/Sidebar.tsx`. Structure:
 - Gradient header pattern: `linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)`
 - Hours format: always display as `X,XXX hrs` (rounded integer, comma-formatted) — never use `h` suffix
 - **Payroll calculations**: unless explicitly specified otherwise, always use 100% of a person's total payroll cost (all hours they are paid for — on-job + down time combined). Never attribute only the on-job portion. If someone worked 45 hrs and generated $1,000 revenue, labor % = total_payroll_cost / $1,000 and rev/hr = $1,000 / 45.
+- **Timezone: always Eastern (America/New_York)** — all timestamps are stored in UTC in Supabase. Always display using `America/New_York` (handles EDT/EST automatically). Never use `getUTCHours()` or raw UTC for display. Use `Intl.DateTimeFormat` with `timeZone: "America/New_York"` for display, and reverse the Eastern offset when writing back to UTC.
 
 ## Database Notes
 - Supabase MCP is configured — can query DB directly in Claude Code sessions

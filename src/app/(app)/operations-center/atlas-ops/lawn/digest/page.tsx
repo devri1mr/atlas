@@ -445,17 +445,39 @@ export default function DigestPage() {
     });
   }
 
-  /** Convert a timestamptz string to HH:MM for a time input. */
+  const TZ = "America/New_York";
+
+  /** Convert a UTC timestamptz string to HH:MM (Eastern) for a time input. */
   function toTimeInput(ts: string | null): string {
     if (!ts) return "";
     const d = new Date(ts);
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(d);
+    const h = parts.find(p => p.type === "hour")?.value ?? "00";
+    const m = parts.find(p => p.type === "minute")?.value ?? "00";
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
   }
 
-  /** Rebuild a full ISO timestamp from a date string + HH:MM input (UTC). */
-  function fromTimeInput(dateStr: string, hhmm: string): string {
+  /** Return the Eastern local date "YYYY-MM-DD" for a UTC timestamp. */
+  function toNYDate(ts: string): string {
+    return new Date(ts).toLocaleDateString("en-CA", { timeZone: TZ });
+  }
+
+  /** Convert an Eastern HH:MM + Eastern date string into a UTC ISO timestamp. */
+  function fromTimeInput(nyDateStr: string, hhmm: string): string {
     const [hh, mm] = hhmm.split(":").map(Number);
-    return `${dateStr}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00+00:00`;
+    // Determine Eastern UTC offset on this date by probing noon UTC
+    const probe = new Date(`${nyDateStr}T12:00:00Z`);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ, hour: "numeric", minute: "numeric", hour12: false,
+    }).formatToParts(probe);
+    const nyHour = parseInt(parts.find(p => p.type === "hour")!.value);
+    const nyMin  = parseInt(parts.find(p => p.type === "minute")!.value);
+    const offsetMin = (nyHour - 12) * 60 + nyMin; // e.g. -240 for EDT, -300 for EST
+    const [yr, mo, dy] = nyDateStr.split("-").map(Number);
+    const utcMs = Date.UTC(yr, mo - 1, dy, hh, mm, 0) - offsetMin * 60000;
+    return new Date(utcMs).toISOString();
   }
 
   async function saveJobTime() {
@@ -1063,7 +1085,7 @@ export default function DigestPage() {
                                                         value={toTimeInput(m.start_time)}
                                                         onChange={e => {
                                                           const newTs = m.start_time
-                                                            ? fromTimeInput(new Date(m.start_time).toISOString().slice(0, 10), e.target.value)
+                                                            ? fromTimeInput(toNYDate(m.start_time), e.target.value)
                                                             : fromTimeInput(jobTimeData.job.service_date, e.target.value);
                                                           updateMemberTime(idx, "start_time", newTs);
                                                         }}
@@ -1076,7 +1098,7 @@ export default function DigestPage() {
                                                         value={toTimeInput(m.end_time)}
                                                         onChange={e => {
                                                           const newTs = m.end_time
-                                                            ? fromTimeInput(new Date(m.end_time).toISOString().slice(0, 10), e.target.value)
+                                                            ? fromTimeInput(toNYDate(m.end_time), e.target.value)
                                                             : fromTimeInput(jobTimeData.job.service_date, e.target.value);
                                                           updateMemberTime(idx, "end_time", newTs);
                                                         }}
