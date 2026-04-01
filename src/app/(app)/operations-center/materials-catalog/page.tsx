@@ -1200,11 +1200,11 @@ export default function MaterialsCatalogPage() {
           <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm p-5">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="font-bold text-[#123b1f] text-base">AI-Suggested Groupings</h2>
+                <h2 className="font-bold text-[#123b1f] text-base">Smart Groupings</h2>
                 <p className="text-xs text-gray-500 mt-1 max-w-lg">
-                  Claude analyzes all {totalMats} materials and identifies which ones are the same physical product
-                  under different vendor names. Review each suggestion, edit the canonical name if needed, then apply.
-                  Grouping sets a canonical parent — search will return one result with all vendor prices attached.
+                  Finds like materials and consolidates them into a hierarchy: base product → size/variant → vendor &amp; cost.
+                  For example, &ldquo;21AA Limestone 1-2&rdquo;&rdquo; and &ldquo;21AA Limestone 3-4&rdquo;&rdquo; become variants under one &ldquo;21AA Limestone&rdquo; parent.
+                  Edit the canonical name if needed, then apply.
                 </p>
               </div>
               <button
@@ -1217,7 +1217,7 @@ export default function MaterialsCatalogPage() {
             </div>
             {suggestionsLoading && (
               <div className="mt-3 text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-                Sending {totalMats} materials to Claude for analysis… this may take 30–90 seconds.
+                Analyzing {totalMats} materials…
               </div>
             )}
             {suggestionsError && (
@@ -1316,51 +1316,67 @@ export default function MaterialsCatalogPage() {
                           </div>
                           <p className="text-xs text-gray-400 italic mb-2">{group.reason}</p>
 
-                          {/* Members list */}
-                          <div className="space-y-1">
-                            {group.members.map((m) => {
-                              const isParent = parentId === m.id;
-                              return (
-                                <label
-                                  key={m.id}
-                                  className="flex items-center gap-2 text-xs cursor-pointer group/member"
-                                >
-                                  <input
-                                    type="radio"
-                                    name={`parent-${group.id}`}
-                                    checked={isParent}
-                                    onChange={() =>
-                                      setParentChoices((prev) => ({ ...prev, [group.id]: m.id }))
-                                    }
-                                    className="accent-green-600 flex-shrink-0"
-                                  />
-                                  <span
-                                    className={`flex-1 truncate ${
-                                      isParent ? "font-semibold text-[#123b1f]" : "text-gray-600"
-                                    }`}
-                                  >
-                                    {m.name}
-                                  </span>
-                                  {isParent && (
-                                    <span className="text-[10px] font-bold text-green-600 uppercase tracking-wide bg-green-50 rounded px-1">
-                                      canonical
-                                    </span>
-                                  )}
-                                  {!isParent && m.proposed_label && (
-                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
-                                      {m.proposed_label}
-                                    </span>
-                                  )}
-                                  <span className="text-gray-400 truncate max-w-[120px]">
-                                    {m.vendor ?? "—"}
-                                  </span>
-                                  <span className="text-gray-500 font-medium tabular-nums">
-                                    ${m.cost.toFixed(2)}/{m.unit}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
+                          {/* Members list — grouped by variant label to show the hierarchy */}
+                          {(() => {
+                            // Separate the parent row from variants, then group variants by label
+                            const parentRow = group.members.find((m) => m.id === parentId);
+                            const variantRows = group.members.filter((m) => m.id !== parentId);
+                            const byLabel = new Map<string, typeof variantRows>();
+                            for (const m of variantRows) {
+                              const label = m.proposed_label || "(same name)";
+                              if (!byLabel.has(label)) byLabel.set(label, []);
+                              byLabel.get(label)!.push(m);
+                            }
+                            return (
+                              <div className="space-y-2">
+                                {/* Parent / canonical row */}
+                                {parentRow && (
+                                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name={`parent-${group.id}`}
+                                      checked={true}
+                                      onChange={() => setParentChoices((prev) => ({ ...prev, [group.id]: parentRow.id }))}
+                                      className="accent-green-600 flex-shrink-0"
+                                    />
+                                    <span className="font-semibold text-[#123b1f] flex-1 truncate">{parentRow.name}</span>
+                                    <span className="text-[10px] font-bold text-green-600 uppercase tracking-wide bg-green-50 rounded px-1">canonical</span>
+                                    <span className="text-gray-400 truncate max-w-[120px]">{parentRow.vendor ?? "—"}</span>
+                                    <span className="text-gray-500 font-medium tabular-nums">${parentRow.cost.toFixed(2)}/{parentRow.unit}</span>
+                                  </label>
+                                )}
+                                {/* Variants grouped by label */}
+                                {[...byLabel.entries()].map(([label, members]) => (
+                                  <div key={label} className="ml-4 border-l-2 border-gray-100 pl-3 space-y-1">
+                                    {members.length > 1 && (
+                                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-0.5">
+                                        {label} — pick vendor below
+                                      </div>
+                                    )}
+                                    {members.map((m) => (
+                                      <label key={m.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`parent-${group.id}`}
+                                          checked={parentId === m.id}
+                                          onChange={() => setParentChoices((prev) => ({ ...prev, [group.id]: m.id }))}
+                                          className="accent-green-600 flex-shrink-0"
+                                        />
+                                        <span className="text-gray-600 flex-1 truncate">{m.name}</span>
+                                        {label !== "(same name)" && (
+                                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
+                                            {label}
+                                          </span>
+                                        )}
+                                        <span className="text-gray-400 truncate max-w-[120px]">{m.vendor ?? "—"}</span>
+                                        <span className="text-gray-500 font-medium tabular-nums">${m.cost.toFixed(2)}/{m.unit}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1369,7 +1385,7 @@ export default function MaterialsCatalogPage() {
 
                 {suggestions.length === 0 && (
                   <div className="text-center py-12 text-gray-400 text-sm">
-                    No ungrouped duplicates found — catalog is clean!
+                    No ungrouped like-materials found — catalog is already organized!
                   </div>
                 )}
               </div>
