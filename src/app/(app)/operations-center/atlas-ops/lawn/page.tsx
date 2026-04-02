@@ -548,6 +548,16 @@ function PaceCard({ cogs }: { cogs: CogsMonth[] }) {
   // Flag: weekday rate is >20% above normal — weekends should be considered
   const isOverpace       = reqPerWeekday != null && normalDailyRate > 0 && reqPerWeekday > normalDailyRate * 1.20;
 
+  // ── Run-rate projection ─────────────────────────────────────────────────────
+  const dailyRunRate      = wdElapsedBefore >= 3 && actualMTD > 0 ? actualMTD / wdElapsedBefore : null;
+  const projectedMonthEnd = dailyRunRate != null ? actualMTD + dailyRunRate * wdRemaining : null;
+
+  // ── Labor % tracking ────────────────────────────────────────────────────────
+  const actualLabor    = curMonthData?.labor ?? 0;
+  const budgetLabor    = curMonthData?.budget_labor ?? 0;
+  const actualLaborPct = actualMTD > 0 && actualLabor > 0 ? actualLabor / actualMTD : null;
+  const budgetLaborPct = monthBudget > 0 && budgetLabor > 0 ? budgetLabor / monthBudget : null;
+
   // Progress bar: based on weekdays elapsed (prorated marker) vs calendar progress (bar fill)
   const calendarMarkerPct = Math.min((today / daysInMonth) * 100, 100);
   const mtdPct            = monthBudget > 0 ? Math.min(actualMTD / monthBudget, 1) : 0;
@@ -605,10 +615,25 @@ function PaceCard({ cogs }: { cogs: CogsMonth[] }) {
               />
             )}
           </div>
-          <div className="flex justify-between text-xs text-gray-400 mb-4">
+          <div className="flex justify-between text-xs text-gray-400 mb-3">
             <span>{Math.round(mtdPct * 100)}% of monthly goal earned</span>
             <span className="text-amber-600 font-medium">↑ weekday pace target</span>
           </div>
+
+          {/* Run-rate projection */}
+          {projectedMonthEnd != null && (
+            <div className="flex items-center gap-2 text-xs mb-4 bg-gray-50 rounded-lg px-3 py-2">
+              <span className="text-gray-500">{money.format(Math.round(dailyRunRate!))}/day run rate</span>
+              <span className="text-gray-300">·</span>
+              <span className="text-gray-500">Projected month-end:</span>
+              <span className={`font-semibold ${projectedMonthEnd >= monthBudget ? "text-emerald-600" : "text-amber-600"}`}>
+                {money.format(Math.round(projectedMonthEnd))}
+              </span>
+              {projectedMonthEnd < monthBudget && (
+                <span className="text-gray-400">({money.format(Math.round(monthBudget - projectedMonthEnd))} short)</span>
+              )}
+            </div>
+          )}
 
           {/* Target chips */}
           {monthRemaining > 0 && reqPerWeekday != null ? (
@@ -687,6 +712,28 @@ function PaceCard({ cogs }: { cogs: CogsMonth[] }) {
             </div>
           ) : null}
         </div>
+
+        {/* ── Labor % this month ───────────────────────────────────────── */}
+        {actualLaborPct !== null && (
+          <div className="px-5 py-4 border-t border-gray-100">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Labor Cost This Month</div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-2xl font-bold text-gray-900">{pct(actualLaborPct)}</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                actualLaborPct <= 0.39
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-red-50 text-red-600 border-red-200"
+              }`}>
+                {actualLaborPct <= 0.39
+                  ? `${pct(0.39 - actualLaborPct)} under 39% target ✓`
+                  : `${pct(actualLaborPct - 0.39)} over 39% target`}
+              </span>
+              {budgetLaborPct !== null && (
+                <span className="text-xs text-gray-400">Budget: {pct(budgetLaborPct)}</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── YTD pace ─────────────────────────────────────────────────── */}
         <div className="px-5 py-5">
