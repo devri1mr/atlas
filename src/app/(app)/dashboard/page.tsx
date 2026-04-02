@@ -349,11 +349,11 @@ export default function DashboardPage() {
   const router = useRouter();
 
   // Division-restricted users go straight to their first allowed division
+  const divIds = user?.allowed_division_ids;
+  const isDivRestricted = !!(divIds && divIds.length > 0);
+
   useEffect(() => {
-    if (!user) return;
-    const divIds = user.allowed_division_ids;
-    if (!divIds || divIds.length === 0) return;
-    // Fetch divisions to get the name for the URL
+    if (!isDivRestricted || !divIds) return;
     fetch("/api/operations-center/divisions")
       .then(r => r.json())
       .then(j => {
@@ -361,7 +361,8 @@ export default function DashboardPage() {
         if (match) router.replace(`/operations-center/atlas-ops/${match.name.toLowerCase().replace(/\s+/g, "-")}`);
       })
       .catch(() => {});
-  }, [user, router]);
+  }, [isDivRestricted, divIds, router]);
+
   const [weather, setWeather] = useState<Weather | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [inventoryValue, setInventoryValue] = useState<number | null>(null);
@@ -373,6 +374,9 @@ export default function DashboardPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [config, setConfig] = useState<DashConfig>(DEFAULT_CONFIG);
   const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  // Don't render dashboard at all for division-restricted users — avoids flicker
+  if (isDivRestricted) return null;
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
 
