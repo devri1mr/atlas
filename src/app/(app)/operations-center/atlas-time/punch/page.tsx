@@ -16,7 +16,7 @@ type Division = { id: string; name: string };
 type OpenPunch = {
   id: string;
   clock_in_at: string;
-  division_id: string | null;
+  at_division_id: string | null;
   at_divisions: { id: string; name: string } | null;
 };
 type View = "pin" | "confirm" | "success";
@@ -196,8 +196,8 @@ export default function KioskPage() {
       }
       setEmployee(json.employee);
       setOpenPunch(json.open_punch ?? null);
-      setDivisions(json.divisions ?? []);
-      setSelectedDivision(json.open_punch?.division_id ?? json.divisions?.[0]?.id ?? "");
+      setDivisions(json.at_divisions ?? []);
+      setSelectedDivision(json.open_punch?.at_division_id ?? json.default_at_division_id ?? json.last_at_division_id ?? json.at_divisions?.[0]?.id ?? "");
       navigator.vibrate?.(30);
       getGps();
       setView("confirm");
@@ -226,7 +226,7 @@ export default function KioskPage() {
       } else {
         const res = await fetch("/api/atlas-time/punches", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ employee_id: employee.id, punch_method: "kiosk", division_id: selectedDivision || null, lat: coords?.lat, lng: coords?.lng }),
+          body: JSON.stringify({ employee_id: employee.id, punch_method: "kiosk", at_division_id: selectedDivision || null, lat: coords?.lat, lng: coords?.lng }),
         });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Failed");
