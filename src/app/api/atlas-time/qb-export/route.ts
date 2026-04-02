@@ -127,16 +127,17 @@ export async function GET(req: NextRequest) {
   // Import via: File → Utilities → Import → IIF Files
   // Only include columns QB Enterprise 23 recognises for TIMEACT
   const lines: string[] = [
-    "!TIMEACT\tDATE\tEMP\tDURATION\tNOTE\tXFERTOPAYROLL\tITEM",
+    "!TIMEACT\tDATE\tJOB\tEMP\tITEM\tPITEM\tDURATION\tPROJ\tNOTE\tXFERTOPAYROLL\tBILLINGSTATUS",
   ];
 
   for (const r of rows) {
     const d = fmtDate(r.date);
     if (r.reg_hours > 0 && r.reg_item) {
-      lines.push(`TIMEACT\t${d}\t${r.employee_qb}\t${decimalToHHMM(r.reg_hours)}\t\t1\t${r.reg_item}`);
+      // JOB(blank), EMP, ITEM(blank), PITEM, DURATION, PROJ(class), NOTE(blank), XFERTOPAYROLL, BILLINGSTATUS
+      lines.push(`TIMEACT\t${d}\t\t${r.employee_qb}\t\t${r.reg_item}\t${decimalToHHMM(r.reg_hours)}\t${r.qb_class}\t\tY\t0`);
     }
     if (r.ot_hours > 0 && r.ot_item) {
-      lines.push(`TIMEACT\t${d}\t${r.employee_qb}\t${decimalToHHMM(r.ot_hours)}\t\t1\t${r.ot_item}`);
+      lines.push(`TIMEACT\t${d}\t\t${r.employee_qb}\t\t${r.ot_item}\t${decimalToHHMM(r.ot_hours)}\t${r.qb_class}\t\tY\t0`);
     }
   }
 
