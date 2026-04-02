@@ -30,14 +30,12 @@ export default async function BidLayout({
   const projectName = await getBidProjectName(id);
 
   const tabs = [
-    { name: "Overview", href: `/atlasbid/bids/${id}` },
-    { name: "Scope", href: `/atlasbid/bids/${id}/scope` },
-    // { name: "Measurements", href: `/atlasbid/bids/${id}/measurements` },
-    { name: "Pricing", href: `/atlasbid/bids/${id}/pricing` },
-    { name: "Photos/Videos", href: `/atlasbid/bids/${id}/photos` },
-    // { name: "Design", href: `/atlasbid/bids/${id}/design` },
-    { name: "Proposal", href: `/atlasbid/bids/${id}/proposal` },
-    { name: "SAP", href: `/atlasbid/bids/${id}/sap` },
+    { name: "Overview",     href: `/atlasbid/bids/${id}` },
+    { name: "Photos",       href: `/atlasbid/bids/${id}/photos` },
+    { name: "Notes",        href: `/atlasbid/bids/${id}/notes` },
+    { name: "Scope",        href: `/atlasbid/bids/${id}/scope` },
+    { name: "Proposal",     href: `/atlasbid/bids/${id}/proposal` },
+    { name: "Copy to SAP",  href: `/atlasbid/bids/${id}/sap` },
   ];
 
   return (

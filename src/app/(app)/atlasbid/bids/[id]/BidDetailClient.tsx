@@ -3,7 +3,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 type Division = { id: string; name: string };
 type Status = { id: number; name: string; color?: string | null };
@@ -28,13 +27,6 @@ function cleanText(value?: string | null) {
   const s = String(value ?? "").trim();
   if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return "";
   return s;
-}
-
-function displayClientName(bid?: Partial<BidRecord> | null) {
-  const company = cleanText(bid?.customer_name);
-  if (company) return company;
-  const parts = [cleanText(bid?.client_name), cleanText(bid?.client_last_name)].filter(Boolean);
-  return parts.length ? parts.join(" ") : "—";
 }
 
 async function readJsonOrThrow(res: Response) {
@@ -71,9 +63,7 @@ async function patchBid(bidId: string, payload: Partial<BidRecord>): Promise<Bid
 }
 
 export default function BidDetailClient({ bidId }: { bidId: string }) {
-  const pathname = usePathname();
   const effectiveBidId = React.useMemo(() => String(bidId || "").trim(), [bidId]);
-  const base = `/atlasbid/bids/${effectiveBidId}`;
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -86,7 +76,7 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
   const [form, setForm] = React.useState({
     customer_name: "", client_name: "", client_last_name: "",
     address1: "", address2: "", city: "", state: "", zip: "",
-    internal_notes: "", status_id: "", division_id: "",
+    status_id: "", division_id: "",
   });
 
   function syncFormFromBid(b: BidRecord) {
@@ -99,15 +89,13 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
       city: cleanText(b.city),
       state: cleanText(b.state),
       zip: cleanText(b.zip),
-      internal_notes: cleanText(b.internal_notes),
       status_id: b.status_id == null ? "" : String(b.status_id),
       division_id: cleanText(b.division_id),
     });
   }
 
   async function loadAll() {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       if (!effectiveBidId) throw new Error("Missing bid id.");
       const [divRes, stRes] = await Promise.all([
@@ -115,230 +103,160 @@ export default function BidDetailClient({ bidId }: { bidId: string }) {
         fetch("/api/statuses", { cache: "no-store" }),
       ]);
       const divJson = await readJsonOrThrow(divRes) as { divisions?: Division[] };
-      const stJson = await readJsonOrThrow(stRes) as { data?: Status[] };
+      const stJson  = await readJsonOrThrow(stRes)  as { data?: Status[] };
       setDivisions(Array.isArray(divJson?.divisions) ? divJson.divisions : []);
       setStatuses(Array.isArray(stJson?.data) ? stJson.data : []);
       const b = await fetchBidById(effectiveBidId);
-      setBid(b);
-      syncFormFromBid(b);
+      setBid(b); syncFormFromBid(b);
     } catch (e: any) {
-      setBid(null);
-      setError(e?.message || "Load failed");
-    } finally {
-      setLoading(false);
-    }
+      setBid(null); setError(e?.message || "Load failed");
+    } finally { setLoading(false); }
   }
 
   React.useEffect(() => { loadAll(); }, [effectiveBidId]);
 
-  const computedDisplayName = React.useMemo(() => displayClientName({
-    customer_name: form.customer_name,
-    client_name: form.client_name,
-    client_last_name: form.client_last_name,
-  }), [form.customer_name, form.client_name, form.client_last_name]);
-
   async function handleSave() {
     if (!bid) return;
-    setSaving(true);
-    setError(null);
-    setSaveMessage(null);
+    setSaving(true); setError(null); setSaveMessage(null);
     try {
       const updated = await patchBid(effectiveBidId, {
-        customer_name: form.customer_name.trim() || null,
-        client_name: form.client_name.trim() || null,
+        customer_name:   form.customer_name.trim()   || null,
+        client_name:     form.client_name.trim()     || null,
         client_last_name: form.client_last_name.trim() || null,
-        address1: form.address1.trim() || null,
-        address2: form.address2.trim() || null,
-        city: form.city.trim() || null,
-        state: form.state.trim() || null,
-        zip: form.zip.trim() || null,
-        internal_notes: form.internal_notes.trim() || null,
-        status_id: form.status_id === "" ? null : Number(form.status_id),
+        address1:        form.address1.trim()        || null,
+        address2:        form.address2.trim()        || null,
+        city:            form.city.trim()            || null,
+        state:           form.state.trim()           || null,
+        zip:             form.zip.trim()             || null,
+        status_id:  form.status_id  === "" ? null : Number(form.status_id),
         division_id: form.division_id || null,
       });
-      setBid(updated);
-      syncFormFromBid(updated);
+      setBid(updated); syncFormFromBid(updated);
       setSaveMessage("Saved");
       setTimeout(() => setSaveMessage(null), 2500);
-    } catch (e: any) {
-      setError(e?.message || "Save failed");
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: any) { setError(e?.message || "Save failed"); }
+    finally { setSaving(false); }
   }
 
-  const workflowSteps = [
-    { label: "Overview", href: base },
-    { label: "Scope", href: `${base}/scope` },
-    { label: "Pricing", href: `${base}/pricing` },
-    { label: "Photos", href: `${base}/photos` },
-    { label: "Proposal", href: `${base}/proposal` },
-  ];
+  const inp = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
+  const lbl = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
 
-  const inputCls = "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all";
-  const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
-
-return (
-    <div className="min-h-screen bg-[#f0f4f0]">
-      {/* Page header */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="px-4 md:px-8 pt-4 pb-0">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm mb-3">
-            <Link href="/atlasbid/bids" className="text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              All Bids
-            </Link>
-            <span className="text-gray-200">›</span>
-            <span className="text-gray-700 font-medium truncate max-w-[200px]">
-              {loading ? "…" : computedDisplayName}
-            </span>
-          </div>
-
+  return (
+    <div className="space-y-4 max-w-2xl">
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-4 md:px-8 py-6 max-w-3xl space-y-4">
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
-          </div>
-        ) : error && !bid ? (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>
-        ) : !bid ? (
-          <div className="text-red-600 text-sm p-4">Bid not found.</div>
-        ) : (
-          <>
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
-            {saveMessage && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+      ) : error && !bid ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>
+      ) : !bid ? (
+        <div className="text-red-600 text-sm p-4">Bid not found.</div>
+      ) : (
+        <>
+          {error      && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
+          {saveMessage && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              {saveMessage}
-            </div>}
-
-            {/* Client name preview */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Client / Account</div>
-              <div className="text-2xl font-bold text-gray-900">{computedDisplayName}</div>
+              Saved
             </div>
+          )}
 
-            {/* Client info */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-4">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide">Client Information</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Account Name <span className="text-gray-300 font-normal normal-case tracking-normal">(company, HOA…)</span></label>
-                  <input className={inputCls} value={form.customer_name} placeholder="ABC Property Management"
-                    onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} />
-                </div>
+          {/* Single compact form card */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-5">
+
+            {/* Client */}
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Client</p>
+              <div>
+                <label className={lbl}>Account Name <span className="text-gray-300 font-normal normal-case tracking-normal">(company, HOA…)</span></label>
+                <input className={inp} value={form.customer_name} placeholder="ABC Property Management"
+                  onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>First Name</label>
-                  <input className={inputCls} value={form.client_name} placeholder="John"
+                  <label className={lbl}>First Name</label>
+                  <input className={inp} value={form.client_name} placeholder="John"
                     onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className={labelCls}>Last Name</label>
-                  <input className={inputCls} value={form.client_last_name} placeholder="Smith"
+                  <label className={lbl}>Last Name</label>
+                  <input className={inp} value={form.client_last_name} placeholder="Smith"
                     onChange={e => setForm(p => ({ ...p, client_last_name: e.target.value }))} />
                 </div>
               </div>
             </div>
 
-            {/* Job Location */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-4">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide">Job Location</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Address Line 1</label>
-                  <input className={inputCls} value={form.address1} placeholder="123 Main St"
-                    onChange={e => setForm(p => ({ ...p, address1: e.target.value }))} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Address Line 2 <span className="text-gray-300 font-normal normal-case tracking-normal">(optional)</span></label>
-                  <input className={inputCls} value={form.address2} placeholder="Suite, unit…"
-                    onChange={e => setForm(p => ({ ...p, address2: e.target.value }))} />
-                </div>
-                <div>
-                  <label className={labelCls}>City</label>
-                  <input className={inputCls} value={form.city} placeholder="Saginaw"
+            <div className="border-t border-gray-50" />
+
+            {/* Location */}
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Job Location</p>
+              <input className={inp} value={form.address1} placeholder="Address"
+                onChange={e => setForm(p => ({ ...p, address1: e.target.value }))} />
+              <input className={inp} value={form.address2} placeholder="Suite, unit… (optional)"
+                onChange={e => setForm(p => ({ ...p, address2: e.target.value }))} />
+              <div className="grid grid-cols-5 gap-3">
+                <div className="col-span-3">
+                  <label className={lbl}>City</label>
+                  <input className={inp} value={form.city} placeholder="Saginaw"
                     onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>State</label>
-                    <input className={inputCls} value={form.state} placeholder="MI"
-                      onChange={e => setForm(p => ({ ...p, state: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>ZIP</label>
-                    <input className={inputCls} value={form.zip} placeholder="48604"
-                      onChange={e => setForm(p => ({ ...p, zip: e.target.value }))} />
-                  </div>
+                <div>
+                  <label className={lbl}>State</label>
+                  <input className={inp} value={form.state} placeholder="MI"
+                    onChange={e => setForm(p => ({ ...p, state: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>ZIP</label>
+                  <input className={inp} value={form.zip} placeholder="48604"
+                    onChange={e => setForm(p => ({ ...p, zip: e.target.value }))} />
                 </div>
               </div>
             </div>
 
-            {/* Bid Settings */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-4">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide">Bid Settings</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>Division</label>
-                  <select className={inputCls} value={form.division_id} disabled={saving}
-                    onChange={e => setForm(p => ({ ...p, division_id: e.target.value }))}>
-                    <option value="">(None)</option>
-                    {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Status</label>
-                  <select className={inputCls} value={form.status_id} disabled={saving}
-                    onChange={e => setForm(p => ({ ...p, status_id: e.target.value }))}>
-                    <option value="">(None)</option>
-                    {statuses.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                  </select>
-                </div>
+            <div className="border-t border-gray-50" />
+
+            {/* Division + Status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={lbl}>Division</label>
+                <select className={inp} value={form.division_id} disabled={saving}
+                  onChange={e => setForm(p => ({ ...p, division_id: e.target.value }))}>
+                  <option value="">(None)</option>
+                  {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Status</label>
+                <select className={inp} value={form.status_id} disabled={saving}
+                  onChange={e => setForm(p => ({ ...p, status_id: e.target.value }))}>
+                  <option value="">(None)</option>
+                  {statuses.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                </select>
               </div>
             </div>
+          </div>
 
-            {/* Internal Notes */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-3">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide">Internal Notes</h2>
-              <textarea
-                className={`${inputCls} resize-none`}
-                value={form.internal_notes}
-                rows={4}
-                placeholder="Notes visible only to your team…"
-                onChange={e => setForm(p => ({ ...p, internal_notes: e.target.value }))}
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap items-center gap-3 pb-12">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-[#123b1f] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors text-sm"
-              >
-                {saving ? "Saving…" : "Save Changes"}
-              </button>
-              <Link href="/atlasbid/bids"
-                className="bg-white border border-gray-200 text-gray-700 font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm">
-                Cancel
-              </Link>
-              <Link href={`${base}/scope`}
-                className="ml-auto flex items-center gap-2 bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-colors text-sm">
-                Continue to Scope
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-3 pb-8">
+            <button onClick={handleSave} disabled={saving}
+              className="bg-[#123b1f] text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-[#1a5c2e] disabled:opacity-60 transition-colors text-sm">
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <Link href="/atlasbid/bids"
+              className="bg-white border border-gray-200 text-gray-700 font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm">
+              Cancel
+            </Link>
+            <Link href={`/atlasbid/bids/${effectiveBidId}/photos`}
+              className="ml-auto flex items-center gap-2 bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-colors text-sm">
+              Photos
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </Link>
+          </div>
+        </>
+      )}
     </div>
   );
 }
