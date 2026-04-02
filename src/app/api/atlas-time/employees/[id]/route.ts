@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       "first_name","last_name","middle_initial","preferred_name","date_of_birth","hire_date","first_working_day",
       "personal_email","work_email","phone",
       "address_line1","address_line2","city","state","zip",
-      "department_id","division_id","job_title","kiosk_pin",
+      "department_id","division_id","default_at_division_id","job_title","kiosk_pin",
       "pay_type","default_pay_rate",
       "t_shirt_size","pants_size","jacket_size","hat_size","boot_size",
       "uniform_issued_date","uniform_notes","uniform_items","uniform_repayment_deadline",
