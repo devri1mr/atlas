@@ -52,6 +52,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await sb.from("at_employees").update({ default_pay_rate: rate }).eq("id", id);
     }
 
+    // Auto-recalculate lawn_production_members that had no pay rate (null) for dates
+    // on/after this rate's effective date — handles the case where data was imported
+    // before the rate was set up.
+    try {
+      const effectiveDate = body.effective_date || estToday();
+      const endDate: string | null = body.end_date || null;
+
+      const { data: atSettings } = await sb.from("at_settings")
+        .select("ot_multiplier, dt_multiplier")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const otMult = Number(atSettings?.ot_multiplier ?? 1.5);
+      const dtMult = Number(atSettings?.dt_multiplier ?? 2.0);
+      const BURDEN = 1.15;
+
+      let jobQ = sb.from("lawn_production_jobs").select("id").gte("service_date", effectiveDate);
+      if (endDate) jobQ = (jobQ as any).lte("service_date", endDate);
+      const { data: affectedJobs } = await jobQ;
+      const jobIds = (affectedJobs ?? []).map((j: { id: string }) => j.id);
+
+      if (jobIds.length > 0) {
+        const { data: members } = await sb
+          .from("lawn_production_members")
+          .select("id, reg_hours, ot_hours, total_payroll_hours")
+          .eq("employee_id", id)
+          .is("pay_rate", null)
+          .not("reg_hours", "is", null)
+          .in("job_id", jobIds);
+
+        for (const m of (members ?? []) as { id: string; reg_hours: number; ot_hours: number | null; total_payroll_hours: number | null }[]) {
+          const reg = Number(m.reg_hours ?? 0);
+          const ot  = Number(m.ot_hours  ?? 0);
+          const tot = Number(m.total_payroll_hours ?? reg + ot);
+          const dt  = Math.max(0, tot - reg - ot);
+          const baseCost = reg * rate + ot * rate * otMult + dt * rate * dtMult;
+          const payroll_cost = Math.round(baseCost * BURDEN * 100) / 100;
+          await sb.from("lawn_production_members").update({ pay_rate: rate, payroll_cost }).eq("id", m.id);
+        }
+      }
+    } catch { /* non-critical — don't fail the rate save */ }
+
     return NextResponse.json({ pay_rate: data }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

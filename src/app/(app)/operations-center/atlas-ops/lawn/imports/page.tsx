@@ -715,6 +715,10 @@ export default function LawnPage() {
   const [repDetail, setRepDetail]     = useState<{ report: Report; punches: ReportPunch[]; dispatchJobs: DispatchJob[] } | null>(null);
   const [loadingRep, setLoadingRep]   = useState(false);
   const [repDtCache, setRepDtCache]   = useState<Record<string, number>>({});
+  // Inline rate-add for missing pay rates in preview
+  const [rateFormId, setRateFormId]   = useState<string | null>(null);
+  const [rateAmt, setRateAmt]         = useState("");
+  const [rateSaving, setRateSaving]   = useState(false);
 
   async function loadReports() {
     setLoading(true);
@@ -742,6 +746,37 @@ export default function LawnPage() {
     }, 0);
     setRepDtCache(prev => ({ ...prev, [repDetail.report.id]: dtTotal }));
   }, [repDetail]);
+
+  async function refreshPreview(file?: File) {
+    const f = file ?? saveFile;
+    if (!f) return;
+    setParsing(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("dry_run", "true");
+      fd.append("tz_offset", String(new Date().getTimezoneOffset()));
+      const res = await fetch("/api/operations-center/atlas-ops/lawn/import", { method: "POST", body: fd });
+      const d = await res.json();
+      if (res.ok) setPreview(d);
+    } catch { /* ignore */ } finally { setParsing(false); }
+  }
+
+  async function saveInlineRate(employeeId: string, rateDollars: number, effectiveDate: string) {
+    setRateSaving(true);
+    try {
+      const res = await fetch(`/api/atlas-time/employees/${employeeId}/pay-rates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate: rateDollars, is_default: true, effective_date: effectiveDate }),
+      });
+      if (res.ok) {
+        setRateFormId(null);
+        setRateAmt("");
+        await refreshPreview();
+      }
+    } finally { setRateSaving(false); }
+  }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -947,6 +982,63 @@ export default function LawnPage() {
                     </div>
                   </div>
                 )}
+                {(() => {
+                  // Collect matched employees with no pay rate
+                  const seen = new Set<string>();
+                  const missing: { employee_id: string; resource_name: string }[] = [];
+                  for (const j of previewJobs) {
+                    for (const m of (j.members ?? [])) {
+                      if (m.employee_id && m.reg_hours != null && m.pay_rate == null && !seen.has(m.employee_id)) {
+                        seen.add(m.employee_id);
+                        missing.push({ employee_id: m.employee_id, resource_name: m.resource_name });
+                      }
+                    }
+                  }
+                  if (!missing.length) return null;
+                  const reportDate = preview.report_date ?? previewJobs[0]?.service_date ?? "";
+                  return (
+                    <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <span className="text-amber-500 text-base leading-none mt-0.5">⚠</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-amber-900 text-sm">
+                            {missing.length === 1 ? "1 team member has" : `${missing.length} team members have`} no pay rate — payroll will import as $0.00
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {missing.map(p => (
+                              <div key={p.employee_id} className="flex items-center flex-wrap gap-2">
+                                <span className="text-sm text-amber-800 font-medium">{formatName(p.resource_name)}</span>
+                                {rateFormId === p.employee_id ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-amber-700 font-medium">$</span>
+                                    <input
+                                      type="number" step="0.01" min="0" placeholder="0.00"
+                                      value={rateAmt}
+                                      onChange={e => setRateAmt(e.target.value)}
+                                      className="w-20 border border-amber-300 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                    />
+                                    <span className="text-xs text-amber-600">/hr</span>
+                                    <button
+                                      onClick={() => { const r = parseFloat(rateAmt); if (r > 0) saveInlineRate(p.employee_id, r, reportDate); }}
+                                      disabled={rateSaving || !parseFloat(rateAmt)}
+                                      className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded disabled:opacity-50"
+                                    >{rateSaving ? "Saving…" : "Save Rate"}</button>
+                                    <button onClick={() => { setRateFormId(null); setRateAmt(""); }} className="text-xs text-amber-600 hover:text-amber-800">Cancel</button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => { setRateFormId(p.employee_id); setRateAmt(""); }}
+                                    className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline decoration-dotted"
+                                  >+ Set Rate</button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <PersonTable jobs={previewJobs} punches={preview.punches ?? []} dispatchJobs={[]} />
                 {preview.debug && (
                   <div className="px-5 py-3 border-t border-emerald-100 bg-gray-50 text-xs font-mono text-gray-500">
