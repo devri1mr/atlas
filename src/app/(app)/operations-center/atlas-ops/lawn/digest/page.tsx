@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useUser } from "@/lib/userContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -363,6 +364,9 @@ function CalcSection({ title, children }: { title: string; children: React.React
 }
 
 export default function DigestPage() {
+  const { can } = useUser();
+  const canSeePay = can("hr_labor_cost");
+
   const [preset,      setPreset]      = useState<Preset>("lastMonth");
   const [showCalc,    setShowCalc]    = useState(false);
   const [range,       setRange]       = useState<{ start: string; end: string }>(getPresetRange("lastMonth")!);
@@ -930,8 +934,8 @@ export default function DigestPage() {
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time Hrs</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Down Time %</th>
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Revenue</th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Cost</th>
-                    <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>
+                    {canSeePay && <th className="text-center px-4 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payroll Cost</th>}
+                    {canSeePay && <th className="text-center px-5 py-2.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Labor %</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -945,12 +949,14 @@ export default function DigestPage() {
                         {row.down_time_pct !== null ? (row.down_time_pct * 100).toFixed(1) + "%" : "—"}
                       </td>
                       <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{fmtMoney(row.revenue)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>
-                      <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
-                          {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
-                        </span>
-                      </td>
+                      {canSeePay && <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmtMoney(row.labor_cost)}</td>}
+                      {canSeePay && (
+                        <td className="px-5 py-3 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${memberLaborBadge(row.labor_pct, sc?.field_labor_goal ?? null)}`}>
+                            {row.labor_pct !== null ? fmtPct(row.labor_pct) : "—"}
+                          </span>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1163,7 +1169,7 @@ export default function DigestPage() {
                                     </table>
 
                                     {/* ── Per-member cost breakdown ── */}
-                                    <div className="mt-4 border-t border-emerald-100 pt-3">
+                                    {canSeePay && <div className="mt-4 border-t border-emerald-100 pt-3">
                                       <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Cost Breakdown</div>
                                       <table className="w-full text-xs">
                                         <thead>
@@ -1213,7 +1219,7 @@ export default function DigestPage() {
                                         </tbody>
                                       </table>
                                       <p className="text-[10px] text-gray-400 mt-2">Est. cost = dispatch hours × pay rate × 1.15 burden. OT premium applied in full-day digest calculation.</p>
-                                    </div>
+                                    </div>}
 
                                     {/* Actions */}
                                     <div className="flex items-center gap-3">
