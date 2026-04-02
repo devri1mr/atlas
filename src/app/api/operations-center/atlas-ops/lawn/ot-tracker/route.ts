@@ -24,6 +24,11 @@ export async function GET() {
     const { data: company } = await sb.from("companies").select("id").limit(1).single();
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
+    // ── Lawn division ID ──────────────────────────────────────────────────────
+    const { data: lawnDiv } = await sb.from("divisions").select("id").eq("name", "Lawn").single();
+    if (!lawnDiv) return NextResponse.json({ error: "Lawn division not found" }, { status: 404 });
+    const lawnDivisionId = lawnDiv.id;
+
     // ── Current week boundaries (Eastern, Mon–Sun) ────────────────────────────
     const now = new Date();
     const todayStr = easternDateStr(now);
@@ -50,7 +55,7 @@ export async function GET() {
         date_for_payroll,
         regular_hours,
         ot_hours,
-        at_employees!inner(first_name, last_name, preferred_name, photo_url, status)
+        at_employees!inner(first_name, last_name, preferred_name, photo_url, status, division_id)
       `)
       .eq("company_id", company.id)
       .gte("date_for_payroll", weekStart)
@@ -70,6 +75,7 @@ export async function GET() {
     for (const p of punches ?? []) {
       const emp = (p as any).at_employees;
       if (!emp || emp.status !== "active") continue;
+      if (emp.division_id !== lawnDivisionId) continue;
 
       const displayName = emp.preferred_name
         ? `${emp.preferred_name} ${emp.last_name}`
