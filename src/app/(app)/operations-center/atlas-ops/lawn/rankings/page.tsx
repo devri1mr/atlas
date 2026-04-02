@@ -77,11 +77,14 @@ function Avatar({ person, size = 40 }: { person: RankedPerson; size?: number }) 
 
 // ── Bar row ────────────────────────────────────────────────────────────────────
 
+const MEDAL_COLORS = ["text-yellow-400", "text-gray-400", "text-amber-600"];
+function medalColor(rank: number) { return rank <= 3 ? MEDAL_COLORS[rank - 1] : "text-gray-300"; }
+
 function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEarned: number; rank: number }) {
   const barPct = maxEarned > 0 ? (person.total_earned / maxEarned) * 100 : 0;
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0">
-      <span className="text-sm font-bold text-gray-300 w-6 text-right shrink-0">{rank}</span>
+      <span className={`text-sm font-bold w-6 text-right shrink-0 ${medalColor(rank)}`}>{rank}</span>
       <Avatar person={person} size={40} />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-emerald-950 truncate">{person.display_name}</div>
@@ -93,7 +96,7 @@ function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEar
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-sm font-bold text-emerald-700">${person.total_earned.toLocaleString("en-US", { maximumFractionDigits: 0 })}</div>
+        <div className="text-sm font-bold text-gray-700">{person.total_payroll_hours.toFixed(1)} hrs</div>
         <div className={`text-xs mt-0.5 ${person.labor_pct > 0.39 ? "text-red-500" : "text-gray-400"}`}>
           {pct(person.labor_pct)} labor
         </div>
@@ -107,7 +110,7 @@ function EfficiencyRow({ person, maxEff, rank }: { person: RankedPerson; maxEff:
   const isGreen = person.efficiency_pct >= 1;
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0">
-      <span className="text-sm font-bold text-gray-300 w-6 text-right shrink-0">{rank}</span>
+      <span className={`text-sm font-bold w-6 text-right shrink-0 ${medalColor(rank)}`}>{rank}</span>
       <Avatar person={person} size={40} />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-emerald-950 truncate">{person.display_name}</div>
@@ -177,31 +180,65 @@ export default function RankingsPage() {
 
   if (isDisplay) {
     return (
-      <div className="min-h-screen bg-[#0a2010] flex flex-col">
+      <div className="fixed inset-0 z-[9999] bg-[#0a2010] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-10 py-6 border-b border-white/10">
-          <div>
-            <div className="text-2xl font-bold text-white tracking-tight">Lawn Rankings</div>
-            <div className="text-sm text-white/40 mt-0.5">{PERIOD_LABELS[period]} · {dateRange}</div>
+        <div className="flex items-center justify-between px-8 py-3.5 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-6">
+            <div>
+              <div className="text-lg font-bold text-white tracking-tight leading-none">Lawn Rankings</div>
+              <div className="text-xs text-white/35 mt-0.5">{dateRange}</div>
+            </div>
+            {/* Period selector in cast mode */}
+            <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+              {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+                <button
+                  key={p}
+                  onClick={() => changePeriod(p)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                    period === p
+                      ? "bg-emerald-700 text-white"
+                      : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                  }`}
+                >
+                  {PERIOD_LABELS[p]}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="text-xs text-white/25">Auto-refreshes every 30 min</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => document.documentElement.requestFullscreen?.()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              ⛶ Fullscreen
+            </button>
+            <button
+              onClick={() => {
+                document.exitFullscreen?.().catch(() => {});
+                window.close();
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              ✕ Exit Cast Mode
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-white/40 text-sm">Loading…</div>
         ) : (
-          <div className="flex-1 grid grid-cols-2 gap-px bg-white/5">
+          <div className="flex-1 grid grid-cols-2 gap-px bg-white/5 overflow-hidden">
             {/* Top Producers */}
-            <div className="bg-[#0a2010] px-8 py-6">
-              <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-4">Top Producers</div>
-              <div className="space-y-0">
-                {producers.slice(0, 10).map((p, i) => (
-                  <div key={p.resource_name} className="flex items-center gap-5 py-4 border-t border-white/5 first:border-t-0">
-                    <span className="text-2xl font-black text-white/20 w-8 text-right shrink-0">{i + 1}</span>
-                    <Avatar person={p} size={52} />
+            <div className="bg-[#0a2010] px-8 py-5 flex flex-col overflow-hidden">
+              <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3 shrink-0">Top Producers</div>
+              <div className="flex-1 overflow-hidden">
+                {producers.slice(0, 8).map((p, i) => (
+                  <div key={p.resource_name} className="flex items-center gap-4 py-3 border-t border-white/5 first:border-t-0">
+                    <span className={`text-xl font-black w-7 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
+                    <Avatar person={p} size={44} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-base font-semibold text-white truncate">{p.display_name}</div>
-                      <div className="mt-2 relative h-2.5 rounded-full bg-white/10 overflow-hidden">
+                      <div className="text-sm font-semibold text-white truncate">{p.display_name}</div>
+                      <div className="mt-1.5 relative h-2 rounded-full bg-white/10 overflow-hidden">
                         <div
                           className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
                           style={{ width: `${maxEarned > 0 ? (p.total_earned / maxEarned) * 100 : 0}%` }}
@@ -209,8 +246,8 @@ export default function RankingsPage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-base font-bold text-emerald-400">${p.total_earned.toLocaleString("en-US", { maximumFractionDigits: 0 })}</div>
-                      <div className={`text-xs mt-0.5 ${p.labor_pct > 0.39 ? "text-red-400" : "text-white/40"}`}>
+                      <div className="text-sm font-bold text-white/70">{p.total_payroll_hours.toFixed(1)} hrs</div>
+                      <div className={`text-xs mt-0.5 ${p.labor_pct > 0.39 ? "text-red-400" : "text-emerald-400/70"}`}>
                         {pct(p.labor_pct)} labor
                       </div>
                     </div>
@@ -220,18 +257,18 @@ export default function RankingsPage() {
             </div>
 
             {/* Most Efficient */}
-            <div className="bg-[#071a0e] px-8 py-6">
-              <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-4">Most Efficient</div>
-              <div className="space-y-0">
-                {efficient.slice(0, 10).map((p, i) => {
+            <div className="bg-[#071a0e] px-8 py-5 flex flex-col overflow-hidden">
+              <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3 shrink-0">Most Efficient</div>
+              <div className="flex-1 overflow-hidden">
+                {efficient.slice(0, 8).map((p, i) => {
                   const isGreen = p.efficiency_pct >= 1;
                   return (
-                    <div key={p.resource_name} className="flex items-center gap-5 py-4 border-t border-white/5 first:border-t-0">
-                      <span className="text-2xl font-black text-white/20 w-8 text-right shrink-0">{i + 1}</span>
-                      <Avatar person={p} size={52} />
+                    <div key={p.resource_name} className="flex items-center gap-4 py-3 border-t border-white/5 first:border-t-0">
+                      <span className={`text-xl font-black w-7 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
+                      <Avatar person={p} size={44} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-base font-semibold text-white truncate">{p.display_name}</div>
-                        <div className="mt-2 relative h-2.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="text-sm font-semibold text-white truncate">{p.display_name}</div>
+                        <div className="mt-1.5 relative h-2 rounded-full bg-white/10 overflow-hidden">
                           <div
                             className={`absolute inset-y-0 left-0 rounded-full ${isGreen ? "bg-emerald-500" : "bg-amber-400"}`}
                             style={{ width: `${maxEff > 0 ? (p.efficiency_pct / maxEff) * 100 : 0}%` }}
@@ -240,7 +277,7 @@ export default function RankingsPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-xs text-white/40">{p.total_payroll_hours.toFixed(1)} hrs</div>
-                        <div className={`text-xl font-black mt-0.5 ${isGreen ? "text-emerald-400" : "text-amber-400"}`}>
+                        <div className={`text-lg font-black mt-0.5 ${isGreen ? "text-emerald-400" : "text-amber-400"}`}>
                           {pct(p.efficiency_pct)}
                         </div>
                       </div>
