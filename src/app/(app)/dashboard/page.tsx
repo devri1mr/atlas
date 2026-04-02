@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useUser } from "@/lib/userContext";
@@ -345,6 +346,22 @@ function ScoresCard({ games, config }: { games: GameScore[]; config: DashConfig 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, can } = useUser();
+  const router = useRouter();
+
+  // Division-restricted users go straight to their first allowed division
+  useEffect(() => {
+    if (!user) return;
+    const divIds = user.allowed_division_ids;
+    if (!divIds || divIds.length === 0) return;
+    // Fetch divisions to get the name for the URL
+    fetch("/api/operations-center/divisions")
+      .then(r => r.json())
+      .then(j => {
+        const match = (j.data ?? []).find((d: any) => divIds.includes(d.id));
+        if (match) router.replace(`/operations-center/atlas-ops/${match.name.toLowerCase().replace(/\s+/g, "-")}`);
+      })
+      .catch(() => {});
+  }, [user, router]);
   const [weather, setWeather] = useState<Weather | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [inventoryValue, setInventoryValue] = useState<number | null>(null);
