@@ -468,7 +468,7 @@ export default function DashboardPage() {
   const quickActions = ALL_QUICK_ACTIONS.filter(a => can(a.permKey));
 
   return (
-    <div className="min-h-screen bg-[#f0f4f0]" style={{ paddingBottom: config.showSports ? 40 : 0 }}>
+    <div className="min-h-screen bg-[#f0f4f0]" style={{ paddingBottom: 40 }}>
 
       {/* Hero Header */}
       <div className="relative overflow-hidden px-4 py-6 md:px-8 md:py-8"
@@ -761,9 +761,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Fixed bottom sports ticker */}
-      {config.showSports && <SportsTicker games={games} news={news} config={config} />}
 
       {/* Customize Drawer */}
       {customizeOpen && (
