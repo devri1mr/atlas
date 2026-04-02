@@ -119,7 +119,9 @@ function QbExport() {
   }
 
   function empQueryParam() {
-    return selectedEmployees.size > 0 ? `&employees=${[...selectedEmployees].join(",")}` : "";
+    if (selectedEmployees.size === 0) return ""; // all
+    if (selectedEmployees.has("__none__")) return "&employees=none"; // no results
+    return `&employees=${[...selectedEmployees].join(",")}`;
   }
 
   async function loadPreview() {
@@ -222,18 +224,23 @@ function QbExport() {
                 <span className="font-semibold text-gray-700">
                   {selectedEmployees.size === 0
                     ? "All team members"
+                    : selectedEmployees.has("__none__")
+                    ? "None selected"
                     : `${selectedEmployees.size} selected`}
                 </span>
                 <span className="text-gray-400 text-xs">▾</span>
               </button>
               {filterOpen && (
                 <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg w-56 max-h-72 overflow-y-auto">
-                  <div className="px-3 py-2 border-b border-gray-100">
+                  <div className="px-3 py-2 border-b border-gray-100 flex gap-3">
                     <button onClick={() => { setSelectedEmployees(new Set()); setSummary(null); }}
-                      className="text-xs text-[#123b1f] font-semibold hover:underline">Reset — show all</button>
+                      className="text-xs text-[#123b1f] font-semibold hover:underline">All</button>
+                    <button onClick={() => { setSelectedEmployees(new Set(["__none__"])); setSummary(null); }}
+                      className="text-xs text-[#123b1f] font-semibold hover:underline">None</button>
                   </div>
                   {allEmployees.map(emp => {
-                    const checked = selectedEmployees.size === 0 || selectedEmployees.has(emp.id);
+                    const noneSelected = selectedEmployees.size === 1 && selectedEmployees.has("__none__");
+                    const checked = !noneSelected && (selectedEmployees.size === 0 || selectedEmployees.has(emp.id));
                     return (
                       <label key={emp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
                         <input
@@ -241,16 +248,25 @@ function QbExport() {
                           checked={checked}
                           onChange={() => {
                             setSelectedEmployees(prev => {
-                              // prev.size===0 means "all" — expand to explicit set first
-                              const next = new Set(prev.size === 0 ? allEmployees.map(e => e.id) : prev);
-                              if (next.has(emp.id)) {
+                              // Expand implicit "all" to explicit set
+                              const base = (prev.size === 0 || (prev.size === 1 && prev.has("__none__")))
+                                ? new Set<string>()
+                                : new Set(prev);
+                              const wasNone = prev.size === 1 && prev.has("__none__");
+                              if (!wasNone && prev.size === 0) {
+                                // Was "all" — start with everyone except this one
+                                const next = new Set(allEmployees.map(e => e.id));
                                 next.delete(emp.id);
-                              } else {
-                                next.add(emp.id);
-                                // if all are now selected, collapse back to "all" (empty = no filter)
-                                if (next.size === allEmployees.length) return new Set();
+                                return next.size === 0 ? new Set(["__none__"]) : next;
                               }
-                              return next;
+                              if (base.has(emp.id)) {
+                                base.delete(emp.id);
+                                return base.size === 0 ? new Set(["__none__"]) : base;
+                              } else {
+                                base.add(emp.id);
+                                if (base.size === allEmployees.length) return new Set(); // all = clear filter
+                                return base;
+                              }
                             });
                             setSummary(null);
                           }}

@@ -41,6 +41,11 @@ export async function GET(req: NextRequest) {
     .lte("date_for_payroll", endDate)
     .order("date_for_payroll", { ascending: true });
 
+  if (empParam === "none") {
+    return preview
+      ? NextResponse.json({ summary: [], total_reg: 0, total_ot: 0, warnings: 0, punch_count: 0 })
+      : new NextResponse("", { headers: { "Content-Type": "text/plain", "Content-Disposition": `attachment; filename="garpiel_payroll_${startDate}_${endDate}.iif"` } });
+  }
   if (empParam) {
     const ids = empParam.split(",").map(s => s.trim()).filter(Boolean);
     if (ids.length > 0) query = query.in("employee_id", ids);
