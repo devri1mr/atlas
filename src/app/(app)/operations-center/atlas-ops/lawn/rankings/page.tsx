@@ -226,10 +226,10 @@ export default function RankingsPage() {
             <div className="bg-[#0a2010] px-8 py-5 flex flex-col overflow-hidden">
               <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3 shrink-0">Top Producers</div>
               <div className="flex-1 overflow-hidden">
-                {producers.slice(0, 8).map((p, i) => (
-                  <div key={p.resource_name} className="flex items-center gap-4 py-3 border-t border-white/5 first:border-t-0">
-                    <span className={`text-xl font-black w-7 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
-                    <Avatar person={p} size={44} />
+                {producers.slice(0, 12).map((p, i) => (
+                  <div key={p.resource_name} className="flex items-center gap-3 py-2 border-t border-white/5 first:border-t-0">
+                    <span className={`text-base font-black w-6 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
+                    <Avatar person={p} size={36} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-white truncate">{p.display_name}</div>
                       <div className="mt-1.5 relative h-2 rounded-full bg-white/10 overflow-hidden">
@@ -248,12 +248,12 @@ export default function RankingsPage() {
             <div className="bg-[#071a0e] px-8 py-5 flex flex-col overflow-hidden">
               <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3 shrink-0">Most Efficient</div>
               <div className="flex-1 overflow-hidden">
-                {efficient.slice(0, 8).map((p, i) => {
+                {efficient.slice(0, 12).map((p, i) => {
                   const isGreen = p.efficiency_pct >= 1;
                   return (
-                    <div key={p.resource_name} className="flex items-center gap-4 py-3 border-t border-white/5 first:border-t-0">
-                      <span className={`text-xl font-black w-7 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
-                      <Avatar person={p} size={44} />
+                    <div key={p.resource_name} className="flex items-center gap-3 py-2 border-t border-white/5 first:border-t-0">
+                      <span className={`text-base font-black w-6 text-right shrink-0 ${medalColor(i + 1)}`}>{i + 1}</span>
+                      <Avatar person={p} size={36} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{p.display_name}</div>
                         <div className="mt-1.5 relative h-2 rounded-full bg-white/10 overflow-hidden">
@@ -265,7 +265,7 @@ export default function RankingsPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-xs text-white/40">{p.total_payroll_hours.toFixed(1)} hrs</div>
-                        <div className={`text-lg font-black mt-0.5 ${isGreen ? "text-emerald-400" : "text-amber-400"}`}>
+                        <div className={`text-base font-black mt-0.5 ${isGreen ? "text-emerald-400" : "text-amber-400"}`}>
                           {pct(p.efficiency_pct)}
                         </div>
                       </div>

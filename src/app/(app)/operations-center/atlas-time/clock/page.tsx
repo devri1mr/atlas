@@ -226,7 +226,7 @@ function displayName(e: Employee) {
   return `${e.last_name}, ${e.preferred_name ?? e.first_name}`;
 }
 
-const DEFAULT_CLOCK_COLS = { job_title: true, division: true, department: true, clock_in_time: true, elapsed: true, punch_method: false };
+const DEFAULT_CLOCK_COLS = { division: true, department: true, clock_in_time: true, elapsed: true, punch_method: false };
 type ClockColKey = keyof typeof DEFAULT_CLOCK_COLS;
 
 function useClockCols() {
@@ -1326,7 +1326,7 @@ function ClockPageInner() {
                                     </div>
                                   )}
                                 </div>
-                            <div className="text-center">{(p.divisions || p.at_divisions) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
+                            <div className="text-center">{(p.at_divisions || p.divisions) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{(p.at_divisions ?? p.divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{group.length === 1 ? (p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)) : <span className="text-gray-300">—</span>}</span>
@@ -1511,7 +1511,6 @@ function ClockPageInner() {
               {/* Column headers — built dynamically from col prefs */}
               <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 <button onClick={() => handleSort("name")} className="flex items-center gap-1 flex-1 min-w-[120px] hover:text-gray-600 transition-colors"><span>Name</span><SortIcon col="name" /></button>
-                {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
                 {cols.division && <button onClick={() => handleSort("punch_item")} className="hidden sm:flex items-center gap-1 w-32 shrink-0 hover:text-gray-600 transition-colors"><span>Punch Item</span><SortIcon col="punch_item" /></button>}
                 {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
                 {cols.clock_in_time && <button onClick={() => handleSort("clock_in")} className="hidden sm:flex items-center gap-1 w-20 shrink-0 hover:text-gray-600 transition-colors"><span>Clock In</span><SortIcon col="clock_in" /></button>}
@@ -1537,10 +1536,9 @@ function ClockPageInner() {
                           ) : null; })()}
                         </div>
                       </div>
-                      {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-600 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                       {cols.division && (
                         <div className="hidden sm:block w-32 shrink-0">
-                          {(p.divisions || p.at_divisions) ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                          {(p.at_divisions || p.divisions) ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{(p.at_divisions ?? p.divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                         </div>
                       )}
                       {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
@@ -1572,7 +1570,6 @@ function ClockPageInner() {
             </div>
             <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               <button onClick={() => handleSort("name")} className="flex items-center gap-1 flex-1 min-w-[120px] hover:text-gray-600 transition-colors"><span>Name</span><SortIcon col="name" /></button>
-              {cols.job_title && <span className="hidden sm:block w-32 shrink-0">Job Title</span>}
               {cols.division && <button onClick={() => handleSort("punch_item")} className="hidden sm:flex items-center gap-1 w-32 shrink-0 hover:text-gray-600 transition-colors"><span>Punch Item</span><SortIcon col="punch_item" /></button>}
               {cols.department && <span className="hidden md:block w-28 shrink-0">Department</span>}
               <span className="w-28 sm:w-36 shrink-0">In → Out</span>
@@ -1659,10 +1656,9 @@ function ClockPageInner() {
                         ) : null; })()}
                       </div>
                     </div>
-                    {cols.job_title && <div className="hidden sm:block w-32 shrink-0 text-xs text-gray-500 truncate">{emp.job_title ?? <span className="text-gray-300">—</span>}</div>}
                     {cols.division && (
                       <div className="hidden sm:block w-32 shrink-0">
-                        {(p.divisions || p.at_divisions) ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{(p.divisions ?? p.at_divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                        {(p.at_divisions || p.divisions) ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{(p.at_divisions ?? p.divisions)!.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     )}
                     {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 
 const BASE_TABS = [
+  { label: "Overview",          href: "/operations-center/atlas-ops/lawn" },
   { label: "Lawn Digest",       href: "/operations-center/atlas-ops/lawn/digest" },
   { label: "Punches",           href: "/operations-center/atlas-ops/lawn/punches" },
   { label: "COGS",              href: "/operations-center/atlas-ops/lawn/cogs" },
