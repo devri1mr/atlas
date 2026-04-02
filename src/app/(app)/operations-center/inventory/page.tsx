@@ -102,7 +102,7 @@ const RECEIPT_SOURCE_LABEL: Record<string, string> = {
 
 const RECEIPT_TYPES = new Set(["receipt", "invoice", "ticket", "cc_receipt", "carryover"]);
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 type InventoryLocation = { id: string; name: string; is_active?: boolean | null };
 

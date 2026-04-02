@@ -753,7 +753,7 @@ export default function DesignPage() {
                   <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold bg-black/60 px-3 py-1.5 rounded-full transition-opacity">View</span>
                 </div>
                 <div className="px-2 py-1.5">
-                  <p className="text-[10px] text-gray-400 truncate">{new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })}</p>
                 </div>
               </div>
             ))}

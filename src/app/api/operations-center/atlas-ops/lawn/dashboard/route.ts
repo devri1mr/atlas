@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,7 +83,7 @@ export async function GET() {
     const year      = new Date().getUTCFullYear();
     const yearStart = `${year}-01-01`;
     const yearEnd   = `${year}-12-31`;
-    const todayStr  = new Date().toISOString().slice(0, 10);
+    const todayStr  = estToday();
 
     // Fetch production reports + admin pay config in parallel
     const [

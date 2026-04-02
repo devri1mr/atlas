@@ -29,7 +29,7 @@ type DashData = {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmtDate(iso: string) {
   const [y, m, d] = iso.split("-");
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
 }
 
 function ordinal(n: number) {

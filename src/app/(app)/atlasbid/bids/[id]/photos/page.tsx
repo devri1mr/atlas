@@ -480,7 +480,7 @@ export default function BidPhotosPage() {
     </style></head><body>
       <div class="header">
         <h1>Site Photos Report</h1>
-        <p>${toInclude.length} photo${toInclude.length !== 1 ? "s" : ""} · Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+        <p>${toInclude.length} photo${toInclude.length !== 1 ? "s" : ""} · Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" })}</p>
       </div>
       <div class="grid">${photosHtml}</div>
       <script>window.onload = function() { setTimeout(function() { window.print(); }, 300); }</script>

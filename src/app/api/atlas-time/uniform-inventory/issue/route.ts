@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { nextPaycheckDate } from "@/lib/atPayPeriod";
+import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     const employee_id     = String(body.employee_id      ?? "").trim();
     const item_option_id  = String(body.item_option_id   ?? "").trim();
     const quantity        = Math.abs(Number(body.quantity ?? 1));
-    const issue_date      = String(body.issue_date        ?? new Date().toISOString().slice(0, 10));
+    const issue_date      = String(body.issue_date        ?? estToday());
     const issued_type     = String(body.issued_type       ?? "company_issued");
     const item_label      = String(body.item_label        ?? "");
     const size_label      = body.size_label  ? String(body.size_label)  : null;

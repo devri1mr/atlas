@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import * as XLSX from "xlsx";
+import { estToday } from "@/lib/estTime";
 import { calcRealBudgetedHours } from "@/lib/lawnBudgetCalc";
 
 export const runtime = "nodejs";
@@ -563,7 +564,7 @@ export async function POST(req: NextRequest) {
       .from("lawn_production_reports")
       .insert({
         company_id:            companyId,
-        report_date:           reportDate ?? new Date().toISOString().slice(0, 10),
+        report_date:           reportDate ?? estToday(),
         file_name:             file.name,
         total_budgeted_hours:  totalBudgHrs,
         total_actual_hours:    totalActHrs,

@@ -525,7 +525,7 @@ async function mergeMaterialRow(
       setPrepayEnabled(Boolean(b?.prepay_enabled ?? false));
       if (b?.target_gp_pct != null) setTargetGpPct(Number(b.target_gp_pct));
       setBidPricingDate(
-        b?.pricing_date ? String(b.pricing_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
+        b?.pricing_date ? String(b.pricing_date).slice(0, 10) : new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })
       );
       if (b?.season) setSeason(b.season);
       if (b.division_id) setDivisionPick(b.division_id);
@@ -744,7 +744,7 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
     }
 
     const pricingDate =
-      bidPricingDate || new Date().toISOString().slice(0, 10);
+      bidPricingDate || new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     const [inventoryRes, vendorRes] = await Promise.all([
       fetch(
@@ -895,7 +895,7 @@ async function loadMaterialSources(materialId: string, catalogItem?: MaterialsCa
 
   async function ensureMatSources(materialId: string) {
     if (!materialId || matSourcesCache[materialId]) return;
-    const pricingDate = bidPricingDate || new Date().toISOString().slice(0, 10);
+    const pricingDate = bidPricingDate || new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     try {
       const [invRes, vendorRes] = await Promise.all([
         fetch(`/api/inventory/source?material_id=${materialId}&pricing_date=${pricingDate}`, { cache: "no-store" }),

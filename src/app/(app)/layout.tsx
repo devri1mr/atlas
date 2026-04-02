@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import GlobalSportsTicker from "@/components/GlobalSportsTicker";
 import { UserProvider } from "@/lib/userContext";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -90,6 +91,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {/* Sports ticker — excluded from Bids and HR */}
+      {!pathname.startsWith("/atlasbid") && !pathname.startsWith("/operations-center/atlas-time") && (
+        <GlobalSportsTicker />
+      )}
     </div>
     </UserProvider>
   );

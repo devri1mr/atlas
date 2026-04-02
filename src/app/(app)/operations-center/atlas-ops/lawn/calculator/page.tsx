@@ -33,7 +33,7 @@ function calcResult(row: CalcRow, perPerson: number) {
   const outH = Math.floor(endMin / 60) % 24;
   const outM = endMin % 60;
   const outStr = `${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}`;
-  const outFmt = new Date(`2000-01-01T${outStr}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const outFmt = new Date(`2000-01-01T${outStr}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
   return {
     hours,
     time_out: outFmt,

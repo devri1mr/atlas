@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
         quantity:           transaction_type === "issuance" ? -Math.abs(quantity) : Math.abs(quantity),
         unit_cost:          resolvedUnitCost,
         total_cost:         resolvedTotal,
-        transaction_date:   body.transaction_date ?? new Date().toISOString().slice(0, 10),
+        transaction_date:   body.transaction_date ?? estToday(),
         vendor_name:        body.vendor_name       || null,
         reference_number:   body.reference_number  || null,
         notes:              body.notes             || null,

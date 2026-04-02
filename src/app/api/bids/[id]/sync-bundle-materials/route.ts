@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { estToday } from "@/lib/estTime";
 
 export async function POST(
   _req: NextRequest,
@@ -107,7 +108,7 @@ export async function POST(
           source_label: bl.task || "",
           source_reference_id: bl.bundle_run_id,
           unit_cost_snapshot: unitCost,
-          pricing_date_used: new Date().toISOString().slice(0, 10),
+          pricing_date_used: estToday(),
         });
       }
     }

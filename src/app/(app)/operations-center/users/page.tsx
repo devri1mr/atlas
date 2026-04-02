@@ -49,7 +49,7 @@ function userInitials(u: UserProfile) {
   return u.email.slice(0, 2).toUpperCase();
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
 }
 
 // ── DivisionPicker ────────────────────────────────────────────────────────────

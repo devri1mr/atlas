@@ -50,14 +50,14 @@ const WEATHER_CODES: Record<number, { desc: string; icon: string }> = {
   80:{desc:"Showers",icon:"🌦️"},95:{desc:"Thunderstorm",icon:"⛈️"},
 };
 function greeting(name: string) {
-  const h = new Date().getHours();
+  const h = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }));
   return `${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${name}`;
 }
 function fmt$(n: number) {
   return n >= 1_000_000 ? `$${(n/1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n/1_000).toFixed(0)}K` : `$${n.toLocaleString()}`;
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
 }
 function cleanStr(v?: string | null) {
   const s = String(v ?? "").trim();
@@ -357,7 +357,7 @@ export default function DashboardPage() {
   const [config, setConfig] = useState<DashConfig>(DEFAULT_CONFIG);
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
 
   useEffect(() => { setConfig(loadConfig()); }, []);
 

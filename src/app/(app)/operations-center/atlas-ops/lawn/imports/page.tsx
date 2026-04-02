@@ -116,7 +116,7 @@ const dec2   = (n: number | null | undefined) => Number(n ?? 0).toFixed(2);
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const fmtTime = (iso: string | null | undefined) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 };
 const fmtHrs = (ms: number) => {
   const h = ms / 3600000;

@@ -99,7 +99,7 @@ function WeekCard({ title, days, isCurrent }: { title: string; days: DayData[]; 
   const totalPay = days.reduce((s, d) => s + d.payroll_cost, 0);
   const overallLP = totalRev > 0 ? totalPay / totalRev : null;
   const maxRev = Math.max(...days.map(d => d.revenue), 1);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md flex-1 min-w-0" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
@@ -1008,7 +1008,7 @@ export default function LawnDashboard() {
             </div>
             <div className="text-right">
               <div className="text-xs text-white/30 font-medium uppercase tracking-wider">
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York" })}
               </div>
             </div>
           </div>

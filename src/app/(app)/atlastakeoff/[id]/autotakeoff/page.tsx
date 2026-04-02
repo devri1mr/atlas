@@ -619,7 +619,7 @@ export default function AutoTakeoffReviewPage() {
                 style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 11, color: "rgba(255,255,255,0.7)" }}
               >
                 <div style={{ fontWeight: 600 }}>{bid.client_name} {bid.client_last_name}</div>
-                <div style={{ color: "rgba(255,255,255,0.4)" }}>{bid.sell_rounded ? money(bid.sell_rounded) : "—"} · {new Date(bid.created_at).toLocaleDateString()}</div>
+                <div style={{ color: "rgba(255,255,255,0.4)" }}>{bid.sell_rounded ? money(bid.sell_rounded) : "—"} · {new Date(bid.created_at).toLocaleDateString("en-US", { timeZone: "America/New_York" })}</div>
               </div>
             ))}
           </div>

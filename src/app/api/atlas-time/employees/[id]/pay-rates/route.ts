@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         division_name: divisionName,
         qb_class: qbClass,
         rate,
-        effective_date: body.effective_date || new Date().toISOString().slice(0, 10),
+        effective_date: body.effective_date || estToday(),
         end_date: body.end_date || null,
         is_default: body.is_default ?? false,
       })

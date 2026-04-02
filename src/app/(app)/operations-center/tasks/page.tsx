@@ -307,7 +307,7 @@ export default function TaskCatalogPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `atlas-labor-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `atlas-labor-tasks-${new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

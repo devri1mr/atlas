@@ -94,7 +94,7 @@ export default function AtlasTakeoffPage() {
     }
   }
 
-  const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4f8" }}>
