@@ -412,10 +412,251 @@ function QbExport() {
   );
 }
 
+// ─── QB Accrual Component ─────────────────────────────────────────────────────
+
+type PunchItem = { id: string; name: string; qb_class_name: string | null; qb_payroll_item_reg: string | null; qb_payroll_item_ot: string | null };
+type AccrualRow = { employee_display: string; punch_item_name: string; qb_class: string; reg_item: string; ot_item: string; reg_hours: number; ot_hours: number; warning: string };
+
+function lastDayOfMonth(dateISO: string): string {
+  const d = new Date(dateISO + "T12:00:00");
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+}
+
+function dec2(n: number) { return n.toFixed(2); }
+
+function QbAccrual() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const [startDate,    setStartDate]    = useState(today);
+  const [endDate,      setEndDate]      = useState(today);
+  const [accrualDate,  setAccrualDate]  = useState(() => lastDayOfMonth(today));
+  const [punchItems,   setPunchItems]   = useState<PunchItem[]>([]);
+  const [selected,     setSelected]     = useState<Set<string>>(new Set());
+  const [loading,      setLoading]      = useState(false);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [downloading,  setDownloading]  = useState(false);
+  const [rows,         setRows]         = useState<AccrualRow[] | null>(null);
+  const [totals,       setTotals]       = useState<{ reg: number; ot: number; warnings: number } | null>(null);
+  const [error,        setError]        = useState("");
+
+  // Update accrual date when end date changes
+  function handleEndChange(val: string) {
+    setEndDate(val);
+    setAccrualDate(lastDayOfMonth(val));
+  }
+
+  // Load punch items
+  useEffect(() => {
+    fetch("/api/atlas-time/at-divisions?active=true")
+      .then(r => r.json())
+      .then(d => { setPunchItems(d.divisions ?? []); setLoadingItems(false); })
+      .catch(() => setLoadingItems(false));
+  }, []);
+
+  function toggleItem(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === punchItems.length) setSelected(new Set());
+    else setSelected(new Set(punchItems.map(p => p.id)));
+  }
+
+  async function runPreview() {
+    if (!selected.size) { setError("Select at least one punch item."); return; }
+    setError(""); setLoading(true); setRows(null); setTotals(null);
+    try {
+      const params = new URLSearchParams({
+        punch_items: [...selected].join(","),
+        start: startDate, end: endDate,
+        accrual_date: accrualDate, preview: "true",
+      });
+      const res = await fetch(`/api/atlas-time/qb-accrual?${params}`);
+      const d = await res.json();
+      if (!res.ok) { setError(d.error ?? "Error loading preview"); return; }
+      setRows(d.rows ?? []);
+      setTotals({ reg: d.total_reg, ot: d.total_ot, warnings: d.warnings });
+    } finally { setLoading(false); }
+  }
+
+  async function download() {
+    if (!selected.size) return;
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams({
+        punch_items: [...selected].join(","),
+        start: startDate, end: endDate, accrual_date: accrualDate,
+      });
+      const res  = await fetch(`/api/atlas-time/qb-accrual?${params}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `garpiel_accrual_${startDate}_${endDate}.iif`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally { setDownloading(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-gray-800">Payroll Accrual Export — IIF</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Select punch items and a date range to generate an accrual file dated to the last day of the month.
+            Import into QB as a dummy payroll to recognize the liability, then reverse it on the actual payroll date.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Date range + accrual date */}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Start Date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">End Date</label>
+              <input type="date" value={endDate} onChange={e => handleEndChange(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Date</label>
+              <input type="date" value={accrualDate} onChange={e => setAccrualDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
+              <p className="text-[10px] text-gray-400 mt-0.5">All IIF entries use this date</p>
+            </div>
+          </div>
+
+          {/* Punch item selector */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Punch Items</label>
+              {punchItems.length > 0 && (
+                <button onClick={toggleAll} className="text-xs text-emerald-700 font-semibold hover:text-emerald-900">
+                  {selected.size === punchItems.length ? "Deselect all" : "Select all"}
+                </button>
+              )}
+            </div>
+            {loadingItems ? (
+              <div className="text-sm text-gray-400">Loading…</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {punchItems.map(item => {
+                  const checked = selected.has(item.id);
+                  const hasMapping = item.qb_payroll_item_reg || item.qb_payroll_item_ot;
+                  return (
+                    <label key={item.id} className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-emerald-400 bg-emerald-50" : "border-gray-200 hover:border-gray-300"}`}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleItem(item.id)}
+                        className="mt-0.5 accent-emerald-700" />
+                      <span className="text-sm">
+                        <span className="font-medium text-gray-800">{item.name}</span>
+                        {item.qb_class_name && <span className="text-xs text-gray-400 block">{item.qb_class_name}</span>}
+                        {!hasMapping && <span className="text-xs text-amber-500 block">⚠ No QB mapping</span>}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex gap-2">
+            <button onClick={runPreview} disabled={loading || !selected.size}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#123b1f] hover:bg-[#0d2616] disabled:opacity-40 transition-colors">
+              {loading ? "Loading…" : "Preview"}
+            </button>
+            {rows && rows.length > 0 && (
+              <button onClick={download} disabled={downloading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-[#123b1f] border border-[#123b1f] hover:bg-emerald-50 disabled:opacity-40 transition-colors">
+                {downloading ? "Downloading…" : "Download IIF"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Preview results */}
+      {rows && (
+        <div className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="text-sm font-bold text-gray-800">
+              Preview — {rows.length} line{rows.length !== 1 ? "s" : ""}
+            </div>
+            {totals && (
+              <div className="flex gap-4 text-sm tabular-nums text-gray-600">
+                <span>Reg: <span className="font-semibold text-gray-900">{dec2(totals.reg)} hrs</span></span>
+                <span>OT: <span className="font-semibold text-gray-900">{dec2(totals.ot)} hrs</span></span>
+                <span>Total: <span className="font-semibold text-gray-900">{dec2(totals.reg + totals.ot)} hrs</span></span>
+              </div>
+            )}
+          </div>
+          {totals && totals.warnings > 0 && (
+            <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-sm text-amber-800">
+              <span className="font-bold">⚠ {totals.warnings} line{totals.warnings !== 1 ? "s" : ""} missing QB payroll item mappings</span>
+              {" "}— these rows will be omitted from the IIF. Set QB mappings on the punch items first.
+            </div>
+          )}
+          {rows.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-gray-400">No approved punches found for the selected items and date range.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/70">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Team Member</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Punch Item</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">QB Class</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Reg Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Hrs</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {rows.map((r, i) => (
+                    <tr key={i} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-2.5 font-semibold text-gray-800">{r.employee_display}</td>
+                      <td className="px-4 py-2.5 text-gray-600">{r.punch_item_name}</td>
+                      <td className="px-4 py-2.5 text-center text-gray-500 text-xs">{r.qb_class || "—"}</td>
+                      <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{dec2(r.reg_hours)}</td>
+                      <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{r.ot_hours > 0 ? dec2(r.ot_hours) : "—"}</td>
+                      <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-gray-900">{dec2(r.reg_hours + r.ot_hours)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {r.warning && <span className="text-xs text-amber-500 font-medium" title={r.warning}>⚠</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50/50 font-semibold text-gray-800">
+                    <td className="px-4 py-2.5" colSpan={3}>Total</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums">{dec2(rows.reduce((s, r) => s + r.reg_hours, 0))}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums">{dec2(rows.reduce((s, r) => s + r.ot_hours, 0))}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums">{dec2(rows.reduce((s, r) => s + r.reg_hours + r.ot_hours, 0))}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PayrollPage() {
-  const [subView, setSubView] = useState<"adjustments" | "export">("adjustments");
+  const [subView, setSubView] = useState<"adjustments" | "export" | "accrual">("adjustments");
 
   // Pay Adjustments state
   const [dates,    setDates]    = useState<string[]>([]);
@@ -636,6 +877,10 @@ export default function PayrollPage() {
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${subView === "export" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"}`}>
               QB Export
             </button>
+            <button onClick={() => setSubView("accrual")}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${subView === "accrual" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/70"}`}>
+              Accrual Export
+            </button>
           </div>
         </div>
       </div>
@@ -644,6 +889,9 @@ export default function PayrollPage() {
 
         {/* ── QB EXPORT ── */}
         {subView === "export" && <QbExport />}
+
+        {/* ── ACCRUAL EXPORT ── */}
+        {subView === "accrual" && <QbAccrual />}
 
         {/* ── PAY ADJUSTMENTS ── */}
         {subView === "adjustments" && (
