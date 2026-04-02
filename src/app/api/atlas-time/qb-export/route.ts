@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const startDate = searchParams.get("start");
   const endDate   = searchParams.get("end");
   const preview   = searchParams.get("preview") === "true";
+  const empParam  = searchParams.get("employees"); // comma-separated employee IDs
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: "start and end dates required" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const sb = supabaseAdmin();
 
-  const { data: punches, error } = await sb
+  let query = sb
     .from("at_punches")
     .select(`
       id, date_for_payroll, regular_hours, ot_hours, division_id, at_division_id,
@@ -39,6 +40,13 @@ export async function GET(req: NextRequest) {
     .gte("date_for_payroll", startDate)
     .lte("date_for_payroll", endDate)
     .order("date_for_payroll", { ascending: true });
+
+  if (empParam) {
+    const ids = empParam.split(",").map(s => s.trim()).filter(Boolean);
+    if (ids.length > 0) query = query.in("employee_id", ids);
+  }
+
+  const { data: punches, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

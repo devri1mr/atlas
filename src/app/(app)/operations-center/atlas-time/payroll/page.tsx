@@ -63,12 +63,29 @@ function QbExport() {
   const [paySettings,  setPaySettings]  = useState<PayPeriodSettings | null>(null);
   const [selectedDate, setSelectedDate] = useState("2026-04-03");
 
+  // Team member filter
+  const [allEmployees,      setAllEmployees]      = useState<{ id: string; first_name: string; last_name: string }[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [filterOpen,        setFilterOpen]        = useState(false);
+
   // Inline mapping edit
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editReg,    setEditReg]    = useState("");
   const [editOt,     setEditOt]     = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError,  setEditError]  = useState("");
+
+  useEffect(() => {
+    fetch("/api/atlas-time/employees")
+      .then(r => r.json())
+      .then(d => {
+        const list = ((d.employees ?? []) as any[])
+          .filter((e: any) => e.status === "active")
+          .map((e: any) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }));
+        setAllEmployees(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/atlas-time/pay-adjustments/paycheck-dates")
@@ -101,10 +118,14 @@ function QbExport() {
     }
   }
 
+  function empQueryParam() {
+    return selectedEmployees.size > 0 ? `&employees=${[...selectedEmployees].join(",")}` : "";
+  }
+
   async function loadPreview() {
     setLoading(true); setError(""); setSummary(null); setTotals(null);
     try {
-      const res  = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}&preview=true`);
+      const res  = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}&preview=true${empQueryParam()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load preview");
       setSummary(data.summary);
@@ -116,7 +137,7 @@ function QbExport() {
   async function downloadIIF() {
     setDownloading(true); setError("");
     try {
-      const res = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}`);
+      const res = await fetch(`/api/atlas-time/qb-export?start=${startDate}&end=${endDate}${empQueryParam()}`);
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed"); }
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
@@ -190,6 +211,59 @@ function QbExport() {
             <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setSelectedDate(""); setSummary(null); }}
               className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
           </div>
+
+          {/* Team member filter */}
+          {allEmployees.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setFilterOpen(o => !o)}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 flex items-center gap-2 whitespace-nowrap"
+              >
+                <span className="font-semibold text-gray-700">
+                  {selectedEmployees.size === 0
+                    ? "All team members"
+                    : `${selectedEmployees.size} selected`}
+                </span>
+                <span className="text-gray-400 text-xs">▾</span>
+              </button>
+              {filterOpen && (
+                <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg w-56 max-h-72 overflow-y-auto">
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <button onClick={() => { setSelectedEmployees(new Set()); setSummary(null); }}
+                      className="text-xs text-[#123b1f] font-semibold hover:underline">Reset — show all</button>
+                  </div>
+                  {allEmployees.map(emp => {
+                    const checked = selectedEmployees.size === 0 || selectedEmployees.has(emp.id);
+                    return (
+                      <label key={emp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedEmployees(prev => {
+                              // prev.size===0 means "all" — expand to explicit set first
+                              const next = new Set(prev.size === 0 ? allEmployees.map(e => e.id) : prev);
+                              if (next.has(emp.id)) {
+                                next.delete(emp.id);
+                              } else {
+                                next.add(emp.id);
+                                // if all are now selected, collapse back to "all" (empty = no filter)
+                                if (next.size === allEmployees.length) return new Set();
+                              }
+                              return next;
+                            });
+                            setSummary(null);
+                          }}
+                          className="accent-[#123b1f]"
+                        />
+                        <span className="text-gray-700">{emp.last_name}, {emp.first_name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <button onClick={loadPreview} disabled={loading || !startDate || !endDate}
             className="bg-[#123b1f] text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-[#1a5c2a] disabled:opacity-40 transition-colors">
