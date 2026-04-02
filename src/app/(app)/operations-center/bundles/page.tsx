@@ -538,11 +538,11 @@ export default function BundleBuilderPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8f6]">
-      <div className="bg-[#123b1f] px-8 py-4 text-center">
+      <div className="bg-[#123b1f] px-4 sm:px-8 py-4 text-center">
         <div className="text-2xl font-extrabold text-white uppercase tracking-[0.2em]">Bundle Builder</div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-6 py-6 space-y-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-4">
         <Link href="/operations-center" className="text-sm text-emerald-700 hover:underline">← Back to Operations Center</Link>
 
         {error && (

@@ -69,6 +69,7 @@ type JobFlag = {
 
 type MemberTime = {
   member_id: string;
+  employee_id?: string | null;
   resource_name: string;
   actual_hours: number;
   pay_rate: number;
@@ -385,6 +386,12 @@ export default function DigestPage() {
   const [saveError,      setSaveError]      = useState<string | null>(null);
   const rangeRef = useRef(range);
 
+  // ── Add person state ────────────────────────────────────────────────────────
+  const [employees,      setEmployees]      = useState<{ id: string; first_name: string; last_name: string; preferred_name?: string | null; default_pay_rate: number | null }[]>([]);
+  const [showAddPerson,  setShowAddPerson]  = useState(false);
+  const [addPersonEmpId, setAddPersonEmpId] = useState("");
+  const [addPersonHours, setAddPersonHours] = useState("0");
+
   async function fetchDigest(r: { start: string; end: string }) {
     setLoading(true);
     setError(null);
@@ -414,6 +421,9 @@ export default function DigestPage() {
     setExpandedJob(jobId);
     setJobTimeData(null);
     setSaveError(null);
+    setShowAddPerson(false);
+    setAddPersonEmpId("");
+    setAddPersonHours("0");
     setJobTimeLoading(true);
     try {
       const res = await fetch(`/api/operations-center/atlas-ops/lawn/job-time?job_id=${jobId}`, { cache: "no-store" });
@@ -507,6 +517,44 @@ export default function DigestPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Load employee list once for "Add Person" feature
+  useEffect(() => {
+    fetch("/api/atlas-time/employees")
+      .then(r => r.json())
+      .then(d => {
+        const list = ((d.employees ?? []) as any[])
+          .filter((e: any) => e.status === "active")
+          .sort((a: any, b: any) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+        setEmployees(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  function handleAddPerson() {
+    const emp = employees.find(e => e.id === addPersonEmpId);
+    if (!emp) return;
+    const hrs = parseFloat(addPersonHours) || 0;
+    const resourceName = `${emp.last_name}, ${emp.preferred_name || emp.first_name}`;
+    const newMember: MemberTime = {
+      member_id:       "",   // empty = new insert on save
+      employee_id:     emp.id,
+      resource_name:   resourceName,
+      actual_hours:    hrs,
+      pay_rate:        emp.default_pay_rate ?? 0,
+      reg_hours:       hrs,
+      ot_hours:        0,
+      dispatch_time_id: null,
+      dispatch_job_id:  jobTimeData?.job.dispatch_job_id ?? null,
+      time_varies:      jobTimeData?.job.time_varies ?? false,
+      start_time:       null,
+      end_time:         null,
+    };
+    setEditedMembers(prev => [...prev, newMember]);
+    setShowAddPerson(false);
+    setAddPersonEmpId("");
+    setAddPersonHours("0");
   }
 
   useEffect(() => {
@@ -1219,8 +1267,64 @@ export default function DigestPage() {
                                       <p className="text-[10px] text-gray-400 mt-2">Est. cost = dispatch hours × pay rate × 1.15 burden. OT premium applied in full-day digest calculation.</p>
                                     </div>}
 
+                                    {/* ── Add Person ── */}
+                                    <div className="mt-3 pt-3 border-t border-emerald-100">
+                                      {!showAddPerson ? (
+                                        <button
+                                          onClick={() => setShowAddPerson(true)}
+                                          className="text-xs text-emerald-700 font-semibold hover:text-emerald-900 transition-colors flex items-center gap-1"
+                                        >
+                                          <span className="text-base leading-none">+</span> Add Person to Job
+                                        </button>
+                                      ) : (
+                                        <div className="flex flex-wrap items-end gap-3">
+                                          <div>
+                                            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Team Member</label>
+                                            <select
+                                              value={addPersonEmpId}
+                                              onChange={e => setAddPersonEmpId(e.target.value)}
+                                              className="border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500 bg-white min-w-[180px]"
+                                            >
+                                              <option value="">Select…</option>
+                                              {employees
+                                                .filter(e => !editedMembers.some(m => m.employee_id === e.id))
+                                                .map(e => (
+                                                  <option key={e.id} value={e.id}>
+                                                    {e.last_name}, {e.preferred_name || e.first_name}
+                                                  </option>
+                                                ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Hours</label>
+                                            <input
+                                              type="number" step="0.25" min="0"
+                                              value={addPersonHours}
+                                              onChange={e => setAddPersonHours(e.target.value)}
+                                              className="border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500 bg-white w-20 text-center"
+                                            />
+                                          </div>
+                                          <div className="flex items-end gap-2">
+                                            <button
+                                              onClick={handleAddPerson}
+                                              disabled={!addPersonEmpId}
+                                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 transition-colors"
+                                            >
+                                              Add
+                                            </button>
+                                            <button
+                                              onClick={() => { setShowAddPerson(false); setAddPersonEmpId(""); setAddPersonHours("0"); }}
+                                              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
                                     {/* Actions */}
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 mt-3">
                                       <button
                                         onClick={saveJobTime}
                                         disabled={saving}

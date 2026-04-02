@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
         .eq("id", jobId)
         .single(),
       sb.from("lawn_production_members")
-        .select("id, resource_name, actual_hours, pay_rate, reg_hours, ot_hours")
+        .select("id, employee_id, resource_name, actual_hours, pay_rate, reg_hours, ot_hours")
         .eq("job_id", jobId)
         .order("resource_name"),
     ]);
@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
 
       return {
         member_id:       m.id,
+        employee_id:     m.employee_id ?? null,
         resource_name:   m.resource_name,
         actual_hours:    Number(m.actual_hours   ?? 0),
         pay_rate:        Number(m.pay_rate        ?? 0),
@@ -106,6 +107,7 @@ export async function PATCH(req: NextRequest) {
       job_id: string;
       members: {
         member_id:       string;
+        employee_id?:    string | null;
         resource_name:   string;
         actual_hours:    number;
         dispatch_time_id: string | null;
@@ -129,6 +131,32 @@ export async function PATCH(req: NextRequest) {
     // Update dispatch times and member actual_hours
     for (const m of members) {
       const hrs = Number(m.actual_hours ?? 0);
+
+      // New member (member_id is empty string) — INSERT instead of UPDATE
+      if (!m.member_id) {
+        let payRate = 0;
+        if (m.employee_id) {
+          const { data: emp } = await sb
+            .from("at_employees")
+            .select("default_pay_rate")
+            .eq("id", m.employee_id)
+            .single();
+          payRate = Number(emp?.default_pay_rate ?? 0);
+        }
+        await sb.from("lawn_production_members").insert({
+          job_id:               job_id,
+          employee_id:          m.employee_id ?? null,
+          resource_name:        m.resource_name,
+          actual_hours:         hrs,
+          reg_hours:            hrs,
+          ot_hours:             0,
+          pay_rate:             payRate,
+          payroll_cost:         hrs * payRate,
+          total_payroll_hours:  hrs,
+          punch_status:         "manual",
+        });
+        continue;
+      }
 
       if (timeVaries) {
         // Per-member dispatch times

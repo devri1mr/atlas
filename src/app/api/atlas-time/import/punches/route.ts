@@ -168,6 +168,13 @@ export async function POST(req: NextRequest) {
       div = divList.find(d => normalize(d.name).startsWith(n));
       if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
 
+      // 2b. CSV term starts with the division name — handles Jolt exporting "Lawn Maintenance"
+      //     when the division is called "Lawn". Only applies to divisions (not at_divisions,
+      //     which use csv_name for explicit aliasing). Requires the CSV term to be longer so
+      //     short names don't swallow unrelated terms.
+      div = divList.find(d => { const dn = normalize(d.name); return n.startsWith(dn) && n.length > dn.length + 1; });
+      if (div) return { division_id: div.id, at_division_id: null, matched_item_name: div.name };
+
       // 3. Word-prefix fuzzy ("Holiday Lighting" → "Holiday Lights")
       atDiv = atDivList.find(d => wordPrefixMatch(d.name, punchItem));
       if (atDiv) return { division_id: atDiv.division_id ?? null, at_division_id: atDiv.id, matched_item_name: atDiv.name };

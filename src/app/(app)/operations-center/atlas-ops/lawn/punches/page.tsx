@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -64,6 +64,8 @@ function estToUtc(localDatetime: string) {
   return new Date(est.getTime() + offsetMs).toISOString();
 }
 
+type PunchEdit = { timeIn: string; timeOut: string; atDiv: string; saving: boolean; error: string };
+
 const STATUS_COLORS: Record<string, string> = {
   open:     "bg-blue-100 text-blue-700",
   pending:  "bg-amber-100 text-amber-700",
@@ -83,10 +85,8 @@ export default function LawnPunchesPage() {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState("");
 
-  // Inline division edit
-  const [editingId,   setEditingId]   = useState<string | null>(null);
-  const [editAtDiv,   setEditAtDiv]   = useState("");
-  const [editSaving,  setEditSaving]  = useState(false);
+  // Inline edit — keyed by punch ID so multiple rows can be open at once
+  const [editStates, setEditStates] = useState<Record<string, PunchEdit>>({});
 
   // Add punch modal
   const [showAdd,     setShowAdd]     = useState(false);
@@ -132,26 +132,55 @@ export default function LawnPunchesPage() {
     finally { setLoading(false); }
   }
 
-  // ── Inline division edit ───────────────────────────────────────────────────
+  // ── Inline edit ───────────────────────────────────────────────────────────
 
   function startEdit(p: Punch) {
-    setEditingId(p.id);
-    setEditAtDiv(p.at_division_id ?? "");
+    setEditStates(prev => {
+      if (p.id in prev) {
+        const next = { ...prev };
+        delete next[p.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [p.id]: {
+          timeIn:  p.clock_in_at  ? toEst(p.clock_in_at)  : "",
+          timeOut: p.clock_out_at ? toEst(p.clock_out_at) : "",
+          atDiv:   p.at_division_id ?? "",
+          saving:  false,
+          error:   "",
+        },
+      };
+    });
+  }
+
+  function updateEdit(id: string, field: keyof Omit<PunchEdit, "saving" | "error">, value: string) {
+    setEditStates(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  }
+
+  function cancelEdit(id: string) {
+    setEditStates(prev => { const next = { ...prev }; delete next[id]; return next; });
   }
 
   async function saveEdit(p: Punch) {
-    setEditSaving(true);
+    const es = editStates[p.id];
+    if (!es) return;
+    setEditStates(prev => ({ ...prev, [p.id]: { ...prev[p.id], saving: true, error: "" } }));
     try {
+      const body: Record<string, any> = { at_division_id: es.atDiv || null };
+      body.clock_in_at  = es.timeIn  ? estToUtc(es.timeIn)  : null;
+      body.clock_out_at = es.timeOut ? estToUtc(es.timeOut) : null;
       const res = await fetch(`/api/atlas-time/punches/${p.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ at_division_id: editAtDiv || null }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Save failed"); }
-      setEditingId(null);
+      cancelEdit(p.id);
       await loadPunches();
-    } catch (e: any) { alert(e.message); }
-    finally { setEditSaving(false); }
+    } catch (e: any) {
+      setEditStates(prev => ({ ...prev, [p.id]: { ...prev[p.id], saving: false, error: e.message ?? "Save failed" } }));
+    }
   }
 
   // ── Add punch ─────────────────────────────────────────────────────────────
@@ -257,54 +286,83 @@ export default function LawnPunchesPage() {
                 {punches.map(p => {
                   const empPunches = byEmployee[p.employee_id] ?? [];
                   const hasDup = empPunches.length > 1;
-                  const isEditing = editingId === p.id;
+                  const es = editStates[p.id];
+                  const isEditing = !!es;
                   const divLabel = p.at_divisions?.name ?? p.divisions?.name ?? "—";
                   return (
-                    <tr key={p.id} className={hasDup ? "bg-amber-50" : "hover:bg-gray-50/40"}>
-                      <td className="px-5 py-3 font-semibold text-gray-800 text-xs whitespace-nowrap">
-                        {empName(p.at_employees)}
-                        {hasDup && <span className="ml-2 text-amber-600 text-[10px] font-bold">⚠ {empPunches.length} punches</span>}
-                        {p.is_manual && <span className="ml-2 text-gray-400 text-[10px]">manual</span>}
-                      </td>
-                      <td className="px-3 py-3 text-xs text-center text-gray-700">{fmtTime(p.clock_in_at)}</td>
-                      <td className="px-3 py-3 text-xs text-center text-gray-700">{fmtTime(p.clock_out_at)}</td>
-                      <td className="px-3 py-3 text-xs text-center font-semibold text-gray-700">{fmtHours(p.regular_hours, p.ot_hours)}</td>
-                      <td className="px-3 py-3 text-xs">
-                        {isEditing ? (
-                          <select value={editAtDiv} onChange={e => setEditAtDiv(e.target.value)}
-                            className="border border-green-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 bg-white w-40">
-                            <option value="">— None —</option>
-                            {atDivs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                          </select>
-                        ) : (
+                    <Fragment key={p.id}>
+                      <tr className={hasDup ? "bg-amber-50" : isEditing ? "bg-green-50/30" : "hover:bg-gray-50/40"}>
+                        <td className="px-5 py-3 font-semibold text-gray-800 text-xs whitespace-nowrap">
+                          {empName(p.at_employees)}
+                          {hasDup && <span className="ml-2 text-amber-600 text-[10px] font-bold">⚠ {empPunches.length} punches</span>}
+                          {p.is_manual && <span className="ml-2 text-gray-400 text-[10px]">manual</span>}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-center text-gray-700">{fmtTime(p.clock_in_at)}</td>
+                        <td className="px-3 py-3 text-xs text-center text-gray-700">{fmtTime(p.clock_out_at)}</td>
+                        <td className="px-3 py-3 text-xs text-center font-semibold text-gray-700">{fmtHours(p.regular_hours, p.ot_hours)}</td>
+                        <td className="px-3 py-3 text-xs">
                           <span className={!divLabel || divLabel === "—" ? "text-amber-600 font-semibold" : "text-gray-700"}>
                             {divLabel || "⚠ Not set"}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap">
-                        {isEditing ? (
-                          <div className="flex items-center gap-1 justify-end">
-                            <button onClick={() => saveEdit(p)} disabled={editSaving}
-                              className="bg-[#123b1f] text-white text-xs font-semibold px-2.5 py-1 rounded-lg hover:bg-[#1a5c2a] disabled:opacity-40">
-                              {editSaving ? "…" : "Save"}
-                            </button>
-                            <button onClick={() => setEditingId(null)}
-                              className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
-                          </div>
-                        ) : (
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-right whitespace-nowrap">
                           <button onClick={() => startEdit(p)}
-                            className="text-xs text-[#123b1f] font-semibold hover:underline">
-                            Edit
+                            className={`text-xs font-semibold hover:underline ${isEditing ? "text-gray-400" : "text-[#123b1f]"}`}>
+                            {isEditing ? "Editing…" : "Edit"}
                           </button>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                      {isEditing && es && (
+                        <tr className="border-t border-green-100">
+                          <td colSpan={7} className="p-0">
+                            <div className="bg-green-50/40 px-5 py-4">
+                              <div className="flex flex-wrap items-end gap-4">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                                    Time In <span className="text-gray-300 font-normal normal-case">(Eastern)</span>
+                                  </label>
+                                  <input type="datetime-local" value={es.timeIn}
+                                    onChange={e => updateEdit(p.id, "timeIn", e.target.value)}
+                                    className="border border-green-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 bg-white" />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                                    Time Out <span className="text-gray-300 font-normal normal-case">(Eastern · optional)</span>
+                                  </label>
+                                  <input type="datetime-local" value={es.timeOut}
+                                    onChange={e => updateEdit(p.id, "timeOut", e.target.value)}
+                                    className="border border-green-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 bg-white" />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Division</label>
+                                  <select value={es.atDiv} onChange={e => updateEdit(p.id, "atDiv", e.target.value)}
+                                    className="border border-green-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 bg-white min-w-[160px]">
+                                    <option value="">— None —</option>
+                                    {atDivs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                  </select>
+                                </div>
+                                <div className="flex items-end gap-2">
+                                  <button onClick={() => saveEdit(p)} disabled={es.saving}
+                                    className="bg-[#123b1f] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#1a5c2a] disabled:opacity-40 transition-colors">
+                                    {es.saving ? "Saving…" : "Save Changes"}
+                                  </button>
+                                  <button onClick={() => cancelEdit(p.id)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                              {es.error && <p className="mt-2 text-xs text-red-600">{es.error}</p>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>

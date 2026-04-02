@@ -34,9 +34,35 @@ const PERIOD_LABELS: Record<Period, string> = {
   ytd:        "Year to Date",
 };
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type DayBreakdown = {
+  date: string;
+  jobs: { work_order: string; client_name: string; service: string; earned_amount: number; actual_hours: number }[];
+  total_earned: number;
+  payroll_cost: number;
+  payroll_hours: number;
+};
+
+type PersonDetail = {
+  days: DayBreakdown[];
+  totals: { earned: number; cost: number; hours: number };
+  start: string;
+  end: string;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function fmtMoney(n: number) { return money.format(n); }
+
+function fmtDateLong(d: string) {
+  return new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+  });
+}
 
 function fmtDateShort(d: string) {
   return new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
@@ -80,10 +106,13 @@ function Avatar({ person, size = 40 }: { person: RankedPerson; size?: number }) 
 const MEDAL_COLORS = ["text-yellow-400", "text-gray-400", "text-amber-600"];
 function medalColor(rank: number) { return rank <= 3 ? MEDAL_COLORS[rank - 1] : "text-gray-300"; }
 
-function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEarned: number; rank: number }) {
+function ProducerRow({ person, maxEarned, rank, onClick, selected }: { person: RankedPerson; maxEarned: number; rank: number; onClick: () => void; selected: boolean }) {
   const barPct = maxEarned > 0 ? (person.total_earned / maxEarned) * 100 : 0;
   return (
-    <div className="flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0">
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0 cursor-pointer transition-colors ${selected ? "bg-emerald-50" : "hover:bg-gray-50/60"}`}
+    >
       <span className={`text-sm font-bold w-6 text-right shrink-0 ${medalColor(rank)}`}>{rank}</span>
       <Avatar person={person} size={40} />
       <div className="flex-1 min-w-0">
@@ -95,15 +124,19 @@ function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEar
           />
         </div>
       </div>
+      <span className="text-[10px] text-emerald-600 font-semibold shrink-0">View ›</span>
     </div>
   );
 }
 
-function EfficiencyRow({ person, maxEff, rank }: { person: RankedPerson; maxEff: number; rank: number }) {
+function EfficiencyRow({ person, maxEff, rank, onClick, selected }: { person: RankedPerson; maxEff: number; rank: number; onClick: () => void; selected: boolean }) {
   const barPct = maxEff > 0 ? (person.efficiency_pct / maxEff) * 100 : 0;
   const isGreen = person.efficiency_pct >= 1;
   return (
-    <div className="flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0">
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-4 px-5 py-3.5 border-t border-gray-100 first:border-t-0 cursor-pointer transition-colors ${selected ? "bg-emerald-50" : "hover:bg-gray-50/60"}`}
+    >
       <span className={`text-sm font-bold w-6 text-right shrink-0 ${medalColor(rank)}`}>{rank}</span>
       <Avatar person={person} size={40} />
       <div className="flex-1 min-w-0">
@@ -121,6 +154,7 @@ function EfficiencyRow({ person, maxEff, rank }: { person: RankedPerson; maxEff:
           {pct(person.efficiency_pct)}
         </div>
       </div>
+      <span className="text-[10px] text-emerald-600 font-semibold shrink-0 ml-1">View ›</span>
     </div>
   );
 }
@@ -133,6 +167,11 @@ export default function RankingsPage() {
   const [loading, setLoading]   = useState(true);
   const [isDisplay, setIsDisplay] = useState(false);
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Person breakdown
+  const [selectedPerson,       setSelectedPerson]       = useState<RankedPerson | null>(null);
+  const [personDetail,         setPersonDetail]         = useState<PersonDetail | null>(null);
+  const [personDetailLoading,  setPersonDetailLoading]  = useState(false);
 
   const load = useCallback(async (p: Period) => {
     setLoading(true);
@@ -161,6 +200,28 @@ export default function RankingsPage() {
   function changePeriod(p: Period) {
     setPeriod(p);
     load(p);
+    setSelectedPerson(null);
+    setPersonDetail(null);
+  }
+
+  async function loadPersonDetail(person: RankedPerson) {
+    if (selectedPerson?.resource_name === person.resource_name) {
+      setSelectedPerson(null);
+      setPersonDetail(null);
+      return;
+    }
+    setSelectedPerson(person);
+    setPersonDetail(null);
+    setPersonDetailLoading(true);
+    try {
+      const params = new URLSearchParams({ period });
+      if (person.employee_id) params.set("employee_id", person.employee_id);
+      else params.set("resource_name", person.resource_name);
+      const res = await fetch(`/api/operations-center/atlas-ops/lawn/rankings/person?${params}`, { cache: "no-store" });
+      const d = await res.json();
+      setPersonDetail(d);
+    } catch { /* ignore */ }
+    setPersonDetailLoading(false);
   }
 
   const producers  = data?.top_producers  ?? [];
@@ -337,7 +398,9 @@ export default function RankingsPage() {
               ) : (
                 <div>
                   {producers.map((p, i) => (
-                    <ProducerRow key={p.resource_name} person={p} maxEarned={maxEarned} rank={i + 1} />
+                    <ProducerRow key={p.resource_name} person={p} maxEarned={maxEarned} rank={i + 1}
+                      onClick={() => loadPersonDetail(p)}
+                      selected={selectedPerson?.resource_name === p.resource_name} />
                   ))}
                 </div>
               )}
@@ -354,7 +417,9 @@ export default function RankingsPage() {
               ) : (
                 <div>
                   {efficient.map((p, i) => (
-                    <EfficiencyRow key={p.resource_name} person={p} maxEff={maxEff} rank={i + 1} />
+                    <EfficiencyRow key={p.resource_name} person={p} maxEff={maxEff} rank={i + 1}
+                      onClick={() => loadPersonDetail(p)}
+                      selected={selectedPerson?.resource_name === p.resource_name} />
                   ))}
                 </div>
               )}
@@ -363,6 +428,85 @@ export default function RankingsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Person breakdown modal ── */}
+      {selectedPerson && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-8 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col my-auto">
+
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              <Avatar person={selectedPerson} size={44} />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900 text-sm">{selectedPerson.display_name}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{PERIOD_LABELS[period]} · {dateRange}</div>
+              </div>
+              <button
+                onClick={() => { setSelectedPerson(null); setPersonDetail(null); }}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none px-1"
+              >✕</button>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-px bg-gray-100 border-b border-gray-100">
+              {[
+                { label: "Revenue Earned", value: fmtMoney(selectedPerson.total_earned) },
+                { label: "Payroll Cost",   value: fmtMoney(selectedPerson.payroll_cost) },
+                { label: "Hours Worked",   value: `${selectedPerson.total_payroll_hours.toFixed(1)} hrs` },
+                { label: "Efficiency",     value: pct(selectedPerson.efficiency_pct),
+                  color: selectedPerson.efficiency_pct >= 1 ? "text-emerald-600" : "text-amber-500" },
+              ].map(row => (
+                <div key={row.label} className="bg-gray-50/80 px-5 py-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">{row.label}</div>
+                  <div className={`text-base font-semibold mt-0.5 ${(row as any).color ?? "text-gray-900"}`}>{row.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Per-day breakdown */}
+            <div className="px-5 py-4 overflow-y-auto max-h-[55vh]">
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Day-by-Day Breakdown</div>
+              {personDetailLoading ? (
+                <div className="text-center text-sm text-gray-400 py-8">Loading…</div>
+              ) : !personDetail?.days?.length ? (
+                <div className="text-center text-sm text-gray-400 py-8">No detail data for this period.</div>
+              ) : (
+                <div className="space-y-3">
+                  {personDetail.days.map(day => (
+                    <div key={day.date} className="rounded-xl border border-gray-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-gray-50/80 flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-xs font-semibold text-gray-700">{fmtDateLong(day.date)}</span>
+                        <span className="text-[11px] text-gray-400">
+                          {fmtMoney(day.total_earned)} earned · {fmtMoney(day.payroll_cost)} payroll · {day.payroll_hours.toFixed(1)} hrs
+                        </span>
+                      </div>
+                      <table className="w-full text-xs">
+                        <tbody className="divide-y divide-gray-50">
+                          {day.jobs.map((job, i) => (
+                            <tr key={i} className="hover:bg-gray-50/40">
+                              <td className="px-4 py-1.5 text-gray-400 whitespace-nowrap">{job.work_order}</td>
+                              <td className="px-2 py-1.5 text-gray-700 font-medium truncate max-w-[120px]">{job.client_name}</td>
+                              <td className="px-2 py-1.5 text-gray-400">{job.service}</td>
+                              <td className="px-4 py-1.5 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtMoney(job.earned_amount)}</td>
+                              <td className="px-4 py-1.5 text-right text-gray-400 whitespace-nowrap">{job.actual_hours.toFixed(1)} hrs</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                  {/* Grand total */}
+                  <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-100 text-xs font-semibold text-emerald-900">
+                    <span>{personDetail.days.length} day{personDetail.days.length !== 1 ? "s" : ""} worked</span>
+                    <span>{fmtMoney(personDetail.totals.earned)} earned · {fmtMoney(personDetail.totals.cost)} payroll · {personDetail.totals.hours.toFixed(1)} hrs</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

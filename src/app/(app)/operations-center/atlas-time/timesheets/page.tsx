@@ -283,7 +283,7 @@ function TimesheetsInner() {
             <button onClick={() => nav(-1)} className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center text-white transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <span className="text-white font-semibold text-sm min-w-[220px] text-center">{period?.label ?? "Loading…"}</span>
+            <span className="text-white font-semibold text-sm text-center">{period?.label ?? "Loading…"}</span>
             <button onClick={() => nav(1)} className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center text-white transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
@@ -305,12 +305,12 @@ function TimesheetsInner() {
         {/* Search + sort + filter */}
         <div className="flex flex-wrap gap-2 items-center print:hidden">
           {/* Search */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search team member…"
-              className="w-52 border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full sm:w-52 border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
 
           {/* Sort */}

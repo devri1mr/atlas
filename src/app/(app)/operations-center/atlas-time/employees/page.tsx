@@ -319,7 +319,7 @@ export default function EmployeesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
           />
-          <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 shrink-0">
+          <div className="flex flex-wrap gap-1 bg-white border border-gray-200 rounded-xl p-1">
             {(["all","active","inactive","on_leave","terminated"] as const).map((s) => (
               <button
                 key={s}

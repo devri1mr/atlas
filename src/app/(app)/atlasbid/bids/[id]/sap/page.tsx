@@ -219,7 +219,7 @@ export default function SapPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-10">
+    <div className="max-w-2xl mx-auto px-4 space-y-5 pb-10">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -262,7 +262,7 @@ export default function SapPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Client Name</span>
-          <span className="ml-2 text-[10px] text-gray-400">First Name · Last Name · Client Name / Company Name</span>
+          <span className="ml-2 text-[10px] text-gray-400 hidden sm:inline">First Name · Last Name · Client Name / Company Name</span>
         </div>
         <div className="px-5 divide-y divide-gray-50">
           <Field label="First Name" value={firstName} id="first" />

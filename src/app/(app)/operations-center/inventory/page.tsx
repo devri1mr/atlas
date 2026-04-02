@@ -376,7 +376,7 @@ export default function InventoryPage() {
         <Link href="/operations-center" className="text-white/60 hover:text-white text-sm">← Operations Center</Link>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Division tabs */}
         <div className="flex gap-2 flex-wrap">
