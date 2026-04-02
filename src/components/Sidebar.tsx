@@ -121,22 +121,33 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       .catch(() => {});
   }, []);
 
+  const allowedDivIds = user?.allowed_division_ids ?? null;
+  const isDivRestricted = allowedDivIds && allowedDivIds.length > 0;
+
   const fullNav = useMemo<NavItem[]>(() => {
+    const allowedDivs = isDivRestricted
+      ? opsDivisions.filter(d => allowedDivIds!.includes(d.id))
+      : opsDivisions;
+
+    const firstDivHref = allowedDivs[0]
+      ? `/operations-center/atlas-ops/${allowedDivs[0].name.toLowerCase().replace(/\s+/g, "-")}`
+      : "/atlasperformance";
+
     const opsItem: NavItem = {
       label: "Operations",
-      href: "/atlasperformance",
+      href: isDivRestricted ? firstDivHref : "/atlasperformance",
       permKey: "perf_view",
       icon: <Image src="/atlas-ops-logo.png" alt="Atlas Ops" width={18} height={18} className="object-contain" />,
       children: [
-        { label: "Upcoming Revenue", href: "/operations-center/atlas-ops" },
-        ...opsDivisions.map(d => ({
+        ...(!isDivRestricted ? [{ label: "Upcoming Revenue", href: "/operations-center/atlas-ops" }] : []),
+        ...allowedDivs.map(d => ({
           label: d.name,
           href: `/operations-center/atlas-ops/${d.name.toLowerCase().replace(/\s+/g, "-")}`,
         })),
       ],
     };
     return [...NAV.slice(0, 3), opsItem, ...NAV.slice(3)];
-  }, [opsDivisions]);
+  }, [opsDivisions, isDivRestricted, allowedDivIds]);
 
   // Auto-expand groups whose children include the current path
   useEffect(() => {

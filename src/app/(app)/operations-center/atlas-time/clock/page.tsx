@@ -160,7 +160,7 @@ function calcPunchHours(clockIn: string, clockOut: string, s: AtSettings) {
 
 const EMPTY_MANUAL = {
   employee_id: "",
-  date: new Date().toISOString().slice(0, 10),
+  date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
   clock_in_time: "09:00",
   clock_out_time: "",
   division_id: "",
@@ -268,7 +268,7 @@ function ClockPageInner() {
   const cols = useClockCols();
 
   // Date navigation — persisted in URL query string so refresh keeps the date
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const urlDate  = searchParams.get("date");
   const [viewDate, setViewDateState] = useState(urlDate ?? todayStr);
 
@@ -284,7 +284,7 @@ function ClockPageInner() {
 
   // Bulk entry
   const [showBulkEntry, setShowBulkEntry] = useState(false);
-  const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => [newBulkRow(new Date().toISOString().slice(0, 10))]);
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>(() => [newBulkRow(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }))]);
   const [atSettings, setAtSettings] = useState<AtSettings>(DEFAULT_SETTINGS);
   const bulkRowsRef = useRef<BulkRow[]>([]);
   const atSettingsRef = useRef<AtSettings>(DEFAULT_SETTINGS);

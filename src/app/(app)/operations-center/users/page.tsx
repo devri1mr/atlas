@@ -17,7 +17,10 @@ type UserProfile = {
   invite_sent: boolean | null;
   created_at: string;
   permissions: Permissions;
+  allowed_division_ids: string[] | null;
 };
+
+type Division = { id: string; name: string };
 
 type RoleOption = { id: string; name: string; description: string | null; is_admin: boolean; is_system: boolean; permissions: Permissions };
 
@@ -47,6 +50,52 @@ function userInitials(u: UserProfile) {
 }
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ── DivisionPicker ────────────────────────────────────────────────────────────
+
+function DivisionPicker({ divisions, selected, onChange }: {
+  divisions: Division[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-100 overflow-hidden bg-white">
+      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Operations — Division Access</p>
+        <p className="text-xs text-gray-400 mt-0.5">Unchecked = sees all divisions. Check specific divisions to restrict access.</p>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {divisions.map(div => {
+          const on = selected.includes(div.id);
+          return (
+            <div key={div.id} className="flex items-center justify-between px-4 py-2.5">
+              <span className={`text-sm ${on ? "text-gray-800 font-medium" : "text-gray-400"}`}>{div.name}</span>
+              <button
+                onClick={() => toggle(div.id)}
+                className={`relative w-9 h-5 rounded-full shrink-0 transition-colors ${on ? "bg-green-500" : "bg-gray-200"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+          );
+        })}
+        {divisions.length === 0 && (
+          <div className="px-4 py-3 text-xs text-gray-400">No active divisions found.</div>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <div className="px-4 py-2 bg-green-50 border-t border-green-100 flex items-center justify-between">
+          <span className="text-xs text-green-700 font-medium">Restricted to: {divisions.filter(d => selected.includes(d.id)).map(d => d.name).join(", ")}</span>
+          <button onClick={() => onChange([])} className="text-xs text-green-600 hover:underline font-semibold ml-3 shrink-0">Clear</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── PermissionsPanel ──────────────────────────────────────────────────────────
@@ -185,6 +234,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
 
   // Add flow
   const [addOpen, setAddOpen] = useState(false);
@@ -193,6 +243,7 @@ export default function UsersPage() {
   const [newName, setNewName] = useState("");
   const [newRoleId, setNewRoleId] = useState<string>("");
   const [newPerms, setNewPerms] = useState<Permissions>({});
+  const [newDivIds, setNewDivIds] = useState<string[]>([]);
   const [addSaving, setAddSaving] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
 
@@ -202,6 +253,7 @@ export default function UsersPage() {
   const [editRoleId, setEditRoleId] = useState<string>("");
   const [editActive, setEditActive] = useState(true);
   const [editPerms, setEditPerms] = useState<Permissions>({});
+  const [editDivIds, setEditDivIds] = useState<string[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -220,9 +272,12 @@ export default function UsersPage() {
     fetch("/api/roles").then(r => r.json()).then(j => {
       const opts: RoleOption[] = j.data ?? [];
       setRoleOptions(opts);
-      // Set default newRoleId to first non-admin role
       const firstNonAdmin = opts.find(r => !r.is_admin);
       if (firstNonAdmin) setNewRoleId(firstNonAdmin.id);
+    }).catch(() => {});
+    fetch("/api/operations-center/divisions").then(r => r.json()).then(j => {
+      const active = ((j.data ?? []) as any[]).filter((d: any) => d.active).map((d: any) => ({ id: d.id, name: d.name }));
+      setDivisions(active);
     }).catch(() => {});
   }, []);
 
@@ -234,6 +289,7 @@ export default function UsersPage() {
     const firstNonAdmin = roleOptions.find(r => !r.is_admin);
     setNewRoleId(firstNonAdmin?.id ?? roleOptions[0]?.id ?? "");
     setNewPerms({});
+    setNewDivIds([]);
     setAddErr(null);
   }
 
@@ -256,6 +312,7 @@ export default function UsersPage() {
         role: selectedRole?.name ?? "",
         role_id: newRoleId || null,
         permissions: cleanOverrides(rolePerms, newPerms),
+        allowed_division_ids: newDivIds.length > 0 ? newDivIds : null,
         send_invite: sendInvite,
       }),
     });
@@ -275,6 +332,7 @@ export default function UsersPage() {
     setEditRoleId(user.role_id ?? "");
     setEditActive(user.is_active);
     setEditPerms(user.permissions ?? {});
+    setEditDivIds(user.allowed_division_ids ?? []);
     setEditErr(null);
     setConfirmDelete(false);
   }
@@ -293,6 +351,7 @@ export default function UsersPage() {
         is_active: editActive,
         permissions: cleanOverrides(rolePerms, editPerms),
         full_name: editName.trim() || null,
+        allowed_division_ids: editDivIds.length > 0 ? editDivIds : null,
       }),
     });
     const json = await res.json();
@@ -591,6 +650,7 @@ export default function UsersPage() {
                 </button>
               </div>
               <PermissionsPanel rolePerms={roleOptions.find(r => r.id === newRoleId)?.permissions ?? {}} overrides={newPerms} onChange={setNewPerms} />
+              <DivisionPicker divisions={divisions} selected={newDivIds} onChange={setNewDivIds} />
             </>
           )}
         </div>
@@ -684,6 +744,8 @@ export default function UsersPage() {
                 </div>
                 <PermissionsPanel rolePerms={roleOptions.find(r => r.id === editRoleId)?.permissions ?? {}} overrides={editPerms} onChange={setEditPerms} />
               </div>
+
+              <DivisionPicker divisions={divisions} selected={editDivIds} onChange={setEditDivIds} />
             </div>
 
             {/* Footer */}

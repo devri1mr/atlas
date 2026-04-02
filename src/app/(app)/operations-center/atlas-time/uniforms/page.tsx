@@ -93,7 +93,7 @@ export default function UniformsPage() {
   const [formColor,     setFormColor]     = useState("");
   const [formQty,       setFormQty]       = useState("1");
   const [formUnitCost,  setFormUnitCost]  = useState("");
-  const [formDate,      setFormDate]      = useState(new Date().toISOString().slice(0, 10));
+  const [formDate,      setFormDate]      = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
   const [formVendor,    setFormVendor]    = useState("");
   const [formRef,       setFormRef]       = useState("");
   const [formNotes,     setFormNotes]     = useState("");
@@ -153,7 +153,7 @@ export default function UniformsPage() {
 
   function resetForm() {
     setFormItem(""); setFormSize(""); setFormColor("");
-    setFormQty("1"); setFormUnitCost(""); setFormDate(new Date().toISOString().slice(0, 10));
+    setFormQty("1"); setFormUnitCost(""); setFormDate(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
     setFormVendor(""); setFormRef(""); setFormNotes("");
     setFormError("");
   }

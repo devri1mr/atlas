@@ -460,7 +460,7 @@ export default function PayrollPage() {
       setSettings(dj.settings ?? null);
       setEmployees((ej.employees ?? []).map((e: any) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name })).sort((a: Employee, b: Employee) => a.last_name.localeCompare(b.last_name)));
       // Default to the nearest upcoming date
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       const upcoming = d.find(x => x >= today) ?? d[d.length - 1] ?? null;
       setActiveDate(upcoming);
     } catch {
@@ -603,7 +603,7 @@ export default function PayrollPage() {
   const deductTotal    = deductions.reduce((s, a) => s + Number(a.amount), 0);
   const reimbTotal     = reimbursements.reduce((s, a) => s + Number(a.amount), 0);
   const pendingCount   = adjustments.filter(a => a.status === "pending").length;
-  const today          = new Date().toISOString().slice(0, 10);
+  const today          = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 

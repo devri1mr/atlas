@@ -144,7 +144,7 @@ export default function RateSetupPage() {
     try {
       setSaving(true);
       setError("");
-      const effectiveDate = emp.hire_date ?? new Date().toISOString().slice(0, 10);
+      const effectiveDate = emp.hire_date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       for (const pr of pendingRates) {
         const parsed = parseFloat(pr.rate);
         const div = divisions.find(d => d.id === pr.division_id);

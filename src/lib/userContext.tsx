@@ -16,6 +16,7 @@ export type UserProfile = {
   role_is_admin: boolean;
   role_permissions: Permissions;
   permissions: Permissions; // per-user overrides
+  allowed_division_ids: string[] | null; // null = no restriction
   is_super_admin: boolean;
 };
 

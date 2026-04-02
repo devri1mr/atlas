@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profile } = await sb
     .from("user_profiles")
-    .select("id, email, full_name, role, role_id, permissions, roles(id, name, is_admin, permissions)")
+    .select("id, email, full_name, role, role_id, permissions, allowed_division_ids, roles(id, name, is_admin, permissions)")
     .eq("id", user.id)
     .single();
 
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       role_is_admin: roleRow?.is_admin ?? false,
       role_permissions: roleRow?.permissions ?? {},
       permissions: profile.permissions ?? {},
+      allowed_division_ids: (profile as any).allowed_division_ids ?? null,
     },
   });
 }

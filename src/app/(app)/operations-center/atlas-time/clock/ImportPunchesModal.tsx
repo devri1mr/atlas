@@ -269,7 +269,7 @@ export default function ImportPunchesModal({ onClose, onImported }: { onClose: (
     setQuickAddSaving(true);
     setQuickAddError("");
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       const res = await fetch("/api/atlas-time/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

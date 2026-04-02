@@ -40,7 +40,7 @@ export default function NewEmployeePage() {
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", preferred_name: "", date_of_birth: "",
-    hire_date: new Date().toISOString().slice(0, 10),
+    hire_date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
     personal_email: "", work_email: "", phone: "",
     address_line1: "", address_line2: "", city: "", state: "", zip: "",
     department_id: "", division_id: "", job_title: "",
@@ -56,7 +56,7 @@ export default function NewEmployeePage() {
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [newItemQty, setNewItemQty] = useState("1");
-  const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newItemDate, setNewItemDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
 
   function set(key: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [key]: value }));

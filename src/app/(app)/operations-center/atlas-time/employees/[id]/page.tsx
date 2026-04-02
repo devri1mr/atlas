@@ -152,7 +152,7 @@ export default function EmployeeDetailPage() {
   const [newItemSizeVariantId, setNewItemSizeVariantId] = useState("");
   const [newItemColorVariantId, setNewItemColorVariantId] = useState("");
   const [newItemCost, setNewItemCost] = useState("");
-  const [newItemDate, setNewItemDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newItemDate, setNewItemDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
   const [newItemType, setNewItemType] = useState<"company_issued" | "team_member_purchase">("company_issued");
   const [newItemSubsection, setNewItemSubsection] = useState("");
   const [newItemSize, setNewItemSize] = useState("");
@@ -165,13 +165,13 @@ export default function EmployeeDetailPage() {
   const [newRateDivisionId, setNewRateDivisionId] = useState("");
   const [newRateClass, setNewRateClass] = useState("");
   const [newRateAmount, setNewRateAmount] = useState("");
-  const [newRateDate, setNewRateDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newRateDate, setNewRateDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
   const [newRateDefault, setNewRateDefault] = useState(false);
   const [rateSaving, setRateSaving] = useState(false);
   const [expandedRateGroup, setExpandedRateGroup] = useState<string | null>(null);
   const [addingRaiseFor, setAddingRaiseFor] = useState<string | null>(null);
   const [newRaiseAmount, setNewRaiseAmount] = useState("");
-  const [newRaiseDate, setNewRaiseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newRaiseDate, setNewRaiseDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
   const [raiseSaving, setRaiseSaving] = useState(false);
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
   const [editRateAmount, setEditRateAmount] = useState("");
@@ -260,7 +260,7 @@ export default function EmployeeDetailPage() {
           key: `default_${o.id}_${Date.now()}_${Math.random()}`,
           item: o.label,
           cost: o.cost ?? null,
-          issued_date: new Date().toISOString().slice(0, 10),
+          issued_date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
           issued_type: "company_issued" as const,
           subsection: o.subsection ?? "",
           size: "",
@@ -482,7 +482,7 @@ export default function EmployeeDetailPage() {
       setPayRates(prev => [...prev, json.pay_rate]);
       setAddingRaiseFor(null);
       setNewRaiseAmount("");
-      setNewRaiseDate(new Date().toISOString().slice(0, 10));
+      setNewRaiseDate(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
     } catch (e: any) { setError(e?.message ?? "Failed to add raise"); }
     finally { setRaiseSaving(false); }
   }
@@ -949,7 +949,7 @@ export default function EmployeeDetailPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <button onClick={() => { setAddingRaiseFor(groupKey); setNewRaiseDate(new Date().toISOString().slice(0, 10)); }}
+                                <button onClick={() => { setAddingRaiseFor(groupKey); setNewRaiseDate(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })); }}
                                   className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] flex items-center gap-1 transition-colors">
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
