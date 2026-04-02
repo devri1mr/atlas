@@ -345,7 +345,7 @@ function ScoresCard({ games, config }: { games: GameScore[]; config: DashConfig 
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user, can } = useUser();
+  const { user, loading: userLoading, can } = useUser();
   const router = useRouter();
 
   // Division-restricted users go straight to their first allowed division
@@ -374,9 +374,6 @@ export default function DashboardPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [config, setConfig] = useState<DashConfig>(DEFAULT_CONFIG);
   const [customizeOpen, setCustomizeOpen] = useState(false);
-
-  // Don't render dashboard at all for division-restricted users — avoids flicker
-  if (isDivRestricted) return null;
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
 
@@ -427,6 +424,10 @@ export default function DashboardPage() {
   }, [config.showSports, config.showSportsNews,
       config.sportsNFL, config.sportsNBA, config.sportsNHL,
       config.sportsMLB, config.sportsNCAAB, config.sportsCFB]);
+
+  // All hooks above — safe to early-return now
+  // Blank screen while loading or while redirect is in flight for restricted users
+  if (userLoading || isDivRestricted) return <div className="min-h-screen bg-[#f6f8f6]" />;
 
   const name = user?.full_name?.trim()
     ? user.full_name.trim().split(" ")[0]
