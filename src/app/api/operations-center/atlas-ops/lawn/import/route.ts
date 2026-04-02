@@ -57,9 +57,11 @@ type ParsedJob = {
   crew_code: string;
   budgeted_hours: number;
   actual_hours: number;
+  accumulated_hours: number;
   variance_hours: number;
   budgeted_amount: number;
   actual_amount: number;
+  is_dispatched: boolean;
   members: ParsedMember[];
 };
 
@@ -68,7 +70,7 @@ type RawJob = Omit<ParsedJob, "members"> & { members: RawMember[] };
 
 // ── XLS parser ────────────────────────────────────────────────────────────────
 
-function parseXLS(buffer: Buffer): { jobs: RawJob[]; revenueOk: boolean; grandTotalAmt: number | null; sumJobAmt: number; debug: Record<string, unknown> } {
+function parseXLS(buffer: Buffer): { jobs: RawJob[]; revenueOk: boolean; grandTotalAmt: number | null; sumJobAmt: number; dispatchedCount: number; debug: Record<string, unknown> } {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const sh = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sh, { header: 1, defval: "" });
@@ -112,7 +114,7 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; revenueOk: boolean; grandTo
       j.actual_hours = jobHrs[i];
       if (j.members.length > 0) {
         const mHrs = lrm(j.members.map(m => m.actual_hours), jobHrs[i], 4);
-        const mRev = lrm(mHrs, j.budgeted_amount, 2);
+        const mRev = j.is_dispatched ? mHrs.map(() => 0) : lrm(mHrs, j.budgeted_amount, 2);
         j.members.forEach((m, k) => {
           m.actual_hours = mHrs[k];
           m.earned_amount = mRev[k];
@@ -122,20 +124,33 @@ function parseXLS(buffer: Buffer): { jobs: RawJob[]; revenueOk: boolean; grandTo
     });
   }
 
-  // Revenue check: warn if imported job totals don't match the XLS grand total row
+  // Revenue check: uses original XLS amounts (before zeroing dispatched jobs)
   const revenueOk = grandTotalAmt === null || Math.abs(sumJobAmt - grandTotalAmt) < 1;
+
+  // Zero out revenue on dispatched jobs AFTER the revenue check (which uses original XLS amounts)
+  jobs.forEach(j => {
+    if (j.is_dispatched) {
+      j.budgeted_amount = 0;
+      j.actual_amount   = 0;
+      j.members.forEach(m => { m.earned_amount = 0; });
+    }
+  });
+
+  const dispatchedCount = jobs.filter(j => j.is_dispatched).length;
 
   return {
     jobs,
     revenueOk,
     grandTotalAmt,
     sumJobAmt,
+    dispatchedCount,
     debug: {
       grandTotalHrs,
       grandTotalAmt,
       sumJobHrs,
       sumJobAmt,
       revenueOk,
+      dispatchedCount,
       totalRowCols: totalRowRaw ? totalRowRaw.slice(0, 20) : null,
       totalRowFound: totalRowRaw !== null,
     },
@@ -162,25 +177,34 @@ function buildJob(summary: unknown[], members: unknown[][]): RawJob {
   const serialDate = parseNum((first as unknown[])[6]);
   const serviceDate = serialDate ? excelSerialToISO(serialDate) : "";
 
+  // Column F (index 5) = job status: "Completed" or "Dispatched"
+  const statusStr    = String((first as unknown[])[5] ?? "").trim().toLowerCase();
+  const is_dispatched = statusStr === "dispatched";
+
+  // Column J (index 9) = accumulated hours SAP has tracked across all dispatch instances
+  const accumulated_hours = parseNum(summary[9]);
+
   const budgetedAmount = parseNum(summary[12]);
   const jobActualHrs   = parseNum(summary[10]);
   const rawHrs = members.map(m => parseNum((m as unknown[])[10]));
 
   const memberHrs     = lrm(rawHrs, jobActualHrs, 4);
-  const memberRevenue = lrm(memberHrs, budgetedAmount, 2);
+  const memberRevenue = is_dispatched ? memberHrs.map(() => 0) : lrm(memberHrs, budgetedAmount, 2);
 
   return {
-    work_order:      String((first as unknown[])[3] ?? ""),
-    client_name:     String((first as unknown[])[0] ?? ""),
-    client_address:  String((first as unknown[])[1] ?? ""),
-    service:         String((first as unknown[])[4] ?? ""),
-    service_date:    serviceDate,
-    crew_code:       String(summary[17] ?? ""),
-    budgeted_hours:  parseNum(summary[8]),
-    actual_hours:    jobActualHrs,
-    variance_hours:  parseNum(summary[11]),
-    budgeted_amount: budgetedAmount,
-    actual_amount:   parseNum(summary[13]),
+    work_order:        String((first as unknown[])[3] ?? ""),
+    client_name:       String((first as unknown[])[0] ?? ""),
+    client_address:    String((first as unknown[])[1] ?? ""),
+    service:           String((first as unknown[])[4] ?? ""),
+    service_date:      serviceDate,
+    crew_code:         String(summary[17] ?? ""),
+    budgeted_hours:    parseNum(summary[8]),
+    actual_hours:      jobActualHrs,
+    accumulated_hours,
+    variance_hours:    parseNum(summary[11]),
+    budgeted_amount:   budgetedAmount,  // kept at original; parseXLS zeros it for dispatched after revenue check
+    actual_amount:     parseNum(summary[13]),
+    is_dispatched,
     members: members.map((m, i) => {
       const { name, code } = parseResource(String((m as unknown[])[17] ?? ""));
       return { resource_name: name, resource_code: code, actual_hours: memberHrs[i], earned_amount: memberRevenue[i] };
@@ -368,7 +392,7 @@ export async function POST(req: NextRequest) {
       return handleDispatchImport(sb, companyId, buffer, file.name, dryRun, tzOffsetMins);
     }
 
-    const { jobs: rawJobs, debug: parseDebug, revenueOk, grandTotalAmt, sumJobAmt } = parseXLS(buffer);
+    const { jobs: rawJobs, debug: parseDebug, revenueOk, grandTotalAmt, sumJobAmt, dispatchedCount } = parseXLS(buffer);
     if (!rawJobs.length) return NextResponse.json({ error: "No jobs found in file" }, { status: 400 });
 
     const reportDate = rawJobs[0]?.service_date;
@@ -542,6 +566,7 @@ export async function POST(req: NextRequest) {
         revenue_ok: revenueOk,
         revenue_imported: sumJobAmt,
         revenue_expected: grandTotalAmt,
+        dispatched_count: dispatchedCount,
         punches: punchRows.map(p => ({
           employee_id:   p.employee_id,
           resource_name: empNameMapDry.get(p.employee_id) ?? "",
@@ -591,10 +616,12 @@ export async function POST(req: NextRequest) {
           crew_code:            j.crew_code || null,
           budgeted_hours:       j.budgeted_hours,
           actual_hours:         j.actual_hours,
+          accumulated_hours:    j.accumulated_hours || null,
           variance_hours:       j.variance_hours,
-          budgeted_amount:      j.budgeted_amount,
+          budgeted_amount:      j.budgeted_amount,  // already $0 for dispatched
           actual_amount:        j.actual_amount,
           real_budgeted_hours:  realBudgetedHours,
+          status:               j.is_dispatched ? "dispatched" : "completed",
         })
         .select("id")
         .single();

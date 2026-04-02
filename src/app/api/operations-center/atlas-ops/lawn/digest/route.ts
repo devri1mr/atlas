@@ -92,8 +92,8 @@ export async function GET(req: NextRequest) {
       sb.from("lawn_production_reports")
         .select(`id, report_date,
           lawn_production_jobs (
-            id, work_order, client_name, service, crew_code,
-            budgeted_hours, actual_hours, variance_hours,
+            id, work_order, client_name, service, crew_code, status,
+            budgeted_hours, actual_hours, accumulated_hours, variance_hours,
             budgeted_amount, real_budgeted_hours,
             lawn_production_members (
               resource_name, actual_hours, earned_amount,
@@ -258,23 +258,29 @@ export async function GET(req: NextRequest) {
       const seenNames = seenPerReport.get(rid)!;
 
       for (const job of (report as any).lawn_production_jobs ?? []) {
+        const isDispatched = (job.status as string) === "dispatched";
         const budH      = Number(job.budgeted_hours      ?? 0);
         const realBudH  = job.real_budgeted_hours != null ? Number(job.real_budgeted_hours) : null;
         const propBudH  = calcProposedBudgetedHours(Number(job.budgeted_amount ?? 0));
         const actH      = Number(job.actual_hours     ?? 0);
-        const budAmt    = Number(job.budgeted_amount  ?? 0);
+        const budAmt    = Number(job.budgeted_amount  ?? 0);  // already $0 for dispatched
         const crew      = (job.crew_code as string) || "Unknown";
         const wo        = (job.work_order as string) ?? "";
 
-        totalRevenue           += budAmt;
-        totalOnJobHours        += actH;
-        totalBudgetedHours     += budH;
-        totalRealBudgetedHours += realBudH ?? budH;  // fallback to SAP if null
+        // Dispatched jobs: on-job hours count (prevents inflating downtime) but no revenue/budget
+        totalOnJobHours += actH;
+        if (!isDispatched) {
+          totalRevenue           += budAmt;
+          totalBudgetedHours     += budH;
+          totalRealBudgetedHours += realBudH ?? budH;
+        }
 
-        // Crew aggregation
-        if (!crewMap.has(crew)) crewMap.set(crew, { jobs: 0, budgeted_hours: 0, real_budgeted_hours: 0, actual_hours: 0, revenue: 0, labor_cost: 0 });
-        const crewEntry = crewMap.get(crew)!;
-        crewEntry.jobs++; crewEntry.budgeted_hours += budH; crewEntry.real_budgeted_hours += realBudH ?? budH; crewEntry.actual_hours += actH; crewEntry.revenue += budAmt;
+        // Crew aggregation — only for completed jobs
+        if (!isDispatched) {
+          if (!crewMap.has(crew)) crewMap.set(crew, { jobs: 0, budgeted_hours: 0, real_budgeted_hours: 0, actual_hours: 0, revenue: 0, labor_cost: 0 });
+          const crewEntry = crewMap.get(crew)!;
+          crewEntry.jobs++; crewEntry.budgeted_hours += budH; crewEntry.real_budgeted_hours += realBudH ?? budH; crewEntry.actual_hours += actH; crewEntry.revenue += budAmt;
+        }
 
         let jobLaborCost = 0;
 
@@ -331,21 +337,23 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        crewEntry.labor_cost += jobLaborCost;
+        if (!isDispatched) {
+          crewMap.get(crew)!.labor_cost += jobLaborCost;
 
-        allJobs.push({
-          job_id:                  job.id as string,
-          work_order:              job.work_order    ?? null,
-          client_name:             job.client_name   ?? null,
-          service:                 job.service       ?? null,
-          crew_code:               job.crew_code     ?? null,
-          budgeted_hours:          budH,
-          real_budgeted_hours:     realBudH,
-          proposed_budgeted_hours: propBudH,
-          actual_hours:            actH,
-          revenue:                 budAmt,
-          labor_cost:              jobLaborCost,
-        });
+          allJobs.push({
+            job_id:                  job.id as string,
+            work_order:              job.work_order    ?? null,
+            client_name:             job.client_name   ?? null,
+            service:                 job.service       ?? null,
+            crew_code:               job.crew_code     ?? null,
+            budgeted_hours:          budH,
+            real_budgeted_hours:     realBudH,
+            proposed_budgeted_hours: propBudH,
+            actual_hours:            actH,
+            revenue:                 budAmt,
+            labor_cost:              jobLaborCost,
+          });
+        }
       }
     }
 
