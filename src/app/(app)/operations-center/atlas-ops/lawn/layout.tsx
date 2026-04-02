@@ -14,7 +14,7 @@ const BASE_TABS = [
   { label: "Reverse Rev",       href: "/operations-center/atlas-ops/lawn/reverse-rev" },
 ];
 
-const SUPER_ADMIN_EMAIL = "matthew@garpielgroup.com";
+const SUPER_ADMIN_EMAILS = ["matthew@garpielgroup.com", "devri1mr@gmail.com"];
 
 const ADMIN_TABS = [
   { label: "Admin Pay",  href: "/operations-center/atlas-ops/lawn/admin-pay" },
@@ -23,7 +23,7 @@ const ADMIN_TABS = [
 export default function LawnLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useUser();
-  const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
+  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user?.email ?? "");
   const TABS = isSuperAdmin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
 
   return (
