@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fmtPaycheckDate } from "@/lib/atPayPeriod";
+import { fmtPaycheckDate, paycheckDateRange, payPeriodBounds, PayPeriodSettings } from "@/lib/atPayPeriod";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,11 @@ type QbRow = {
   at_division_id: string | null; division_id: string | null;
 };
 
+function fmtShort(iso: string) {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function QbExport() {
   const [startDate, setStartDate] = useState("2026-03-16");
   const [endDate,   setEndDate]   = useState("2026-03-29");
@@ -53,12 +58,48 @@ function QbExport() {
   const [summary,   setSummary]   = useState<QbRow[] | null>(null);
   const [totals,    setTotals]    = useState<{ reg: number; ot: number; warnings: number; punches: number } | null>(null);
 
+  // Pay period dropdown
+  const [payDates,     setPayDates]     = useState<string[]>([]);
+  const [paySettings,  setPaySettings]  = useState<PayPeriodSettings | null>(null);
+  const [selectedDate, setSelectedDate] = useState("2026-04-03");
+
   // Inline mapping edit
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editReg,    setEditReg]    = useState("");
   const [editOt,     setEditOt]     = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError,  setEditError]  = useState("");
+
+  useEffect(() => {
+    fetch("/api/atlas-time/pay-adjustments/paycheck-dates")
+      .then(r => r.json())
+      .then(d => {
+        const settings: PayPeriodSettings = {
+          pay_cycle: d.settings?.pay_cycle ?? "biweekly",
+          payday_day_of_week: d.settings?.payday_day_of_week ?? 5,
+          pay_period_start_day: d.settings?.pay_period_start_day ?? 1,
+          pay_period_anchor_date: d.settings?.pay_period_anchor_date ?? null,
+        };
+        setPaySettings(settings);
+        const all = paycheckDateRange(settings, new Date("2026-01-01T12:00:00"), 52);
+        // Only show up to today + 1 period ahead
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() + 20);
+        setPayDates(all.filter(d => new Date(d + "T12:00:00") <= cutoff));
+      })
+      .catch(() => {});
+  }, []);
+
+  function onSelectPayDate(val: string) {
+    setSelectedDate(val);
+    if (val && paySettings) {
+      const { start, end } = payPeriodBounds(val, paySettings);
+      setStartDate(start);
+      setEndDate(end);
+      setSummary(null);
+      setTotals(null);
+    }
+  }
 
   async function loadPreview() {
     setLoading(true); setError(""); setSummary(null); setTotals(null);
@@ -122,16 +163,34 @@ function QbExport() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
         <h2 className="text-sm font-bold text-gray-800 mb-4">QuickBooks Payroll Export — IIF</h2>
         <div className="flex items-end gap-3 flex-wrap">
+          {/* Pay date dropdown */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Pay Period Start</label>
-            <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setSummary(null); }}
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Pay Date</label>
+            <select value={selectedDate} onChange={e => onSelectPayDate(e.target.value)}
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f] bg-white">
+              <option value="">Custom dates</option>
+              {[...payDates].reverse().map(d => {
+                const bounds = paySettings ? payPeriodBounds(d, paySettings) : null;
+                const label = bounds
+                  ? `${fmtPaycheckDate(d)} — ${fmtShort(bounds.start)} to ${fmtShort(bounds.end)}`
+                  : fmtPaycheckDate(d);
+                return <option key={d} value={d}>{label}</option>;
+              })}
+            </select>
+          </div>
+
+          {/* Custom date pickers */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Period Start</label>
+            <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setSelectedDate(""); setSummary(null); }}
               className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Pay Period End</label>
-            <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setSummary(null); }}
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Period End</label>
+            <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setSelectedDate(""); setSummary(null); }}
               className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123b1f]/30 focus:border-[#123b1f]" />
           </div>
+
           <button onClick={loadPreview} disabled={loading || !startDate || !endDate}
             className="bg-[#123b1f] text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-[#1a5c2a] disabled:opacity-40 transition-colors">
             {loading ? "Loading…" : "Preview"}

@@ -97,3 +97,29 @@ export function fmtPaycheckDate(iso: string): string {
   const d = new Date(iso + "T12:00:00");
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
+
+/**
+ * Given a paycheck date, returns the pay period start and end dates.
+ * Convention: payday falls one period after the work period ends.
+ *   period_start = paycheckDate - paydayOffset - interval
+ *   period_end   = period_start + interval - 1
+ */
+export function payPeriodBounds(
+  paycheckDate: string,
+  settings: PayPeriodSettings,
+): { start: string; end: string } {
+  const { payday_day_of_week, pay_period_start_day = 1 } = settings;
+  const interval = settings.pay_cycle === "biweekly" ? 14 : 7;
+  const paydayOffset = ((payday_day_of_week - pay_period_start_day) + 7) % 7;
+
+  const payday = new Date(paycheckDate + "T12:00:00");
+  const start = new Date(payday);
+  start.setDate(payday.getDate() - paydayOffset - interval);
+  const end = new Date(start);
+  end.setDate(start.getDate() + interval - 1);
+
+  return {
+    start: start.toISOString().slice(0, 10),
+    end:   end.toISOString().slice(0, 10),
+  };
+}
