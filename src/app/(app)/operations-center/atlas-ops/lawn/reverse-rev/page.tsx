@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useUser } from "@/lib/userContext";
 
 const PAYROLL_BURDEN = 1.15;
 
@@ -27,6 +28,9 @@ const fmtD = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 export default function ReverseRevPage() {
+  const { can } = useUser();
+  const canSeePay = can("hr_labor_cost");
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [totalRevenue, setTotalRevenue] = useState("");
   const [rows, setRows] = useState<CalcRow[]>(() =>
@@ -202,7 +206,7 @@ export default function ReverseRevPage() {
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            {hasResult && (
+                            {hasResult && canSeePay && (
                               <button
                                 onClick={() => setExpanded(prev => {
                                   const next = new Set(prev);
@@ -221,7 +225,7 @@ export default function ReverseRevPage() {
                           </div>
                         </td>
                       </tr>
-                      {isExpanded && breakdown && (
+                      {isExpanded && breakdown && canSeePay && (
                         <tr className="border-t border-emerald-100 bg-emerald-50/40">
                           <td colSpan={6} className="px-6 py-3">
                             <div className="text-xs text-gray-600 space-y-1 font-mono">
