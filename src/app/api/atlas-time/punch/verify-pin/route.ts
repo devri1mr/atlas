@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const { data: employee } = await sb
       .from("at_employees")
       .select(`
-        id, first_name, last_name, preferred_name, job_title, department_id, division_id,
+        id, first_name, last_name, preferred_name, job_title, department_id, default_at_division_id,
         at_departments(id, name)
       `)
       .eq("company_id", companyId)
@@ -34,34 +34,35 @@ export async function POST(req: NextRequest) {
     // Check if currently clocked in
     const { data: openPunch } = await sb
       .from("at_punches")
-      .select("id, clock_in_at, division_id, at_divisions(id, name)")
+      .select("id, clock_in_at, at_division_id, at_divisions!at_division_id(id, name)")
       .eq("employee_id", employee.id)
       .is("clock_out_at", null)
       .maybeSingle();
 
-    // Last completed punch — for suggesting last-used division
+    // Last completed punch — for suggesting last-used punch item
     const { data: lastPunch } = await sb
       .from("at_punches")
-      .select("division_id")
+      .select("at_division_id")
       .eq("employee_id", employee.id)
       .not("clock_out_at", "is", null)
       .order("clock_out_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    // Get active company divisions (at_punches.division_id references divisions table)
-    const { data: divisions } = await sb
-      .from("divisions")
+    // Get active punch items (at_divisions)
+    const { data: atDivisions } = await sb
+      .from("at_divisions")
       .select("id, name")
+      .eq("company_id", companyId)
       .eq("active", true)
       .order("name");
 
     return NextResponse.json({
       employee,
-      open_punch: openPunch ?? null,
-      divisions: divisions ?? [],
-      default_division_id: (employee as any).division_id ?? null,
-      last_division_id: lastPunch?.division_id ?? null,
+      open_punch:            openPunch ?? null,
+      at_divisions:          atDivisions ?? [],
+      default_at_division_id: (employee as any).default_at_division_id ?? null,
+      last_at_division_id:   lastPunch?.at_division_id ?? null,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
