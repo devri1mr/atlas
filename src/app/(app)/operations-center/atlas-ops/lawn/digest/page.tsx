@@ -230,8 +230,8 @@ function downTimeColor(v: number | null): string {
 
 function efficiencyColor(v: number | null): string {
   if (v === null) return "text-gray-500";
-  if (v <= 1.00) return "text-emerald-600";
-  if (v <= 1.15) return "text-amber-500";
+  if (v >= 0.95) return "text-emerald-600";
+  if (v >= 0.85) return "text-amber-500";
   return "text-red-500";
 }
 
@@ -274,8 +274,8 @@ function jobLaborBadge(v: number | null, goal: number | null): string {
 
 function effBadge(v: number | null): string {
   if (v === null) return "bg-gray-100 text-gray-400";
-  if (v <= 1.00) return "bg-emerald-100 text-emerald-700";
-  if (v <= 1.15) return "bg-amber-100 text-amber-700";
+  if (v >= 0.95) return "bg-emerald-100 text-emerald-700";
+  if (v >= 0.80) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
 }
 
@@ -818,7 +818,7 @@ export default function DigestPage() {
                   {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
                 </div>
                 <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_clocked_hours)} clocked / {fmtHrs(sc.total_real_budgeted_hours)} budgeted
+                  {fmtHrs(sc.total_real_budgeted_hours)} budgeted / {fmtHrs(sc.total_clocked_hours)} clocked
                 </div>
               </div>
 
@@ -1357,7 +1357,7 @@ export default function DigestPage() {
                   <CalcRow label="Down time hours" value={fmtHrs(sc.total_down_time_hours)} sub="clocked − on-job" />
                   <CalcRow label="OT hours" value={fmtHrs(sc.total_ot_hours)} />
                   <CalcRow label="Real budgeted hours" value={fmtHrs(sc.total_real_budgeted_hours)} />
-                  <CalcRow label="Hours efficiency" value={fmtPct(sc.hours_efficiency)} sub="clocked ÷ budgeted" />
+                  <CalcRow label="Hours efficiency" value={fmtPct(sc.hours_efficiency)} sub="budgeted ÷ clocked" />
                   <CalcRow label="On-job %" value={fmtPct(sc.on_job_pct)} sub="on-job ÷ clocked" />
                   <CalcRow label="Down time %" value={fmtPct(sc.down_time_pct)} sub="down time ÷ clocked" />
                   <CalcRow label="OT %" value={fmtPct(sc.ot_pct)} sub="OT ÷ clocked" />

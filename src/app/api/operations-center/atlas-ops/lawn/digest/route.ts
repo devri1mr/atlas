@@ -421,7 +421,7 @@ export async function GET(req: NextRequest) {
     const onJobPct        = safeDiv(totalOnJobHours,    totalClockedHours);
     const downTimePct     = safeDiv(totalDownTimeHours, totalClockedHours);
     const otPct           = safeDiv(totalOtHours,       totalClockedHours);
-    const hoursEfficiency = safeDiv(totalClockedHours, totalRealBudgetedHours);
+    const hoursEfficiency = safeDiv(totalRealBudgetedHours, totalClockedHours);
     const revenueVsBudget = safeDiv(totalRevenue,       proratedBudgetRevenue);
 
     const totalLaborGoal = proratedBudgetRevenue > 0 ? proratedBudgetLabor / proratedBudgetRevenue : null;
@@ -498,7 +498,7 @@ export async function GET(req: NextRequest) {
         labor_cost:            v.labor_cost,
         labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
         revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
-        efficiency:            v.real_budgeted_hours > 0 ? v.actual_hours / v.real_budgeted_hours : null,
+        efficiency:            v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
       }))
       .sort((a, b) => (a.labor_pct ?? 1) - (b.labor_pct ?? 1));
 
@@ -524,7 +524,7 @@ export async function GET(req: NextRequest) {
         labor_cost:            v.labor_cost,
         labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
         revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
-        hours_efficiency:      v.real_budgeted_hours > 0 ? v.actual_hours / v.real_budgeted_hours : null,
+        hours_efficiency:      v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
       }))
       .filter(s => s.revenue > 0)
       .sort((a, b) => (b.labor_pct ?? 0) - (a.labor_pct ?? 0));
