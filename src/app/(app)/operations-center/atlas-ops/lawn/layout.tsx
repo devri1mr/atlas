@@ -7,11 +7,11 @@ import { useUser } from "@/lib/userContext";
 const BASE_TABS = [
   { label: "Dashboard",         href: "/operations-center/atlas-ops/lawn" },
   { label: "Lawn Digest",       href: "/operations-center/atlas-ops/lawn/digest" },
+  { label: "COGS",              href: "/operations-center/atlas-ops/lawn/cogs" },
   { label: "Upcoming Revenue",  href: "/operations-center/atlas-ops/lawn/upcoming-revenue" },
   { label: "Imports",           href: "/operations-center/atlas-ops/lawn/imports" },
   { label: "Rankings",          href: "/operations-center/atlas-ops/lawn/rankings" },
   { label: "Reports",           href: "/operations-center/atlas-ops/lawn/reports" },
-  { label: "COGS",              href: "/operations-center/atlas-ops/lawn/cogs" },
   { label: "Reverse Rev",       href: "/operations-center/atlas-ops/lawn/reverse-rev" },
 ];
 
