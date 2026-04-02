@@ -95,12 +95,6 @@ function ProducerRow({ person, maxEarned, rank }: { person: RankedPerson; maxEar
           />
         </div>
       </div>
-      <div className="text-right shrink-0">
-        <div className="text-sm font-bold text-gray-700">{person.total_payroll_hours.toFixed(1)} hrs</div>
-        <div className={`text-xs mt-0.5 ${person.labor_pct > 0.39 ? "text-red-500" : "text-gray-400"}`}>
-          {pct(person.labor_pct)} labor
-        </div>
-      </div>
     </div>
   );
 }
@@ -243,12 +237,6 @@ export default function RankingsPage() {
                           className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
                           style={{ width: `${maxEarned > 0 ? (p.total_earned / maxEarned) * 100 : 0}%` }}
                         />
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-white/70">{p.total_payroll_hours.toFixed(1)} hrs</div>
-                      <div className={`text-xs mt-0.5 ${p.labor_pct > 0.39 ? "text-red-400" : "text-emerald-400/70"}`}>
-                        {pct(p.labor_pct)} labor
                       </div>
                     </div>
                   </div>
