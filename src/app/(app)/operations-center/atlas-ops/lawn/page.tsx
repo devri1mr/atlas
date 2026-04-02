@@ -866,19 +866,8 @@ export default function LawnDashboard() {
           <WeekCard title="Last Week"    days={dash?.last_week    ?? []} />
         </div>
 
-        {/* Monthly */}
-        <MonthlyTable data={cogs} />
-
         {/* Pace Intelligence */}
         <PaceCard cogs={cogs} />
-
-        {/* COGS */}
-        <CogsWidget />
-
-        {/* Service Breakdown */}
-        {(dash?.service_breakdown?.length ?? 0) > 0 && (
-          <ServiceBreakdownCard data={dash!.service_breakdown} />
-        )}
 
         {/* Calculator link */}
         <a
