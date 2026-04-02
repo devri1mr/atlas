@@ -421,7 +421,7 @@ export async function GET(req: NextRequest) {
     const onJobPct        = safeDiv(totalOnJobHours,    totalClockedHours);
     const downTimePct     = safeDiv(totalDownTimeHours, totalClockedHours);
     const otPct           = safeDiv(totalOtHours,       totalClockedHours);
-    const hoursEfficiency = safeDiv(totalRealBudgetedHours, totalOnJobHours);
+    const hoursEfficiency = safeDiv(totalClockedHours, totalRealBudgetedHours);
     const revenueVsBudget = safeDiv(totalRevenue,       proratedBudgetRevenue);
 
     const totalLaborGoal = proratedBudgetRevenue > 0 ? proratedBudgetLabor / proratedBudgetRevenue : null;
@@ -498,7 +498,7 @@ export async function GET(req: NextRequest) {
         labor_cost:            v.labor_cost,
         labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
         revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
-        efficiency:            v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
+        efficiency:            v.real_budgeted_hours > 0 ? v.actual_hours / v.real_budgeted_hours : null,
       }))
       .sort((a, b) => (a.labor_pct ?? 1) - (b.labor_pct ?? 1));
 
@@ -524,7 +524,7 @@ export async function GET(req: NextRequest) {
         labor_cost:            v.labor_cost,
         labor_pct:             v.revenue > 0 ? v.labor_cost / v.revenue : null,
         revenue_per_manhour:   v.actual_hours > 0 ? v.revenue / v.actual_hours : null,
-        hours_efficiency:      v.actual_hours > 0 ? v.real_budgeted_hours / v.actual_hours : null,
+        hours_efficiency:      v.real_budgeted_hours > 0 ? v.actual_hours / v.real_budgeted_hours : null,
       }))
       .filter(s => s.revenue > 0)
       .sort((a, b) => (b.labor_pct ?? 0) - (a.labor_pct ?? 0));
@@ -601,8 +601,9 @@ export async function GET(req: NextRequest) {
         ot_pct:                otPct,
         hours_efficiency:      hoursEfficiency,
         revenue_vs_budget:     revenueVsBudget,
-        total_clocked_hours:   totalClockedHours,
-        total_on_job_hours:    totalOnJobHours,
+        total_clocked_hours:        totalClockedHours,
+        total_real_budgeted_hours:  totalRealBudgetedHours,
+        total_on_job_hours:         totalOnJobHours,
         total_down_time_hours: totalDownTimeHours,
         total_ot_hours:        totalOtHours,
         days_in_range:         daysInRange,

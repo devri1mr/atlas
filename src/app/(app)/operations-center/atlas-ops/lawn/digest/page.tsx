@@ -108,6 +108,7 @@ type Scorecard = {
   hours_efficiency: number | null;
   revenue_vs_budget: number | null;
   total_clocked_hours: number;
+  total_real_budgeted_hours: number;
   total_on_job_hours: number;
   total_down_time_hours: number;
   total_ot_hours: number;
@@ -229,8 +230,8 @@ function downTimeColor(v: number | null): string {
 
 function efficiencyColor(v: number | null): string {
   if (v === null) return "text-gray-500";
-  if (v >= 0.95) return "text-emerald-600";
-  if (v >= 0.85) return "text-amber-500";
+  if (v <= 1.00) return "text-emerald-600";
+  if (v <= 1.15) return "text-amber-500";
   return "text-red-500";
 }
 
@@ -273,8 +274,8 @@ function jobLaborBadge(v: number | null, goal: number | null): string {
 
 function effBadge(v: number | null): string {
   if (v === null) return "bg-gray-100 text-gray-400";
-  if (v >= 0.95) return "bg-emerald-100 text-emerald-700";
-  if (v >= 0.80) return "bg-amber-100 text-amber-700";
+  if (v <= 1.00) return "bg-emerald-100 text-emerald-700";
+  if (v <= 1.15) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
 }
 
@@ -817,7 +818,7 @@ export default function DigestPage() {
                   {sc.hours_efficiency !== null ? fmtPct(sc.hours_efficiency) : "—"}
                 </div>
                 <div className="text-xs text-gray-400 mt-1 tabular-nums">
-                  {fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} budgeted / {fmtHrs(sc.total_on_job_hours)} actual
+                  {fmtHrs(sc.total_clocked_hours)} clocked / {fmtHrs(sc.total_real_budgeted_hours)} budgeted
                 </div>
               </div>
 
@@ -1105,112 +1106,82 @@ export default function DigestPage() {
                                               <th className="pb-1.5 text-center px-3">End</th>
                                             </>
                                           ) : null}
-                                          <th className="pb-1.5 text-center px-3">Hours</th>
-                                          <th className="pb-1.5 text-center px-3">Budgeted</th>
+                                          <th className="pb-1.5 text-center px-3">Actual Hrs</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-emerald-50">
-                                        {(() => {
-                                          // Compute hours from dispatch times (source of truth); fall back to actual_hours
-                                          const memberHrs = editedMembers.map(m =>
-                                            m.start_time && m.end_time
-                                              ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
-                                              : m.actual_hours
-                                          );
-                                          const totalDispatchHrs = memberHrs.reduce((s, h) => s + h, 0);
-                                          return editedMembers.map((m, idx) => {
-                                            const computedHrs = memberHrs[idx];
-                                            const memberBudget = totalDispatchHrs > 0
-                                              ? job.budgeted_hours * (computedHrs / totalDispatchHrs)
-                                              : job.budgeted_hours / (editedMembers.length || 1);
-                                            const hasDispatch = m.start_time !== null || m.end_time !== null;
-                                            const showOnce = !m.time_varies && idx > 0;
-                                            return (
-                                              <tr key={m.member_id} className="py-1">
-                                                <td className="py-2 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
+                                        {editedMembers.map((m, idx) => {
+                                          const hasDispatch = m.start_time !== null || m.end_time !== null;
+                                          const showOnce = !m.time_varies && idx > 0;
+                                          return (
+                                            <tr key={m.member_id} className="py-1">
+                                              <td className="py-2 pr-4 font-semibold text-gray-700">{m.resource_name}</td>
 
-                                                {hasDispatch && !showOnce && (
-                                                  <>
-                                                    <td className="py-2 px-3 text-center">
-                                                      <input
-                                                        type="time"
-                                                        value={toTimeInput(m.start_time)}
-                                                        onChange={e => {
-                                                          const newTs = m.start_time
-                                                            ? fromTimeInput(toNYDate(m.start_time), e.target.value)
-                                                            : fromTimeInput(jobTimeData.job.service_date, e.target.value);
-                                                          updateMemberTime(idx, "start_time", newTs);
-                                                        }}
-                                                        className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
-                                                      />
-                                                    </td>
-                                                    <td className="py-2 px-3 text-center">
-                                                      <input
-                                                        type="time"
-                                                        value={toTimeInput(m.end_time)}
-                                                        onChange={e => {
-                                                          const newTs = m.end_time
-                                                            ? fromTimeInput(toNYDate(m.end_time), e.target.value)
-                                                            : fromTimeInput(jobTimeData.job.service_date, e.target.value);
-                                                          updateMemberTime(idx, "end_time", newTs);
-                                                        }}
-                                                        className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
-                                                      />
-                                                    </td>
-                                                  </>
-                                                )}
-                                                {hasDispatch && showOnce && (
-                                                  <>
-                                                    <td className="py-2 px-3 text-center text-gray-300">—</td>
-                                                    <td className="py-2 px-3 text-center text-gray-300">—</td>
-                                                  </>
-                                                )}
-                                                {!hasDispatch && (
-                                                  <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
-                                                    computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
-                                                  }`}>
+                                              {hasDispatch && !showOnce && (
+                                                <>
+                                                  <td className="py-2 px-3 text-center">
                                                     <input
-                                                      type="number"
-                                                      step="0.25"
-                                                      min="0"
-                                                      value={m.actual_hours}
-                                                      onChange={e => updateMemberTime(idx, "actual_hours", parseFloat(e.target.value) || 0)}
-                                                      className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-20 text-center"
+                                                      type="time"
+                                                      value={toTimeInput(m.start_time)}
+                                                      onChange={e => {
+                                                        const newTs = m.start_time
+                                                          ? fromTimeInput(toNYDate(m.start_time), e.target.value)
+                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                        updateMemberTime(idx, "start_time", newTs);
+                                                      }}
+                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
                                                     />
                                                   </td>
-                                                )}
-                                                {hasDispatch && (
-                                                  <td className={`py-2 px-3 text-center tabular-nums font-semibold ${
-                                                    computedHrs > memberBudget * 1.3 ? "text-red-500" : "text-gray-700"
-                                                  }`}>
-                                                    {computedHrs.toFixed(2)} hrs
+                                                  <td className="py-2 px-3 text-center">
+                                                    <input
+                                                      type="time"
+                                                      value={toTimeInput(m.end_time)}
+                                                      onChange={e => {
+                                                        const newTs = m.end_time
+                                                          ? fromTimeInput(toNYDate(m.end_time), e.target.value)
+                                                          : fromTimeInput(jobTimeData.job.service_date, e.target.value);
+                                                        updateMemberTime(idx, "end_time", newTs);
+                                                      }}
+                                                      className="border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white w-32"
+                                                    />
                                                   </td>
-                                                )}
-                                                <td className="py-2 px-3 text-center tabular-nums text-gray-400">
-                                                  {memberBudget.toFixed(2)} hrs
+                                                </>
+                                              )}
+                                              {hasDispatch && showOnce && (
+                                                <>
+                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                  <td className="py-2 px-3 text-center text-gray-300">—</td>
+                                                </>
+                                              )}
+                                              {!hasDispatch && (
+                                                <td className="py-2 px-3 text-center tabular-nums font-semibold text-gray-700">
+                                                  <input
+                                                    type="number"
+                                                    step="0.25"
+                                                    min="0"
+                                                    value={m.actual_hours}
+                                                    onChange={e => updateMemberTime(idx, "actual_hours", parseFloat(e.target.value) || 0)}
+                                                    className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-emerald-400 bg-white w-20 text-center"
+                                                  />
                                                 </td>
-                                              </tr>
-                                            );
-                                          });
-                                        })()}
-                                      </tbody>
-                                      <tfoot>
-                                        {(() => {
-                                          const memberHrs = editedMembers.map(m =>
-                                            m.start_time && m.end_time
-                                              ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
-                                              : m.actual_hours
-                                          );
-                                          const totalHrs = memberHrs.reduce((s, h) => s + h, 0);
-                                          return (
-                                            <tr className="border-t border-emerald-100 font-semibold text-gray-600">
-                                              <td className="pt-2 pr-4">Total</td>
-                                              {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
-                                              <td className="pt-2 px-3 text-center tabular-nums">{totalHrs.toFixed(2)} hrs</td>
-                                              <td className="pt-2 px-3 text-center tabular-nums text-gray-400">{job.budgeted_hours.toFixed(2)} hrs</td>
+                                              )}
+                                              {hasDispatch && (
+                                                <td className="py-2 px-3 text-center tabular-nums font-semibold text-gray-700">
+                                                  {m.actual_hours.toFixed(2)} hrs
+                                                </td>
+                                              )}
                                             </tr>
                                           );
-                                        })()}
+                                        })}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr className="border-t border-emerald-100 font-semibold text-gray-600">
+                                          <td className="pt-2 pr-4">Total</td>
+                                          {(editedMembers[0]?.start_time !== null) && <td colSpan={2} />}
+                                          <td className="pt-2 px-3 text-center tabular-nums">
+                                            {editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)} hrs
+                                          </td>
+                                        </tr>
                                       </tfoot>
                                     </table>
 
@@ -1230,14 +1201,9 @@ export default function DigestPage() {
                                         <tbody className="divide-y divide-emerald-50">
                                           {(() => {
                                             const BURDEN = 1.15;
-                                            const memberHrs = editedMembers.map(m =>
-                                              m.start_time && m.end_time
-                                                ? Math.max(0, (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / 3600000)
-                                                : m.actual_hours
-                                            );
-                                            const totalCost = memberHrs.reduce((s, h, i) => s + h * (editedMembers[i].pay_rate || 0) * BURDEN, 0);
+                                            const totalCost = editedMembers.reduce((s, m) => s + m.actual_hours * (m.pay_rate || 0) * BURDEN, 0);
                                             return editedMembers.map((m, idx) => {
-                                              const hrs = memberHrs[idx];
+                                              const hrs = m.actual_hours;
                                               const cost = hrs * (m.pay_rate || 0) * BURDEN;
                                               return (
                                                 <tr key={m.member_id}>
@@ -1255,7 +1221,7 @@ export default function DigestPage() {
                                             }).concat(
                                               <tr key="total" className="border-t border-emerald-100 font-semibold text-gray-700">
                                                 <td className="pt-2 pr-4">Total</td>
-                                                <td className="pt-2 px-3 text-center tabular-nums">{memberHrs.reduce((s, h) => s + h, 0).toFixed(2)} hrs</td>
+                                                <td className="pt-2 px-3 text-center tabular-nums">{editedMembers.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)} hrs</td>
                                                 <td className="pt-2 px-3 text-center text-gray-400 text-[10px]">×{BURDEN} burden</td>
                                                 <td />
                                                 <td className="pt-2 px-3 text-center tabular-nums text-emerald-800">${totalCost.toFixed(2)}</td>
@@ -1264,7 +1230,7 @@ export default function DigestPage() {
                                           })()}
                                         </tbody>
                                       </table>
-                                      <p className="text-[10px] text-gray-400 mt-2">Est. cost = dispatch hours × pay rate × 1.15 burden. OT premium applied in full-day digest calculation.</p>
+                                      <p className="text-[10px] text-gray-400 mt-2">Est. cost = actual hours × pay rate × 1.15 burden. OT premium applied in full-day digest calculation.</p>
                                     </div>}
 
                                     {/* ── Add Person ── */}
@@ -1390,8 +1356,8 @@ export default function DigestPage() {
                   <CalcRow label="On-job hours (production)" value={fmtHrs(sc.total_on_job_hours)} />
                   <CalcRow label="Down time hours" value={fmtHrs(sc.total_down_time_hours)} sub="clocked − on-job" />
                   <CalcRow label="OT hours" value={fmtHrs(sc.total_ot_hours)} />
-                  <CalcRow label="Budgeted hours" value={fmtHrs(sc.total_on_job_hours > 0 && sc.hours_efficiency !== null ? sc.total_on_job_hours * sc.hours_efficiency : 0)} />
-                  <CalcRow label="Hours efficiency" value={fmtPct(sc.hours_efficiency)} sub="budgeted ÷ actual" />
+                  <CalcRow label="Real budgeted hours" value={fmtHrs(sc.total_real_budgeted_hours)} />
+                  <CalcRow label="Hours efficiency" value={fmtPct(sc.hours_efficiency)} sub="clocked ÷ budgeted" />
                   <CalcRow label="On-job %" value={fmtPct(sc.on_job_pct)} sub="on-job ÷ clocked" />
                   <CalcRow label="Down time %" value={fmtPct(sc.down_time_pct)} sub="down time ÷ clocked" />
                   <CalcRow label="OT %" value={fmtPct(sc.ot_pct)} sub="OT ÷ clocked" />
