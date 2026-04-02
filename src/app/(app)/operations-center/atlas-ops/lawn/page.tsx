@@ -803,6 +803,130 @@ function PaceCard({ cogs }: { cogs: CogsMonth[] }) {
   );
 }
 
+// ── OT Tracker ────────────────────────────────────────────────────────────────
+
+type OTRisk = {
+  employee_id: string;
+  name: string;
+  photo_url: string | null;
+  total_hours: number;
+  days_worked: number;
+  avg_daily: number;
+  projected_eow: number;
+  remaining_weekdays: number;
+};
+
+type OTData = {
+  week_start: string;
+  week_end: string;
+  remaining_weekdays: number;
+  members: OTRisk[];
+};
+
+function OTAvatar({ person }: { person: OTRisk }) {
+  const [err, setErr] = useState(false);
+  const parts = person.name.trim().split(/\s+/);
+  const ini = parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : person.name.slice(0, 2).toUpperCase();
+  return (
+    <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden flex items-center justify-center bg-emerald-800 text-white text-xs font-bold">
+      {person.photo_url && !err
+        ? <img src={person.photo_url} alt={person.name} className="w-full h-full object-cover" onError={() => setErr(true)} />
+        : <span>{ini}</span>}
+    </div>
+  );
+}
+
+function OTTrackerCard({ data }: { data: OTData }) {
+  const { members, week_start, week_end, remaining_weekdays } = data;
+
+  const weekLabel = (() => {
+    const s = new Date(week_start + "T12:00:00Z");
+    const e = new Date(week_end   + "T12:00:00Z");
+    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: "UTC" };
+    return `${s.toLocaleDateString("en-US", opts)} – ${e.toLocaleDateString("en-US", opts)}`;
+  })();
+
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-md" style={{ border: "1px solid rgba(16,64,32,0.12)" }}>
+      <SectionHeader
+        title="OT Watch"
+        subtitle={members.length === 0
+          ? `${weekLabel} · No one trending toward OT`
+          : `${weekLabel} · ${members.length} team member${members.length !== 1 ? "s" : ""} to watch`}
+      />
+      {members.length === 0 ? (
+        <div className="bg-white px-5 py-4 flex items-center gap-2 text-sm text-emerald-700">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          All clear — no one at risk of OT this week
+        </div>
+      ) : (
+        <div className="bg-white divide-y divide-gray-100">
+          {members.map(m => {
+            const isOT   = m.total_hours >= 40;
+            const isWarn = m.total_hours >= 35;
+            const barFill = Math.min(m.total_hours / 40, 1);
+            const projFill = Math.min(m.projected_eow / 40, 1);
+            const barColor = isOT ? "bg-red-500" : isWarn ? "bg-amber-400" : "bg-emerald-500";
+            const projColor = m.projected_eow >= 40 ? "bg-red-300" : "bg-amber-200";
+            const showProj = remaining_weekdays > 0 && m.projected_eow > m.total_hours + 1;
+
+            return (
+              <div key={m.employee_id} className="flex items-center gap-3 px-5 py-3.5">
+                <OTAvatar person={m} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-semibold text-gray-900 truncate">{m.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                      <span className={`text-sm font-bold tabular-nums ${isOT ? "text-red-600" : isWarn ? "text-amber-600" : "text-gray-700"}`}>
+                        {m.total_hours.toFixed(1)} hrs
+                      </span>
+                      {isOT && (
+                        <span className="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded uppercase tracking-wide">OT</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Bar: actual fill + projected lighter extension */}
+                  <div className="relative h-2 rounded-full bg-gray-100 overflow-hidden">
+                    {showProj && (
+                      <div className={`absolute inset-y-0 left-0 rounded-full ${projColor}`} style={{ width: `${projFill * 100}%` }} />
+                    )}
+                    <div className={`absolute inset-y-0 left-0 rounded-full ${barColor}`} style={{ width: `${barFill * 100}%` }} />
+                  </div>
+                  {showProj && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      Projected EOW:{" "}
+                      <span className={`font-semibold ${m.projected_eow >= 40 ? "text-red-500" : "text-amber-500"}`}>
+                        {m.projected_eow.toFixed(1)} hrs
+                      </span>
+                      <span className="text-gray-300 mx-1">·</span>
+                      <span>{remaining_weekdays} day{remaining_weekdays !== 1 ? "s" : ""} remaining</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {/* 40h marker legend */}
+          <div className="px-5 py-2 flex items-center gap-1.5 bg-gray-50">
+            <span className="text-[10px] text-gray-400">Bar scale: 0 – 40 hrs</span>
+            <span className="text-[10px] text-gray-300 mx-1">·</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-[10px] text-gray-400">&lt;35</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-1.5" />
+            <span className="text-[10px] text-gray-400">35–40</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-1.5" />
+            <span className="text-[10px] text-gray-400">OT</span>
+            <span className="text-[10px] text-gray-300 mx-1">·</span>
+            <span className="text-[10px] text-gray-400 italic">lighter bar = projected</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
 function StatChip({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -820,17 +944,20 @@ function StatChip({ label, value, sub }: { label: string; value: string; sub?: s
 export default function LawnDashboard() {
   const [dash, setDash]       = useState<DashData | null>(null);
   const [cogs, setCogs]       = useState<CogsMonth[]>([]);
+  const [otData, setOtData]   = useState<OTData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     const year = new Date().getFullYear();
-    const [dashRes, cogsRes] = await Promise.all([
+    const [dashRes, cogsRes, otRes] = await Promise.all([
       fetch("/api/operations-center/atlas-ops/lawn/dashboard", { cache: "no-store" }).then(r => r.json()),
       fetch(`/api/operations-center/atlas-ops/lawn/cogs?year=${year}`, { cache: "no-store" }).then(r => r.ok ? r.json() : []),
+      fetch("/api/operations-center/atlas-ops/lawn/ot-tracker", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
     ]);
     setDash(dashRes);
     setCogs(cogsRes ?? []);
+    setOtData(otRes);
     setLoading(false);
   }, []);
 
@@ -912,6 +1039,9 @@ export default function LawnDashboard() {
           <WeekCard title="Current Week" days={dash?.current_week ?? []} isCurrent />
           <WeekCard title="Last Week"    days={dash?.last_week    ?? []} />
         </div>
+
+        {/* OT Watch */}
+        {otData && <OTTrackerCard data={otData} />}
 
         {/* Pace Intelligence */}
         <PaceCard cogs={cogs} />
