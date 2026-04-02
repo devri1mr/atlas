@@ -174,7 +174,7 @@ export default function KioskPage() {
       setEmployee(json.employee);
       setOpenPunch(json.open_punch ?? null);
       setDivisions(json.divisions ?? []);
-      setSelectedDivision(json.open_punch?.division_id ?? json.last_division_id ?? json.divisions?.[0]?.id ?? "");
+      setSelectedDivision(json.open_punch?.division_id ?? json.default_division_id ?? json.last_division_id ?? json.divisions?.[0]?.id ?? "");
       navigator.vibrate?.(30);
       getGps();
       setView("confirm");

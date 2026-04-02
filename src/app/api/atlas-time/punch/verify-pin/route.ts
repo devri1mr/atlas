@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const { data: employee } = await sb
       .from("at_employees")
       .select(`
-        id, first_name, last_name, preferred_name, job_title, department_id,
+        id, first_name, last_name, preferred_name, job_title, department_id, division_id,
         at_departments(id, name)
       `)
       .eq("company_id", companyId)
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       employee,
       open_punch: openPunch ?? null,
       divisions: divisions ?? [],
+      default_division_id: (employee as any).division_id ?? null,
       last_division_id: lastPunch?.division_id ?? null,
     });
   } catch (e: any) {
