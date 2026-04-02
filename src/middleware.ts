@@ -39,7 +39,20 @@ export async function middleware(request: NextRequest) {
 
   // Redirect authenticated users away from login page
   if (user && pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    try {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("permissions")
+        .eq("email", user.email!)
+        .single();
+      const perms = (profile?.permissions ?? {}) as Record<string, boolean>;
+      const dest = perms.dashboard === false
+        ? "/operations-center/atlas-ops/lawn/digest"
+        : "/dashboard";
+      return NextResponse.redirect(new URL(dest, request.url));
+    } catch {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   // Redirect unauthenticated users away from app pages
