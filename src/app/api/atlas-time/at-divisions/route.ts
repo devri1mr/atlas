@@ -26,8 +26,12 @@ export async function GET(req: NextRequest) {
     .filter(d => !activeOnly || d.active)
     .map(d => ({ ...d, source: "at" as const }));
 
+  // Exclude divisions that are already represented by an at_division entry
+  // (linked via at_divisions.division_id) to avoid duplicates in the list.
+  const linkedDivIds = new Set(atItems.map(d => d.division_id).filter(Boolean));
+
   const divItems = (divResult.data ?? [])
-    .filter(d => !activeOnly || d.active)
+    .filter(d => (!activeOnly || d.active) && !linkedDivIds.has(d.id))
     .map(d => ({ ...d, source: "div" as const }));
 
   const merged = [...atItems, ...divItems].sort((a, b) => a.name.localeCompare(b.name));

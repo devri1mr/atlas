@@ -79,6 +79,21 @@ export async function GET(req: NextRequest) {
 
   const sb = supabaseAdmin();
 
+  // For at_division entries that link to a division (via division_id),
+  // also pull punches recorded under division_id (e.g. Tree Farm ↔ Admin:DRDG).
+  if (atIds.length) {
+    const { data: atDivRows } = await sb
+      .from("at_divisions")
+      .select("division_id")
+      .in("id", atIds)
+      .not("division_id", "is", null);
+    for (const row of atDivRows ?? []) {
+      if (row.division_id && !divIds.includes(row.division_id)) {
+        divIds.push(row.division_id);
+      }
+    }
+  }
+
   // ── Fetch punches from both sources in parallel ──────────────────────────
   const [atResult, divResult] = await Promise.all([
     atIds.length
