@@ -424,19 +424,39 @@ function lastDayOfMonth(dateISO: string): string {
 
 function dec2(n: number) { return n.toFixed(2); }
 
+type AccrualRecord = {
+  id: string;
+  created_at: string;
+  start_date: string;
+  end_date: string;
+  accrual_date: string;
+  reversal_date: string | null;
+  punch_item_names: string[];
+  total_reg_hours: number;
+  total_ot_hours: number;
+  row_count: number;
+  reversed_at: string | null;
+  notes: string | null;
+};
+
 function QbAccrual() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const [startDate,    setStartDate]    = useState(today);
-  const [endDate,      setEndDate]      = useState(today);
-  const [accrualDate,  setAccrualDate]  = useState(() => lastDayOfMonth(today));
-  const [punchItems,   setPunchItems]   = useState<PunchItem[]>([]);
-  const [selected,     setSelected]     = useState<Set<string>>(new Set());
-  const [loading,      setLoading]      = useState(false);
-  const [loadingItems, setLoadingItems] = useState(true);
-  const [downloading,  setDownloading]  = useState(false);
-  const [rows,         setRows]         = useState<AccrualRow[] | null>(null);
-  const [totals,       setTotals]       = useState<{ reg: number; ot: number; warnings: number } | null>(null);
-  const [error,        setError]        = useState("");
+  const [startDate,        setStartDate]        = useState(today);
+  const [endDate,          setEndDate]          = useState(today);
+  const [accrualDate,      setAccrualDate]      = useState(() => lastDayOfMonth(today));
+  const [reversalDate,     setReversalDate]     = useState("");
+  const [punchItems,       setPunchItems]       = useState<PunchItem[]>([]);
+  const [selected,         setSelected]         = useState<Set<string>>(new Set());
+  const [loading,          setLoading]          = useState(false);
+  const [loadingItems,     setLoadingItems]     = useState(true);
+  const [downloading,      setDownloading]      = useState(false);
+  const [rows,             setRows]             = useState<AccrualRow[] | null>(null);
+  const [totals,           setTotals]           = useState<{ reg: number; ot: number; warnings: number } | null>(null);
+  const [pendingCount,     setPendingCount]     = useState(0);
+  const [pendingEmployees, setPendingEmployees] = useState<string[]>([]);
+  const [history,          setHistory]          = useState<AccrualRecord[]>([]);
+  const [loadingHistory,   setLoadingHistory]   = useState(true);
+  const [error,            setError]            = useState("");
 
   // Update accrual date when end date changes
   function handleEndChange(val: string) {
@@ -444,13 +464,28 @@ function QbAccrual() {
     setAccrualDate(lastDayOfMonth(val));
   }
 
-  // Load punch items
+  // Load punch items + history
   useEffect(() => {
     fetch("/api/atlas-time/at-divisions?active=true")
       .then(r => r.json())
       .then(d => { setPunchItems(d.divisions ?? []); setLoadingItems(false); })
       .catch(() => setLoadingItems(false));
+    loadHistory();
   }, []);
+
+  async function loadHistory() {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch("/api/atlas-time/qb-accrual?history=true");
+      const d = await res.json();
+      setHistory(d.accruals ?? []);
+    } finally { setLoadingHistory(false); }
+  }
+
+  async function markReversed(id: string) {
+    await fetch(`/api/atlas-time/qb-accrual/${id}`, { method: "PATCH" });
+    setHistory(prev => prev.map(r => r.id === id ? { ...r, reversed_at: new Date().toISOString() } : r));
+  }
 
   function toggleItem(id: string) {
     setSelected(prev => {
@@ -468,6 +503,7 @@ function QbAccrual() {
   async function runPreview() {
     if (!selected.size) { setError("Select at least one punch item."); return; }
     setError(""); setLoading(true); setRows(null); setTotals(null);
+    setPendingCount(0); setPendingEmployees([]);
     try {
       const params = new URLSearchParams({
         punch_items: [...selected].join(","),
@@ -479,13 +515,34 @@ function QbAccrual() {
       if (!res.ok) { setError(d.error ?? "Error loading preview"); return; }
       setRows(d.rows ?? []);
       setTotals({ reg: d.total_reg, ot: d.total_ot, warnings: d.warnings });
+      setPendingCount(d.pending_count ?? 0);
+      setPendingEmployees(d.pending_employees ?? []);
     } finally { setLoading(false); }
   }
 
   async function download() {
-    if (!selected.size) return;
+    if (!selected.size || !rows) return;
     setDownloading(true);
     try {
+      // Log the accrual first
+      const selectedItems = punchItems.filter(p => selected.has(p.id));
+      await fetch("/api/atlas-time/qb-accrual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_date:       startDate,
+          end_date:         endDate,
+          accrual_date:     accrualDate,
+          reversal_date:    reversalDate || null,
+          punch_item_ids:   selectedItems.map(p => p.id),
+          punch_item_names: selectedItems.map(p => p.name),
+          total_reg_hours:  totals?.reg ?? 0,
+          total_ot_hours:   totals?.ot  ?? 0,
+          row_count:        rows.length,
+        }),
+      });
+
+      // Trigger IIF download
       const params = new URLSearchParams({
         punch_items: [...selected].join(","),
         start: startDate, end: endDate, accrual_date: accrualDate,
@@ -498,6 +555,9 @@ function QbAccrual() {
       a.download = `garpiel_accrual_${startDate}_${endDate}.iif`;
       a.click();
       URL.revokeObjectURL(url);
+
+      // Refresh history
+      loadHistory();
     } finally { setDownloading(false); }
   }
 
@@ -530,6 +590,12 @@ function QbAccrual() {
               <input type="date" value={accrualDate} onChange={e => setAccrualDate(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
               <p className="text-[10px] text-gray-400 mt-0.5">All IIF entries use this date</p>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Reversal Date <span className="text-gray-300 normal-case">(optional)</span></label>
+              <input type="date" value={reversalDate} onChange={e => setReversalDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
+              <p className="text-[10px] text-gray-400 mt-0.5">Actual payroll date to reverse entry</p>
             </div>
           </div>
 
@@ -583,6 +649,8 @@ function QbAccrual() {
         </div>
       </div>
 
+      {/* Pending warning — shown even before/without preview if already set */}
+
       {/* Preview results */}
       {rows && (
         <div className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
@@ -598,6 +666,15 @@ function QbAccrual() {
               </div>
             )}
           </div>
+          {pendingCount > 0 && (
+            <div className="px-5 py-2.5 bg-red-50 border-b border-red-100 text-sm text-red-800">
+              <span className="font-bold">⚠ {pendingCount} unapproved punch{pendingCount !== 1 ? "es" : ""} not included</span>
+              {pendingEmployees.length > 0 && (
+                <span> — {pendingEmployees.join(", ")}</span>
+              )}
+              {". "}Approve them in the Punch Log first if they should be in this accrual.
+            </div>
+          )}
           {totals && totals.warnings > 0 && (
             <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-sm text-amber-800">
               <span className="font-bold">⚠ {totals.warnings} line{totals.warnings !== 1 ? "s" : ""} missing QB payroll item mappings</span>
@@ -649,6 +726,62 @@ function QbAccrual() {
           )}
         </div>
       )}
+
+      {/* Accrual history */}
+      <div className="rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="text-sm font-bold text-gray-800">Accrual History</div>
+          <button onClick={loadHistory} className="text-xs text-emerald-700 font-semibold hover:text-emerald-900">Refresh</button>
+        </div>
+        {loadingHistory ? (
+          <div className="px-5 py-6 text-sm text-gray-400">Loading…</div>
+        ) : history.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-gray-400 text-center">No accruals recorded yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/70">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Period</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Punch Items</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Accrual Date</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Reg Hrs</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">OT Hrs</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Reversal Date</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {history.map(a => (
+                  <tr key={a.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{a.start_date} → {a.end_date}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{(a.punch_item_names ?? []).join(", ") || "—"}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-700 whitespace-nowrap">{a.accrual_date}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{dec2(a.total_reg_hours)}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums text-gray-700">{a.total_ot_hours > 0 ? dec2(a.total_ot_hours) : "—"}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-500 whitespace-nowrap">{a.reversal_date ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {a.reversed_at
+                        ? <span className="text-xs font-semibold text-emerald-700">Reversed</span>
+                        : <span className="text-xs font-semibold text-amber-600">Pending reversal</span>
+                      }
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {!a.reversed_at && (
+                        <button onClick={() => markReversed(a.id)}
+                          className="text-xs font-semibold text-gray-500 hover:text-emerald-700 border border-gray-200 rounded px-2 py-0.5 hover:border-emerald-400 transition-colors">
+                          Mark Reversed
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

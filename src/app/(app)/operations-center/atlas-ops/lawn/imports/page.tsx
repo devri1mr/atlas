@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 type PunchStatus = "matched" | "no_punch" | "unrecognized";
 
 type Member = {
+  id?: string;
   resource_name: string;
   resource_code: string;
   employee_id: string | null;
@@ -28,7 +29,9 @@ type Job = {
   service: string;
   service_date: string;
   crew_code: string;
+  status?: string;
   budgeted_hours: number;
+  real_budgeted_hours?: number | null;
   actual_hours: number;
   variance_hours: number;
   budgeted_amount: number;
@@ -489,6 +492,214 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
   );
 }
 
+// ── Client table ──────────────────────────────────────────────────────────────
+
+type EditableMember = { id: string; resource_name: string; actual_hours: number; pay_rate: number; dispatch_time_id: string | null; dispatch_job_id: string | null; time_varies: boolean; start_time: string | null; end_time: string | null };
+
+function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
+  const BURDEN = 1.15;
+  const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
+  const [membersCache, setMembersCache] = useState<Record<string, EditableMember[]>>({});
+  const [edited,       setEdited]       = useState<Record<string, EditableMember[]>>({});
+  const [loadingJob,   setLoadingJob]   = useState<string | null>(null);
+  const [saving,       setSaving]       = useState<string | null>(null);
+  const [saveError,    setSaveError]    = useState<Record<string, string>>({});
+
+  const sorted = [...jobs].sort((a, b) => (a.client_name || "").localeCompare(b.client_name || ""));
+
+  function jobLaborCost(job: Job) {
+    const members: Member[] = job.members?.length ? job.members : (job.lawn_production_members ?? []);
+    return members.reduce((s, m) => s + Number(m.actual_hours ?? 0) * Number(m.pay_rate ?? 0) * BURDEN, 0);
+  }
+
+  async function toggleJob(jobId: string) {
+    const next = new Set(expanded);
+    if (next.has(jobId)) { next.delete(jobId); setExpanded(next); return; }
+    next.add(jobId);
+    setExpanded(next);
+    if (!membersCache[jobId]) {
+      setLoadingJob(jobId);
+      try {
+        const res = await fetch(`/api/operations-center/atlas-ops/lawn/job-time?job_id=${jobId}`);
+        const d = await res.json();
+        const members = (d.members ?? []) as EditableMember[];
+        setMembersCache(prev => ({ ...prev, [jobId]: members }));
+        setEdited(prev => ({ ...prev, [jobId]: members.map(m => ({ ...m })) }));
+      } finally { setLoadingJob(null); }
+    }
+  }
+
+  function updateHours(jobId: string, idx: number, val: number) {
+    setEdited(prev => {
+      const rows = [...(prev[jobId] ?? [])];
+      rows[idx] = { ...rows[idx], actual_hours: val };
+      return { ...prev, [jobId]: rows };
+    });
+  }
+
+  async function saveJob(jobId: string) {
+    const members = edited[jobId];
+    if (!members) return;
+    setSaving(jobId); setSaveError(prev => ({ ...prev, [jobId]: "" }));
+    try {
+      const res = await fetch("/api/operations-center/atlas-ops/lawn/job-time", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobId, members }),
+      });
+      if (!res.ok) { const d = await res.json(); setSaveError(prev => ({ ...prev, [jobId]: d.error ?? "Save failed" })); return; }
+      setMembersCache(prev => ({ ...prev, [jobId]: members.map(m => ({ ...m })) }));
+      // Close the row and refresh parent
+      setExpanded(prev => { const next = new Set(prev); next.delete(jobId); return next; });
+      onSaved();
+    } finally { setSaving(null); }
+  }
+
+  const totalActual  = sorted.reduce((s, j) => s + Number(j.actual_hours ?? 0), 0);
+  const totalBudget  = sorted.reduce((s, j) => s + Number(j.real_budgeted_hours ?? j.budgeted_hours ?? 0), 0);
+  const totalRevenue = sorted.reduce((s, j) => s + Number(j.budgeted_amount ?? 0), 0);
+  const totalLabor   = sorted.reduce((s, j) => s + jobLaborCost(j), 0);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse min-w-[900px]">
+        <thead>
+          <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
+            <th className="px-4 py-2.5">Client</th>
+            <th className="px-3 py-2.5">Service</th>
+            <th className="px-3 py-2.5 text-center">Crew</th>
+            <th className="px-3 py-2.5 text-center">Actual Hrs</th>
+            <th className="px-3 py-2.5 text-center">Real Bud Hrs</th>
+            <th className="px-3 py-2.5 text-center">Labor %</th>
+            <th className="px-3 py-2.5 text-center">Revenue</th>
+            <th className="px-3 py-2.5 w-8" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(job => {
+            const jobId     = job.id!;
+            const isOpen    = expanded.has(jobId);
+            const labor     = jobLaborCost(job);
+            const revenue   = Number(job.budgeted_amount ?? 0);
+            const laborPct  = revenue > 0 ? labor / revenue : null;
+            const realBudH  = Number(job.real_budgeted_hours ?? job.budgeted_hours ?? 0);
+            const editRows  = edited[jobId];
+            const isDispatched = (job.status ?? "") === "dispatched";
+
+            return (
+              <React.Fragment key={jobId}>
+                <tr
+                  className={`border-t border-emerald-50 hover:bg-emerald-50/30 cursor-pointer ${isOpen ? "bg-emerald-50/20" : ""}`}
+                  onClick={() => toggleJob(jobId)}
+                >
+                  <td className="px-4 py-2.5 font-medium text-emerald-950">
+                    <span className="flex items-center gap-1.5">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                        strokeLinecap="round" strokeLinejoin="round"
+                        className={`shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                      {job.client_name}
+                      {isDispatched && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold ml-1">Dispatched</span>}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-600">{job.service}</td>
+                  <td className="px-3 py-2.5 text-center text-gray-500">{job.crew_code}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">{dec2(job.actual_hours)}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{dec2(realBudH)}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums">
+                    {laborPct != null
+                      ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span>
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">{revenue > 0 ? money.format(revenue) : "—"}</td>
+                  <td />
+                </tr>
+                {isOpen && (
+                  <tr>
+                    <td colSpan={8} className="bg-emerald-50/30 border-t border-emerald-100 px-6 py-3">
+                      {loadingJob === jobId ? (
+                        <div className="text-xs text-emerald-900/50 py-2">Loading…</div>
+                      ) : editRows ? (
+                        <div>
+                          <table className="text-xs w-full max-w-lg">
+                            <thead>
+                              <tr className="text-emerald-900/50 text-left">
+                                <th className="pb-1.5 pr-4">Team Member</th>
+                                <th className="pb-1.5 px-3 text-center">Actual Hrs</th>
+                                <th className="pb-1.5 px-3 text-center">Rate</th>
+                                <th className="pb-1.5 px-3 text-center">Est. Cost</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-emerald-100">
+                              {editRows.map((m, idx) => (
+                                <tr key={m.resource_name}>
+                                  <td className="py-1.5 pr-4 font-medium text-gray-700">{formatName(m.resource_name)}</td>
+                                  <td className="py-1.5 px-3 text-center">
+                                    <input
+                                      type="number" step="0.25" min="0"
+                                      value={m.actual_hours}
+                                      onChange={e => updateHours(jobId, idx, parseFloat(e.target.value) || 0)}
+                                      onClick={e => e.stopPropagation()}
+                                      className="border border-gray-200 rounded px-2 py-0.5 w-20 text-center focus:outline-none focus:border-emerald-400 bg-white"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 px-3 text-center text-gray-500">${m.pay_rate.toFixed(2)}/hr</td>
+                                  <td className="py-1.5 px-3 text-center tabular-nums text-gray-700">
+                                    ${(m.actual_hours * m.pay_rate * BURDEN).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="border-t border-emerald-200 font-semibold text-gray-700">
+                                <td className="pt-1.5 pr-4">Total</td>
+                                <td className="pt-1.5 px-3 text-center">{editRows.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)}</td>
+                                <td className="pt-1.5 px-3 text-center text-gray-400 text-[10px]">×{BURDEN} burden</td>
+                                <td className="pt-1.5 px-3 text-center">${editRows.reduce((s, m) => s + m.actual_hours * m.pay_rate * BURDEN, 0).toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          {saveError[jobId] && <p className="text-xs text-red-600 mt-1">{saveError[jobId]}</p>}
+                          <div className="flex gap-2 mt-2.5" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => saveJob(jobId)}
+                              disabled={saving === jobId}
+                              className="px-3 py-1 rounded-lg text-xs font-semibold text-white bg-[#123b1f] hover:bg-[#0d2616] disabled:opacity-40 transition-colors"
+                            >
+                              {saving === jobId ? "Saving…" : "Save Changes"}
+                            </button>
+                            <button
+                              onClick={() => { setExpanded(prev => { const n = new Set(prev); n.delete(jobId); return n; }); setEdited(prev => ({ ...prev, [jobId]: (membersCache[jobId] ?? []).map(m => ({ ...m })) })); }}
+                              className="px-3 py-1 rounded-lg text-xs font-semibold text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-emerald-200 bg-emerald-50/40 font-semibold text-sm text-emerald-950">
+            <td className="px-4 py-2.5" colSpan={3}>Total — {sorted.length} job{sorted.length !== 1 ? "s" : ""}</td>
+            <td className="px-3 py-2.5 text-center tabular-nums">{dec2(totalActual)}</td>
+            <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{dec2(totalBudget)}</td>
+            <td className="px-3 py-2.5 text-center tabular-nums">
+              {totalRevenue > 0 ? <span className={totalLabor / totalRevenue > 0.39 ? "text-red-600" : "text-emerald-700"}>{pct(totalLabor / totalRevenue)}</span> : "—"}
+            </td>
+            <td className="px-3 py-2.5 text-center tabular-nums">{money.format(totalRevenue)}</td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 // ── Person table ──────────────────────────────────────────────────────────────
 
 function PersonTable({ jobs, punches, dispatchJobs }: {
@@ -714,6 +925,7 @@ export default function LawnPage() {
   const [expandedRep, setExpandedRep] = useState<string | null>(null);
   const [repDetail, setRepDetail]     = useState<{ report: Report; punches: ReportPunch[]; dispatchJobs: DispatchJob[] } | null>(null);
   const [loadingRep, setLoadingRep]   = useState(false);
+  const [repTab,     setRepTab]       = useState<"team" | "client">("team");
   const [repDtCache, setRepDtCache]   = useState<Record<string, number>>({});
   // Inline rate-add for missing pay rates in preview
   const [rateFormId, setRateFormId]   = useState<string | null>(null);
@@ -837,6 +1049,7 @@ export default function LawnPage() {
   async function toggleReport(id: string, date: string) {
     if (expandedRep === id) { setExpandedRep(null); setRepDetail(null); return; }
     setExpandedRep(id);
+    setRepTab("team");
     setRepDetail(null);
     setLoadingRep(true);
     const [repRes, dispatchJobs] = await Promise.all([
@@ -867,6 +1080,14 @@ export default function LawnPage() {
     if (!repDetail) return;
     const jobs = await loadDispatch(repDetail.report.report_date);
     setRepDetail(prev => prev ? { ...prev, dispatchJobs: jobs } : null);
+  }
+
+  async function refreshReport() {
+    if (!repDetail) return;
+    const id = repDetail.report.id;
+    const repRes = await fetch(`/api/operations-center/atlas-ops/lawn/reports?id=${id}`, { cache: "no-store" }).then(r => r.json());
+    if (repRes.data) setRepDetail(prev => prev ? { ...prev, report: repRes.data, punches: repRes.punches ?? [] } : null);
+    await loadReports();
   }
 
   const isDispatchPreview = preview?.report_type === "dispatch";
@@ -1143,18 +1364,42 @@ export default function LawnPage() {
                     </div>
                     {/* Expanded detail */}
                     {isOpen && (
-                      <div className="border-t border-emerald-100 overflow-x-auto">
+                      <div className="border-t border-emerald-100">
                         {loadingRep ? (
                           <div className="px-6 py-4 text-sm text-emerald-900/50">Loading…</div>
                         ) : repDetail ? (
                           <>
-                            <PersonTable jobs={repJobs} punches={repDetail.punches} dispatchJobs={repDetail.dispatchJobs} />
-                            <VariesPanel
-                              dispatchJobs={repDetail.dispatchJobs}
-                              persons={repPersons}
-                              reportDate={repDetail.report.report_date}
-                              onSaved={refreshDispatch}
-                            />
+                            {/* Tab bar */}
+                            <div className="flex gap-0 border-b border-emerald-100 bg-emerald-50/40">
+                              <button
+                                onClick={() => setRepTab("team")}
+                                className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${repTab === "team" ? "border-emerald-500 text-emerald-900" : "border-transparent text-emerald-900/40 hover:text-emerald-900/70"}`}
+                              >
+                                Team Members
+                              </button>
+                              <button
+                                onClick={() => setRepTab("client")}
+                                className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${repTab === "client" ? "border-emerald-500 text-emerald-900" : "border-transparent text-emerald-900/40 hover:text-emerald-900/70"}`}
+                              >
+                                By Client
+                              </button>
+                            </div>
+
+                            {repTab === "team" && (
+                              <>
+                                <PersonTable jobs={repJobs} punches={repDetail.punches} dispatchJobs={repDetail.dispatchJobs} />
+                                <VariesPanel
+                                  dispatchJobs={repDetail.dispatchJobs}
+                                  persons={repPersons}
+                                  reportDate={repDetail.report.report_date}
+                                  onSaved={refreshDispatch}
+                                />
+                              </>
+                            )}
+
+                            {repTab === "client" && (
+                              <ClientTable jobs={repJobs} onSaved={refreshReport} />
+                            )}
                           </>
                         ) : null}
                       </div>

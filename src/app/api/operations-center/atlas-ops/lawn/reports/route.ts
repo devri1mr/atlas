@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
           id, report_date, file_name, imported_at, is_complete,
           total_budgeted_hours, total_actual_hours, total_budgeted_amount, total_actual_amount,
           lawn_production_jobs (
-            id, work_order, client_name, client_address, service, service_date,
-            crew_code, budgeted_hours, actual_hours, variance_hours, budgeted_amount, actual_amount,
+            id, work_order, client_name, client_address, service, service_date, status,
+            crew_code, budgeted_hours, real_budgeted_hours, actual_hours, variance_hours, budgeted_amount, actual_amount,
             lawn_production_members (
               id, resource_name, resource_code, employee_id, actual_hours, earned_amount, punch_status,
               reg_hours, ot_hours, total_payroll_hours, pay_rate, payroll_cost
