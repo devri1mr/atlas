@@ -254,6 +254,9 @@ export default function EmployeeDetailPage() {
       setCustomFieldDefs((cfJson.fields ?? []).filter((f: CustomFieldDef) => f.active));
       setCustomValues(cvJson.values ?? {});
 
+      const hireDate = empJson.employee?.hire_date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      setNewItemDate(hireDate);
+
       const raw = empJson.employee?.uniform_items;
       let items: UniformItem[] = Array.isArray(raw) ? raw : [];
       if (items.length === 0) {
@@ -262,7 +265,7 @@ export default function EmployeeDetailPage() {
           key: `default_${o.id}_${Date.now()}_${Math.random()}`,
           item: o.label,
           cost: o.cost ?? null,
-          issued_date: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+          issued_date: hireDate,
           issued_type: "company_issued" as const,
           subsection: o.subsection ?? "",
           size: "",
@@ -1335,13 +1338,12 @@ export default function EmployeeDetailPage() {
                 return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
               });
               const colClass = anySize && anyColor
-                ? "grid-cols-[160px_72px_96px_96px_52px_112px_172px_32px]"
+                ? "grid-cols-[minmax(0,2fr)_64px_80px_80px_44px_100px_minmax(0,1fr)_28px]"
                 : anySize || anyColor
-                ? "grid-cols-[160px_72px_96px_52px_112px_172px_32px]"
-                : "grid-cols-[160px_72px_52px_112px_172px_32px]";
+                ? "grid-cols-[minmax(0,2fr)_64px_80px_44px_100px_minmax(0,1fr)_28px]"
+                : "grid-cols-[minmax(0,2fr)_64px_44px_100px_minmax(0,1fr)_28px]";
               return (
-                <div className="overflow-x-auto -mx-5 px-5">
-                <div className="space-y-3 mb-3 min-w-max">
+                <div className="space-y-3 mb-3">
                   {/* Shared column header across all groups */}
                   <div className={`grid gap-x-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
                     <span>Item</span>
@@ -1414,7 +1416,7 @@ export default function EmployeeDetailPage() {
                                 onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
                                 className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
                                 <option value="company_issued">Company Issued</option>
-                                <option value="team_member_purchase">Team Member Purchase</option>
+                                <option value="team_member_purchase">Member Purchase</option>
                               </select>
                               <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1438,7 +1440,6 @@ export default function EmployeeDetailPage() {
                       </div>
                     </div>
                   ))}
-                </div>
                 </div>
               );
             })()}
