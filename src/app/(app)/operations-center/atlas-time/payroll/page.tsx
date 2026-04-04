@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fmtPaycheckDate, paycheckDateRange, payPeriodBounds, PayPeriodSettings } from "@/lib/atPayPeriod";
+import { fmtPaycheckDate, nextPaycheckDate, paycheckDateRange, payPeriodBounds, PayPeriodSettings } from "@/lib/atPayPeriod";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -464,6 +464,40 @@ function QbAccrual() {
     setAccrualDate(lastDayOfMonth(val));
   }
 
+  // Suggest cross-month accrual dates from pay settings
+  async function suggestAccrual() {
+    try {
+      const res = await fetch("/api/atlas-time/settings");
+      const d = await res.json();
+      const settings: PayPeriodSettings = d.data ?? d;
+
+      // Use last day of current month as reference
+      const now = new Date();
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const lastDayISO = lastDay.toISOString().slice(0, 10);
+
+      // Find the paycheck for the period that contains the last day of the month
+      const paycheckISO = nextPaycheckDate(settings, lastDay, 0);
+      const { start: periodStart, end: periodEnd } = payPeriodBounds(paycheckISO, settings);
+
+      const startMonth = new Date(periodStart + "T12:00:00").getMonth();
+      const endMonth   = new Date(periodEnd   + "T12:00:00").getMonth();
+
+      if (startMonth === lastDay.getMonth() && endMonth !== lastDay.getMonth()) {
+        // Period crosses the month end — this is the accrual range
+        setStartDate(periodStart);
+        setEndDate(lastDayISO);
+        setAccrualDate(lastDayISO);
+        setReversalDate(paycheckISO);
+      } else {
+        // No cross-month period this month
+        setError("No cross-month pay dates found for the current month.");
+      }
+    } catch {
+      setError("Could not load pay settings to suggest dates.");
+    }
+  }
+
   // Load punch items + history
   useEffect(() => {
     fetch("/api/atlas-time/at-divisions?active=true")
@@ -593,6 +627,13 @@ function QbAccrual() {
               <input type="date" value={endDate} onChange={e => handleEndChange(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
+            <button
+              onClick={suggestAccrual}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              title="Auto-fill dates for pay period days that cross into next month"
+            >
+              Suggest dates
+            </button>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Date</label>
               <input type="date" value={accrualDate} onChange={e => setAccrualDate(e.target.value)}
