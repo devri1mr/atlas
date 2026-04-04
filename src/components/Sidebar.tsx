@@ -195,7 +195,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     return !c.permKey || can(c.permKey);
   }
 
-  const visibleNav = loading
+  const visibleNav = (loading || !user)
     ? []
     : fullNav.filter(item => {
         if (item.children?.length) {
@@ -343,7 +343,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
 
       {/* Settings — always pinned above bottom */}
-      {(!SETTINGS_ITEM.permKey || can(SETTINGS_ITEM.permKey)) && (() => {
+      {user && (!SETTINGS_ITEM.permKey || can(SETTINGS_ITEM.permKey)) && (() => {
         const item = SETTINGS_ITEM;
         const visibleChildren = item.children?.filter(c => !c.permKey || can(c.permKey));
         const hasChildren = !!visibleChildren?.length;
