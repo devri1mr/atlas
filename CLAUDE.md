@@ -118,6 +118,9 @@ Defined in `src/components/Sidebar.tsx`. Structure:
 - **Payroll calculations**: unless explicitly specified otherwise, always use 100% of a person's total payroll cost (all hours they are paid for — on-job + down time combined). Never attribute only the on-job portion. If someone worked 45 hrs and generated $1,000 revenue, labor % = total_payroll_cost / $1,000 and rev/hr = $1,000 / 45.
 - **Timezone: always Eastern (America/New_York)** — all timestamps are stored in UTC in Supabase. Always display using `America/New_York` (handles EDT/EST automatically). Never use `getUTCHours()` or raw UTC for display. Use `Intl.DateTimeFormat` with `timeZone: "America/New_York"` for display, and reverse the Eastern offset when writing back to UTC.
 
+- **Atlas Time punch item display**: Always use the punch item's own `name` field for display — never substitute the QB class name (`qb_class_name`). QB class is metadata for QuickBooks export only, not a label. E.g. "Shop - Admin" and "Office" both have QB class "Admin" but must display as "Shop - Admin" and "Office".
+- **Atlas Time dual punch sources**: `at_punches` has two division columns: `at_division_id` → `at_divisions` (specific punch item), and `division_id` → `divisions` (general division). When querying by expanded division_id (derived from at_division FK), always add `at_division_id IS NULL` to avoid pulling punches that belong to other at_divisions sharing the same parent division.
+
 ## Database Notes
 - Supabase MCP is configured — can query DB directly in Claude Code sessions
 - Project ref: `cbmnwpcasbbueiysgtkv`
