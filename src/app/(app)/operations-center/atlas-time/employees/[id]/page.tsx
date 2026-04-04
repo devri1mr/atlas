@@ -1335,9 +1335,9 @@ export default function EmployeeDetailPage() {
                 return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
               });
               const colClass = anySize && anyColor
-                ? "grid-cols-[160px_72px_64px_64px_52px_112px_172px_32px]"
+                ? "grid-cols-[160px_72px_96px_96px_52px_112px_172px_32px]"
                 : anySize || anyColor
-                ? "grid-cols-[160px_72px_64px_52px_112px_172px_32px]"
+                ? "grid-cols-[160px_72px_96px_52px_112px_172px_32px]"
                 : "grid-cols-[160px_72px_52px_112px_172px_32px]";
               return (
                 <div className="overflow-x-auto -mx-5 px-5">
@@ -1367,7 +1367,7 @@ export default function EmployeeDetailPage() {
                           return (
                             <div key={item.key} className={`grid gap-x-2 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
                               <div className="min-w-0">
-                                <div className="text-sm font-medium text-gray-800 truncate">{item.item}</div>
+                                <div className="text-sm font-medium text-gray-800">{item.item}</div>
                               </div>
                               <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>

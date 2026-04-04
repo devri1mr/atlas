@@ -111,6 +111,7 @@ Defined in `src/components/Sidebar.tsx`. Structure:
 - No `"use client"` on API routes or server components
 - Tailwind for all styling — no CSS modules or styled-components
 - **CRITICAL — Table alignment: ALL table cells (`<th>` and `<td>`) must use `text-center`. NEVER use `text-right` or `text-left` on any table cell, header, or value in any table anywhere in the app. This applies to every table without exception.**
+- **CRITICAL — No text truncation: NEVER use `truncate` or `overflow-hidden` on cell content. All cells must show their full text. Size columns wide enough to display full values — no fixed widths that clip content.**
 - Brand colors: `#0d2616` (darkest), `#123b1f` (dark green), `#1a5c2a` (mid green)
 - Font weights: use `font-semibold` for data values, `font-bold` for headings — avoid `font-black` (renders poorly on Windows)
 - Gradient header pattern: `linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)`
