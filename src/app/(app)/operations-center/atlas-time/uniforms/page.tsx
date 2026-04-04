@@ -397,12 +397,12 @@ export default function UniformsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty Issued</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Cost</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Employees</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty Issued</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Cost</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Employees</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -414,9 +414,9 @@ export default function UniformsPage() {
                       <td className="px-4 py-3 font-medium text-gray-800">{row.item}</td>
                       <td className="px-4 py-3 text-gray-600">{row.size ?? <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-gray-600">{row.color ?? <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-800 tabular-nums">{row.qty}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{row.total_cost > 0 ? fmt$(row.total_cost) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.employee_count}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{row.qty}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.total_cost > 0 ? fmt$(row.total_cost) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.employee_count}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -424,8 +424,8 @@ export default function UniformsPage() {
                   <tfoot className="border-t border-gray-200 bg-gray-50">
                     <tr>
                       <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{issued.reduce((s, r) => s + r.qty, 0)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{fmt$(issued.reduce((s, r) => s + r.total_cost, 0))}</td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{issued.reduce((s, r) => s + r.qty, 0)}</td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{fmt$(issued.reduce((s, r) => s + r.total_cost, 0))}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -442,12 +442,12 @@ export default function UniformsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">On Hand</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Avg Cost</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Value</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">On Hand</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Avg Cost</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Value</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -459,11 +459,11 @@ export default function UniformsPage() {
                       <td className="px-4 py-3 font-medium text-gray-800">{row.item_name}</td>
                       <td className="px-4 py-3 text-gray-600">{row.size_label ?? <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-gray-600">{row.color_label ?? <span className="text-gray-300">—</span>}</td>
-                      <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.qty_on_hand < 0 ? "text-red-600" : row.qty_on_hand === 0 ? "text-gray-400" : "text-gray-800"}`}>
+                      <td className={`px-4 py-3 text-center font-semibold tabular-nums ${row.qty_on_hand < 0 ? "text-red-600" : row.qty_on_hand === 0 ? "text-gray-400" : "text-gray-800"}`}>
                         {row.qty_on_hand}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{fmt$(row.avg_unit_cost)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-800 tabular-nums">{fmt$(row.inventory_value)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmt$(row.avg_unit_cost)}</td>
+                      <td className="px-4 py-3 text-center font-medium text-gray-800 tabular-nums">{fmt$(row.inventory_value)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -471,9 +471,9 @@ export default function UniformsPage() {
                   <tfoot className="border-t border-gray-200 bg-gray-50">
                     <tr>
                       <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{totalUnits}</td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{totalUnits}</td>
                       <td />
-                      <td className="px-4 py-3 text-right font-bold text-gray-800 tabular-nums">{fmt$(totalValue)}</td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{fmt$(totalValue)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -489,16 +489,16 @@ export default function UniformsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor / Ref</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor / Ref</th>
                     <th className="px-4 py-3 w-16" />
                   </tr>
                 </thead>
@@ -520,15 +520,15 @@ export default function UniformsPage() {
                         <td className="px-4 py-3 font-medium text-gray-800">{row.at_field_options?.label ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600">{row.size?.label ?? <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3 text-gray-600">{row.color?.label ?? <span className="text-gray-300">—</span>}</td>
-                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.quantity < 0 ? "text-blue-600" : "text-gray-800"}`}>
+                        <td className={`px-4 py-3 text-center font-semibold tabular-nums ${row.quantity < 0 ? "text-blue-600" : "text-gray-800"}`}>
                           {row.quantity > 0 ? `+${row.quantity}` : row.quantity}
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-600 tabular-nums">
+                        <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
                           {isEditing && isReceipt
                             ? <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span><input type="number" step="0.01" value={editUnitCost} onChange={e => setEditUnitCost(e.target.value)} className="border border-gray-200 rounded-lg pl-5 pr-2 py-1 text-xs w-24" /></div>
                             : fmt$(row.unit_cost)}
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{fmt$(row.total_cost)}</td>
+                        <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmt$(row.total_cost)}</td>
                         <td className="px-4 py-3 text-gray-600">
                           {row.employee ? `${row.employee.last_name}, ${row.employee.first_name}` : <span className="text-gray-300">—</span>}
                         </td>
