@@ -18,7 +18,7 @@ export async function GET() {
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const [companyRes, extrasRes] = await Promise.all([
-      sb.from("divisions").select("id, name, active, department_id, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot").order("name", { ascending: true }),
+      sb.from("divisions").select("id, name, active, department_id, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot").eq("show_as_punch_item", true).order("name", { ascending: true }),
       sb.from("at_divisions")
         .select("id, name, active, time_clock_only, department_id, qb_class_name, division_id, csv_name, qb_payroll_item_reg, qb_payroll_item_ot")
         .eq("company_id", companyId)

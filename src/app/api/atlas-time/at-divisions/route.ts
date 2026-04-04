@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
       .order("name"),
     sb.from("divisions")
       .select("id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot, active")
+      .eq("show_as_punch_item", true)
       .order("name"),
   ]);
 
