@@ -709,6 +709,7 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
   punches: ReportPunch[];
   dispatchJobs: DispatchJob[];
 }) {
+  const { can } = useUser();
   const persons = buildPersonView(jobs, punches);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [downPopover, setDownPopover] = useState<string | null>(null);
