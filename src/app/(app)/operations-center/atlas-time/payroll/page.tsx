@@ -470,7 +470,7 @@ function QbAccrual() {
     try {
       const res = await fetch("/api/atlas-time/settings");
       const d = await res.json();
-      const settings: PayPeriodSettings = d.data ?? d;
+      const settings: PayPeriodSettings = d.settings ?? d.data ?? d;
 
       if (!settings.pay_period_anchor_date) {
         setError("No pay period anchor date configured in settings.");
