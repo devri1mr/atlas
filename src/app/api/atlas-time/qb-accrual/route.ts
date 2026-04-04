@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
             at_employees!inner(first_name, last_name, middle_initial),
             at_divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
           `)
-          .eq("status", "approved")
+          .neq("status", "rejected")
           .gte("date_for_payroll", startDate)
           .lte("date_for_payroll", endDate)
           .in("at_division_id", atIds)
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
             at_employees!inner(first_name, last_name, middle_initial),
             divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
           `)
-          .eq("status", "approved")
+          .neq("status", "rejected")
           .gte("date_for_payroll", startDate)
           .lte("date_for_payroll", endDate)
           .in("division_id", divIds)
@@ -180,40 +180,9 @@ export async function GET(req: NextRequest) {
     const total_ot  = rows.reduce((s, r) => s + r.ot_hours,  0);
     const warnings  = rows.filter(r => r.warning).length;
 
-    // Count pending (unapproved) punches for the same criteria
-    const [pendingAt, pendingDiv] = await Promise.all([
-      atIds.length
-        ? sb.from("at_punches")
-            .select("employee_id, at_employees!inner(first_name, last_name)")
-            .neq("status", "approved")
-            .gte("date_for_payroll", startDate)
-            .lte("date_for_payroll", endDate)
-            .in("at_division_id", atIds)
-        : Promise.resolve({ data: [] as any[] }),
-
-      divIds.length
-        ? sb.from("at_punches")
-            .select("employee_id, at_employees!inner(first_name, last_name)")
-            .neq("status", "approved")
-            .gte("date_for_payroll", startDate)
-            .lte("date_for_payroll", endDate)
-            .in("division_id", divIds)
-        : Promise.resolve({ data: [] as any[] }),
-    ]);
-
-    const pendingPunches = [...(pendingAt.data ?? []), ...(pendingDiv.data ?? [])];
-    const pendingEmployees = [...new Map(
-      pendingPunches.map((p: any) => [
-        p.employee_id,
-        `${p.at_employees.first_name} ${p.at_employees.last_name}`,
-      ])
-    ).values()].sort();
-
     return NextResponse.json({
       rows, total_reg, total_ot, warnings,
       punch_count: allPunches.length,
-      pending_count: pendingPunches.length,
-      pending_employees: pendingEmployees,
     });
   }
 

@@ -452,8 +452,6 @@ function QbAccrual() {
   const [downloading,      setDownloading]      = useState(false);
   const [rows,             setRows]             = useState<AccrualRow[] | null>(null);
   const [totals,           setTotals]           = useState<{ reg: number; ot: number; warnings: number } | null>(null);
-  const [pendingCount,     setPendingCount]     = useState(0);
-  const [pendingEmployees, setPendingEmployees] = useState<string[]>([]);
   const [history,          setHistory]          = useState<AccrualRecord[]>([]);
   const [loadingHistory,   setLoadingHistory]   = useState(true);
   const [error,            setError]            = useState("");
@@ -554,7 +552,6 @@ function QbAccrual() {
   async function runPreview() {
     if (!selected.size) { setError("Select at least one punch item."); return; }
     setError(""); setLoading(true); setRows(null); setTotals(null);
-    setPendingCount(0); setPendingEmployees([]);
     try {
       const punchItemsParam = [...selected].map(id => {
         const item = punchItems.find(p => p.id === id);
@@ -570,8 +567,6 @@ function QbAccrual() {
       if (!res.ok) { setError(d.error ?? "Error loading preview"); return; }
       setRows(d.rows ?? []);
       setTotals({ reg: d.total_reg, ot: d.total_ot, warnings: d.warnings });
-      setPendingCount(d.pending_count ?? 0);
-      setPendingEmployees(d.pending_employees ?? []);
     } finally { setLoading(false); }
   }
 
@@ -744,15 +739,6 @@ function QbAccrual() {
               </div>
             )}
           </div>
-          {pendingCount > 0 && (
-            <div className="px-5 py-2.5 bg-red-50 border-b border-red-100 text-sm text-red-800">
-              <span className="font-bold">⚠ {pendingCount} unapproved punch{pendingCount !== 1 ? "es" : ""} not included</span>
-              {pendingEmployees.length > 0 && (
-                <span> — {pendingEmployees.join(", ")}</span>
-              )}
-              {". "}Approve them in the Punch Log first if they should be in this accrual.
-            </div>
-          )}
           {totals && totals.warnings > 0 && (
             <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-sm text-amber-800">
               <span className="font-bold">⚠ {totals.warnings} line{totals.warnings !== 1 ? "s" : ""} missing QB payroll item mappings</span>
