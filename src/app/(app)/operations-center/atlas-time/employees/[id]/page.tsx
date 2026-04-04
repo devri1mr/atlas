@@ -1239,7 +1239,7 @@ export default function EmployeeDetailPage() {
 
       <div className="sticky top-0 z-40 px-4 md:px-8 py-6 md:py-8"
         style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 50%, #1a5c2a 100%)" }}>
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 text-white/50 text-xs mb-4">
             <Link href="/operations-center" className="hover:text-white/80 transition-colors">Operations Center</Link>
             <span>/</span>
@@ -1294,7 +1294,7 @@ export default function EmployeeDetailPage() {
         </div>
       </div>
 
-      <div className={`px-4 md:px-8 py-6 max-w-6xl mx-auto space-y-4 ${hasNav ? "pb-24" : ""}`}>
+      <div className={`px-4 md:px-8 py-6 max-w-4xl mx-auto space-y-4 ${hasNav ? "pb-24" : ""}`}>
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
@@ -1338,10 +1338,10 @@ export default function EmployeeDetailPage() {
                 return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
               });
               const colClass = anySize && anyColor
-                ? "grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_60px_72px_72px_40px_96px_24px]"
+                ? "grid-cols-[160px_140px_60px_72px_72px_40px_96px_24px]"
                 : anySize || anyColor
-                ? "grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_60px_72px_40px_96px_24px]"
-                : "grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_60px_40px_96px_24px]";
+                ? "grid-cols-[160px_140px_60px_72px_40px_96px_24px]"
+                : "grid-cols-[160px_140px_60px_40px_96px_24px]";
               return (
                 <div className="space-y-3 mb-3">
                   {/* Shared column header across all groups */}
@@ -1368,7 +1368,7 @@ export default function EmployeeDetailPage() {
                           const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
                           return (
                             <div key={item.key} className={`grid gap-x-2 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
-                              <div className="min-w-0 text-sm font-medium text-gray-800">{item.item}</div>
+                              <div className="min-w-0 text-xs font-medium text-gray-800">{item.item}</div>
                               <select value={item.issued_type ?? "company_issued"}
                                 onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
                                 className="w-full border border-gray-200 rounded-lg px-1 py-1 text-[11px] text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
@@ -1650,7 +1650,7 @@ export default function EmployeeDetailPage() {
       {/* Sticky prev/next navigation */}
       {hasNav && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
-          <div className="max-w-6xl mx-auto px-3 py-2 flex items-center gap-2">
+          <div className="max-w-4xl mx-auto px-3 py-2 flex items-center gap-2">
             {/* Prev */}
             {prevEmp ? (
               <Link href={`/operations-center/atlas-time/employees/${prevEmp.id}`}
