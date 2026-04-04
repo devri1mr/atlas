@@ -414,7 +414,7 @@ function QbExport() {
 
 // ─── QB Accrual Component ─────────────────────────────────────────────────────
 
-type PunchItem = { id: string; name: string; qb_class_name: string | null; qb_payroll_item_reg: string | null; qb_payroll_item_ot: string | null };
+type PunchItem = { id: string; name: string; source: "at" | "div"; qb_class_name: string | null; qb_payroll_item_reg: string | null; qb_payroll_item_ot: string | null };
 type AccrualRow = { employee_display: string; punch_item_name: string; qb_class: string; reg_item: string; ot_item: string; reg_hours: number; ot_hours: number; warning: string };
 
 function lastDayOfMonth(dateISO: string): string {
@@ -505,8 +505,12 @@ function QbAccrual() {
     setError(""); setLoading(true); setRows(null); setTotals(null);
     setPendingCount(0); setPendingEmployees([]);
     try {
+      const punchItemsParam = [...selected].map(id => {
+        const item = punchItems.find(p => p.id === id);
+        return `${item?.source ?? "at"}:${id}`;
+      }).join(",");
       const params = new URLSearchParams({
-        punch_items: [...selected].join(","),
+        punch_items: punchItemsParam,
         start: startDate, end: endDate,
         accrual_date: accrualDate, preview: "true",
       });
@@ -543,8 +547,12 @@ function QbAccrual() {
       });
 
       // Trigger IIF download
+      const punchItemsParam = [...selected].map(id => {
+        const item = punchItems.find(p => p.id === id);
+        return `${item?.source ?? "at"}:${id}`;
+      }).join(",");
       const params = new URLSearchParams({
-        punch_items: [...selected].join(","),
+        punch_items: punchItemsParam,
         start: startDate, end: endDate, accrual_date: accrualDate,
       });
       const res  = await fetch(`/api/atlas-time/qb-accrual?${params}`);

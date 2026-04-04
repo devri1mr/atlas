@@ -20,6 +20,32 @@ async function getCompanyId(sb: ReturnType<typeof supabaseAdmin>) {
   return data?.id ?? null;
 }
 
+// Parse "at:uuid,div:uuid" format; unprefixed treated as "at" for backward compat
+function parsePunchItemIds(param: string) {
+  const parts = param.split(",").map(s => s.trim()).filter(Boolean);
+  const atIds: string[] = [];
+  const divIds: string[] = [];
+  for (const p of parts) {
+    if (p.startsWith("div:")) divIds.push(p.slice(4));
+    else if (p.startsWith("at:")) atIds.push(p.slice(3));
+    else atIds.push(p); // legacy unprefixed = at_division
+  }
+  return { atIds, divIds };
+}
+
+type AggRow = {
+  employee_display: string;
+  employee_qb: string;
+  punch_item_name: string;
+  punch_item_id: string;
+  qb_class: string;
+  reg_item: string;
+  ot_item: string;
+  reg_hours: number;
+  ot_hours: number;
+  warning: string;
+};
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const history = searchParams.get("history") === "true";
@@ -47,64 +73,70 @@ export async function GET(req: NextRequest) {
   if (!punchItemsParam)
     return NextResponse.json({ error: "punch_items required" }, { status: 400 });
 
-  const punchItemIds = punchItemsParam.split(",").map(s => s.trim()).filter(Boolean);
-  if (!punchItemIds.length)
+  const { atIds, divIds } = parsePunchItemIds(punchItemsParam);
+  if (!atIds.length && !divIds.length)
     return NextResponse.json({ error: "at least one punch item required" }, { status: 400 });
 
   const sb = supabaseAdmin();
 
-  const { data: punches, error } = await sb
-    .from("at_punches")
-    .select(`
-      regular_hours, ot_hours, at_division_id,
-      at_employees!inner(first_name, last_name, middle_initial),
-      at_divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
-    `)
-    .eq("status", "approved")
-    .gte("date_for_payroll", startDate)
-    .lte("date_for_payroll", endDate)
-    .in("at_division_id", punchItemIds);
+  // ── Fetch punches from both sources in parallel ──────────────────────────
+  const [atResult, divResult] = await Promise.all([
+    atIds.length
+      ? sb.from("at_punches")
+          .select(`
+            regular_hours, ot_hours, at_division_id,
+            at_employees!inner(first_name, last_name, middle_initial),
+            at_divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
+          `)
+          .eq("status", "approved")
+          .gte("date_for_payroll", startDate)
+          .lte("date_for_payroll", endDate)
+          .in("at_division_id", atIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    divIds.length
+      ? sb.from("at_punches")
+          .select(`
+            regular_hours, ot_hours, division_id,
+            at_employees!inner(first_name, last_name, middle_initial),
+            divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
+          `)
+          .eq("status", "approved")
+          .gte("date_for_payroll", startDate)
+          .lte("date_for_payroll", endDate)
+          .in("division_id", divIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
 
-  // Aggregate by employee × punch item
-  type AggRow = {
-    employee_display: string;
-    employee_qb: string;
-    punch_item_name: string;
-    at_division_id: string;
-    qb_class: string;
-    reg_item: string;
-    ot_item: string;
-    reg_hours: number;
-    ot_hours: number;
-    warning: string;
-  };
+  if (atResult.error) return NextResponse.json({ error: atResult.error.message }, { status: 500 });
+  if (divResult.error) return NextResponse.json({ error: divResult.error.message }, { status: 500 });
 
+  // ── Aggregate by employee × punch item ──────────────────────────────────
   const agg = new Map<string, AggRow>();
 
-  for (const p of punches ?? []) {
-    const emp   = p.at_employees as any;
-    const atDiv = p.at_divisions as any;
+  function addPunch(
+    emp: any,
+    punchItemId: string,
+    divRow: any,
+    reg_hours: number,
+    ot_hours: number,
+  ) {
     const mi               = emp.middle_initial ? ` ${emp.middle_initial}` : "";
     const employee_display = `${emp.first_name} ${emp.last_name}`;
     const employee_qb      = `${emp.last_name}, ${emp.first_name}${mi}`;
-    const qb_class         = atDiv?.qb_class_name       || "";
-    const reg_item         = atDiv?.qb_payroll_item_reg || "";
-    const ot_item          = atDiv?.qb_payroll_item_ot  || "";
-    const punch_item_name  = atDiv?.name                || "";
-    const at_division_id   = (p as any).at_division_id  || "";
-    const reg_hours = Number(p.regular_hours ?? 0);
-    const ot_hours  = Number(p.ot_hours      ?? 0);
+    const qb_class         = divRow?.qb_class_name       || "";
+    const reg_item         = divRow?.qb_payroll_item_reg || "";
+    const ot_item          = divRow?.qb_payroll_item_ot  || "";
+    const punch_item_name  = divRow?.name                || "";
 
-    const key = `${employee_display}||${at_division_id}`;
+    const key = `${employee_display}||${punchItemId}`;
     if (!agg.has(key)) {
       const warnings: string[] = [];
       if (!reg_item) warnings.push("missing regular pay item");
       if (!ot_item)  warnings.push("missing OT pay item");
       if (!qb_class) warnings.push("missing QB class");
       agg.set(key, {
-        employee_display, employee_qb, punch_item_name, at_division_id,
+        employee_display, employee_qb, punch_item_name, punch_item_id: punchItemId,
         qb_class, reg_item, ot_item, reg_hours: 0, ot_hours: 0,
         warning: warnings.join("; "),
       });
@@ -114,9 +146,18 @@ export async function GET(req: NextRequest) {
     row.ot_hours  += ot_hours;
   }
 
+  for (const p of atResult.data ?? []) {
+    addPunch(p.at_employees, (p as any).at_division_id, p.at_divisions, Number(p.regular_hours ?? 0), Number(p.ot_hours ?? 0));
+  }
+  for (const p of divResult.data ?? []) {
+    addPunch(p.at_employees, (p as any).division_id, p.divisions, Number(p.regular_hours ?? 0), Number(p.ot_hours ?? 0));
+  }
+
   const rows = [...agg.values()]
     .filter(r => r.reg_hours > 0 || r.ot_hours > 0)
     .sort((a, b) => a.employee_display.localeCompare(b.employee_display) || a.punch_item_name.localeCompare(b.punch_item_name));
+
+  const allPunches = [...(atResult.data ?? []), ...(divResult.data ?? [])];
 
   // ── Preview ────────────────────────────────────────────────────────────────
   if (preview) {
@@ -125,15 +166,27 @@ export async function GET(req: NextRequest) {
     const warnings  = rows.filter(r => r.warning).length;
 
     // Count pending (unapproved) punches for the same criteria
-    const { data: pendingData } = await sb
-      .from("at_punches")
-      .select("employee_id, at_employees!inner(first_name, last_name)")
-      .neq("status", "approved")
-      .gte("date_for_payroll", startDate)
-      .lte("date_for_payroll", endDate)
-      .in("at_division_id", punchItemIds);
+    const [pendingAt, pendingDiv] = await Promise.all([
+      atIds.length
+        ? sb.from("at_punches")
+            .select("employee_id, at_employees!inner(first_name, last_name)")
+            .neq("status", "approved")
+            .gte("date_for_payroll", startDate)
+            .lte("date_for_payroll", endDate)
+            .in("at_division_id", atIds)
+        : Promise.resolve({ data: [] as any[] }),
 
-    const pendingPunches = pendingData ?? [];
+      divIds.length
+        ? sb.from("at_punches")
+            .select("employee_id, at_employees!inner(first_name, last_name)")
+            .neq("status", "approved")
+            .gte("date_for_payroll", startDate)
+            .lte("date_for_payroll", endDate)
+            .in("division_id", divIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const pendingPunches = [...(pendingAt.data ?? []), ...(pendingDiv.data ?? [])];
     const pendingEmployees = [...new Map(
       pendingPunches.map((p: any) => [
         p.employee_id,
@@ -143,7 +196,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       rows, total_reg, total_ot, warnings,
-      punch_count: (punches ?? []).length,
+      punch_count: allPunches.length,
       pending_count: pendingPunches.length,
       pending_employees: pendingEmployees,
     });
