@@ -235,8 +235,11 @@ export default function UniformsPage() {
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const totalValue = summary.reduce((s, r) => s + (r.inventory_value ?? 0), 0);
-  const totalUnits = summary.reduce((s, r) => s + r.qty_on_hand, 0);
+  const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL'];
+  const sizeRank = (s: string | null | undefined) => { const i = SIZE_ORDER.indexOf(s ?? ''); return i === -1 ? 99 : i; };
+
+  const totalValue = summary.filter(r => r.item_name !== 'Background Check').reduce((s, r) => s + (r.inventory_value ?? 0), 0);
+  const totalUnits = summary.filter(r => r.item_name !== 'Background Check').reduce((s, r) => s + r.qty_on_hand, 0);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -354,7 +357,7 @@ export default function UniformsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Items in Catalog", value: String(items.length) },
-              { label: "Total Issued to Employees", value: String(issued.reduce((s, r) => s + r.qty, 0)) },
+              { label: "Total Issued to Employees", value: String(issued.filter(r => r.item !== 'Background Check').reduce((s, r) => s + r.qty, 0)) },
               { label: "Units on Hand", value: String(totalUnits) },
               { label: "Inventory Value", value: fmt$(totalValue) },
             ].map(s => (
@@ -391,96 +394,95 @@ export default function UniformsPage() {
         )}
 
         {/* ── ISSUED TO EMPLOYEES view ── */}
-        {!loading && view === "issued" && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty Issued</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Cost</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Employees</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {issued.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-gray-400">No uniform items found in employee profiles.</td></tr>
-                  )}
-                  {issued.map((row, i) => (
-                    <tr key={i} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{row.item}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.size ?? <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.color ?? <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-center font-semibold text-gray-800 tabular-nums">{row.qty}</td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{row.total_cost > 0 ? fmt$(row.total_cost) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-center text-gray-500 tabular-nums">{row.employee_count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {issued.length > 0 && (
-                  <tfoot className="border-t border-gray-200 bg-gray-50">
-                    <tr>
-                      <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</td>
-                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{issued.reduce((s, r) => s + r.qty, 0)}</td>
-                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{fmt$(issued.reduce((s, r) => s + r.total_cost, 0))}</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+        {!loading && view === "issued" && (() => {
+          const filtered = issued.filter(r => r.item !== 'Background Check');
+          const groups = Object.entries(
+            filtered.reduce((acc, r) => { (acc[r.item] ??= []).push(r); return acc; }, {} as Record<string, IssuedRow[]>)
+          ).map(([name, rows]) => {
+            const sorted = [...rows].sort((a, b) => sizeRank(a.size) - sizeRank(b.size) || (a.color ?? '').localeCompare(b.color ?? ''));
+            const byColor: Record<string, IssuedRow[]> = {};
+            for (const r of sorted) (byColor[r.color ?? ''] ??= []).push(r);
+            return { name, byColor, totalQty: rows.reduce((s, r) => s + r.qty, 0), totalCost: rows.reduce((s, r) => s + r.total_cost, 0) };
+          });
+          return (
+            <div className="space-y-2">
+              {groups.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No uniform items found in employee profiles.</div>
+              )}
+              {groups.map(g => (
+                <div key={g.name} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+                    <span className="text-sm font-bold text-gray-800">{g.name}</span>
+                    <div className="flex items-center gap-5 text-xs">
+                      <span className="text-gray-500"><span className="font-bold text-gray-800 tabular-nums">{g.totalQty}</span> issued</span>
+                      <span className="font-semibold text-gray-700 tabular-nums">{fmt$(g.totalCost)}</span>
+                    </div>
+                  </div>
+                  <div className="px-5 py-3 space-y-2">
+                    {Object.entries(g.byColor).map(([color, rows]) => (
+                      <div key={color} className="flex items-center gap-2 flex-wrap">
+                        {color && <span className="text-[11px] font-semibold text-gray-400 w-10 shrink-0">{color}</span>}
+                        {rows.map(r => (
+                          <div key={`${r.size}-${r.color}`} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-3 py-1.5">
+                            {r.size && <span className="text-[11px] font-semibold text-gray-400">{r.size}</span>}
+                            {r.size && <span className="text-gray-200 text-[10px]">·</span>}
+                            <span className="text-sm font-bold text-gray-800 tabular-nums">{r.qty}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── ON HAND (inventory) view ── */}
-        {!loading && view === "inventory" && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">On Hand</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Avg Cost</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {summary.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-gray-400">No inventory yet. Add a receipt to get started.</td></tr>
-                  )}
-                  {summary.map((row, i) => (
-                    <tr key={i} className={`hover:bg-gray-50/50 ${row.qty_on_hand < 0 ? "bg-red-50/40" : ""}`}>
-                      <td className="px-4 py-3 font-medium text-gray-800">{row.item_name}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.size_label ?? <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.color_label ?? <span className="text-gray-300">—</span>}</td>
-                      <td className={`px-4 py-3 text-center font-semibold tabular-nums ${row.qty_on_hand < 0 ? "text-red-600" : row.qty_on_hand === 0 ? "text-gray-400" : "text-gray-800"}`}>
-                        {row.qty_on_hand}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmt$(row.avg_unit_cost)}</td>
-                      <td className="px-4 py-3 text-center font-medium text-gray-800 tabular-nums">{fmt$(row.inventory_value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {summary.length > 0 && (
-                  <tfoot className="border-t border-gray-200 bg-gray-50">
-                    <tr>
-                      <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</td>
-                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{totalUnits}</td>
-                      <td />
-                      <td className="px-4 py-3 text-center font-bold text-gray-800 tabular-nums">{fmt$(totalValue)}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+        {!loading && view === "inventory" && (() => {
+          const filtered = summary.filter(r => r.item_name !== 'Background Check');
+          const groups = Object.entries(
+            filtered.reduce((acc, r) => { (acc[r.item_name] ??= []).push(r); return acc; }, {} as Record<string, SummaryRow[]>)
+          ).map(([name, rows]) => {
+            const sorted = [...rows].sort((a, b) => sizeRank(a.size_label) - sizeRank(b.size_label) || (a.color_label ?? '').localeCompare(b.color_label ?? ''));
+            const byColor: Record<string, SummaryRow[]> = {};
+            for (const r of sorted) (byColor[r.color_label ?? ''] ??= []).push(r);
+            return { name, byColor, totalUnits: rows.reduce((s, r) => s + r.qty_on_hand, 0), totalValue: rows.reduce((s, r) => s + (r.inventory_value ?? 0), 0), avgCost: rows[0]?.avg_unit_cost ?? null };
+          });
+          return (
+            <div className="space-y-2">
+              {groups.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No inventory yet. Add a receipt to get started.</div>
+              )}
+              {groups.map(g => (
+                <div key={g.name} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${g.totalUnits < 0 ? 'border-red-100' : 'border-gray-100'}`}>
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+                    <span className="text-sm font-bold text-gray-800">{g.name}</span>
+                    <div className="flex items-center gap-5 text-xs">
+                      {g.avgCost != null && <span className="text-gray-400">avg <span className="font-semibold text-gray-600">{fmt$(g.avgCost)}</span></span>}
+                      <span className={`font-bold tabular-nums ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{g.totalUnits} units</span>
+                      <span className="font-semibold text-gray-700 tabular-nums">{fmt$(g.totalValue)}</span>
+                    </div>
+                  </div>
+                  <div className="px-5 py-3 space-y-2">
+                    {Object.entries(g.byColor).map(([color, rows]) => (
+                      <div key={color} className="flex items-center gap-2 flex-wrap">
+                        {color && <span className="text-[11px] font-semibold text-gray-400 w-10 shrink-0">{color}</span>}
+                        {rows.map(r => (
+                          <div key={`${r.size_label}-${r.color_label}`} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
+                            {r.size_label && <span className="text-[11px] font-semibold text-gray-400">{r.size_label}</span>}
+                            {r.size_label && <span className="text-gray-200 text-[10px]">·</span>}
+                            <span className={`text-sm font-bold tabular-nums ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-400' : 'text-green-700'}`}>{r.qty_on_hand}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── LEDGER view ── */}
         {!loading && view === "ledger" && (
