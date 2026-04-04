@@ -464,19 +464,18 @@ function QbAccrual() {
     setAccrualDate(lastDayOfMonth(val));
   }
 
-  // Suggest cross-month accrual dates from pay settings
-  async function suggestAccrual() {
+  // Auto-fill cross-month accrual dates for a selected month (YYYY-MM)
+  async function applyMonthSuggestion(yearMonth: string) {
+    if (!yearMonth) return;
     try {
       const res = await fetch("/api/atlas-time/settings");
       const d = await res.json();
       const settings: PayPeriodSettings = d.data ?? d;
 
-      // Use last day of current month as reference
-      const now = new Date();
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const [y, m] = yearMonth.split("-").map(Number);
+      const lastDay = new Date(y, m, 0); // last day of selected month
       const lastDayISO = lastDay.toISOString().slice(0, 10);
 
-      // Find the paycheck for the period that contains the last day of the month
       const paycheckISO = nextPaycheckDate(settings, lastDay, 0);
       const { start: periodStart, end: periodEnd } = payPeriodBounds(paycheckISO, settings);
 
@@ -484,17 +483,16 @@ function QbAccrual() {
       const endMonth   = new Date(periodEnd   + "T12:00:00").getMonth();
 
       if (startMonth === lastDay.getMonth() && endMonth !== lastDay.getMonth()) {
-        // Period crosses the month end — this is the accrual range
         setStartDate(periodStart);
         setEndDate(lastDayISO);
         setAccrualDate(lastDayISO);
         setReversalDate(paycheckISO);
+        setError("");
       } else {
-        // No cross-month period this month
-        setError("No cross-month pay dates found for the current month.");
+        setError(`No cross-month pay dates for ${new Date(y, m - 1).toLocaleString("en-US", { month: "long", year: "numeric" })}.`);
       }
     } catch {
-      setError("Could not load pay settings to suggest dates.");
+      setError("Could not load pay settings.");
     }
   }
 
@@ -627,13 +625,24 @@ function QbAccrual() {
               <input type="date" value={endDate} onChange={e => handleEndChange(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
-            <button
-              onClick={suggestAccrual}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-              title="Auto-fill dates for pay period days that cross into next month"
-            >
-              Suggest dates
-            </button>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Month</label>
+              <select
+                defaultValue=""
+                onChange={e => applyMonthSuggestion(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white text-gray-700"
+              >
+                <option value="" disabled>Select month…</option>
+                {Array.from({ length: 6 }, (_, i) => {
+                  const d = new Date();
+                  d.setDate(1);
+                  d.setMonth(d.getMonth() - i);
+                  const val = d.toISOString().slice(0, 7);
+                  const label = d.toLocaleString("en-US", { month: "long", year: "numeric" });
+                  return <option key={val} value={val}>{label}</option>;
+                })}
+              </select>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Date</label>
               <input type="date" value={accrualDate} onChange={e => setAccrualDate(e.target.value)}
