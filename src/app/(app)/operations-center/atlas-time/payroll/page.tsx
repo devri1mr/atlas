@@ -632,47 +632,48 @@ function QbAccrual() {
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {/* Date range + accrual date */}
-          <div className="flex flex-wrap gap-3 items-end">
+          {/* Accrual Month — primary control */}
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Month</label>
+            <select
+              defaultValue=""
+              onChange={e => applyMonthSuggestion(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 bg-white text-gray-700 w-48"
+            >
+              <option value="" disabled>Select month…</option>
+              {Array.from({ length: 6 }, (_, i) => {
+                const d = new Date();
+                d.setDate(1);
+                d.setMonth(d.getMonth() - i);
+                const val = d.toISOString().slice(0, 7);
+                const label = d.toLocaleString("en-US", { month: "long", year: "numeric" });
+                return <option key={val} value={val}>{label}</option>;
+              })}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">Auto-fills the date range, accrual, and reversal dates below</p>
+          </div>
+
+          {/* Date fields — auto-filled by month selector, editable for overrides */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Start Date</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">End Date</label>
               <input type="date" value={endDate} onChange={e => handleEndChange(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Month</label>
-              <select
-                defaultValue=""
-                onChange={e => applyMonthSuggestion(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white text-gray-700"
-              >
-                <option value="" disabled>Select month…</option>
-                {Array.from({ length: 6 }, (_, i) => {
-                  const d = new Date();
-                  d.setDate(1);
-                  d.setMonth(d.getMonth() - i);
-                  const val = d.toISOString().slice(0, 7);
-                  const label = d.toLocaleString("en-US", { month: "long", year: "numeric" });
-                  return <option key={val} value={val}>{label}</option>;
-                })}
-              </select>
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Accrual Date</label>
               <input type="date" value={accrualDate} onChange={e => setAccrualDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
-              <p className="text-[10px] text-gray-400 mt-0.5">All IIF entries use this date</p>
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Reversal Date <span className="text-gray-300 normal-case">(optional)</span></label>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Reversal Date</label>
               <input type="date" value={reversalDate} onChange={e => setReversalDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
-              <p className="text-[10px] text-gray-400 mt-0.5">Actual payroll date to reverse entry</p>
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 bg-white" />
             </div>
           </div>
 
