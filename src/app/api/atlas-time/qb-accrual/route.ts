@@ -73,14 +73,17 @@ export async function GET(req: NextRequest) {
   if (!punchItemsParam)
     return NextResponse.json({ error: "punch_items required" }, { status: 400 });
 
-  const { atIds, divIds } = parsePunchItemIds(punchItemsParam);
-  if (!atIds.length && !divIds.length)
+  const { atIds, divIds: directDivIds } = parsePunchItemIds(punchItemsParam);
+  if (!atIds.length && !directDivIds.length)
     return NextResponse.json({ error: "at least one punch item required" }, { status: 400 });
 
   const sb = supabaseAdmin();
 
   // For at_division entries that link to a division (via division_id),
-  // also pull punches recorded under division_id (e.g. Tree Farm ↔ Admin:DRDG).
+  // also pull punches recorded *directly* at the division level (at_division_id IS NULL).
+  // We keep these IDs separate so we can add the IS NULL filter and avoid
+  // picking up punches that belong to other at_divisions sharing the same division.
+  const expandedDivIds: string[] = [];
   if (atIds.length) {
     const { data: atDivRows } = await sb
       .from("at_divisions")
@@ -88,14 +91,20 @@ export async function GET(req: NextRequest) {
       .in("id", atIds)
       .not("division_id", "is", null);
     for (const row of atDivRows ?? []) {
-      if (row.division_id && !divIds.includes(row.division_id)) {
-        divIds.push(row.division_id);
+      if (row.division_id && !directDivIds.includes(row.division_id) && !expandedDivIds.includes(row.division_id)) {
+        expandedDivIds.push(row.division_id);
       }
     }
   }
 
+  const allDivIds = [...directDivIds, ...expandedDivIds];
+
   // ── Fetch punches from both sources in parallel ──────────────────────────
-  const [atResult, divResult] = await Promise.all([
+  // directDiv query: user explicitly selected these divisions — no at_division filter
+  // expandedDiv query: derived from at_division FKs — only punches with no at_division_id
+  //   so we don't accidentally include punches belonging to other at_divisions that share
+  //   the same parent division (e.g. Shop-Field and Shop-Admin both link to Admin).
+  const [atResult, directDivResult, expandedDivResult] = await Promise.all([
     atIds.length
       ? sb.from("at_punches")
           .select(`
@@ -109,7 +118,7 @@ export async function GET(req: NextRequest) {
           .in("at_division_id", atIds)
       : Promise.resolve({ data: [] as any[], error: null }),
 
-    divIds.length
+    directDivIds.length
       ? sb.from("at_punches")
           .select(`
             regular_hours, ot_hours, division_id,
@@ -119,12 +128,27 @@ export async function GET(req: NextRequest) {
           .neq("status", "rejected")
           .gte("date_for_payroll", startDate)
           .lte("date_for_payroll", endDate)
-          .in("division_id", divIds)
+          .in("division_id", directDivIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+
+    expandedDivIds.length
+      ? sb.from("at_punches")
+          .select(`
+            regular_hours, ot_hours, division_id,
+            at_employees!inner(first_name, last_name, middle_initial),
+            divisions!inner(id, name, qb_class_name, qb_payroll_item_reg, qb_payroll_item_ot)
+          `)
+          .neq("status", "rejected")
+          .gte("date_for_payroll", startDate)
+          .lte("date_for_payroll", endDate)
+          .in("division_id", expandedDivIds)
+          .is("at_division_id", null)
       : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
   if (atResult.error) return NextResponse.json({ error: atResult.error.message }, { status: 500 });
-  if (divResult.error) return NextResponse.json({ error: divResult.error.message }, { status: 500 });
+  if (directDivResult.error) return NextResponse.json({ error: directDivResult.error.message }, { status: 500 });
+  if (expandedDivResult.error) return NextResponse.json({ error: expandedDivResult.error.message }, { status: 500 });
 
   // ── Aggregate by employee × punch item ──────────────────────────────────
   const agg = new Map<string, AggRow>();
@@ -164,7 +188,10 @@ export async function GET(req: NextRequest) {
   for (const p of atResult.data ?? []) {
     addPunch(p.at_employees, (p as any).at_division_id, p.at_divisions, Number(p.regular_hours ?? 0), Number(p.ot_hours ?? 0));
   }
-  for (const p of divResult.data ?? []) {
+  for (const p of directDivResult.data ?? []) {
+    addPunch(p.at_employees, (p as any).division_id, p.divisions, Number(p.regular_hours ?? 0), Number(p.ot_hours ?? 0));
+  }
+  for (const p of expandedDivResult.data ?? []) {
     addPunch(p.at_employees, (p as any).division_id, p.divisions, Number(p.regular_hours ?? 0), Number(p.ot_hours ?? 0));
   }
 
@@ -172,7 +199,7 @@ export async function GET(req: NextRequest) {
     .filter(r => r.reg_hours > 0 || r.ot_hours > 0)
     .sort((a, b) => a.employee_display.localeCompare(b.employee_display) || a.punch_item_name.localeCompare(b.punch_item_name));
 
-  const allPunches = [...(atResult.data ?? []), ...(divResult.data ?? [])];
+  const allPunches = [...(atResult.data ?? []), ...(directDivResult.data ?? []), ...(expandedDivResult.data ?? [])];
 
   // ── Preview ────────────────────────────────────────────────────────────────
   if (preview) {
