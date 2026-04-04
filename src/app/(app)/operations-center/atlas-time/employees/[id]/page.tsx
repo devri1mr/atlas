@@ -1338,21 +1338,20 @@ export default function EmployeeDetailPage() {
                 return opt ? (uniformVariants[opt.id]?.colors.length ?? 0) > 0 : false;
               });
               const colClass = anySize && anyColor
-                ? "grid-cols-[minmax(0,2fr)_64px_80px_80px_44px_100px_minmax(0,1fr)_28px]"
+                ? "grid-cols-[minmax(0,2fr)_64px_80px_80px_44px_100px_28px]"
                 : anySize || anyColor
-                ? "grid-cols-[minmax(0,2fr)_64px_80px_44px_100px_minmax(0,1fr)_28px]"
-                : "grid-cols-[minmax(0,2fr)_64px_44px_100px_minmax(0,1fr)_28px]";
+                ? "grid-cols-[minmax(0,2fr)_64px_80px_44px_100px_28px]"
+                : "grid-cols-[minmax(0,2fr)_64px_44px_100px_28px]";
               return (
                 <div className="space-y-3 mb-3">
                   {/* Shared column header across all groups */}
                   <div className={`grid gap-x-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ${colClass}`}>
-                    <span>Item</span>
+                    <span>Item / Type</span>
                     <span className="text-center">Cost</span>
                     {anySize && <span className="text-center">Size</span>}
                     {anyColor && <span className="text-center">Color</span>}
                     <span className="text-center">Qty</span>
                     <span className="text-center">Date Issued</span>
-                    <span className="text-center">Type</span>
                     <span />
                   </div>
                   {groups.map(group => (
@@ -1367,9 +1366,15 @@ export default function EmployeeDetailPage() {
                           const sizeVars = uniformVariants[itemOpt?.id ?? ""]?.sizes ?? [];
                           const colorVars = uniformVariants[itemOpt?.id ?? ""]?.colors ?? [];
                           return (
-                            <div key={item.key} className={`grid gap-x-2 items-center bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
+                            <div key={item.key} className={`grid gap-x-2 items-start bg-gray-50 rounded-xl px-3 py-2 ${colClass}`}>
                               <div className="min-w-0">
                                 <div className="text-sm font-medium text-gray-800">{item.item}</div>
+                                <select value={item.issued_type ?? "company_issued"}
+                                  onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
+                                  className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-0.5 text-[11px] text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                                  <option value="company_issued">Company Issued</option>
+                                  <option value="team_member_purchase">Team Member Purchase</option>
+                                </select>
                               </div>
                               <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
@@ -1412,13 +1417,7 @@ export default function EmployeeDetailPage() {
                               <input type="date" value={item.issued_date}
                                 onChange={e => updateUniformItem(item.key, { issued_date: e.target.value })}
                                 className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500" />
-                              <select value={item.issued_type ?? "company_issued"}
-                                onChange={e => updateUniformItem(item.key, { issued_type: e.target.value as "company_issued" | "team_member_purchase" })}
-                                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
-                                <option value="company_issued">Company Issued</option>
-                                <option value="team_member_purchase">Member Purchase</option>
-                              </select>
-                              <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center">
+                              <button onClick={() => removeUniformItem(item.key)} className="p-1 text-gray-300 hover:text-red-400 rounded transition-colors flex items-center justify-center mt-1">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                                 </svg>
