@@ -498,6 +498,7 @@ function VariesPanel({ dispatchJobs, persons, reportDate, onSaved }: {
 type EditableMember = { id: string; resource_name: string; actual_hours: number; pay_rate: number; dispatch_time_id: string | null; dispatch_job_id: string | null; time_varies: boolean; start_time: string | null; end_time: string | null };
 
 function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
+  const { can } = useUser();
   const BURDEN = 1.15;
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
   const [membersCache, setMembersCache] = useState<Record<string, EditableMember[]>>({});
@@ -628,8 +629,8 @@ function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
                               <tr className="text-emerald-900/50 text-left">
                                 <th className="pb-1.5 pr-4">Team Member</th>
                                 <th className="pb-1.5 px-3 text-center">Actual Hrs</th>
-                                <th className="pb-1.5 px-3 text-center">Rate</th>
-                                <th className="pb-1.5 px-3 text-center">Est. Cost</th>
+                                {can("hr_labor_cost") && <th className="pb-1.5 px-3 text-center">Rate</th>}
+                                {can("hr_labor_cost") && <th className="pb-1.5 px-3 text-center">Est. Cost</th>}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-emerald-100">
@@ -645,17 +646,15 @@ function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
                                       className="border border-gray-200 rounded px-2 py-0.5 w-20 text-center focus:outline-none focus:border-emerald-400 bg-white"
                                     />
                                   </td>
-                                  <td className="py-1.5 px-3 text-center text-gray-500">${m.pay_rate.toFixed(2)}/hr</td>
-                                  <td className="py-1.5 px-3 text-center tabular-nums text-gray-700">
-                                    ${(m.actual_hours * m.pay_rate * BURDEN).toFixed(2)}
-                                  </td>
+                                  {can("hr_labor_cost") && <td className="py-1.5 px-3 text-center text-gray-500">${m.pay_rate.toFixed(2)}/hr</td>}
+                                  {can("hr_labor_cost") && <td className="py-1.5 px-3 text-center tabular-nums text-gray-700">${(m.actual_hours * m.pay_rate * BURDEN).toFixed(2)}</td>}
                                 </tr>
                               ))}
                               <tr className="border-t border-emerald-200 font-semibold text-gray-700">
                                 <td className="pt-1.5 pr-4">Total</td>
                                 <td className="pt-1.5 px-3 text-center">{editRows.reduce((s, m) => s + m.actual_hours, 0).toFixed(2)}</td>
-                                <td className="pt-1.5 px-3 text-center text-gray-400 text-[10px]">×{BURDEN} burden</td>
-                                <td className="pt-1.5 px-3 text-center">${editRows.reduce((s, m) => s + m.actual_hours * m.pay_rate * BURDEN, 0).toFixed(2)}</td>
+                                {can("hr_labor_cost") && <td className="pt-1.5 px-3 text-center text-gray-400 text-[10px]">×{BURDEN} burden</td>}
+                                {can("hr_labor_cost") && <td className="pt-1.5 px-3 text-center">${editRows.reduce((s, m) => s + m.actual_hours * m.pay_rate * BURDEN, 0).toFixed(2)}</td>}
                               </tr>
                             </tbody>
                           </table>
@@ -1207,7 +1206,7 @@ export default function LawnPage() {
                     </div>
                   </div>
                 )}
-                {(() => {
+                {can("hr_labor_cost") && (() => {
                   // Collect matched employees with no pay rate
                   const seen = new Set<string>();
                   const missing: { employee_id: string; resource_name: string }[] = [];

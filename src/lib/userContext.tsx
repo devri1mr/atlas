@@ -29,7 +29,7 @@ type UserContextValue = {
 const UserContext = createContext<UserContextValue>({
   user: null,
   loading: true,
-  can: () => true,
+  can: () => false,
 });
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
@@ -70,7 +70,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   function can(key: string): boolean {
-    if (loading) return true;
+    if (loading) return false;
     if (!user) return false;
     if (user.is_super_admin) return true;
     // Fall back to legacy role check if role_id not yet migrated

@@ -849,19 +849,19 @@ export default function MaterialsCatalogPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm min-w-[560px]">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th className="text-left px-4 py-3">Name</th>
-                        <th className="text-left px-4 py-3">Category</th>
-                        <th className="text-left px-4 py-3">Unit</th>
+                        <th className="text-left px-4 py-3 hidden md:table-cell">Category</th>
+                        <th className="text-left px-4 py-3 hidden sm:table-cell">Unit</th>
                         <th className="text-right px-4 py-3">Base Cost</th>
-                        <th className="text-center px-4 py-3">+Tax</th>
-                        <th className="text-right px-4 py-3">With Tax</th>
-                        <th className="text-left px-4 py-3">Vendor</th>
-                        <th className="text-center px-4 py-3">Inventory</th>
+                        <th className="text-center px-4 py-3 hidden md:table-cell">+Tax</th>
+                        <th className="text-right px-4 py-3 hidden md:table-cell">With Tax</th>
+                        <th className="text-left px-4 py-3 hidden lg:table-cell">Vendor</th>
+                        <th className="text-center px-4 py-3 hidden lg:table-cell">Inventory</th>
                         <th className="text-center px-4 py-3">Status</th>
-                        <th className="text-center px-4 py-3">View Pricing Book</th>
+                        <th className="text-center px-4 py-3 hidden lg:table-cell">View Pricing Book</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -891,7 +891,7 @@ export default function MaterialsCatalogPage() {
                                   {mNew && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">NEW</span>}
                                 </span>
                               </td>
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-3 hidden md:table-cell">
                                 {mCat ? (
                                   <span className="inline-flex items-center gap-1 text-xs text-gray-600">
                                     <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: mCat.color || "#9ca3af" }} />
@@ -901,11 +901,11 @@ export default function MaterialsCatalogPage() {
                                   <span className="text-xs text-gray-300">—</span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 text-gray-600">{mat.default_unit}</td>
+                              <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{mat.default_unit}</td>
                               <td className="px-4 py-3 text-right font-medium text-gray-900">
                                 {mat.default_unit_cost > 0 ? `$${mat.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              <td className="px-4 py-3 text-center hidden md:table-cell" onClick={e => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={mat.taxable}
@@ -921,13 +921,13 @@ export default function MaterialsCatalogPage() {
                                   }}
                                 />
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                              <td className="px-4 py-3 text-right font-medium text-gray-900 hidden md:table-cell">
                                 {mat.default_unit_cost > 0
                                   ? `$${(mat.default_unit_cost * (mat.taxable ? 1.06 : 1)).toFixed(2)}`
                                   : <span className="text-gray-300">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-500 text-xs">{mat.vendor || <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-3 text-center">
+                              <td className="px-4 py-3 text-gray-500 text-xs hidden lg:table-cell">{mat.vendor || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-3 text-center hidden lg:table-cell">
                                 {mat.in_inventory
                                   ? <span className="text-green-600 font-semibold text-xs">✓ In inventory</span>
                                   : <span className="text-gray-300 text-xs">—</span>}
@@ -937,7 +937,7 @@ export default function MaterialsCatalogPage() {
                                   {mat.is_active ? "Active" : "Inactive"}
                                 </span>
                               </td>
-                              <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              <td className="px-2 py-3 text-center hidden lg:table-cell" onClick={e => e.stopPropagation()}>
                                 {mat.source_pricing_book_id && (
                                   <button
                                     title="View in pricing book"
@@ -999,7 +999,7 @@ export default function MaterialsCatalogPage() {
                                   })()}
                                 </span>
                               </td>
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-3 hidden md:table-cell">
                                 {cat ? (
                                   <span className="inline-flex items-center gap-1 text-xs text-gray-600">
                                     <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: cat.color || "#9ca3af" }} />
@@ -1009,11 +1009,11 @@ export default function MaterialsCatalogPage() {
                                   <span className="text-xs text-gray-300">—</span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 text-gray-600">{m.default_unit}</td>
+                              <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{m.default_unit}</td>
                               <td className="px-4 py-3 text-right font-medium text-gray-900">
                                 {m.default_unit_cost > 0 ? `$${m.default_unit_cost.toFixed(2)}` : <span className="text-gray-300">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              <td className="px-4 py-3 text-center hidden md:table-cell" onClick={e => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={m.taxable}
@@ -1029,13 +1029,13 @@ export default function MaterialsCatalogPage() {
                                   }}
                                 />
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                              <td className="px-4 py-3 text-right font-medium text-gray-900 hidden md:table-cell">
                                 {m.default_unit_cost > 0
                                   ? `$${(m.default_unit_cost * (m.taxable ? 1.06 : 1)).toFixed(2)}`
                                   : <span className="text-gray-300">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-500 text-xs">{m.vendor || <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-3 text-center">
+                              <td className="px-4 py-3 text-gray-500 text-xs hidden lg:table-cell">{m.vendor || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-3 text-center hidden lg:table-cell">
                                 {m.in_inventory
                                   ? <span className="text-green-600 font-semibold text-xs">✓ In inventory</span>
                                   : <span className="text-gray-300 text-xs">—</span>}
@@ -1045,7 +1045,7 @@ export default function MaterialsCatalogPage() {
                                   {m.is_active ? "Active" : "Inactive"}
                                 </span>
                               </td>
-                              <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                              <td className="px-2 py-3 text-center hidden lg:table-cell" onClick={e => e.stopPropagation()}>
                                 {m.source_pricing_book_id && (
                                   <button
                                     title="View in pricing book"
