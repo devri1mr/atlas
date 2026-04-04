@@ -472,18 +472,37 @@ function QbAccrual() {
       const d = await res.json();
       const settings: PayPeriodSettings = d.data ?? d;
 
+      if (!settings.pay_period_anchor_date) {
+        setError("No pay period anchor date configured in settings.");
+        return;
+      }
+
       const [y, m] = yearMonth.split("-").map(Number);
       const lastDay = new Date(y, m, 0); // last day of selected month
+      lastDay.setHours(12, 0, 0, 0);
       const lastDayISO = lastDay.toISOString().slice(0, 10);
 
-      const paycheckISO = nextPaycheckDate(settings, lastDay, 0);
-      const { start: periodStart, end: periodEnd } = payPeriodBounds(paycheckISO, settings);
+      const anchor = new Date(settings.pay_period_anchor_date + "T12:00:00");
+      const paydayOffset = ((settings.payday_day_of_week - (settings.pay_period_start_day ?? 1)) + 7) % 7;
+      const interval = settings.pay_cycle === "biweekly" ? 14 : 7;
 
-      const startMonth = new Date(periodStart + "T12:00:00").getMonth();
-      const endMonth   = new Date(periodEnd   + "T12:00:00").getMonth();
+      // Find which period the last day of the month falls IN (floor, not ceil)
+      const diffDays = Math.round((lastDay.getTime() - anchor.getTime()) / 86_400_000);
+      const periodsFromAnchor = Math.floor(diffDays / interval);
 
-      if (startMonth === lastDay.getMonth() && endMonth !== lastDay.getMonth()) {
-        setStartDate(periodStart);
+      const pStart = new Date(anchor);
+      pStart.setDate(anchor.getDate() + periodsFromAnchor * interval);
+      const pEnd = new Date(pStart);
+      pEnd.setDate(pStart.getDate() + interval - 1);
+      // Payday = period_start + paydayOffset + interval
+      const paycheck = new Date(pStart);
+      paycheck.setDate(pStart.getDate() + paydayOffset + interval);
+
+      const periodStartISO  = pStart.toISOString().slice(0, 10);
+      const paycheckISO     = paycheck.toISOString().slice(0, 10);
+
+      if (pStart.getMonth() === lastDay.getMonth() && pEnd.getMonth() !== lastDay.getMonth()) {
+        setStartDate(periodStartISO);
         setEndDate(lastDayISO);
         setAccrualDate(lastDayISO);
         setReversalDate(paycheckISO);
