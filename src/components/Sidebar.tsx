@@ -5,7 +5,6 @@ import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 
 type Child = { label: string; href: string; badge?: string; permKey?: string; adminOnly?: boolean };
@@ -106,7 +105,7 @@ type OpsDiv = { id: string; name: string };
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, can } = useUser();
+  const { user, loading, can, signOut: ctxSignOut } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [opsDivisions, setOpsDivisions] = useState<OpsDiv[]>([]);
@@ -173,7 +172,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   }
 
   async function signOut() {
-    await getSupabaseClient().auth.signOut();
+    await ctxSignOut();
     router.push("/");
   }
 

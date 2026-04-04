@@ -24,12 +24,14 @@ type UserContextValue = {
   user: UserProfile | null;
   loading: boolean;
   can: (key: string) => boolean;
+  signOut: () => Promise<void>;
 };
 
 const UserContext = createContext<UserContextValue>({
   user: null,
   loading: true,
   can: () => false,
+  signOut: async () => {},
 });
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
@@ -78,8 +80,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return _can(user.role_is_admin, user.role_permissions ?? {}, user.permissions ?? {}, key);
   }
 
+  async function signOut() {
+    // Clear user state immediately so the UI snaps to signed-out view
+    // before the async signOut call or any auth state events fire.
+    setUser(null);
+    setLoading(false);
+    await getSupabaseClient().auth.signOut();
+  }
+
   return (
-    <UserContext.Provider value={{ user, loading, can }}>
+    <UserContext.Provider value={{ user, loading, can, signOut }}>
       {children}
     </UserContext.Provider>
   );
