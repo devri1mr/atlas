@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
     ot_hours: number,
   ) {
     const mi               = emp.middle_initial ? ` ${emp.middle_initial}` : "";
-    const employee_display = `${emp.first_name} ${emp.last_name}`;
+    const employee_display = `${emp.last_name}, ${emp.first_name}`;
     const employee_qb      = `${emp.last_name}, ${emp.first_name}${mi}`;
     const qb_class         = divRow?.qb_class_name       || "";
     const reg_item         = divRow?.qb_payroll_item_reg || "";
