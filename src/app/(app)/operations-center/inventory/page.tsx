@@ -659,19 +659,19 @@ export default function InventoryPage() {
           </div>
 
           <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-            <table className="w-full text-sm min-w-[900px]">
+            <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b">
                 <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <th className="text-left px-4 py-3">Date</th>
                   <th className="text-left px-4 py-3">Material</th>
                   <th className="text-left px-4 py-3">Type</th>
                   <th className="text-right px-4 py-3">Qty</th>
-                  <th className="text-right px-4 py-3">Unit Cost</th>
+                  <th className="text-right px-4 py-3 hidden sm:table-cell">Unit Cost</th>
                   <th className="text-right px-4 py-3">Total</th>
-                  <th className="text-left px-4 py-3">Vendor</th>
-                  <th className="text-left px-4 py-3">Reference</th>
-                  <th className="text-center px-4 py-3">Final</th>
-                  <th className="text-center px-4 py-3">Notes</th>
+                  <th className="text-left px-4 py-3 hidden md:table-cell">Vendor</th>
+                  <th className="text-left px-4 py-3 hidden md:table-cell">Reference</th>
+                  <th className="text-center px-4 py-3 hidden lg:table-cell">Final</th>
+                  <th className="text-center px-4 py-3 hidden lg:table-cell">Notes</th>
                   <th className="text-right px-4 py-3">Actions</th>
                 </tr>
               </thead>
@@ -715,16 +715,16 @@ export default function InventoryPage() {
                         }`}>{RECEIPT_SOURCE_LABEL[row.transaction_type] ?? titleize(row.transaction_type)}</span>
                       </td>
                       <td className="px-4 py-3 text-right">{fmtQty(row.quantity)} {rowUnit}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{row.unit_cost != null ? money(row.unit_cost) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{row.unit_cost != null ? money(row.unit_cost) : "—"}</td>
                       <td className="px-4 py-3 text-right font-medium">{row.total_cost != null ? money(row.total_cost) : "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{row.vendor_name || "—"}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{row.reference_number || "—"}</td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">{row.vendor_name || "—"}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">{row.reference_number || "—"}</td>
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
                         {row.invoiced_final
                           ? <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-600 text-white text-[10px] font-bold">✓</span>
                           : <span className="text-gray-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
                         {row.notes
                           ? <button onClick={() => setNoteModal(row.notes)} className="inline-flex items-center justify-center w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs">✎</button>
                           : <span className="text-gray-300">—</span>}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useUser } from "@/lib/userContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,7 @@ function EfficiencyRow({ person, maxEff, rank, onClick, selected }: { person: Ra
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function RankingsPage() {
+  const { can } = useUser();
   const [data, setData]         = useState<RankingsData | null>(null);
   const [period, setPeriod]     = useState<Period>("ytd");
   const [loading, setLoading]   = useState(true);
@@ -451,7 +453,7 @@ export default function RankingsPage() {
             <div className="grid grid-cols-2 gap-px bg-gray-100 border-b border-gray-100">
               {[
                 { label: "Revenue Earned", value: fmtMoney(selectedPerson.total_earned) },
-                { label: "Payroll Cost",   value: fmtMoney(selectedPerson.payroll_cost) },
+                ...(can("hr_labor_cost") ? [{ label: "Payroll Cost", value: fmtMoney(selectedPerson.payroll_cost) }] : []),
                 { label: "Hours Worked",   value: `${selectedPerson.total_payroll_hours.toFixed(1)} hrs` },
                 { label: "Efficiency",     value: pct(selectedPerson.efficiency_pct),
                   color: selectedPerson.efficiency_pct >= 1 ? "text-emerald-600" : "text-amber-500" },
@@ -477,7 +479,7 @@ export default function RankingsPage() {
                       <div className="px-4 py-2 bg-gray-50/80 flex items-center justify-between flex-wrap gap-2">
                         <span className="text-xs font-semibold text-gray-700">{fmtDateLong(day.date)}</span>
                         <span className="text-[11px] text-gray-400">
-                          {fmtMoney(day.total_earned)} earned · {fmtMoney(day.payroll_cost)} payroll · {day.payroll_hours.toFixed(1)} hrs
+                          {fmtMoney(day.total_earned)} earned{can("hr_labor_cost") ? ` · ${fmtMoney(day.payroll_cost)} payroll` : ""} · {day.payroll_hours.toFixed(1)} hrs
                         </span>
                       </div>
                       <table className="w-full text-xs">

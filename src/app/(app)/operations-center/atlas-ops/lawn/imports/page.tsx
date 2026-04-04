@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useUser } from "@/lib/userContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -562,16 +563,16 @@ function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse min-w-[900px]">
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
             <th className="px-4 py-2.5">Client</th>
-            <th className="px-3 py-2.5">Service</th>
-            <th className="px-3 py-2.5 text-center">Crew</th>
+            <th className="px-3 py-2.5 hidden sm:table-cell">Service</th>
+            <th className="px-3 py-2.5 text-center hidden sm:table-cell">Crew</th>
             <th className="px-3 py-2.5 text-center">Actual Hrs</th>
-            <th className="px-3 py-2.5 text-center">Real Bud Hrs</th>
+            <th className="px-3 py-2.5 text-center hidden md:table-cell">Real Bud Hrs</th>
             <th className="px-3 py-2.5 text-center">Labor %</th>
-            <th className="px-3 py-2.5 text-center">Revenue</th>
+            <th className="px-3 py-2.5 text-center hidden sm:table-cell">Revenue</th>
             <th className="px-3 py-2.5 w-8" />
           </tr>
         </thead>
@@ -603,16 +604,16 @@ function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
                       {isDispatched && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold ml-1">Dispatched</span>}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-gray-600">{job.service}</td>
-                  <td className="px-3 py-2.5 text-center text-gray-500">{job.crew_code}</td>
+                  <td className="px-3 py-2.5 text-gray-600 hidden sm:table-cell">{job.service}</td>
+                  <td className="px-3 py-2.5 text-center text-gray-500 hidden sm:table-cell">{job.crew_code}</td>
                   <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">{dec2(job.actual_hours)}</td>
-                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{dec2(realBudH)}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-500 hidden md:table-cell">{dec2(realBudH)}</td>
                   <td className="px-3 py-2.5 text-center tabular-nums">
                     {laborPct != null
                       ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span>
                       : "—"}
                   </td>
-                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">{revenue > 0 ? money.format(revenue) : "—"}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 hidden sm:table-cell">{revenue > 0 ? money.format(revenue) : "—"}</td>
                   <td />
                 </tr>
                 {isOpen && (
@@ -685,13 +686,14 @@ function ClientTable({ jobs, onSaved }: { jobs: Job[]; onSaved: () => void }) {
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-emerald-200 bg-emerald-50/40 font-semibold text-sm text-emerald-950">
-            <td className="px-4 py-2.5" colSpan={3}>Total — {sorted.length} job{sorted.length !== 1 ? "s" : ""}</td>
+            <td className="px-4 py-2.5">Total — {sorted.length} job{sorted.length !== 1 ? "s" : ""}</td>
+            <td className="hidden sm:table-cell" /><td className="hidden sm:table-cell" />
             <td className="px-3 py-2.5 text-center tabular-nums">{dec2(totalActual)}</td>
-            <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{dec2(totalBudget)}</td>
+            <td className="px-3 py-2.5 text-center tabular-nums text-gray-500 hidden md:table-cell">{dec2(totalBudget)}</td>
             <td className="px-3 py-2.5 text-center tabular-nums">
               {totalRevenue > 0 ? <span className={totalLabor / totalRevenue > 0.39 ? "text-red-600" : "text-emerald-700"}>{pct(totalLabor / totalRevenue)}</span> : "—"}
             </td>
-            <td className="px-3 py-2.5 text-center tabular-nums">{money.format(totalRevenue)}</td>
+            <td className="px-3 py-2.5 text-center tabular-nums hidden sm:table-cell">{money.format(totalRevenue)}</td>
             <td />
           </tr>
         </tfoot>
@@ -753,23 +755,23 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
         </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse min-w-[1100px]">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
               <th className="px-4 py-2.5">Team Member</th>
               <th className="px-3 py-2.5 text-center">Prod Hrs</th>
-              <th className="px-3 py-2.5 text-center">Revenue</th>
-              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Clock In</th>
-              <th className="px-3 py-2.5 text-center">Clock Out</th>
-              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Reg Hrs</th>
-              <th className="px-3 py-2.5 text-center">OT Hrs</th>
-              <th className="px-3 py-2.5 text-center">Pay Hrs</th>
-              <th className="px-3 py-2.5 text-center">Pay Cost</th>
-              <th className="px-3 py-2.5 text-center border-l border-emerald-100">Down Time</th>
-              <th className="px-3 py-2.5 text-center">DT Cost</th>
-              <th className="px-3 py-2.5 text-center">DT %</th>
+              <th className="px-3 py-2.5 text-center hidden md:table-cell">Revenue</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100 hidden sm:table-cell">Clock In</th>
+              <th className="px-3 py-2.5 text-center hidden sm:table-cell">Clock Out</th>
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100 hidden sm:table-cell">Reg Hrs</th>
+              <th className="px-3 py-2.5 text-center hidden sm:table-cell">OT Hrs</th>
+              <th className="px-3 py-2.5 text-center hidden md:table-cell">Pay Hrs</th>
+              {can("hr_labor_cost") && <th className="px-3 py-2.5 text-center hidden md:table-cell">Pay Cost</th>}
+              <th className="px-3 py-2.5 text-center border-l border-emerald-100 hidden lg:table-cell">Down Time</th>
+              <th className="px-3 py-2.5 text-center hidden lg:table-cell">DT Cost</th>
+              <th className="px-3 py-2.5 text-center hidden lg:table-cell">DT %</th>
               <th className="px-3 py-2.5 text-center border-l border-emerald-100">Labor %</th>
-              <th className="px-3 py-2.5 text-center">Efficiency</th>
+              <th className="px-3 py-2.5 text-center hidden md:table-cell">Efficiency</th>
             </tr>
           </thead>
           <tbody>
@@ -809,16 +811,16 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{dec2(p.total_hours)}</td>
-                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{money.format(p.total_revenue)}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-600 border-l border-emerald-100">
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950 hidden md:table-cell">{money.format(p.total_revenue)}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-600 border-l border-emerald-100 hidden sm:table-cell">
                       {fmtTime(firstIn)}{multiPunch && <span className="ml-1 text-xs text-gray-400">+{p.punches.length - 1}</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-center text-gray-600">{fmtTime(lastOut)}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-700 border-l border-emerald-100">{p.reg_hours != null ? dec2(p.reg_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-700">{p.ot_hours != null && p.ot_hours > 0 ? dec2(p.ot_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
-                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>
-                    <td className="px-3 py-2.5 text-center border-l border-emerald-100 relative" onClick={e => { e.stopPropagation(); setDownPopover(downResult ? (downPopover === p.resource_name ? null : p.resource_name) : null); }}>
+                    <td className="px-3 py-2.5 text-center text-gray-600 hidden sm:table-cell">{fmtTime(lastOut)}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-700 border-l border-emerald-100 hidden sm:table-cell">{p.reg_hours != null ? dec2(p.reg_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-700 hidden sm:table-cell">{p.ot_hours != null && p.ot_hours > 0 ? dec2(p.ot_hours) : "—"}</td>
+                    <td className="px-3 py-2.5 text-center font-medium text-emerald-950 hidden md:table-cell">{p.total_payroll_hours != null ? dec2(p.total_payroll_hours) : "—"}</td>
+                    {can("hr_labor_cost") && <td className="px-3 py-2.5 text-center font-medium text-emerald-950 hidden md:table-cell">{p.payroll_cost != null ? money.format(p.payroll_cost) : "—"}</td>}
+                    <td className="px-3 py-2.5 text-center border-l border-emerald-100 relative hidden lg:table-cell" onClick={e => { e.stopPropagation(); setDownPopover(downResult ? (downPopover === p.resource_name ? null : p.resource_name) : null); }}>
                       {downMs !== null ? (
                         <span className={`cursor-pointer underline decoration-dotted ${downMs > 3600000 ? "text-amber-600 font-medium" : "text-gray-700"}`}>{fmtHrs(downMs)}</span>
                       ) : <span className="text-gray-300 text-xs italic">—</span>}
@@ -837,10 +839,10 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-center text-gray-700">
+                    <td className="px-3 py-2.5 text-center text-gray-700 hidden lg:table-cell">
                       {dtCost != null ? money.format(dtCost) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-center text-gray-700">
+                    <td className="px-3 py-2.5 text-center text-gray-700 hidden lg:table-cell">
                       {dtPct != null ? pct(dtPct) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-center border-l border-emerald-100">
@@ -848,7 +850,7 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
                         <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-2.5 text-center hidden md:table-cell">
                       {efficiencyPct != null ? (
                         <span className={efficiencyPct >= 1 ? "text-emerald-700 font-medium" : "text-red-600 font-medium"}>{pct(efficiencyPct)}</span>
                       ) : "—"}
@@ -889,18 +891,18 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
             <tr className="border-t-2 border-emerald-200 bg-emerald-50/60 font-semibold text-emerald-950">
               <td className="px-4 py-2.5 text-sm">Total — {persons.length} team members</td>
               <td className="px-3 py-2.5 text-sm text-center">{dec2(totalProdHrs)}</td>
-              <td className="px-3 py-2.5 text-sm text-center">{money.format(totalRev)}</td>
-              <td className="border-l border-emerald-100" colSpan={2} />
-              <td className="border-l border-emerald-100" /><td />
-              <td className="px-3 py-2.5 text-sm text-center">{dec2(totalPayHrs)}</td>
-              <td className="px-3 py-2.5 text-sm text-center">{money.format(totalPayCost)}</td>
-              <td className="border-l border-emerald-100" />
-              <td className="px-3 py-2.5 text-sm text-center">{totalDtCost > 0 ? money.format(totalDtCost) : "—"}</td>
-              <td />
+              <td className="px-3 py-2.5 text-sm text-center hidden md:table-cell">{money.format(totalRev)}</td>
+              <td className="border-l border-emerald-100 hidden sm:table-cell" /><td className="hidden sm:table-cell" />
+              <td className="border-l border-emerald-100 hidden sm:table-cell" /><td className="hidden sm:table-cell" />
+              <td className="px-3 py-2.5 text-sm text-center hidden md:table-cell">{dec2(totalPayHrs)}</td>
+              <td className="px-3 py-2.5 text-sm text-center hidden md:table-cell">{money.format(totalPayCost)}</td>
+              <td className="border-l border-emerald-100 hidden lg:table-cell" />
+              <td className="px-3 py-2.5 text-sm text-center hidden lg:table-cell">{totalDtCost > 0 ? money.format(totalDtCost) : "—"}</td>
+              <td className="hidden lg:table-cell" />
               <td className="px-3 py-2.5 text-sm text-center border-l border-emerald-100">
                 {totalRev > 0 ? <span className={totalPayCost / totalRev > 0.39 ? "text-red-600" : "text-emerald-700"}>{pct(totalPayCost / totalRev)}</span> : "—"}
               </td>
-              <td className="px-3 py-2.5 text-sm text-center">
+              <td className="px-3 py-2.5 text-sm text-center hidden md:table-cell">
                 {totalPayCost > 0 ? <span className={(totalRev * 0.39) / totalPayCost >= 1 ? "text-emerald-700" : "text-red-600"}>{pct((totalRev * 0.39) / totalPayCost)}</span> : "—"}
               </td>
             </tr>
@@ -914,6 +916,7 @@ function PersonTable({ jobs, punches, dispatchJobs }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function LawnPage() {
+  const { can } = useUser();
   const fileRef = useRef<HTMLInputElement>(null);
   const [reports, setReports]         = useState<Report[]>([]);
   const [loading, setLoading]         = useState(true);

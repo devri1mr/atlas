@@ -418,18 +418,18 @@ function TimesheetsInner() {
                   {(isOpen || true) && (
                     <div className={`border-t border-gray-50 ${!isOpen ? "hidden print:block" : ""}`}>
                       <div className="overflow-x-auto">
-                      <table className="w-full text-xs min-w-[640px]">
+                      <table className="w-full text-xs">
                         <thead className="sticky top-0 z-10">
                           <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                             <th className="px-4 py-2 text-left">Date</th>
                             <th className="px-3 py-2 text-center">In</th>
                             <th className="px-3 py-2 text-center">Out</th>
-                            <th className="px-3 py-2 text-center">Lunch</th>
-                            <th className="px-3 py-2 text-center">Reg</th>
-                            <th className="px-3 py-2 text-center">OT</th>
+                            <th className="px-3 py-2 text-center hidden sm:table-cell">Lunch</th>
+                            <th className="px-3 py-2 text-center hidden sm:table-cell">Reg</th>
+                            <th className="px-3 py-2 text-center hidden sm:table-cell">OT</th>
                             <th className="px-3 py-2 text-center">Total</th>
-                            <th className="px-3 py-2 text-center">Punch Item</th>
-                            <th className="px-3 py-2 text-center">Division</th>
+                            <th className="px-3 py-2 text-center hidden md:table-cell">Punch Item</th>
+                            <th className="px-3 py-2 text-center hidden lg:table-cell">Division</th>
                             <th className="px-3 py-2 text-center">Status</th>
                             <th className="px-3 py-2 text-center print:hidden">Actions</th>
                           </tr>
@@ -462,7 +462,7 @@ function TimesheetsInner() {
                                     onChange={e => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], clock_out_at: e.target.value }}))}
                                     className={inputCls} />
                                 </td>
-                                <td className="px-3 py-2 text-center">
+                                <td className="px-3 py-2 text-center hidden sm:table-cell">
                                   {(draft.lunch_deducted_mins as number ?? 0) > 0 ? (
                                     <button
                                       onClick={() => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], lunch_deducted_mins: 0 }}))}
@@ -472,10 +472,10 @@ function TimesheetsInner() {
                                     </button>
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-center font-semibold">{h(reg)}</td>
-                                <td className={`px-3 py-2 text-center font-semibold ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
+                                <td className="px-3 py-2 text-center font-semibold hidden sm:table-cell">{h(reg)}</td>
+                                <td className={`px-3 py-2 text-center font-semibold hidden sm:table-cell ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2 text-center font-bold">{h(total)}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-2 hidden md:table-cell">
                                   <select value={(draft.division_id as string) ?? ""}
                                     onChange={e => setEditing(prev => ({ ...prev, [p.id]: { ...prev[p.id], division_id: e.target.value }}))}
                                     className={inputCls}>
@@ -483,7 +483,7 @@ function TimesheetsInner() {
                                     {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                   </select>
                                 </td>
-                                <td className="px-3 py-2 text-center text-gray-400 text-xs">auto</td>
+                                <td className="px-3 py-2 text-center text-gray-400 text-xs hidden lg:table-cell">auto</td>
                                 <td className="px-3 py-2"><span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Editing</span></td>
                                 <td className="px-3 py-2 text-right print:hidden">
                                   <div className="flex items-center justify-end gap-1.5">
@@ -510,12 +510,12 @@ function TimesheetsInner() {
                                 <td className="px-3 py-2.5 text-center text-gray-700 tabular-nums whitespace-nowrap">
                                   {p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-red-400 font-semibold">Open</span>}
                                 </td>
-                                <td className="px-3 py-2.5 text-center text-gray-400 tabular-nums">{lunch > 0 ? `${lunch}m` : "—"}</td>
-                                <td className="px-3 py-2.5 text-center font-semibold tabular-nums">{h(reg)}</td>
-                                <td className={`px-3 py-2.5 text-center font-semibold tabular-nums ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-400 tabular-nums hidden sm:table-cell">{lunch > 0 ? `${lunch}m` : "—"}</td>
+                                <td className="px-3 py-2.5 text-center font-semibold tabular-nums hidden sm:table-cell">{h(reg)}</td>
+                                <td className={`px-3 py-2.5 text-center font-semibold tabular-nums hidden sm:table-cell ${ot > 0 ? "text-amber-600" : "text-gray-300"}`}>{h(ot)}</td>
                                 <td className="px-3 py-2.5 text-center font-bold tabular-nums">{h(total)}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap">{p.at_divisions?.name ?? p.divisions?.name ?? "—"}</td>
-                                <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap">{p.divisions?.name ?? p.at_divisions?.divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-500 whitespace-nowrap hidden md:table-cell">{p.at_divisions?.name ?? p.divisions?.name ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center text-gray-400 whitespace-nowrap hidden lg:table-cell">{p.divisions?.name ?? p.at_divisions?.divisions?.name ?? "—"}</td>
                                 <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                   {p.locked
                                     ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Locked</span>
@@ -545,11 +545,15 @@ function TimesheetsInner() {
                         </tbody>
                         <tfoot>
                           <tr className="bg-gray-50/80 font-semibold text-xs">
-                            <td colSpan={4} className="px-4 py-2.5 text-gray-500">Period Total</td>
-                            <td className="px-3 py-2.5 text-center tabular-nums">{h(totReg)}</td>
-                            <td className={`px-3 py-2.5 text-center tabular-nums ${totOT > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totOT)}</td>
+                            <td className="px-4 py-2.5 text-gray-500">Period Total</td>
+                            <td /><td />
+                            <td className="hidden sm:table-cell" />
+                            <td className="px-3 py-2.5 text-center tabular-nums hidden sm:table-cell">{h(totReg)}</td>
+                            <td className={`px-3 py-2.5 text-center tabular-nums hidden sm:table-cell ${totOT > 0 ? "text-amber-600" : "text-gray-400"}`}>{h(totOT)}</td>
                             <td className="px-3 py-2.5 text-center tabular-nums font-bold">{h(totHrs)}</td>
-                            <td colSpan={3} />
+                            <td className="hidden md:table-cell" />
+                            <td className="hidden lg:table-cell" />
+                            <td /><td className="print:hidden" />
                           </tr>
                         </tfoot>
                       </table>

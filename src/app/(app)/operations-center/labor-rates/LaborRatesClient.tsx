@@ -4,6 +4,7 @@
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X, Trash2, RefreshCw, Check } from "lucide-react";
+import AccessGate from "@/components/AccessGate";
 
 type Division = { id: string; name: string };
 
@@ -270,6 +271,7 @@ export default function LaborRatesClient() {
   }, [divisions, rates]);
 
   return (
+    <AccessGate permKey="hr_labor_cost">
     <div className="min-h-screen bg-[#f0f4f0]">
       {/* Header */}
       <div
@@ -580,5 +582,6 @@ export default function LaborRatesClient() {
       ) : null}
       </div>
     </div>
+    </AccessGate>
   );
 }

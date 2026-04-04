@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useUser } from "@/lib/userContext";
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -126,6 +127,7 @@ function FieldSelect({ value, onChange, options, placeholder }: {
 export default function EmployeeDetailPage() {
   const params = useParams();
   const id = String(params.id);
+  const { can } = useUser();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -811,7 +813,7 @@ export default function EmployeeDetailPage() {
               </TwoCol>
             </Section>
 
-            <Section title="Pay Rates"
+            {can("hr_labor_cost") && <Section title="Pay Rates"
               desc="Division-specific rates take priority. Punches with no matching division use the default rate."
               action={
                 <button onClick={() => { setAddingRate(true); setNewRateDivisionId(form.division_id ?? ""); }} className="text-xs font-semibold text-[#123b1f] hover:text-[#1a5c2e] transition-colors flex items-center gap-1 shrink-0">
@@ -1018,7 +1020,7 @@ export default function EmployeeDetailPage() {
                   </div>
                 </div>
               )}
-            </Section>
+            </Section>}
           </Fragment>
         );
 

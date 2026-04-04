@@ -204,7 +204,7 @@ export default function RateSetupPage() {
   const canSave = pendingRates.length > 0;
 
   return (
-    <AccessGate permKey="hr_team_view">
+    <AccessGate permKey="hr_labor_cost">
       <div className="min-h-screen bg-[#f0f4f0] flex flex-col">
         {/* Header */}
         <div className="px-4 md:px-8 py-5"

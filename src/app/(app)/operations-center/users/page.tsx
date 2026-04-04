@@ -469,7 +469,7 @@ export default function UsersPage() {
           <div className="px-6 py-12 text-center text-sm text-gray-400">No active users yet.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[480px]">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
                   <th className="text-left px-6 py-3">User</th>
