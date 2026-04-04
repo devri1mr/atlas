@@ -753,7 +753,7 @@ export default function EmployeeDetailPage() {
                   <label className={labelCls}>Default Punch Item</label>
                   <select value={form.default_at_division_id ?? ""} onChange={e => set("default_at_division_id", e.target.value || null)} className={inputCls}>
                     <option value="">— None (use last used) —</option>
-                    {divisions.filter(d => d.time_clock_only).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                   <p className="text-xs text-gray-400 mt-1">Pre-selected on the kiosk when they enter their PIN. They can still change it before clocking in.</p>
                 </div>
