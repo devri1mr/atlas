@@ -1497,7 +1497,7 @@ export default function FertilizationImportsPage() {
         )}
 
         {/* Reports list */}
-        <div className="rounded-xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-emerald-100 bg-white shadow-sm">
           <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-emerald-950">Imported Reports</div>
             {reports.length > 0 && (() => {
