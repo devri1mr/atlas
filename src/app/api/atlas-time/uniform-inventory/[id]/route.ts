@@ -34,18 +34,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-// DELETE — void a receipt (soft delete)
+// DELETE — void an inventory entry (soft delete) + cancel any linked pay adjustments
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const sb = supabaseAdmin();
 
-    const { error } = await sb
-      .from("at_uniform_inventory")
-      .update({ is_void: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    const [voidRes] = await Promise.all([
+      sb.from("at_uniform_inventory")
+        .update({ is_void: true, updated_at: new Date().toISOString() })
+        .eq("id", id),
+      sb.from("at_pay_adjustments")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("source_inventory_id", id)
+        .neq("status", "applied"), // never cancel already-applied adjustments
+    ]);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (voidRes.error) return NextResponse.json({ error: voidRes.error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

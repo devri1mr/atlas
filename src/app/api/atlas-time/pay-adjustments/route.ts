@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const paycheckDate = searchParams.get("paycheck_date");
     const employeeId   = searchParams.get("employee_id");
+    const category     = searchParams.get("category");
 
     let query = sb
       .from("at_pay_adjustments")
@@ -35,7 +36,8 @@ export async function GET(req: NextRequest) {
       .order("created_at",    { ascending: true });
 
     if (paycheckDate) query = query.eq("paycheck_date", paycheckDate);
-    if (employeeId)   query = query.eq("employee_id", employeeId);
+    if (employeeId)   query = query.eq("employee_id",   employeeId);
+    if (category)     query = query.eq("category",      category);
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

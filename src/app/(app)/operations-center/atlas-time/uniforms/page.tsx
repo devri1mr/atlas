@@ -133,8 +133,10 @@ export default function UniformsPage() {
   const [issued, setIssued]       = useState<IssuedRow[]>([]); // kept for future use
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
-  const [employees,   setEmployees]   = useState<Employee[]>([]);
-  const [paySettings, setPaySettings] = useState<PayPeriodSettings | null>(null);
+  const [employees,    setEmployees]    = useState<Employee[]>([]);
+  const [paySettings,  setPaySettings]  = useState<PayPeriodSettings | null>(null);
+  // Map of inventory_id → deduction paycheck_date (for Orders view)
+  const [orderPayAdjs, setOrderPayAdjs] = useState<Record<string, string>>({});
 
   // Monthly count
   const [showCount,      setShowCount]      = useState(false);
@@ -199,7 +201,7 @@ export default function UniformsPage() {
     setLoading(true);
     setError("");
     try {
-      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes, empRes, settingsRes] = await Promise.all([
+      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes, empRes, settingsRes, adjRes] = await Promise.all([
         fetch("/api/atlas-time/uniform-inventory"),
         fetch("/api/atlas-time/uniform-inventory/summary"),
         fetch("/api/atlas-time/uniform-inventory/issued-summary"),
@@ -207,13 +209,25 @@ export default function UniformsPage() {
         fetch("/api/atlas-time/uniform-variants"),
         fetch("/api/atlas-time/employees?active=true"),
         fetch("/api/atlas-time/settings"),
+        fetch("/api/atlas-time/pay-adjustments?category=uniform"),
       ]);
-      const [lj, sj, ij, oj, vj, ej, stj] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json(), empRes.json(), settingsRes.json()]);
+      const [lj, sj, ij, oj, vj, ej, stj, adj] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json(), empRes.json(), settingsRes.json(), adjRes.json()]);
       setLedger(lj.entries ?? []);
       setSummary(sj.summary ?? []);
       setIssued(ij.summary ?? []);
       setItems(oj.options ?? []);
       setEmployees((ej.employees ?? []).sort((a: Employee, b: Employee) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name)));
+      // Build map: source_inventory_id → earliest deduction paycheck_date
+      const adjMap: Record<string, string> = {};
+      for (const a of adj.adjustments ?? []) {
+        if (a.type === "deduction" && a.source_inventory_id) {
+          if (!adjMap[a.source_inventory_id] || a.paycheck_date < adjMap[a.source_inventory_id]) {
+            adjMap[a.source_inventory_id] = a.paycheck_date;
+          }
+        }
+      }
+      setOrderPayAdjs(adjMap);
+
       if (stj.settings) {
         setPaySettings({
           pay_cycle:              stj.settings.pay_cycle              ?? "weekly",
@@ -1011,7 +1025,7 @@ export default function UniformsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Issue Date</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Team Member</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
@@ -1019,25 +1033,46 @@ export default function UniformsPage() {
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Deduction Check</th>
+                        <th className="px-4 py-3 w-10" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {orders.map(row => (
-                        <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
-                          <td className="px-4 py-3 text-center font-medium text-gray-800">
-                            {row.employee ? `${row.employee.last_name}, ${row.employee.first_name}` : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-center text-gray-700">{row.at_field_options?.label ?? <span className="text-gray-400 italic text-xs">Manual</span>}</td>
-                          <td className="px-4 py-3 text-center text-gray-600">{row.size?.label ?? <span className="text-gray-300">—</span>}</td>
-                          <td className="px-4 py-3 text-center text-gray-600">{row.color?.label ?? <span className="text-gray-300">—</span>}</td>
-                          <td className="px-4 py-3 text-center font-semibold tabular-nums text-gray-800">{Math.abs(row.quantity)}</td>
-                          <td className="px-4 py-3 text-center tabular-nums text-gray-600">{fmt$(row.unit_cost)}</td>
-                          <td className="px-4 py-3 text-center tabular-nums text-gray-800 font-semibold">{row.total_cost != null ? fmt$(Math.abs(row.total_cost)) : "—"}</td>
-                          <td className="px-4 py-3 text-center text-xs text-gray-400">{row.notes ?? <span className="text-gray-200">—</span>}</td>
-                        </tr>
-                      ))}
+                      {orders.map(row => {
+                        const dedDate = orderPayAdjs[row.id];
+                        return (
+                          <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
+                            <td className="px-4 py-3 text-center text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
+                            <td className="px-4 py-3 text-center font-medium text-gray-800">
+                              {row.employee ? `${row.employee.last_name}, ${row.employee.first_name}` : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-700">{row.at_field_options?.label ?? <span className="text-gray-400 italic text-xs">Manual</span>}</td>
+                            <td className="px-4 py-3 text-center text-gray-600">{row.size?.label ?? <span className="text-gray-300">—</span>}</td>
+                            <td className="px-4 py-3 text-center text-gray-600">{row.color?.label ?? <span className="text-gray-300">—</span>}</td>
+                            <td className="px-4 py-3 text-center font-semibold tabular-nums text-gray-800">{Math.abs(row.quantity)}</td>
+                            <td className="px-4 py-3 text-center tabular-nums text-gray-600">{fmt$(row.unit_cost)}</td>
+                            <td className="px-4 py-3 text-center tabular-nums text-gray-800 font-semibold">{row.total_cost != null ? fmt$(Math.abs(row.total_cost)) : "—"}</td>
+                            <td className="px-4 py-3 text-center tabular-nums whitespace-nowrap">
+                              {dedDate
+                                ? <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(dedDate)}</span>
+                                : <span className="text-gray-300 text-xs">Company issued</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={async () => {
+                                  if (!confirm("Delete this issuance? This will also cancel any linked pay adjustments.")) return;
+                                  await fetch(`/api/atlas-time/uniform-inventory/${row.id}`, { method: "DELETE" });
+                                  await loadAll();
+                                }}
+                                className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-500 transition-all p-1 rounded"
+                                title="Delete issuance"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
