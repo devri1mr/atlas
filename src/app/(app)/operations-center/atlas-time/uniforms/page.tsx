@@ -41,7 +41,11 @@ const inputCls = "border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white f
 
 function fmt$(n: number | null) {
   if (n == null) return "—";
-  return `$${n.toFixed(2)}`;
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+}
+
+function fmtN(n: number) {
+  return n.toLocaleString("en-US");
 }
 
 function fmtDate(iso: string) {
@@ -74,13 +78,54 @@ type IssuedRow = {
   employee_count: number;
 };
 
+type ConsumptionLine = {
+  item_name: string;
+  size_label: string | null;
+  color_label: string | null;
+  start_qty: number;
+  receipts_qty: number;
+  end_qty: number;
+  consumed_qty: number;
+  avg_cost: number | null;
+  consumed_value: number | null;
+};
+
+type Consumption = {
+  from_date: string;
+  to_date: string;
+  total_consumed_value: number;
+  lines: ConsumptionLine[];
+};
+
+type CountItem = {
+  item_name: string;
+  size_label: string | null;
+  color_label: string | null;
+  item_option_id: string | null;
+  size_variant_id: string | null;
+  color_variant_id: string | null;
+  current_on_hand: number;
+  actual_qty: string;
+  avg_cost: number | null;
+};
+
 export default function UniformsPage() {
-  const [view, setView]           = useState<"inventory" | "ledger">("inventory");
+  const [view, setView]           = useState<"inventory" | "consumption" | "ledger">("inventory");
   const [ledger, setLedger]       = useState<LedgerEntry[]>([]);
   const [summary, setSummary]     = useState<SummaryRow[]>([]);
   const [issued, setIssued]       = useState<IssuedRow[]>([]); // kept for future use
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
+
+  // Monthly count
+  const [showCount,      setShowCount]      = useState(false);
+  const [countDate,      setCountDate]      = useState("");
+  const [countNotes,     setCountNotes]     = useState("");
+  const [countItems,     setCountItems]     = useState<CountItem[]>([]);
+  const [countSaving,    setCountSaving]    = useState(false);
+  const [countError,     setCountError]     = useState("");
+  const [consumption,    setConsumption]    = useState<Consumption | null>(null);
+  const [consumptionLoading, setConsumptionLoading] = useState(false);
 
   // Catalog for new entry form
   const [items,   setItems]   = useState<ItemOption[]>([]);
@@ -144,6 +189,74 @@ export default function UniformsPage() {
   }
 
   useEffect(() => { loadAll(); }, []);
+
+  // ── Monthly count helpers ────────────────────────────────────────────────────
+
+  function openCount(summaryRows: SummaryRow[]) {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    setCountDate(today);
+    setCountNotes("");
+    setCountError("");
+    const rows = summaryRows
+      .filter(r => r.item_name !== "Background Check")
+      .map(r => ({
+        item_name:        r.item_name,
+        size_label:       r.size_label,
+        color_label:      r.color_label,
+        item_option_id:   null as string | null,
+        size_variant_id:  null as string | null,
+        color_variant_id: null as string | null,
+        current_on_hand:  r.qty_on_hand,
+        actual_qty:       String(Math.max(0, r.qty_on_hand)),
+        avg_cost:         r.avg_unit_cost,
+      }));
+    setCountItems(rows);
+    setShowCount(true);
+  }
+
+  async function submitCount() {
+    if (!countDate) { setCountError("Count date is required"); return; }
+    setCountSaving(true);
+    setCountError("");
+    try {
+      const payload = {
+        count_date: countDate,
+        notes: countNotes || null,
+        items: countItems.map(i => ({
+          ...i,
+          actual_qty: parseInt(i.actual_qty) || 0,
+        })),
+      };
+      const res  = await fetch("/api/atlas-time/uniform-inventory/counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to save");
+      setShowCount(false);
+      await loadAll();
+      await loadConsumption();
+      setView("consumption");
+    } catch (e: any) {
+      setCountError(e.message ?? "Failed to save count");
+    } finally {
+      setCountSaving(false);
+    }
+  }
+
+  async function loadConsumption() {
+    setConsumptionLoading(true);
+    try {
+      const res  = await fetch("/api/atlas-time/uniform-inventory/counts");
+      const json = await res.json();
+      setConsumption(json.consumption ?? null);
+    } catch { /* ignore */ } finally {
+      setConsumptionLoading(false);
+    }
+  }
+
+  useEffect(() => { loadConsumption(); }, []);
 
   // ── Form helpers ─────────────────────────────────────────────────────────────
 
@@ -252,13 +365,22 @@ export default function UniformsPage() {
             <h1 className="text-2xl font-bold text-white tracking-tight">Uniforms Inventory</h1>
             <p className="text-white/50 text-sm mt-0.5">Track stock, costs, and issuances</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add Receipt
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { openCount(summary); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              Monthly Count
+            </button>
+            <button
+              onClick={() => { resetForm(); setShowForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Add Receipt
+            </button>
+          </div>
         </div>
       </div>
 
@@ -352,13 +474,84 @@ export default function UniformsPage() {
           </div>
         )}
 
+        {/* Monthly Count form */}
+        {showCount && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-gray-800">Monthly Count</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Enter actual quantities on hand. Atlas will auto-post adjustments and calculate consumption.</p>
+              </div>
+              <button onClick={() => setShowCount(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Count Date *</label>
+                <input type="date" value={countDate} onChange={e => setCountDate(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex-[2]">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</label>
+                <input type="text" value={countNotes} onChange={e => setCountNotes(e.target.value)} className={inputCls} placeholder="e.g. March 2026 month-end" />
+              </div>
+            </div>
+            {/* Item table */}
+            <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
+              <div className="grid grid-cols-[1fr_80px_80px_80px_80px] bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide gap-3">
+                <span>Item</span>
+                <span className="text-center">Current</span>
+                <span className="text-center">Actual</span>
+                <span className="text-center">Diff</span>
+                <span className="text-center">Avg Cost</span>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+                {countItems.map((ci, idx) => {
+                  const actual = parseInt(ci.actual_qty) || 0;
+                  const diff = actual - ci.current_on_hand;
+                  return (
+                    <div key={idx} className="grid grid-cols-[1fr_80px_80px_80px_80px] px-4 py-2.5 gap-3 items-center">
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">{ci.item_name}</span>
+                        {(ci.size_label || ci.color_label) && (
+                          <span className="text-xs text-gray-400 ml-2">{[ci.color_label, ci.size_label].filter(Boolean).join(" · ")}</span>
+                        )}
+                      </div>
+                      <div className={`text-center text-sm font-semibold tabular-nums ${ci.current_on_hand < 0 ? 'text-red-500' : 'text-gray-600'}`}>{fmtN(ci.current_on_hand)}</div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={ci.actual_qty}
+                        onChange={e => setCountItems(prev => prev.map((r, i) => i === idx ? { ...r, actual_qty: e.target.value } : r))}
+                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-green-600 w-full tabular-nums"
+                      />
+                      <div className={`text-center text-sm font-bold tabular-nums ${diff > 0 ? 'text-green-700' : diff < 0 ? 'text-red-600' : 'text-gray-300'}`}>
+                        {diff === 0 ? '—' : (diff > 0 ? `+${fmtN(diff)}` : fmtN(diff))}
+                      </div>
+                      <div className="text-center text-xs text-gray-400 tabular-nums">{ci.avg_cost != null ? fmt$(ci.avg_cost) : '—'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {countError && <p className="mb-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{countError}</p>}
+            <div className="flex gap-2">
+              <button onClick={submitCount} disabled={countSaving}
+                className="px-4 py-2 rounded-xl bg-[#123b1f] hover:bg-[#1a5c2e] text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {countSaving ? "Saving…" : "Submit Count"}
+              </button>
+              <button onClick={() => setShowCount(false)} className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-semibold transition-colors">Cancel</button>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         {!loading && (
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Units on Hand", value: String(totalUnits), alert: totalUnits < 0 },
+              { label: "Units on Hand", value: fmtN(totalUnits), alert: totalUnits < 0 },
               { label: "Inventory Value", value: fmt$(totalValue), alert: false },
-              { label: "Items Below Zero", value: String(summary.filter(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0).length), alert: summary.some(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0) },
+              { label: "Items Below Zero", value: fmtN(summary.filter(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0).length), alert: summary.some(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0) },
             ].map(s => (
               <div key={s.label} className={`bg-white rounded-2xl border shadow-sm px-5 py-4 ${s.alert ? 'border-red-100' : 'border-gray-100'}`}>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{s.label}</p>
@@ -371,8 +564,9 @@ export default function UniformsPage() {
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-xl border border-gray-100 shadow-sm p-1 w-fit">
           {([
-            { key: "inventory", label: "On Hand" },
-            { key: "ledger",    label: "Ledger" },
+            { key: "inventory",   label: "On Hand" },
+            { key: "consumption", label: "Consumption" },
+            { key: "ledger",      label: "Ledger" },
           ] as const).map(v => (
             <button key={v.key} onClick={() => setView(v.key)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${view === v.key ? "bg-[#123b1f] text-white" : "text-gray-500 hover:text-gray-700"}`}>
@@ -416,7 +610,7 @@ export default function UniformsPage() {
                       {g.avgCost != null && <div className="text-[11px] text-gray-400 mt-0.5">avg cost {fmt$(g.avgCost)}</div>}
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{g.totalUnits}</div>
+                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{fmtN(g.totalUnits)}</div>
                       <div className="text-[11px] text-gray-400 mt-0.5">{fmt$(g.totalValue)}</div>
                     </div>
                   </div>
@@ -428,7 +622,7 @@ export default function UniformsPage() {
                         {rows.map(r => (
                           <div key={`${r.size_label}-${r.color_label}`} className={`text-center rounded-xl px-3 pt-1.5 pb-2 min-w-[52px] ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
                             {r.size_label && <div className="text-[10px] font-semibold text-gray-400 mb-0.5">{r.size_label}</div>}
-                            <div className={`text-base font-bold tabular-nums leading-none ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-300' : 'text-[#1a5c2a]'}`}>{r.qty_on_hand}</div>
+                            <div className={`text-base font-bold tabular-nums leading-none ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-300' : 'text-[#1a5c2a]'}`}>{fmtN(r.qty_on_hand)}</div>
                           </div>
                         ))}
                       </div>
@@ -439,6 +633,101 @@ export default function UniformsPage() {
             </div>
           );
         })()}
+
+        {/* ── CONSUMPTION view ── */}
+        {!loading && view === "consumption" && (
+          <div className="space-y-4">
+            {consumptionLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-6 h-6 border-2 border-[#123b1f] border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {!consumptionLoading && !consumption && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">
+                No consumption data yet. Submit at least two monthly counts to see usage between periods.
+              </div>
+            )}
+            {!consumptionLoading && consumption && (() => {
+              const grouped = Object.entries(
+                consumption.lines.reduce((acc, l) => {
+                  (acc[l.item_name] ??= []).push(l);
+                  return acc;
+                }, {} as Record<string, ConsumptionLine[]>)
+              ).map(([name, lines]) => ({
+                name,
+                lines: [...lines].sort((a, b) =>
+                  sizeRank(a.size_label) - sizeRank(b.size_label) ||
+                  (a.color_label ?? "").localeCompare(b.color_label ?? "")
+                ),
+                totalConsumed: lines.reduce((s, l) => s + l.consumed_qty, 0),
+                totalValue: lines.reduce((s, l) => s + (l.consumed_value ?? 0), 0),
+              })).sort((a, b) => a.name.localeCompare(b.name));
+
+              return (
+                <>
+                  {/* Period header */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Period</p>
+                      <p className="text-base font-bold text-gray-800 mt-0.5">{fmtDate(consumption.from_date)} — {fmtDate(consumption.to_date)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total $ Used</p>
+                      <p className="text-2xl font-bold text-gray-800 tabular-nums mt-0.5">{fmt$(consumption.total_consumed_value)}</p>
+                    </div>
+                  </div>
+
+                  {/* Per-item cards */}
+                  {grouped.map(g => (
+                    <div key={g.name} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                      {/* Card header */}
+                      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+                        <span className="text-sm font-bold text-gray-800">{g.name}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-gray-400">{fmtN(g.totalConsumed)} units used</span>
+                          <span className={`text-sm font-bold tabular-nums ${g.totalValue < 0 ? "text-red-600" : "text-gray-800"}`}>{fmt$(g.totalValue)}</span>
+                        </div>
+                      </div>
+                      {/* Line table */}
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Size</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Color</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Start Qty</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Receipts</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">End Qty</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Used</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">Avg Cost</th>
+                            <th className="px-5 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide">$ Used</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {g.lines.map((l, i) => (
+                            <tr key={i} className="hover:bg-gray-50/40">
+                              <td className="px-5 py-2.5 text-center text-gray-600">{l.size_label ?? <span className="text-gray-300">—</span>}</td>
+                              <td className="px-5 py-2.5 text-center text-gray-600">{l.color_label ?? <span className="text-gray-300">—</span>}</td>
+                              <td className="px-5 py-2.5 text-center tabular-nums text-gray-600">{fmtN(l.start_qty)}</td>
+                              <td className="px-5 py-2.5 text-center tabular-nums text-gray-600">{l.receipts_qty > 0 ? `+${fmtN(l.receipts_qty)}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-5 py-2.5 text-center tabular-nums text-gray-600">{fmtN(l.end_qty)}</td>
+                              <td className={`px-5 py-2.5 text-center tabular-nums font-semibold ${l.consumed_qty < 0 ? "text-red-600" : l.consumed_qty === 0 ? "text-gray-300" : "text-gray-800"}`}>
+                                {l.consumed_qty === 0 ? "—" : fmtN(l.consumed_qty)}
+                              </td>
+                              <td className="px-5 py-2.5 text-center tabular-nums text-gray-400">{fmt$(l.avg_cost)}</td>
+                              <td className={`px-5 py-2.5 text-center tabular-nums font-semibold ${(l.consumed_value ?? 0) < 0 ? "text-red-600" : "text-gray-800"}`}>
+                                {l.consumed_value != null ? fmt$(l.consumed_value) : <span className="text-gray-300">—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* ── LEDGER view ── */}
         {!loading && view === "ledger" && (
@@ -479,7 +768,7 @@ export default function UniformsPage() {
                         <td className="px-4 py-3 text-gray-600">{row.size?.label ?? <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3 text-gray-600">{row.color?.label ?? <span className="text-gray-300">—</span>}</td>
                         <td className={`px-4 py-3 text-center font-semibold tabular-nums ${row.quantity < 0 ? "text-blue-600" : "text-gray-800"}`}>
-                          {row.quantity > 0 ? `+${row.quantity}` : row.quantity}
+                          {row.quantity > 0 ? `+${fmtN(row.quantity)}` : fmtN(row.quantity)}
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
                           {isEditing && isReceipt
