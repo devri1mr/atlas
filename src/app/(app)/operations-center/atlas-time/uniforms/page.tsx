@@ -341,7 +341,7 @@ export default function UniformsPage() {
       (r.size_label ?? null) === sizeLabel &&
       (r.color_label ?? null) === colorLabel
     );
-    if (match?.avg_unit_cost != null) setIssueUnitCost(String(match.avg_unit_cost));
+    if (match?.avg_unit_cost != null) setIssueUnitCost(Number(match.avg_unit_cost).toFixed(2));
   }, [issueItem, issueSize, issueColor, issueMode]);
 
   function resetIssue() {
@@ -585,7 +585,7 @@ export default function UniformsPage() {
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unit Cost</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                  <input type="number" step="0.01" min="0" value={formUnitCost} onChange={e => setFormUnitCost(e.target.value)} className={inputCls + " pl-7"} placeholder="0.00" />
+                  <input type="text" inputMode="decimal" value={formUnitCost} onChange={e => setFormUnitCost(e.target.value)} onBlur={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) setFormUnitCost(n.toFixed(2)); }} className={inputCls + " pl-7"} placeholder="0.00" />
                 </div>
               </div>
               {/* Total preview */}
@@ -836,7 +836,7 @@ export default function UniformsPage() {
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unit Cost {issueMode === "inventory" ? "(auto-filled)" : ""}</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                      <input type="number" step="0.01" min="0" value={issueUnitCost} onChange={e => setIssueUnitCost(e.target.value)} className={inputCls + " pl-7"} placeholder="0.00" />
+                      <input type="text" inputMode="decimal" value={issueUnitCost} onChange={e => setIssueUnitCost(e.target.value)} onBlur={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) setIssueUnitCost(n.toFixed(2)); }} className={inputCls + " pl-7"} placeholder="0.00" />
                     </div>
                   </div>
                   {/* Issue date */}
@@ -1259,7 +1259,7 @@ export default function UniformsPage() {
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
                           {isEditing && isReceipt
-                            ? <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span><input type="number" step="0.01" value={editUnitCost} onChange={e => setEditUnitCost(e.target.value)} className="border border-gray-200 rounded-lg pl-5 pr-2 py-1 text-xs w-24" /></div>
+                            ? <div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span><input type="text" inputMode="decimal" value={editUnitCost} onChange={e => setEditUnitCost(e.target.value)} onBlur={e => { const n = parseFloat(e.target.value); if (!isNaN(n)) setEditUnitCost(n.toFixed(2)); }} className="border border-gray-200 rounded-lg pl-5 pr-2 py-1 text-xs w-24" /></div>
                             : fmt$(row.unit_cost)}
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{fmt$(row.total_cost)}</td>
