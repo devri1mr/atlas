@@ -139,6 +139,7 @@ type RepDetail = {
   usage: UsageEntry[];
   nonProdDays: NonProdDay[];
   unmatchedPunches: UnmatchedPunch[];
+  adminPay: number;
 };
 
 type PersonJob = {
@@ -594,9 +595,10 @@ function MaterialsTab({
       {adding ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
           <div className="text-xs font-semibold text-emerald-900 mb-1">Add Material Usage</div>
-          <div className="flex flex-wrap gap-2 items-start">
-            {/* Material search */}
-            <div className="relative flex-1 min-w-48">
+
+          {/* Row 1: Material search + Team member */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
               <input
                 type="text"
                 placeholder="Search material…"
@@ -620,14 +622,12 @@ function MaterialsTab({
                 </div>
               )}
             </div>
-
-            {/* Team member assignment */}
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 w-48">
               <label className="text-xs text-gray-500">Team Member</label>
               <select
                 value={assignedEmpId}
                 onChange={e => setAssignedEmpId(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:border-emerald-400 bg-white"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 bg-white"
               >
                 <option value="">— All / Unassigned —</option>
                 {members.map(m => (
@@ -637,8 +637,10 @@ function MaterialsTab({
                 ))}
               </select>
             </div>
+          </div>
 
-            {/* Qty */}
+          {/* Row 2: Qty + Unit + Unit Cost + Total */}
+          <div className="flex gap-3 items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">Qty</label>
               <input
@@ -649,8 +651,6 @@ function MaterialsTab({
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-24 focus:outline-none focus:border-emerald-400"
               />
             </div>
-
-            {/* Unit */}
             {selected && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-gray-500">Unit</label>
@@ -659,8 +659,6 @@ function MaterialsTab({
                 </div>
               </div>
             )}
-
-            {/* Unit cost override */}
             {selected && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-gray-500">Unit Cost</label>
@@ -676,8 +674,6 @@ function MaterialsTab({
                 </div>
               </div>
             )}
-
-            {/* Computed total */}
             {selected && qty && unitCost && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-gray-500">Total</label>
@@ -1306,15 +1302,28 @@ export default function FertilizationImportsPage() {
     return d.data ?? [];
   }
 
+  async function fetchAdminPay(date: string): Promise<number> {
+    try {
+      const year = date.slice(0, 4);
+      const res  = await fetch(`/api/operations-center/atlas-ops/fertilization/admin-pay?year=${year}`, { cache: "no-store" });
+      const d    = await res.json();
+      const day  = (d.days ?? []).find((x: any) => x.date === date);
+      if (!day) return 0;
+      if (day.override_cost !== undefined && day.override_cost !== null) return Number(day.override_cost);
+      return Number(day.computed_cost ?? 0);
+    } catch { return 0; }
+  }
+
   async function toggleReport(id: string, date: string) {
     if (expandedRep === id) { setExpandedRep(null); setRepDetail(null); return; }
     setExpandedRep(id);
     setRepTab("team");
     setRepDetail(null);
     setLoadingRep(true);
-    const [repRes, dispatchJobs] = await Promise.all([
+    const [repRes, dispatchJobs, adminPay] = await Promise.all([
       fetch(`/api/operations-center/atlas-ops/fertilization/reports?id=${id}`, { cache: "no-store" }).then(r => r.json()),
       loadDispatch(date),
+      fetchAdminPay(date),
     ]);
     setRepDetail(repRes.data ? {
       report:           repRes.data,
@@ -1323,6 +1332,7 @@ export default function FertilizationImportsPage() {
       usage:            repRes.usage            ?? [],
       nonProdDays:      repRes.non_production   ?? [],
       unmatchedPunches: repRes.unmatched_punches ?? [],
+      adminPay,
     } : null);
     setLoadingRep(false);
   }
@@ -1351,8 +1361,12 @@ export default function FertilizationImportsPage() {
 
   async function refreshReport() {
     if (!repDetail) return;
-    const id = repDetail.report.id;
-    const repRes = await fetch(`/api/operations-center/atlas-ops/fertilization/reports?id=${id}`, { cache: "no-store" }).then(r => r.json());
+    const id   = repDetail.report.id;
+    const date = repDetail.report.report_date;
+    const [repRes, adminPay] = await Promise.all([
+      fetch(`/api/operations-center/atlas-ops/fertilization/reports?id=${id}`, { cache: "no-store" }).then(r => r.json()),
+      fetchAdminPay(date),
+    ]);
     if (repRes.data) setRepDetail(prev => prev ? {
       ...prev,
       report:           repRes.data,
@@ -1360,6 +1374,7 @@ export default function FertilizationImportsPage() {
       usage:            repRes.usage            ?? [],
       nonProdDays:      repRes.non_production   ?? [],
       unmatchedPunches: repRes.unmatched_punches ?? [],
+      adminPay,
     } : null);
     await loadReports();
   }
@@ -1591,12 +1606,13 @@ export default function FertilizationImportsPage() {
                           <>
                             {/* GP summary bar */}
                             {can("hr_labor_cost") && (() => {
-                              const rev   = repDetail.report.total_budgeted_amount ?? 0;
-                              const prod  = repDetail.report.total_payroll_cost    ?? 0;
-                              const np    = (repDetail.nonProdDays ?? []).reduce((s, d) => s + (d.payroll_cost ?? 0), 0);
-                              const mat   = (repDetail.usage ?? []).reduce((s, u) => s + u.total_cost, 0);
-                              const gp    = rev - prod - np - mat;
-                              const gpP   = rev > 0 ? gp / rev : null;
+                              const rev    = repDetail.report.total_budgeted_amount ?? 0;
+                              const prod   = repDetail.report.total_payroll_cost    ?? 0;
+                              const np     = (repDetail.nonProdDays ?? []).reduce((s, d) => s + (d.payroll_cost ?? 0), 0);
+                              const mat    = (repDetail.usage ?? []).reduce((s, u) => s + u.total_cost, 0);
+                              const admin  = repDetail.adminPay ?? 0;
+                              const gp     = rev - prod - np - mat - admin;
+                              const gpP    = rev > 0 ? gp / rev : null;
                               return (
                                 <div className="flex flex-wrap items-center gap-4 px-5 py-3 bg-emerald-950/5 border-b border-emerald-100 text-xs">
                                   <span className="text-gray-500">Revenue <strong className="text-gray-800">{money.format(rev)}</strong></span>
@@ -1604,16 +1620,15 @@ export default function FertilizationImportsPage() {
                                   <span className="text-gray-500">Prod Labor <strong className="text-gray-800">{money.format(prod)}</strong></span>
                                   {np > 0 && <><span className="text-gray-300">−</span><span className="text-gray-500">Non-Prod <strong className="text-gray-800">{money.format(np)}</strong></span></>}
                                   {mat > 0 && <><span className="text-gray-300">−</span><span className="text-gray-500">Materials <strong className="text-gray-800">{money.format(mat)}</strong></span></>}
+                                  {admin > 0 && <><span className="text-gray-300">−</span><span className="text-gray-500">Admin <strong className="text-gray-800">{money.format(admin)}</strong></span></>}
                                   <span className="text-gray-300">=</span>
                                   <span className="font-semibold text-sm">
                                     GP <span className={gpP != null ? (gpP < 0.30 ? "text-red-600" : gpP < 0.45 ? "text-amber-600" : "text-emerald-700") : "text-gray-400"}>
                                       {money.format(gp)}{gpP != null ? ` (${pct(gpP)})` : ""}
                                     </span>
                                   </span>
-                                  {(mat === 0 || np === 0) && (
-                                    <span className="text-gray-400 italic">
-                                      {mat === 0 && np === 0 ? "— log materials & non-prod time to see full GP" : mat === 0 ? "— log materials to complete GP" : ""}
-                                    </span>
+                                  {mat === 0 && (
+                                    <span className="text-gray-400 italic">— log materials to complete GP</span>
                                   )}
                                 </div>
                               );

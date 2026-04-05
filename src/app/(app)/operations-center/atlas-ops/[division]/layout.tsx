@@ -14,6 +14,7 @@ export default function DivisionLayout({ children }: { children: React.ReactNode
     { label: "COGS",             href: `${base}/cogs` },
     ...(division === "fertilization" ? [
       { label: "Production Close-Out", href: `${base}/imports` },
+      { label: "Admin Pay",            href: `${base}/admin-pay` },
       { label: "Inventory",            href: `${base}/inventory` },
     ] : []),
   ];
