@@ -121,6 +121,7 @@ export default function DivisionUpcomingRevenuePage() {
 
   const [weekOffset, setWeekOffset]     = useState(0);
   const [data, setData]                 = useState<Map<string, DayRow>>(new Map());
+  const [lockedDates, setLockedDates]   = useState<Map<string, number>>(new Map());
   const [saving, setSaving]             = useState<Set<string>>(new Set());
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
   const [syncState, setSyncState]       = useState<SyncState>("idle");
@@ -139,7 +140,10 @@ export default function DivisionUpcomingRevenuePage() {
   })();
 
   const load = useCallback(async () => {
-    const res = await fetch(`${apiBase}?start=${dates[0]}&end=${dates[6]}`);
+    const [res, lockedRes] = await Promise.all([
+      fetch(`${apiBase}?start=${dates[0]}&end=${dates[6]}`),
+      fetch(`${apiBase}?locked_start=${dates[0]}&locked_end=${dates[6]}`),
+    ]);
     if (res.ok) {
       const rows: DayRow[] = await res.json();
       setData(prev => {
@@ -149,13 +153,28 @@ export default function DivisionUpcomingRevenuePage() {
         return next;
       });
     }
+    if (lockedRes.ok) {
+      const locked: { date: string; actual_revenue: number }[] = await lockedRes.json();
+      setLockedDates(prev => {
+        const next = new Map(prev);
+        for (const d of dates) next.delete(d);
+        for (const r of locked) next.set(r.date, r.actual_revenue);
+        return next;
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const ym = dates[0].slice(0, 7);
+    // Use the month with the most days in the visible week
+    const monthCounts = new Map<string, number>();
+    for (const d of dates) {
+      const ym = d.slice(0, 7);
+      monthCounts.set(ym, (monthCounts.get(ym) ?? 0) + 1);
+    }
+    const ym = [...monthCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
     setMonthSummary(null);
     fetch(`${apiBase}?summary=${ym}`)
       .then(r => r.ok ? r.json() : null)
@@ -175,7 +194,9 @@ export default function DivisionUpcomingRevenuePage() {
         body: JSON.stringify(rowToSave),
       });
       if (!res.ok) { load(); return; }
-      const ym = dates[0].slice(0, 7);
+      const mc = new Map<string, number>();
+      for (const d of dates) { const ym = d.slice(0, 7); mc.set(ym, (mc.get(ym) ?? 0) + 1); }
+      const ym = [...mc.entries()].sort((a, b) => b[1] - a[1])[0][0];
       fetch(`${apiBase}?summary=${ym}`)
         .then(r => r.ok ? r.json() : null)
         .then(d => d && setMonthSummary(d));
@@ -188,7 +209,9 @@ export default function DivisionUpcomingRevenuePage() {
     if (!monthSummary) return;
     const webhookUrl = process.env.NEXT_PUBLIC_SHEETS_WEBHOOK_URL?.replace(/\s+/g, "");
     if (!webhookUrl) { setSyncError("Not configured"); setSyncState("error"); setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000); return; }
-    const ym   = dates[0].slice(0, 7);
+    const mc   = new Map<string, number>();
+    for (const d of dates) { const ym2 = d.slice(0, 7); mc.set(ym2, (mc.get(ym2) ?? 0) + 1); }
+    const ym   = [...mc.entries()].sort((a, b) => b[1] - a[1])[0][0];
     const proj = monthSummary.actual + monthSummary.planned;
     const url  = new URL(webhookUrl);
     url.searchParams.set("month",      ym);
@@ -200,9 +223,18 @@ export default function DivisionUpcomingRevenuePage() {
     setTimeout(() => { setSyncState("idle"); setSyncError(""); }, 4000);
   }
 
-  const weekRev          = dates.reduce((s, d) => s + dayTotal(data.get(d) ?? {} as DayRow), 0);
+  const dominantMonth    = (() => {
+    const mc = new Map<string, number>();
+    for (const d of dates) { const ym = d.slice(0, 7); mc.set(ym, (mc.get(ym) ?? 0) + 1); }
+    return [...mc.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  })();
+  const viewedMonthLabel = new Date(dominantMonth + "-01T12:00:00").toLocaleDateString("en-US", { month: "long" });
+
+  const weekRev          = dates.reduce((s, d) => {
+    if (lockedDates.has(d)) return s + (lockedDates.get(d) ?? 0);
+    return s + dayTotal(data.get(d) ?? {} as DayRow);
+  }, 0);
   const projection       = monthSummary ? monthSummary.actual + monthSummary.planned : null;
-  const viewedMonthLabel = new Date(dates[0] + "T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
   const BG_TODAY_H = "#0f4a25";
@@ -296,8 +328,23 @@ export default function DivisionUpcomingRevenuePage() {
                     </div>
                   </td>
                   {dates.map(date => {
-                    const val     = dayTotal(data.get(date) ?? {} as DayRow);
-                    const isToday = date === today;
+                    const isLocked  = lockedDates.has(date);
+                    const lockedRev = lockedDates.get(date) ?? 0;
+                    const val       = dayTotal(data.get(date) ?? {} as DayRow);
+                    const isToday   = date === today;
+                    if (isLocked) {
+                      return (
+                        <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: "#f0fdf4" }}>
+                          <div className="flex flex-col items-center gap-0.5 py-1.5">
+                            <span className="text-sm font-bold text-emerald-700">{money(lockedRev)}</span>
+                            <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide flex items-center gap-0.5">
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                              Official
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    }
                     return (
                       <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: isToday ? "#ecfdf5" : "#fff" }}>
                         <EditCell value={val} onSave={v => handleSave(date, v)} />
