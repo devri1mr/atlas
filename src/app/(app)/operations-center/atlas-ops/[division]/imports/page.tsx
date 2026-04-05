@@ -1524,7 +1524,7 @@ export default function FertilizationImportsPage() {
                 <div className="text-center">Total Hrs</div>
                 <div className="text-center">Revenue</div>
                 <div className="text-center">Labor %</div>
-                <div className="text-center">Mat. Cost</div>
+                <div className="text-center">Mat. %</div>
                 <div className="text-center">GP%</div>
                 <div className="text-center">Status</div>
                 <div />
@@ -1554,7 +1554,9 @@ export default function FertilizationImportsPage() {
                       <div className="text-center">
                         {laborPct != null ? <span className={laborPct > 0.39 ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>{pct(laborPct)}</span> : "—"}
                       </div>
-                      <div className="text-center text-gray-700">{matCost > 0 ? money.format(matCost) : <span className="text-gray-300 text-xs">—</span>}</div>
+                      <div className="text-center">
+                        {matCost > 0 && revenue > 0 ? <span className="font-medium text-gray-700">{pct(matCost / revenue)}</span> : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
                       <div className="text-center">
                         {gpPct != null && totalCost > 0
                           ? <span className={gpPct < 0.30 ? "text-red-600 font-semibold" : gpPct < 0.45 ? "text-amber-600 font-semibold" : "text-emerald-700 font-semibold"}>{pct(gpPct)}</span>
