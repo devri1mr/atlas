@@ -12,7 +12,10 @@ export default function DivisionLayout({ children }: { children: React.ReactNode
     { label: "Dashboard",        href: base },
     { label: "Upcoming Revenue", href: `${base}/upcoming-revenue` },
     { label: "COGS",             href: `${base}/cogs` },
-    ...(division === "fertilization" ? [{ label: "Inventory", href: `${base}/inventory` }] : []),
+    ...(division === "fertilization" ? [
+      { label: "Production Close-Out", href: `${base}/imports` },
+      { label: "Inventory",            href: `${base}/inventory` },
+    ] : []),
   ];
 
   return (
