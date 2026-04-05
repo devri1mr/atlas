@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { nextPaycheckDate, fmtPaycheckDate, PayPeriodSettings } from "@/lib/atPayPeriod";
+import { nextPaycheckDate, payPeriodBounds, fmtPaycheckDate, PayPeriodSettings } from "@/lib/atPayPeriod";
+
+// Mirrors the server-side helper: push to next check if issued after period closes
+function clientDeductionPaycheck(settings: PayPeriodSettings, fromDate: Date): string {
+  const candidate    = nextPaycheckDate(settings, fromDate, 0);
+  const { end }      = payPeriodBounds(candidate, settings);
+  const issueDateStr = fromDate.toISOString().slice(0, 10);
+  return issueDateStr > end ? nextPaycheckDate(settings, fromDate, 1) : candidate;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,15 +121,15 @@ type CountItem = {
 type Employee = { id: string; first_name: string; last_name: string };
 
 type IssueScheduleItem = {
-  deduction_date:     string;
-  amount:             number;
-  reimbursement_date: string | null;
+  deduction_date: string;
+  amount:         number;
 };
 
 type IssueResult = {
-  unit_cost: number | null;
-  schedule:  IssueScheduleItem[];
-  // legacy single-entry fields (still returned by API)
+  unit_cost:           number | null;
+  schedule:            IssueScheduleItem[]; // deductions
+  reimbursement_date:  string | null;       // single reimbursement
+  // legacy fields
   deduction_paycheck_date:     string | null;
   reimbursement_paycheck_date: string | null;
 };
@@ -379,7 +387,7 @@ export default function UniformsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to issue");
-      setIssueResult({ schedule: json.schedule ?? [], unit_cost: json.unit_cost, deduction_paycheck_date: json.deduction_paycheck_date, reimbursement_paycheck_date: json.reimbursement_paycheck_date });
+      setIssueResult({ schedule: json.schedule ?? [], unit_cost: json.unit_cost, reimbursement_date: json.reimbursement_paycheck_date ?? null, deduction_paycheck_date: json.deduction_paycheck_date, reimbursement_paycheck_date: json.reimbursement_paycheck_date });
       await loadAll();
     } catch (e: any) {
       setIssueError(e.message ?? "Failed to issue");
@@ -713,23 +721,34 @@ export default function UniformsPage() {
                   <span className="text-sm font-semibold">Issued successfully{issueResult.unit_cost != null ? ` — ${fmt$(issueResult.unit_cost)} per unit` : ""}</span>
                 </div>
                 {issueResult.schedule.length > 0 && (
-                  <div className="border border-gray-100 rounded-xl overflow-hidden">
-                    <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] bg-gray-50 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2 border-b border-gray-100">
-                      <span className="text-center">#</span>
-                      <span>Deduction Check</span>
-                      <span className="text-center">Amount</span>
-                      <span>Reimbursement Check</span>
-                      <span className="text-center">Amount</span>
-                    </div>
-                    {issueResult.schedule.map((s, i) => (
-                      <div key={i} className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-2 gap-2 items-center border-b border-gray-50 last:border-0">
-                        <span className="text-center text-[11px] text-gray-400 font-semibold">{i + 1}</span>
-                        <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(s.deduction_date)}</span>
-                        <span className="text-center text-xs tabular-nums font-semibold text-red-600">{fmt$(s.amount)}</span>
-                        <span className="text-xs font-semibold text-[#1a5c2a]">{s.reimbursement_date ? fmtPaycheckDate(s.reimbursement_date) : "—"}</span>
-                        <span className="text-center text-xs tabular-nums font-semibold text-[#1a5c2a]">{fmt$(s.amount)}</span>
+                  <div className="space-y-2">
+                    {/* Deduction schedule */}
+                    <div className="border border-gray-100 rounded-xl overflow-hidden">
+                      <div className="grid grid-cols-[24px_1fr_100px] bg-gray-50 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2 border-b border-gray-100">
+                        <span className="text-center">#</span>
+                        <span>Deduction Check</span>
+                        <span className="text-center">Amount</span>
                       </div>
-                    ))}
+                      {issueResult.schedule.map((s, i) => (
+                        <div key={i} className="grid grid-cols-[24px_1fr_100px] px-3 py-2 gap-2 items-center border-b border-gray-50 last:border-0">
+                          <span className="text-center text-[11px] text-gray-400 font-semibold">{i + 1}</span>
+                          <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(s.deduction_date)}</span>
+                          <span className="text-center text-xs tabular-nums font-semibold text-red-600">{fmt$(s.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Single reimbursement */}
+                    {issueResult.reimbursement_date && (
+                      <div className="flex items-center justify-between bg-[#f0f7f0] border border-[#1a5c2a]/20 rounded-xl px-4 py-2.5">
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Reimbursement · 1 check</p>
+                          <p className="text-xs font-bold text-[#1a5c2a] mt-0.5">{fmtPaycheckDate(issueResult.reimbursement_date)}</p>
+                        </div>
+                        <p className="text-sm font-bold text-[#1a5c2a] tabular-nums">
+                          {fmt$(issueResult.schedule.reduce((s, r) => s + r.amount, 0))}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -841,16 +860,26 @@ export default function UniformsPage() {
 
                 {/* ── Paycheck preview (team_member_purchase only) ── */}
                 {issueType === "team_member_purchase" && paySettings && (() => {
-                  const totalCost  = issueUnitCost && issueQty ? +(Number(issueUnitCost) * Number(issueQty)).toFixed(2) : null;
-                  const splitNum   = issueSplit ? Math.max(1, parseInt(issueSplitCount) || 1) : 1;
-                  const perCheck   = totalCost ? Math.floor(totalCost * 100 / splitNum) / 100 : null;
-                  const lastAmt    = totalCost ? +((totalCost - (perCheck ?? 0) * (splitNum - 1)).toFixed(2)) : null;
-                  const baseDate   = new Date(issueDate + "T12:00:00");
-                  const dedDates   = Array.from({ length: splitNum }, (_, i) => nextPaycheckDate(paySettings!, baseDate, i));
-                  const reimDates  = dedDates.map(d => {
-                    const r = new Date(d + "T12:00:00"); r.setDate(r.getDate() + 90);
-                    return nextPaycheckDate(paySettings!, r);
+                  const totalCost = issueUnitCost && issueQty ? +(Number(issueUnitCost) * Number(issueQty)).toFixed(2) : null;
+                  const splitNum  = issueSplit ? Math.max(1, parseInt(issueSplitCount) || 1) : 1;
+                  const perCheck  = totalCost ? Math.floor(totalCost * 100 / splitNum) / 100 : null;
+                  const lastAmt   = totalCost ? +((totalCost - (perCheck ?? 0) * (splitNum - 1)).toFixed(2)) : null;
+                  const interval  = paySettings!.pay_cycle === "biweekly" ? 14 : 7;
+                  const baseDate  = new Date(issueDate + "T12:00:00");
+
+                  // First deduction respects period cutoff; rest advance by interval
+                  const firstDed  = clientDeductionPaycheck(paySettings!, baseDate);
+                  const dedDates  = Array.from({ length: splitNum }, (_, i) => {
+                    if (i === 0) return firstDed;
+                    const d = new Date(firstDed + "T12:00:00");
+                    d.setDate(d.getDate() + interval * i);
+                    return d.toISOString().slice(0, 10);
                   });
+
+                  // Single reimbursement: 90 days from issue date, same period-cutoff logic
+                  const reimFrom = new Date(issueDate + "T12:00:00");
+                  reimFrom.setDate(reimFrom.getDate() + 90);
+                  const reimDate = clientDeductionPaycheck(paySettings!, reimFrom);
 
                   return (
                     <div className="border border-amber-100 bg-amber-50/60 rounded-xl p-4 space-y-3">
@@ -871,40 +900,43 @@ export default function UniformsPage() {
                         )}
                       </div>
 
-                      {/* Schedule table */}
+                      {/* Deductions table */}
                       <div className="rounded-lg overflow-hidden border border-amber-100">
-                        <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] bg-amber-100/60 px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2">
+                        <div className="grid grid-cols-[24px_1fr_100px] bg-amber-100/60 px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2">
                           <span className="text-center">#</span>
                           <span>Deduction Check</span>
-                          <span className="text-center">Amount</span>
-                          <span>Reimbursement Check</span>
                           <span className="text-center">Amount</span>
                         </div>
                         <div className="divide-y divide-amber-100/60 bg-white">
                           {dedDates.map((dedDate, i) => {
                             const amt = i === splitNum - 1 ? lastAmt : perCheck;
                             return (
-                              <div key={i} className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-2 gap-2 items-center">
+                              <div key={i} className="grid grid-cols-[24px_1fr_100px] px-3 py-2 gap-2 items-center">
                                 <span className="text-center text-[11px] text-gray-400 font-semibold">{i + 1}</span>
                                 <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(dedDate)}</span>
                                 <span className="text-center text-xs tabular-nums text-red-600 font-semibold">{amt != null ? fmt$(amt) : "—"}</span>
-                                <span className="text-xs font-semibold text-[#1a5c2a]">{fmtPaycheckDate(reimDates[i])}</span>
-                                <span className="text-center text-xs tabular-nums text-[#1a5c2a] font-semibold">{amt != null ? fmt$(amt) : "—"}</span>
                               </div>
                             );
                           })}
                         </div>
                         {totalCost != null && (
-                          <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-1.5 gap-2 bg-amber-50 border-t border-amber-100">
+                          <div className="grid grid-cols-[24px_1fr_100px] px-3 py-1.5 gap-2 bg-amber-50 border-t border-amber-100">
                             <span />
-                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Total</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Total deducted</span>
                             <span className="text-center text-xs tabular-nums font-bold text-red-600">{fmt$(totalCost)}</span>
-                            <span />
-                            <span className="text-center text-xs tabular-nums font-bold text-[#1a5c2a]">{fmt$(totalCost)}</span>
                           </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-amber-700">Reimbursements scheduled 90 days from each deduction paycheck.</p>
+
+                      {/* Single reimbursement */}
+                      <div className="flex items-center justify-between bg-[#f0f7f0] border border-[#1a5c2a]/20 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Reimbursement (1 check · full amount)</p>
+                          <p className="text-xs font-bold text-[#1a5c2a] mt-0.5">{fmtPaycheckDate(reimDate)}</p>
+                        </div>
+                        <p className="text-sm font-bold text-[#1a5c2a] tabular-nums">{totalCost != null ? fmt$(totalCost) : "—"}</p>
+                      </div>
+                      <p className="text-[11px] text-amber-700">Reimbursement scheduled 90 days from issue date.</p>
                     </div>
                   );
                 })()}

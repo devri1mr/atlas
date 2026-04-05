@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { nextPaycheckDate, PayPeriodSettings } from "@/lib/atPayPeriod";
+import { nextPaycheckDate, payPeriodBounds, PayPeriodSettings } from "@/lib/atPayPeriod";
+
+/**
+ * Find the correct deduction paycheck for a given date.
+ * Rule: the issue must fall within the pay period BEFORE the payday.
+ * If the issue date is on the payday itself (or after the period closes), push to the next check.
+ */
+function deductionPaycheck(settings: PayPeriodSettings, fromDate: Date): string {
+  const candidate   = nextPaycheckDate(settings, fromDate, 0);
+  const { end }     = payPeriodBounds(candidate, settings);
+  const issueDateStr = fromDate.toISOString().slice(0, 10);
+  // Issue date is after the period closed → push to next paycheck
+  return issueDateStr > end ? nextPaycheckDate(settings, fromDate, 1) : candidate;
+}
 import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
@@ -123,62 +136,68 @@ export async function POST(req: NextRequest) {
       };
 
       // Per-check amounts — cents-precise, remainder on last check
-      const perCheck     = Math.floor(totalCharge * 100 / split) / 100;
-      const lastAmt      = +((totalCharge - perCheck * (split - 1)).toFixed(2));
+      const perCheck = Math.floor(totalCharge * 100 / split) / 100;
+      const lastAmt  = +((totalCharge - perCheck * (split - 1)).toFixed(2));
 
-      const baseDate     = new Date(issue_date + "T12:00:00");
-      const parts        = [item_label, size_label, color_label].filter(Boolean);
-      const baseDesc     = `${parts.join(" · ")} × ${quantity}`;
+      const baseDate  = new Date(issue_date + "T12:00:00");
+      const parts     = [item_label, size_label, color_label].filter(Boolean);
+      const baseDesc  = `${parts.join(" · ")} × ${quantity}`;
+      const interval  = paySettings.pay_cycle === "biweekly" ? 14 : 7;
 
-      // Build and insert deductions (sequential paycheck dates)
-      const dedInserts = Array.from({ length: split }, (_, i) => ({
+      // First deduction respects pay period cutoff; subsequent ones advance by interval
+      const firstDedDate = deductionPaycheck(paySettings, baseDate);
+      const dedDates     = Array.from({ length: split }, (_, i) => {
+        if (i === 0) return firstDedDate;
+        const d = new Date(firstDedDate + "T12:00:00");
+        d.setDate(d.getDate() + interval * i);
+        return d.toISOString().slice(0, 10);
+      });
+
+      // Insert all deduction entries
+      const dedInserts = dedDates.map((date, i) => ({
         company_id:          companyId,
         employee_id,
         type:                "deduction",
         category:            "uniform",
         description:         split > 1 ? `${baseDesc} (${i + 1}/${split})` : baseDesc,
         amount:              i === split - 1 ? lastAmt : perCheck,
-        paycheck_date:       nextPaycheckDate(paySettings, baseDate, i),
+        paycheck_date:       date,
         status:              "pending",
         source_inventory_id: inventory_id,
       }));
 
       const { data: insertedDeds } = await sb.from("at_pay_adjustments").insert(dedInserts).select("id, paycheck_date, amount");
 
-      // Build and insert reimbursements (90 days from each deduction paycheck date)
-      const reimInserts = (insertedDeds ?? []).map((d: any, i: number) => {
-        const reimFrom = new Date(d.paycheck_date + "T12:00:00");
-        reimFrom.setDate(reimFrom.getDate() + 90);
-        return {
-          company_id:          companyId,
-          employee_id,
-          type:                "reimbursement",
-          category:            "uniform",
-          description:         split > 1 ? `${baseDesc} (${i + 1}/${split})` : baseDesc,
-          amount:              d.amount,
-          paycheck_date:       nextPaycheckDate(paySettings, reimFrom),
-          status:              "pending",
-          source_inventory_id: inventory_id,
-        };
-      });
+      // Single reimbursement — full amount, 90 days from issue date (same period cutoff logic)
+      const reimFrom = new Date(issue_date + "T12:00:00");
+      reimFrom.setDate(reimFrom.getDate() + 90);
+      const reimDate = deductionPaycheck(paySettings, reimFrom);
 
-      const { data: insertedReims } = await sb.from("at_pay_adjustments").insert(reimInserts).select("id, paycheck_date, amount");
+      const { data: reimRow } = await sb.from("at_pay_adjustments").insert({
+        company_id:          companyId,
+        employee_id,
+        type:                "reimbursement",
+        category:            "uniform",
+        description:         baseDesc,
+        amount:              totalCharge,
+        paycheck_date:       reimDate,
+        status:              "pending",
+        source_inventory_id: inventory_id,
+      }).select("id, paycheck_date, amount").single();
 
-      // Link each reimbursement back to its deduction
-      if (insertedDeds && insertedReims) {
-        await Promise.all(insertedDeds.map((d: any, i: number) =>
-          insertedReims[i]
-            ? sb.from("at_pay_adjustments").update({ reimburses_adjustment_id: d.id }).eq("id", insertedReims[i].id)
-            : Promise.resolve()
-        ));
+      // Link reimbursement back to first deduction
+      if (reimRow?.id && insertedDeds?.[0]?.id) {
+        await sb.from("at_pay_adjustments")
+          .update({ reimburses_adjustment_id: insertedDeds[0].id })
+          .eq("id", reimRow.id);
       }
 
-      schedule = (insertedDeds ?? []).map((d: any, i: number) => ({
+      schedule = (insertedDeds ?? []).map((d: any) => ({
         deduction_id:       d.id,
         deduction_date:     d.paycheck_date,
         amount:             d.amount,
-        reimbursement_id:   insertedReims?.[i]?.id   ?? null,
-        reimbursement_date: insertedReims?.[i]?.paycheck_date ?? null,
+        reimbursement_id:   reimRow?.id            ?? null,
+        reimbursement_date: reimRow?.paycheck_date ?? null,
       }));
     }
 
