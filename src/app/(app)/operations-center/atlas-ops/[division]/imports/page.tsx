@@ -593,8 +593,8 @@ function MaterialsTab({
 
       {/* Add form — single scrollable row */}
       {adding ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 px-4 py-3 overflow-x-auto">
-          <div className="flex items-center gap-2 min-w-max">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 px-4 py-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Material search */}
             <div className="relative">
               <input
