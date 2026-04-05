@@ -75,10 +75,10 @@ type IssuedRow = {
 };
 
 export default function UniformsPage() {
-  const [view, setView]           = useState<"issued" | "inventory" | "ledger">("issued");
+  const [view, setView]           = useState<"inventory" | "ledger">("inventory");
   const [ledger, setLedger]       = useState<LedgerEntry[]>([]);
   const [summary, setSummary]     = useState<SummaryRow[]>([]);
-  const [issued, setIssued]       = useState<IssuedRow[]>([]);
+  const [issued, setIssued]       = useState<IssuedRow[]>([]); // kept for future use
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
 
@@ -354,16 +354,15 @@ export default function UniformsPage() {
 
         {/* Stats */}
         {!loading && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Items in Catalog", value: String(items.length) },
-              { label: "Total Issued to Employees", value: String(issued.filter(r => r.item !== 'Background Check').reduce((s, r) => s + r.qty, 0)) },
-              { label: "Units on Hand", value: String(totalUnits) },
-              { label: "Inventory Value", value: fmt$(totalValue) },
+              { label: "Units on Hand", value: String(totalUnits), alert: totalUnits < 0 },
+              { label: "Inventory Value", value: fmt$(totalValue), alert: false },
+              { label: "Items Below Zero", value: String(summary.filter(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0).length), alert: summary.some(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0) },
             ].map(s => (
-              <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
-                <p className="text-xs text-gray-400 font-medium">{s.label}</p>
-                <p className="text-xl font-bold text-gray-800 mt-0.5">{s.value}</p>
+              <div key={s.label} className={`bg-white rounded-2xl border shadow-sm px-5 py-4 ${s.alert ? 'border-red-100' : 'border-gray-100'}`}>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{s.label}</p>
+                <p className={`text-2xl font-bold mt-1 tabular-nums ${s.alert ? 'text-red-600' : 'text-gray-800'}`}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -372,7 +371,6 @@ export default function UniformsPage() {
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-xl border border-gray-100 shadow-sm p-1 w-fit">
           {([
-            { key: "issued",    label: "Issued to Employees" },
             { key: "inventory", label: "On Hand" },
             { key: "ledger",    label: "Ledger" },
           ] as const).map(v => (
@@ -393,51 +391,6 @@ export default function UniformsPage() {
           </div>
         )}
 
-        {/* ── ISSUED TO EMPLOYEES view ── */}
-        {!loading && view === "issued" && (() => {
-          const filtered = issued.filter(r => r.item !== 'Background Check');
-          const groups = Object.entries(
-            filtered.reduce((acc, r) => { (acc[r.item] ??= []).push(r); return acc; }, {} as Record<string, IssuedRow[]>)
-          ).map(([name, rows]) => {
-            const sorted = [...rows].sort((a, b) => sizeRank(a.size) - sizeRank(b.size) || (a.color ?? '').localeCompare(b.color ?? ''));
-            const byColor: Record<string, IssuedRow[]> = {};
-            for (const r of sorted) (byColor[r.color ?? ''] ??= []).push(r);
-            return { name, byColor, totalQty: rows.reduce((s, r) => s + r.qty, 0), totalCost: rows.reduce((s, r) => s + r.total_cost, 0) };
-          });
-          return (
-            <div className="space-y-2">
-              {groups.length === 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No uniform items found in employee profiles.</div>
-              )}
-              {groups.map(g => (
-                <div key={g.name} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
-                    <span className="text-sm font-bold text-gray-800">{g.name}</span>
-                    <div className="flex items-center gap-5 text-xs">
-                      <span className="text-gray-500"><span className="font-bold text-gray-800 tabular-nums">{g.totalQty}</span> issued</span>
-                      <span className="font-semibold text-gray-700 tabular-nums">{fmt$(g.totalCost)}</span>
-                    </div>
-                  </div>
-                  <div className="px-5 py-3 space-y-2">
-                    {Object.entries(g.byColor).map(([color, rows]) => (
-                      <div key={color} className="flex items-center gap-2 flex-wrap">
-                        {color && <span className="text-[11px] font-semibold text-gray-400 w-10 shrink-0">{color}</span>}
-                        {rows.map(r => (
-                          <div key={`${r.size}-${r.color}`} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-3 py-1.5">
-                            {r.size && <span className="text-[11px] font-semibold text-gray-400">{r.size}</span>}
-                            {r.size && <span className="text-gray-200 text-[10px]">·</span>}
-                            <span className="text-sm font-bold text-gray-800 tabular-nums">{r.qty}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
         {/* ── ON HAND (inventory) view ── */}
         {!loading && view === "inventory" && (() => {
           const filtered = summary.filter(r => r.item_name !== 'Background Check');
@@ -450,29 +403,32 @@ export default function UniformsPage() {
             return { name, byColor, totalUnits: rows.reduce((s, r) => s + r.qty_on_hand, 0), totalValue: rows.reduce((s, r) => s + (r.inventory_value ?? 0), 0), avgCost: rows[0]?.avg_unit_cost ?? null };
           });
           return (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {groups.length === 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No inventory yet. Add a receipt to get started.</div>
+                <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No inventory yet. Add a receipt to get started.</div>
               )}
               {groups.map(g => (
-                <div key={g.name} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${g.totalUnits < 0 ? 'border-red-100' : 'border-gray-100'}`}>
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
-                    <span className="text-sm font-bold text-gray-800">{g.name}</span>
-                    <div className="flex items-center gap-5 text-xs">
-                      {g.avgCost != null && <span className="text-gray-400">avg <span className="font-semibold text-gray-600">{fmt$(g.avgCost)}</span></span>}
-                      <span className={`font-bold tabular-nums ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{g.totalUnits} units</span>
-                      <span className="font-semibold text-gray-700 tabular-nums">{fmt$(g.totalValue)}</span>
+                <div key={g.name} className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm ${g.totalUnits < 0 ? 'border-l-red-400' : 'border-l-[#1a5c2a]'}`}>
+                  {/* Card header */}
+                  <div className="flex items-start justify-between px-5 pt-4 pb-3">
+                    <div>
+                      <div className="text-base font-bold text-gray-800">{g.name}</div>
+                      {g.avgCost != null && <div className="text-[11px] text-gray-400 mt-0.5">avg cost {fmt$(g.avgCost)}</div>}
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{g.totalUnits}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{fmt$(g.totalValue)}</div>
                     </div>
                   </div>
-                  <div className="px-5 py-3 space-y-2">
+                  {/* Size/color tiles */}
+                  <div className="px-5 pb-4 space-y-2.5 border-t border-gray-50 pt-3">
                     {Object.entries(g.byColor).map(([color, rows]) => (
                       <div key={color} className="flex items-center gap-2 flex-wrap">
-                        {color && <span className="text-[11px] font-semibold text-gray-400 w-10 shrink-0">{color}</span>}
+                        {color && <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide w-10 shrink-0">{color}</span>}
                         {rows.map(r => (
-                          <div key={`${r.size_label}-${r.color_label}`} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
-                            {r.size_label && <span className="text-[11px] font-semibold text-gray-400">{r.size_label}</span>}
-                            {r.size_label && <span className="text-gray-200 text-[10px]">·</span>}
-                            <span className={`text-sm font-bold tabular-nums ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-400' : 'text-green-700'}`}>{r.qty_on_hand}</span>
+                          <div key={`${r.size_label}-${r.color_label}`} className={`text-center rounded-xl px-3 pt-1.5 pb-2 min-w-[52px] ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
+                            {r.size_label && <div className="text-[10px] font-semibold text-gray-400 mb-0.5">{r.size_label}</div>}
+                            <div className={`text-base font-bold tabular-nums leading-none ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-300' : 'text-[#1a5c2a]'}`}>{r.qty_on_hand}</div>
                           </div>
                         ))}
                       </div>
@@ -499,7 +455,7 @@ export default function UniformsPage() {
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Team Member</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor / Ref</th>
                     <th className="px-4 py-3 w-16" />
                   </tr>
