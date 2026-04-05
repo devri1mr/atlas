@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { nextPaycheckDate } from "@/lib/atPayPeriod";
+import { nextPaycheckDate, PayPeriodSettings } from "@/lib/atPayPeriod";
 import { estToday } from "@/lib/estTime";
 
 export const runtime = "nodejs";
@@ -101,14 +101,12 @@ export async function POST(req: NextRequest) {
       inventory_id = invEntry.id;
     }
 
-    // ── 3. For team_member_purchase: create deduction + scheduled reimbursement ─
-    let deduction_id:           string | null = null;
-    let reimbursement_id:       string | null = null;
-    let deduction_paycheck:     string | null = null;
-    let reimbursement_paycheck: string | null = null;
+    // ── 3. For team_member_purchase: create deduction(s) + reimbursement(s) ────
+    let schedule: { deduction_id: string; deduction_date: string; amount: number; reimbursement_id: string | null; reimbursement_date: string | null }[] = [];
 
     if (issued_type === "team_member_purchase" && unitCost != null) {
       const totalCharge = +(unitCost * quantity).toFixed(2);
+      const split       = Math.max(1, Math.min(26, Number(body.split_checks ?? 1)));
 
       // Fetch pay period settings
       const { data: gs } = await sb
@@ -117,65 +115,82 @@ export async function POST(req: NextRequest) {
         .eq("company_id", companyId)
         .maybeSingle();
 
-      const paySettings = {
+      const paySettings: PayPeriodSettings = {
         pay_cycle:              gs?.pay_cycle              ?? "weekly",
         payday_day_of_week:     gs?.payday_day_of_week     ?? 5,
         pay_period_start_day:   gs?.pay_period_start_day   ?? 1,
         pay_period_anchor_date: gs?.pay_period_anchor_date ?? null,
       };
 
-      deduction_paycheck     = nextPaycheckDate(paySettings, new Date());
-      const issueDateObj     = new Date(issue_date + "T12:00:00");
-      issueDateObj.setDate(issueDateObj.getDate() + 90);
-      reimbursement_paycheck = nextPaycheckDate(paySettings, issueDateObj);
+      // Per-check amounts — cents-precise, remainder on last check
+      const perCheck     = Math.floor(totalCharge * 100 / split) / 100;
+      const lastAmt      = +((totalCharge - perCheck * (split - 1)).toFixed(2));
 
-      // Build shared description
-      const parts = [item_label, size_label, color_label].filter(Boolean);
-      const desc  = `${parts.join(" · ")} × ${quantity}`;
+      const baseDate     = new Date(issue_date + "T12:00:00");
+      const parts        = [item_label, size_label, color_label].filter(Boolean);
+      const baseDesc     = `${parts.join(" · ")} × ${quantity}`;
 
-      const [dedRes, reimRes] = await Promise.all([
-        sb.from("at_pay_adjustments").insert({
-          company_id:         companyId,
+      // Build and insert deductions (sequential paycheck dates)
+      const dedInserts = Array.from({ length: split }, (_, i) => ({
+        company_id:          companyId,
+        employee_id,
+        type:                "deduction",
+        category:            "uniform",
+        description:         split > 1 ? `${baseDesc} (${i + 1}/${split})` : baseDesc,
+        amount:              i === split - 1 ? lastAmt : perCheck,
+        paycheck_date:       nextPaycheckDate(paySettings, baseDate, i),
+        status:              "pending",
+        source_inventory_id: inventory_id,
+      }));
+
+      const { data: insertedDeds } = await sb.from("at_pay_adjustments").insert(dedInserts).select("id, paycheck_date, amount");
+
+      // Build and insert reimbursements (90 days from each deduction paycheck date)
+      const reimInserts = (insertedDeds ?? []).map((d: any, i: number) => {
+        const reimFrom = new Date(d.paycheck_date + "T12:00:00");
+        reimFrom.setDate(reimFrom.getDate() + 90);
+        return {
+          company_id:          companyId,
           employee_id,
-          type:               "deduction",
-          category:           "uniform",
-          description:        desc,
-          amount:             totalCharge,
-          paycheck_date:      deduction_paycheck,
-          status:             "pending",
+          type:                "reimbursement",
+          category:            "uniform",
+          description:         split > 1 ? `${baseDesc} (${i + 1}/${split})` : baseDesc,
+          amount:              d.amount,
+          paycheck_date:       nextPaycheckDate(paySettings, reimFrom),
+          status:              "pending",
           source_inventory_id: inventory_id,
-        }).select("id").single(),
-        sb.from("at_pay_adjustments").insert({
-          company_id:         companyId,
-          employee_id,
-          type:               "reimbursement",
-          category:           "uniform",
-          description:        desc,
-          amount:             totalCharge,
-          paycheck_date:      reimbursement_paycheck,
-          status:             "pending",
-          source_inventory_id: inventory_id,
-        }).select("id").single(),
-      ]);
+        };
+      });
 
-      deduction_id     = dedRes.data?.id ?? null;
-      reimbursement_id = reimRes.data?.id ?? null;
+      const { data: insertedReims } = await sb.from("at_pay_adjustments").insert(reimInserts).select("id, paycheck_date, amount");
 
-      // Link reimbursement back to deduction
-      if (deduction_id && reimbursement_id) {
-        await sb.from("at_pay_adjustments")
-          .update({ reimburses_adjustment_id: deduction_id })
-          .eq("id", reimbursement_id);
+      // Link each reimbursement back to its deduction
+      if (insertedDeds && insertedReims) {
+        await Promise.all(insertedDeds.map((d: any, i: number) =>
+          insertedReims[i]
+            ? sb.from("at_pay_adjustments").update({ reimburses_adjustment_id: d.id }).eq("id", insertedReims[i].id)
+            : Promise.resolve()
+        ));
       }
+
+      schedule = (insertedDeds ?? []).map((d: any, i: number) => ({
+        deduction_id:       d.id,
+        deduction_date:     d.paycheck_date,
+        amount:             d.amount,
+        reimbursement_id:   insertedReims?.[i]?.id   ?? null,
+        reimbursement_date: insertedReims?.[i]?.paycheck_date ?? null,
+      }));
     }
 
     return NextResponse.json({
       inventory_id,
-      unit_cost:                  unitCost,
-      deduction_id,
-      reimbursement_id,
-      deduction_paycheck_date:    deduction_paycheck,
-      reimbursement_paycheck_date: reimbursement_paycheck,
+      unit_cost:                   unitCost,
+      schedule,
+      // Legacy single-entry fields for backwards compat (employee profile page)
+      deduction_id:                schedule[0]?.deduction_id       ?? null,
+      reimbursement_id:            schedule[0]?.reimbursement_id   ?? null,
+      deduction_paycheck_date:     schedule[0]?.deduction_date     ?? null,
+      reimbursement_paycheck_date: schedule[0]?.reimbursement_date ?? null,
     }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });

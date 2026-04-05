@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { nextPaycheckDate, fmtPaycheckDate, PayPeriodSettings } from "@/lib/atPayPeriod";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,10 +112,18 @@ type CountItem = {
 
 type Employee = { id: string; first_name: string; last_name: string };
 
+type IssueScheduleItem = {
+  deduction_date:     string;
+  amount:             number;
+  reimbursement_date: string | null;
+};
+
 type IssueResult = {
+  unit_cost: number | null;
+  schedule:  IssueScheduleItem[];
+  // legacy single-entry fields (still returned by API)
   deduction_paycheck_date:     string | null;
   reimbursement_paycheck_date: string | null;
-  unit_cost:                   number | null;
 };
 
 export default function UniformsPage() {
@@ -124,7 +133,8 @@ export default function UniformsPage() {
   const [issued, setIssued]       = useState<IssuedRow[]>([]); // kept for future use
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees,   setEmployees]   = useState<Employee[]>([]);
+  const [paySettings, setPaySettings] = useState<PayPeriodSettings | null>(null);
 
   // Monthly count
   const [showCount,      setShowCount]      = useState(false);
@@ -168,6 +178,8 @@ export default function UniformsPage() {
   const [issueManualItem, setIssueManualItem] = useState("");
   const [issueManualSize, setIssueManualSize] = useState("");
   const [issueManualColor,setIssueManualColor]= useState("");
+  const [issueSplit,      setIssueSplit]      = useState(false);
+  const [issueSplitCount, setIssueSplitCount] = useState("2");
   const [issueSaving,     setIssueSaving]     = useState(false);
   const [issueError,      setIssueError]      = useState("");
   const [issueResult,     setIssueResult]     = useState<IssueResult | null>(null);
@@ -187,20 +199,29 @@ export default function UniformsPage() {
     setLoading(true);
     setError("");
     try {
-      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes, empRes] = await Promise.all([
+      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes, empRes, settingsRes] = await Promise.all([
         fetch("/api/atlas-time/uniform-inventory"),
         fetch("/api/atlas-time/uniform-inventory/summary"),
         fetch("/api/atlas-time/uniform-inventory/issued-summary"),
         fetch("/api/atlas-time/field-options?field_key=uniform_items"),
         fetch("/api/atlas-time/uniform-variants"),
         fetch("/api/atlas-time/employees?active=true"),
+        fetch("/api/atlas-time/settings"),
       ]);
-      const [lj, sj, ij, oj, vj, ej] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json(), empRes.json()]);
+      const [lj, sj, ij, oj, vj, ej, stj] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json(), empRes.json(), settingsRes.json()]);
       setLedger(lj.entries ?? []);
       setSummary(sj.summary ?? []);
       setIssued(ij.summary ?? []);
       setItems(oj.options ?? []);
       setEmployees((ej.employees ?? []).sort((a: Employee, b: Employee) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name)));
+      if (stj.settings) {
+        setPaySettings({
+          pay_cycle:              stj.settings.pay_cycle              ?? "weekly",
+          payday_day_of_week:     stj.settings.payday_day_of_week     ?? 5,
+          pay_period_start_day:   stj.settings.pay_period_start_day   ?? 1,
+          pay_period_anchor_date: stj.settings.pay_period_anchor_date ?? null,
+        });
+      }
 
       // Build variant map: item_option_id → {sizes, colors}
       const vmap: Record<string, { sizes: SizeVariant[]; colors: ColorVariant[] }> = {};
@@ -306,6 +327,7 @@ export default function UniformsPage() {
     setIssueQty("1"); setIssueUnitCost(""); setIssueManualItem(""); setIssueManualSize(""); setIssueManualColor("");
     setIssueDate(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
     setIssueType("company_issued"); setIssueMode("inventory");
+    setIssueSplit(false); setIssueSplitCount("2");
     setIssueError(""); setIssueResult(null);
   }
 
@@ -324,6 +346,7 @@ export default function UniformsPage() {
         issue_date:   issueDate,
         issued_type:  issueType,
         unit_cost:    issueUnitCost ? Number(issueUnitCost) : undefined,
+        split_checks: issueSplit ? Math.max(1, parseInt(issueSplitCount) || 1) : 1,
       };
       if (issueMode === "inventory") {
         body.item_option_id   = issueItem;
@@ -342,7 +365,7 @@ export default function UniformsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to issue");
-      setIssueResult({ deduction_paycheck_date: json.deduction_paycheck_date, reimbursement_paycheck_date: json.reimbursement_paycheck_date, unit_cost: json.unit_cost });
+      setIssueResult({ schedule: json.schedule ?? [], unit_cost: json.unit_cost, deduction_paycheck_date: json.deduction_paycheck_date, reimbursement_paycheck_date: json.reimbursement_paycheck_date });
       await loadAll();
     } catch (e: any) {
       setIssueError(e.message ?? "Failed to issue");
@@ -675,16 +698,24 @@ export default function UniformsPage() {
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   <span className="text-sm font-semibold">Issued successfully{issueResult.unit_cost != null ? ` — ${fmt$(issueResult.unit_cost)} per unit` : ""}</span>
                 </div>
-                {issueType === "team_member_purchase" && issueResult.deduction_paycheck_date && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="border border-gray-100 rounded-xl px-4 py-3">
-                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Deduction Paycheck</p>
-                      <p className="text-base font-bold text-red-600 mt-0.5">{fmtDate(issueResult.deduction_paycheck_date)}</p>
+                {issueResult.schedule.length > 0 && (
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] bg-gray-50 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2 border-b border-gray-100">
+                      <span className="text-center">#</span>
+                      <span>Deduction Check</span>
+                      <span className="text-center">Amount</span>
+                      <span>Reimbursement Check</span>
+                      <span className="text-center">Amount</span>
                     </div>
-                    <div className="border border-gray-100 rounded-xl px-4 py-3">
-                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Reimbursement Paycheck</p>
-                      <p className="text-base font-bold text-[#1a5c2a] mt-0.5">{issueResult.reimbursement_paycheck_date ? fmtDate(issueResult.reimbursement_paycheck_date) : "—"}</p>
-                    </div>
+                    {issueResult.schedule.map((s, i) => (
+                      <div key={i} className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-2 gap-2 items-center border-b border-gray-50 last:border-0">
+                        <span className="text-center text-[11px] text-gray-400 font-semibold">{i + 1}</span>
+                        <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(s.deduction_date)}</span>
+                        <span className="text-center text-xs tabular-nums font-semibold text-red-600">{fmt$(s.amount)}</span>
+                        <span className="text-xs font-semibold text-[#1a5c2a]">{s.reimbursement_date ? fmtPaycheckDate(s.reimbursement_date) : "—"}</span>
+                        <span className="text-center text-xs tabular-nums font-semibold text-[#1a5c2a]">{fmt$(s.amount)}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -785,17 +816,84 @@ export default function UniformsPage() {
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Issued As *</label>
                     <div className="flex gap-2">
                       {(["company_issued", "team_member_purchase"] as const).map(t => (
-                        <button key={t} onClick={() => setIssueType(t)}
+                        <button key={t} onClick={() => { setIssueType(t); setIssueSplit(false); }}
                           className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${issueType === t ? "bg-[#123b1f] text-white border-[#123b1f]" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
                           {t === "company_issued" ? "Company Issued" : "Team Member Purchase"}
                         </button>
                       ))}
                     </div>
-                    {issueType === "team_member_purchase" && (
-                      <p className="text-[11px] text-amber-600 mt-1">Deduction on next paycheck · Reimbursement 90 days from issue date</p>
-                    )}
                   </div>
                 </div>
+
+                {/* ── Paycheck preview (team_member_purchase only) ── */}
+                {issueType === "team_member_purchase" && paySettings && (() => {
+                  const totalCost  = issueUnitCost && issueQty ? +(Number(issueUnitCost) * Number(issueQty)).toFixed(2) : null;
+                  const splitNum   = issueSplit ? Math.max(1, parseInt(issueSplitCount) || 1) : 1;
+                  const perCheck   = totalCost ? Math.floor(totalCost * 100 / splitNum) / 100 : null;
+                  const lastAmt    = totalCost ? +((totalCost - (perCheck ?? 0) * (splitNum - 1)).toFixed(2)) : null;
+                  const baseDate   = new Date(issueDate + "T12:00:00");
+                  const dedDates   = Array.from({ length: splitNum }, (_, i) => nextPaycheckDate(paySettings!, baseDate, i));
+                  const reimDates  = dedDates.map(d => {
+                    const r = new Date(d + "T12:00:00"); r.setDate(r.getDate() + 90);
+                    return nextPaycheckDate(paySettings!, r);
+                  });
+
+                  return (
+                    <div className="border border-amber-100 bg-amber-50/60 rounded-xl p-4 space-y-3">
+                      {/* Split toggle */}
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={issueSplit} onChange={e => setIssueSplit(e.target.checked)}
+                            className="w-4 h-4 rounded accent-[#123b1f]" />
+                          <span className="text-xs font-semibold text-gray-700">Split over multiple paychecks</span>
+                        </label>
+                        {issueSplit && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Checks:</span>
+                            <input type="number" min="2" max="26" value={issueSplitCount}
+                              onChange={e => setIssueSplitCount(e.target.value)}
+                              className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[#123b1f]" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Schedule table */}
+                      <div className="rounded-lg overflow-hidden border border-amber-100">
+                        <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] bg-amber-100/60 px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide gap-2">
+                          <span className="text-center">#</span>
+                          <span>Deduction Check</span>
+                          <span className="text-center">Amount</span>
+                          <span>Reimbursement Check</span>
+                          <span className="text-center">Amount</span>
+                        </div>
+                        <div className="divide-y divide-amber-100/60 bg-white">
+                          {dedDates.map((dedDate, i) => {
+                            const amt = i === splitNum - 1 ? lastAmt : perCheck;
+                            return (
+                              <div key={i} className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-2 gap-2 items-center">
+                                <span className="text-center text-[11px] text-gray-400 font-semibold">{i + 1}</span>
+                                <span className="text-xs font-semibold text-red-600">{fmtPaycheckDate(dedDate)}</span>
+                                <span className="text-center text-xs tabular-nums text-red-600 font-semibold">{amt != null ? fmt$(amt) : "—"}</span>
+                                <span className="text-xs font-semibold text-[#1a5c2a]">{fmtPaycheckDate(reimDates[i])}</span>
+                                <span className="text-center text-xs tabular-nums text-[#1a5c2a] font-semibold">{amt != null ? fmt$(amt) : "—"}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {totalCost != null && (
+                          <div className="grid grid-cols-[24px_1fr_100px_1fr_100px] px-3 py-1.5 gap-2 bg-amber-50 border-t border-amber-100">
+                            <span />
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Total</span>
+                            <span className="text-center text-xs tabular-nums font-bold text-red-600">{fmt$(totalCost)}</span>
+                            <span />
+                            <span className="text-center text-xs tabular-nums font-bold text-[#1a5c2a]">{fmt$(totalCost)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-amber-700">Reimbursements scheduled 90 days from each deduction paycheck.</p>
+                    </div>
+                  );
+                })()}
 
                 {issueError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{issueError}</p>}
                 <div className="flex gap-2">
