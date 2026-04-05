@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
           .eq("report_id", reportId)
           .order("clock_in_at", { ascending: true }),
         sb.from("inventory_transactions")
-          .select(`id, material_id, quantity, unit_cost, total_cost, notes, materials(display_name, name, unit, inventory_unit)`)
+          .select(`id, material_id, quantity, unit_cost, total_cost, notes, employee_id, materials(display_name, name, unit, inventory_unit), at_employees(first_name, last_name)`)
           .eq("reference_type", "fert_production_report")
           .eq("reference_id", reportId)
           .eq("is_void", false)
@@ -59,16 +59,22 @@ export async function GET(req: NextRequest) {
           .order("created_at"),
       ]);
 
-      const usageEntries = (usageRaw ?? []).map((r: any) => ({
-        id:          r.id,
-        material_id: r.material_id,
-        name:        r.materials?.display_name || r.materials?.name || "Unknown",
-        unit:        r.materials?.inventory_unit || r.materials?.unit || "",
-        quantity:    Math.abs(Number(r.quantity)),
-        unit_cost:   Number(r.unit_cost ?? 0),
-        total_cost:  Math.abs(Number(r.total_cost ?? 0)),
-        notes:       r.notes ?? null,
-      }));
+      const usageEntries = (usageRaw ?? []).map((r: any) => {
+        const emp  = r.at_employees as any;
+        const memberName = emp ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() : null;
+        return {
+          id:                   r.id,
+          material_id:          r.material_id,
+          name:                 r.materials?.display_name || r.materials?.name || "Unknown",
+          unit:                 r.materials?.inventory_unit || r.materials?.unit || "",
+          quantity:             Math.abs(Number(r.quantity)),
+          unit_cost:            Number(r.unit_cost ?? 0),
+          total_cost:           Math.abs(Number(r.total_cost ?? 0)),
+          notes:                r.notes ?? null,
+          employee_id:          r.employee_id ?? null,
+          assigned_member_name: memberName ?? null,
+        };
+      });
 
       // Compute unmatched punches (fert punches on that date not in production or non-prod)
       const prodEmpIds = new Set<string>();

@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
       .from("inventory_transactions")
       .select(`
         id, material_id, quantity, unit_cost, total_cost, notes, transaction_date,
-        materials ( display_name, name, unit, inventory_unit )
+        employee_id,
+        materials ( display_name, name, unit, inventory_unit ),
+        at_employees ( first_name, last_name )
       `)
       .eq("reference_type", "fert_production_report")
       .eq("reference_id", reportId)
@@ -28,16 +30,22 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const entries = (data ?? []).map((r: any) => ({
-      id:           r.id,
-      material_id:  r.material_id,
-      name:         r.materials?.display_name || r.materials?.name || "Unknown",
-      unit:         r.materials?.inventory_unit || r.materials?.unit || "",
-      quantity:     Math.abs(Number(r.quantity)),
-      unit_cost:    Number(r.unit_cost ?? 0),
-      total_cost:   Math.abs(Number(r.total_cost ?? 0)),
-      notes:        r.notes ?? null,
-    }));
+    const entries = (data ?? []).map((r: any) => {
+      const emp  = r.at_employees as any;
+      const name = emp ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() : null;
+      return {
+        id:                   r.id,
+        material_id:          r.material_id,
+        name:                 r.materials?.display_name || r.materials?.name || "Unknown",
+        unit:                 r.materials?.inventory_unit || r.materials?.unit || "",
+        quantity:             Math.abs(Number(r.quantity)),
+        unit_cost:            Number(r.unit_cost ?? 0),
+        total_cost:           Math.abs(Number(r.total_cost ?? 0)),
+        notes:                r.notes ?? null,
+        employee_id:          r.employee_id ?? null,
+        assigned_member_name: name ?? null,
+      };
+    });
 
     return NextResponse.json({ data: entries });
   } catch (e: any) {
@@ -53,12 +61,13 @@ export async function POST(req: NextRequest) {
     const { data: company } = await sb.from("companies").select("id").limit(1).single();
     if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-    const body       = await req.json().catch(() => ({}));
-    const report_id  = String(body.report_id  ?? "").trim();
+    const body        = await req.json().catch(() => ({}));
+    const report_id   = String(body.report_id  ?? "").trim();
     const report_date = String(body.report_date ?? "").trim();
     const material_id = String(body.material_id ?? "").trim();
     const quantity    = Math.abs(Number(body.quantity ?? 0));
     const notes       = body.notes ? String(body.notes).trim() : null;
+    const employee_id = body.employee_id ? String(body.employee_id).trim() : null;
 
     if (!report_id || !material_id || quantity <= 0) {
       return NextResponse.json({ error: "report_id, material_id, and quantity > 0 required" }, { status: 400 });
@@ -105,6 +114,7 @@ export async function POST(req: NextRequest) {
         invoiced_final:   false,
         is_void:          false,
         notes,
+        employee_id:      employee_id || null,
       })
       .select("id")
       .single();

@@ -84,6 +84,8 @@ type UsageEntry = {
   unit_cost: number;
   total_cost: number;
   notes: string | null;
+  employee_id: string | null;
+  assigned_member_name: string | null;
 };
 
 type NonProdDay = {
@@ -447,33 +449,36 @@ function MaterialsTab({
   reportId,
   reportDate,
   usage,
+  members,
   onSaved,
 }: {
   reportId: string;
   reportDate: string;
   usage: UsageEntry[];
+  members: PersonEntry[];
   onSaved: () => void;
 }) {
   const { can } = useUser();
   const FERT_DIVISION_ID = "e710c6f9-d290-4004-8e55-303392eeb826";
 
-  const [adding, setAdding]           = useState(false);
-  const [search, setSearch]           = useState("");
-  const [results, setResults]         = useState<MaterialSearchResult[]>([]);
-  const [selected, setSelected]       = useState<MaterialSearchResult | null>(null);
-  const [qty, setQty]                 = useState("");
-  const [unitCost, setUnitCost]       = useState("");
-  const [notes, setNotes]             = useState("");
-  const [searching, setSearching]     = useState(false);
-  const [saving, setSaving]           = useState(false);
-  const [deletingId, setDeletingId]   = useState<string | null>(null);
-  const searchRef                     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [adding, setAdding]               = useState(false);
+  const [search, setSearch]               = useState("");
+  const [results, setResults]             = useState<MaterialSearchResult[]>([]);
+  const [selected, setSelected]           = useState<MaterialSearchResult | null>(null);
+  const [qty, setQty]                     = useState("");
+  const [unitCost, setUnitCost]           = useState("");
+  const [notes, setNotes]                 = useState("");
+  const [assignedEmpId, setAssignedEmpId] = useState("");
+  const [searching, setSearching]         = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [deletingId, setDeletingId]       = useState<string | null>(null);
+  const searchRef                         = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalCost = usage.reduce((s, u) => s + u.total_cost, 0);
 
   function resetForm() {
     setSearch(""); setResults([]); setSelected(null);
-    setQty(""); setUnitCost(""); setNotes(""); setAdding(false);
+    setQty(""); setUnitCost(""); setNotes(""); setAssignedEmpId(""); setAdding(false);
   }
 
   useEffect(() => {
@@ -493,8 +498,7 @@ function MaterialsTab({
     setSelected(m);
     setSearch(m.display_name || m.name);
     setResults([]);
-    // Pre-fill unit cost — the server will compute avg from inventory but show a hint
-    setUnitCost(m.unit_cost != null ? String(m.unit_cost) : "");
+    setUnitCost(m.unit_cost != null ? Number(m.unit_cost).toFixed(2) : "");
   }
 
   async function saveUsage() {
@@ -511,6 +515,7 @@ function MaterialsTab({
           quantity:    Number(qty),
           unit_cost:   unitCost ? Number(unitCost) : undefined,
           notes:       notes || null,
+          employee_id: assignedEmpId || null,
         }),
       });
       resetForm();
@@ -535,6 +540,7 @@ function MaterialsTab({
             <thead>
               <tr className="text-xs font-semibold text-emerald-900/60 bg-emerald-50/40">
                 <th className="px-3 py-2 text-left">Material</th>
+                <th className="px-3 py-2 text-center">Assigned To</th>
                 <th className="px-3 py-2 text-center">Qty</th>
                 <th className="px-3 py-2 text-center">Unit</th>
                 {can("hr_labor_cost") && <th className="px-3 py-2 text-center">Unit Cost</th>}
@@ -547,6 +553,9 @@ function MaterialsTab({
               {usage.map(u => (
                 <tr key={u.id} className="border-t border-emerald-50 hover:bg-emerald-50/20">
                   <td className="px-3 py-2 font-medium text-emerald-950">{u.name}</td>
+                  <td className="px-3 py-2 text-center text-xs text-gray-600">
+                    {u.assigned_member_name ? formatName(u.assigned_member_name) : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-3 py-2 text-center tabular-nums">{u.quantity}</td>
                   <td className="px-3 py-2 text-center text-gray-500">{u.unit}</td>
                   {can("hr_labor_cost") && <td className="px-3 py-2 text-center tabular-nums text-gray-600">{money.format(u.unit_cost)}</td>}
@@ -566,7 +575,7 @@ function MaterialsTab({
               <tfoot>
                 <tr className="border-t-2 border-emerald-200 bg-emerald-50/40 font-semibold text-sm text-emerald-950">
                   <td className="px-3 py-2">Total — {usage.length} item{usage.length !== 1 ? "s" : ""}</td>
-                  <td /><td />
+                  <td /><td /><td />
                   <td className="px-3 py-2 text-center text-gray-400 text-xs">product cost</td>
                   <td className="px-3 py-2 text-center tabular-nums">{money.format(totalCost)}</td>
                   <td /><td />
@@ -610,6 +619,23 @@ function MaterialsTab({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Team member assignment */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Team Member</label>
+              <select
+                value={assignedEmpId}
+                onChange={e => setAssignedEmpId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:border-emerald-400 bg-white"
+              >
+                <option value="">— All / Unassigned —</option>
+                {members.map(m => (
+                  <option key={m.employee_id ?? m.resource_name} value={m.employee_id ?? ""}>
+                    {formatName(m.resource_name)}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Qty */}
@@ -1632,6 +1658,7 @@ export default function FertilizationImportsPage() {
                                 reportId={repDetail.report.id}
                                 reportDate={repDetail.report.report_date}
                                 usage={repDetail.usage ?? []}
+                                members={repPersons}
                                 onSaved={refreshReport}
                               />
                             )}
