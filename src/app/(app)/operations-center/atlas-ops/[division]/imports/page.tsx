@@ -127,6 +127,7 @@ type Report = {
   total_earned_amount?: number;
   total_material_cost?: number;
   total_non_prod_cost?: number;
+  total_admin_cost?: number;
   total_budgeted_amount: number;
   total_actual_amount: number;
   fert_production_jobs?: Job[];
@@ -474,6 +475,12 @@ function MaterialsTab({
   const [saving, setSaving]               = useState(false);
   const [deletingId, setDeletingId]       = useState<string | null>(null);
   const searchRef                         = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editingId, setEditingId]         = useState<string | null>(null);
+  const [editQty, setEditQty]             = useState("");
+  const [editUnitCost, setEditUnitCost]   = useState("");
+  const [editNotes, setEditNotes]         = useState("");
+  const [editEmpId, setEditEmpId]         = useState("");
+  const [editSaving, setEditSaving]       = useState(false);
 
   const totalCost = usage.reduce((s, u) => s + u.total_cost, 0);
 
@@ -500,6 +507,34 @@ function MaterialsTab({
     setSearch(m.display_name || m.name);
     setResults([]);
     setUnitCost(m.unit_cost != null ? Number(m.unit_cost).toFixed(2) : "");
+  }
+
+  function startEdit(u: UsageEntry) {
+    setEditingId(u.id);
+    setEditQty(String(u.quantity));
+    setEditUnitCost(Number(u.unit_cost).toFixed(2));
+    setEditNotes(u.notes ?? "");
+    setEditEmpId(u.employee_id ?? "");
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    setEditSaving(true);
+    try {
+      await fetch("/api/operations-center/atlas-ops/fertilization/usage", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id:          editingId,
+          quantity:    Number(editQty),
+          unit_cost:   Number(editUnitCost),
+          notes:       editNotes || null,
+          employee_id: editEmpId || null,
+        }),
+      });
+      setEditingId(null);
+      onSaved();
+    } finally { setEditSaving(false); }
   }
 
   async function saveUsage() {
@@ -551,26 +586,72 @@ function MaterialsTab({
               </tr>
             </thead>
             <tbody>
-              {usage.map(u => (
-                <tr key={u.id} className="border-t border-emerald-50 hover:bg-emerald-50/20">
-                  <td className="px-3 py-2 font-medium text-emerald-950">{u.name}</td>
-                  <td className="px-3 py-2 text-center text-xs text-gray-600">
-                    {u.assigned_member_name ? formatName(u.assigned_member_name) : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-center tabular-nums">{u.quantity}</td>
-                  <td className="px-3 py-2 text-center text-gray-500">{u.unit}</td>
-                  {can("hr_labor_cost") && <td className="px-3 py-2 text-center tabular-nums text-gray-600">{money.format(u.unit_cost)}</td>}
-                  {can("hr_labor_cost") && <td className="px-3 py-2 text-center tabular-nums font-semibold text-emerald-950">{money.format(u.total_cost)}</td>}
-                  <td className="px-3 py-2 text-center text-gray-400 text-xs">{u.notes ?? "—"}</td>
-                  <td className="px-3 py-2 text-center">
-                    <button
-                      onClick={() => deleteUsage(u.id)}
-                      disabled={deletingId === u.id}
-                      className="text-red-400 hover:text-red-600 text-xs disabled:opacity-40"
-                    >✕</button>
-                  </td>
-                </tr>
-              ))}
+              {usage.map(u => {
+                const isEditing = editingId === u.id;
+                if (isEditing) {
+                  const computedTotal = Number(editQty) * Number(editUnitCost);
+                  return (
+                    <tr key={u.id} className="border-t border-emerald-50 bg-amber-50/30">
+                      <td className="px-3 py-2 font-medium text-emerald-950">{u.name}</td>
+                      <td className="px-3 py-2 text-center">
+                        <select value={editEmpId} onChange={e => setEditEmpId(e.target.value)}
+                          className="border border-amber-300 rounded px-1.5 py-1 text-xs bg-white w-28 focus:outline-none focus:border-emerald-400">
+                          <option value="">— Unassigned —</option>
+                          {members.map(m => (
+                            <option key={m.employee_id ?? m.resource_name} value={m.employee_id ?? ""}>{formatName(m.resource_name)}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input type="number" step="0.1" min="0" value={editQty} onChange={e => setEditQty(e.target.value)}
+                          className="border border-amber-300 rounded px-1.5 py-1 text-sm w-16 text-center focus:outline-none focus:border-emerald-400" />
+                      </td>
+                      <td className="px-3 py-2 text-center text-gray-500">{u.unit}</td>
+                      {can("hr_labor_cost") && (
+                        <td className="px-3 py-2 text-center">
+                          <input type="number" step="0.01" min="0" value={editUnitCost} onChange={e => setEditUnitCost(e.target.value)}
+                            className="border border-amber-300 rounded px-1.5 py-1 text-sm w-20 text-center focus:outline-none focus:border-emerald-400" />
+                        </td>
+                      )}
+                      {can("hr_labor_cost") && (
+                        <td className="px-3 py-2 text-center tabular-nums font-semibold text-emerald-950">
+                          {editQty && editUnitCost ? money.format(computedTotal) : "—"}
+                        </td>
+                      )}
+                      <td className="px-3 py-2 text-center">
+                        <input type="text" value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                          placeholder="Notes"
+                          className="border border-amber-300 rounded px-1.5 py-1 text-xs w-28 focus:outline-none focus:border-emerald-400" />
+                      </td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <button onClick={saveEdit} disabled={editSaving}
+                          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 disabled:opacity-40 mr-2">
+                          {editSaving ? "…" : "Save"}
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={u.id} className="border-t border-emerald-50 hover:bg-emerald-50/20">
+                    <td className="px-3 py-2 font-medium text-emerald-950">{u.name}</td>
+                    <td className="px-3 py-2 text-center text-xs text-gray-600">
+                      {u.assigned_member_name ? formatName(u.assigned_member_name) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums">{u.quantity}</td>
+                    <td className="px-3 py-2 text-center text-gray-500">{u.unit}</td>
+                    {can("hr_labor_cost") && <td className="px-3 py-2 text-center tabular-nums text-gray-600">{money.format(u.unit_cost)}</td>}
+                    {can("hr_labor_cost") && <td className="px-3 py-2 text-center tabular-nums font-semibold text-emerald-950">{money.format(u.total_cost)}</td>}
+                    <td className="px-3 py-2 text-center text-gray-400 text-xs">{u.notes ?? "—"}</td>
+                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                      <button onClick={() => startEdit(u)} className="text-xs text-blue-400 hover:text-blue-600 mr-2">Edit</button>
+                      <button onClick={() => deleteUsage(u.id)} disabled={deletingId === u.id}
+                        className="text-red-400 hover:text-red-600 text-xs disabled:opacity-40">✕</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             {can("hr_labor_cost") && (
               <tfoot>
@@ -1534,9 +1615,11 @@ export default function FertilizationImportsPage() {
                 const payCost      = r.total_payroll_cost    ?? 0;
                 const nonProdCost  = r.total_non_prod_cost   ?? 0;
                 const matCost      = r.total_material_cost   ?? 0;
+                const adminCost    = r.total_admin_cost       ?? 0;
                 const revenue      = r.total_budgeted_amount ?? 0;
-                const totalCost    = payCost + nonProdCost + matCost;
-                const laborPct     = (payCost > 0 && revenue > 0) ? payCost / revenue : null;
+                const totalLaborCost = payCost + nonProdCost + adminCost;
+                const totalCost    = totalLaborCost + matCost;
+                const laborPct     = (totalLaborCost > 0 && revenue > 0) ? totalLaborCost / revenue : null;
                 const gpPct        = revenue > 0 ? (revenue - totalCost) / revenue : null;
                 const hasUnmatched = false; // shown in expanded detail
 
@@ -1585,7 +1668,17 @@ export default function FertilizationImportsPage() {
                             {/* GP summary bar */}
                             {can("hr_labor_cost") && (() => {
                               const rev    = repDetail.report.total_budgeted_amount ?? 0;
-                              const prod   = repDetail.report.total_payroll_cost    ?? 0;
+                              const prod   = (() => {
+                                const seen = new Set<string>();
+                                let total = 0;
+                                for (const job of ((repDetail.report as any).fert_production_jobs ?? [])) {
+                                  for (const m of (job.fert_production_members ?? [])) {
+                                    const key = m.employee_id ?? m.resource_name ?? "";
+                                    if (key && !seen.has(key)) { seen.add(key); total += m.payroll_cost ?? 0; }
+                                  }
+                                }
+                                return total;
+                              })();
                               const np     = (repDetail.nonProdDays ?? []).reduce((s, d) => s + (d.payroll_cost ?? 0), 0);
                               const mat    = (repDetail.usage ?? []).reduce((s, u) => s + u.total_cost, 0);
                               const admin  = repDetail.adminPay ?? 0;

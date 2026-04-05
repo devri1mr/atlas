@@ -133,6 +133,46 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// PATCH { id, quantity?, unit_cost?, notes?, employee_id? } — update a usage entry
+export async function PATCH(req: NextRequest) {
+  try {
+    const sb = supabaseAdmin();
+    const body      = await req.json().catch(() => ({}));
+    const { id, quantity, unit_cost, notes, employee_id } = body;
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    const updates: Record<string, any> = {};
+    if (quantity  != null) {
+      const q = Math.abs(Number(quantity));
+      updates.quantity   = -q;
+      if (unit_cost != null) {
+        updates.unit_cost  = Number(unit_cost);
+        updates.total_cost = -(Math.round(q * Number(unit_cost) * 100) / 100);
+      } else {
+        // Recompute total_cost from existing unit_cost
+        const { data: existing } = await sb.from("inventory_transactions").select("unit_cost").eq("id", id).single();
+        const uc = Number(existing?.unit_cost ?? 0);
+        updates.total_cost = -(Math.round(q * uc * 100) / 100);
+      }
+    } else if (unit_cost != null) {
+      updates.unit_cost = Number(unit_cost);
+      const { data: existing } = await sb.from("inventory_transactions").select("quantity").eq("id", id).single();
+      const q = Math.abs(Number(existing?.quantity ?? 0));
+      updates.total_cost = -(Math.round(q * Number(unit_cost) * 100) / 100);
+    }
+    if (notes       !== undefined) updates.notes       = notes ?? null;
+    if (employee_id !== undefined) updates.employee_id = employee_id ?? null;
+
+    if (Object.keys(updates).length === 0) return NextResponse.json({ ok: true });
+
+    const { error } = await sb.from("inventory_transactions").update(updates).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  }
+}
+
 // DELETE ?id=  — void a usage entry
 export async function DELETE(req: NextRequest) {
   try {
