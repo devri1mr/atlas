@@ -1001,11 +1001,33 @@ export default function UniformsPage() {
           const groups = Object.entries(
             filtered.reduce((acc, r) => { (acc[r.item_name] ??= []).push(r); return acc; }, {} as Record<string, SummaryRow[]>)
           ).map(([name, rows]) => {
-            const sorted = [...rows].sort((a, b) => sizeRank(a.size_label) - sizeRank(b.size_label) || (a.color_label ?? '').localeCompare(b.color_label ?? ''));
-            const byColor: Record<string, SummaryRow[]> = {};
-            for (const r of sorted) (byColor[r.color_label ?? ''] ??= []).push(r);
-            return { name, byColor, totalUnits: rows.reduce((s, r) => s + r.qty_on_hand, 0), totalValue: rows.reduce((s, r) => s + (r.inventory_value ?? 0), 0), avgCost: rows[0]?.avg_unit_cost ?? null };
+            const allSizes  = [...new Set(rows.flatMap(r => r.size_label ? [r.size_label] : []))].sort((a, b) => sizeRank(a) - sizeRank(b));
+            const allColors = [...new Set(rows.map(r => r.color_label ?? ''))].filter(Boolean).sort();
+            const hasSizes  = allSizes.length > 0;
+            const hasColors = allColors.length > 0;
+            // lookup[color][size] = qty_on_hand
+            const lookup: Record<string, Record<string, number>> = {};
+            for (const r of rows) {
+              const c = r.color_label ?? '';
+              const s = r.size_label  ?? '';
+              if (!lookup[c]) lookup[c] = {};
+              lookup[c][s] = r.qty_on_hand;
+            }
+            return {
+              name, allSizes, allColors, hasSizes, hasColors, lookup,
+              totalUnits: rows.reduce((s, r) => s + r.qty_on_hand, 0),
+              totalValue: rows.reduce((s, r) => s + (r.inventory_value ?? 0), 0),
+              avgCost: rows[0]?.avg_unit_cost ?? null,
+            };
           }).sort((a, b) => a.name.localeCompare(b.name));
+
+          function qtyColor(qty: number | undefined) {
+            if (qty == null) return 'text-gray-200';
+            if (qty < 0) return 'text-red-600';
+            if (qty === 0) return 'text-gray-300';
+            return 'text-[#1a5c2a]';
+          }
+
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {groups.length === 0 && (
@@ -1014,30 +1036,59 @@ export default function UniformsPage() {
               {groups.map(g => (
                 <div key={g.name} className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm overflow-hidden ${g.totalUnits < 0 ? 'border-l-red-400' : 'border-l-[#1a5c2a]'}`}>
                   {/* Card header */}
-                  <div className={`flex items-start justify-between px-5 pt-4 pb-3 ${g.totalUnits >= 0 ? 'bg-gradient-to-r from-[#f0f7f0] to-white' : 'bg-gradient-to-r from-red-50/60 to-white'}`}>
+                  <div className={`flex items-center justify-between px-5 py-3 ${g.totalUnits >= 0 ? 'bg-gradient-to-r from-[#f0f7f0] to-white' : 'bg-gradient-to-r from-red-50/60 to-white'}`}>
                     <div>
-                      <div className="text-base font-bold text-gray-800">{g.name}</div>
-                      {g.avgCost != null && <div className="text-[11px] text-gray-400 mt-0.5">avg cost {fmt$(g.avgCost)}</div>}
+                      <div className="text-sm font-bold text-gray-800">{g.name}</div>
+                      {g.avgCost != null && <div className="text-[11px] text-gray-400 mt-0.5">avg {fmt$(g.avgCost)}</div>}
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-[#1a5c2a]'}`}>{fmtN(g.totalUnits)}</div>
+                      <div className={`text-xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-[#1a5c2a]'}`}>{fmtN(g.totalUnits)}</div>
                       <div className="text-[11px] text-gray-400 mt-0.5">{fmt$(g.totalValue)}</div>
                     </div>
                   </div>
-                  {/* Size/color tiles */}
-                  <div className="px-5 pb-4 space-y-2.5 border-t border-gray-100 pt-3">
-                    {Object.entries(g.byColor).map(([color, rows]) => (
-                      <div key={color} className="flex items-center gap-2 flex-wrap">
-                        {color && <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide w-10 shrink-0">{color}</span>}
-                        {rows.map(r => (
-                          <div key={`${r.size_label}-${r.color_label}`} className={`text-center rounded-xl px-3 pt-1.5 pb-2 min-w-[52px] ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-[#f0f7f0]'}`}>
-                            {r.size_label && <div className="text-[10px] font-semibold text-gray-400 mb-0.5">{r.size_label}</div>}
-                            <div className={`text-base font-bold tabular-nums leading-none ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-300' : 'text-[#1a5c2a]'}`}>{fmtN(r.qty_on_hand)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
+
+                  {/* Body table: colors × sizes */}
+                  {(g.hasSizes || g.hasColors) && (
+                    <div className="border-t border-gray-100">
+                      <table className="w-full text-xs">
+                        {g.hasSizes && (
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              {g.hasColors && <th className="px-4 py-2 text-left" />}
+                              {g.allSizes.map(s => (
+                                <th key={s} className="px-3 py-2 text-center font-semibold text-gray-400 uppercase tracking-wide text-[10px]">{s}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                        )}
+                        <tbody className="divide-y divide-gray-50">
+                          {g.hasColors ? g.allColors.map((color, ci) => {
+                            const colorRow = g.lookup[color] ?? {};
+                            return (
+                              <tr key={color} className={ci % 2 === 1 ? 'bg-gray-50/40' : ''}>
+                                <td className="px-4 py-2.5 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap">{color}</td>
+                                {g.hasSizes
+                                  ? g.allSizes.map(s => {
+                                      const qty = colorRow[s];
+                                      return <td key={s} className={`px-3 py-2.5 text-center font-bold tabular-nums ${qtyColor(qty)}`}>{qty != null ? fmtN(qty) : '—'}</td>;
+                                    })
+                                  : <td className={`px-4 py-2.5 text-center font-bold tabular-nums ${qtyColor(colorRow[''])}`}>{fmtN(colorRow[''] ?? 0)}</td>
+                                }
+                              </tr>
+                            );
+                          }) : (
+                            /* No colors, just sizes */
+                            <tr>
+                              {g.allSizes.map(s => {
+                                const qty = g.lookup['']?.[s];
+                                return <td key={s} className={`px-3 py-2.5 text-center font-bold tabular-nums ${qtyColor(qty)}`}>{qty != null ? fmtN(qty) : '—'}</td>;
+                              })}
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
