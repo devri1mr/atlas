@@ -109,13 +109,22 @@ type CountItem = {
   avg_cost: number | null;
 };
 
+type Employee = { id: string; first_name: string; last_name: string };
+
+type IssueResult = {
+  deduction_paycheck_date:     string | null;
+  reimbursement_paycheck_date: string | null;
+  unit_cost:                   number | null;
+};
+
 export default function UniformsPage() {
-  const [view, setView]           = useState<"inventory" | "consumption" | "ledger">("inventory");
+  const [view, setView]           = useState<"inventory" | "orders" | "consumption" | "ledger">("inventory");
   const [ledger, setLedger]       = useState<LedgerEntry[]>([]);
   const [summary, setSummary]     = useState<SummaryRow[]>([]);
   const [issued, setIssued]       = useState<IssuedRow[]>([]); // kept for future use
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   // Monthly count
   const [showCount,      setShowCount]      = useState(false);
@@ -145,6 +154,24 @@ export default function UniformsPage() {
   const [formSaving,    setFormSaving]    = useState(false);
   const [formError,     setFormError]     = useState("");
 
+  // Issue uniform form
+  const [showIssue,       setShowIssue]       = useState(false);
+  const [issueMode,       setIssueMode]       = useState<"inventory" | "manual">("inventory");
+  const [issueEmployee,   setIssueEmployee]   = useState("");
+  const [issueItem,       setIssueItem]       = useState("");
+  const [issueSize,       setIssueSize]       = useState("");
+  const [issueColor,      setIssueColor]      = useState("");
+  const [issueQty,        setIssueQty]        = useState("1");
+  const [issueUnitCost,   setIssueUnitCost]   = useState("");
+  const [issueDate,       setIssueDate]       = useState(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+  const [issueType,       setIssueType]       = useState<"company_issued" | "team_member_purchase">("company_issued");
+  const [issueManualItem, setIssueManualItem] = useState("");
+  const [issueManualSize, setIssueManualSize] = useState("");
+  const [issueManualColor,setIssueManualColor]= useState("");
+  const [issueSaving,     setIssueSaving]     = useState(false);
+  const [issueError,      setIssueError]      = useState("");
+  const [issueResult,     setIssueResult]     = useState<IssueResult | null>(null);
+
   // Edit state
   const [editId,       setEditId]       = useState<string | null>(null);
   const [editVendor,   setEditVendor]   = useState("");
@@ -160,18 +187,20 @@ export default function UniformsPage() {
     setLoading(true);
     setError("");
     try {
-      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes] = await Promise.all([
+      const [ledgerRes, summaryRes, issuedRes, optsRes, varRes, empRes] = await Promise.all([
         fetch("/api/atlas-time/uniform-inventory"),
         fetch("/api/atlas-time/uniform-inventory/summary"),
         fetch("/api/atlas-time/uniform-inventory/issued-summary"),
         fetch("/api/atlas-time/field-options?field_key=uniform_items"),
         fetch("/api/atlas-time/uniform-variants"),
+        fetch("/api/atlas-time/employees?active=true"),
       ]);
-      const [lj, sj, ij, oj, vj] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json()]);
+      const [lj, sj, ij, oj, vj, ej] = await Promise.all([ledgerRes.json(), summaryRes.json(), issuedRes.json(), optsRes.json(), varRes.json(), empRes.json()]);
       setLedger(lj.entries ?? []);
       setSummary(sj.summary ?? []);
       setIssued(ij.summary ?? []);
       setItems(oj.options ?? []);
+      setEmployees((ej.employees ?? []).sort((a: Employee, b: Employee) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name)));
 
       // Build variant map: item_option_id → {sizes, colors}
       const vmap: Record<string, { sizes: SizeVariant[]; colors: ColorVariant[] }> = {};
@@ -257,6 +286,70 @@ export default function UniformsPage() {
   }
 
   useEffect(() => { loadConsumption(); }, []);
+
+  // Auto-fill avg cost when item/size/color selected in issue form
+  useEffect(() => {
+    if (issueMode !== "inventory" || !issueItem) return;
+    const itemLabel  = items.find(i => i.id === issueItem)?.label ?? "";
+    const sizeLabel  = variants[issueItem]?.sizes.find(s => s.id === issueSize)?.label ?? null;
+    const colorLabel = variants[issueItem]?.colors.find(c => c.id === issueColor)?.label ?? null;
+    const match = summary.find(r =>
+      r.item_name === itemLabel &&
+      (r.size_label ?? null) === sizeLabel &&
+      (r.color_label ?? null) === colorLabel
+    );
+    if (match?.avg_unit_cost != null) setIssueUnitCost(String(match.avg_unit_cost));
+  }, [issueItem, issueSize, issueColor, issueMode]);
+
+  function resetIssue() {
+    setIssueEmployee(""); setIssueItem(""); setIssueSize(""); setIssueColor("");
+    setIssueQty("1"); setIssueUnitCost(""); setIssueManualItem(""); setIssueManualSize(""); setIssueManualColor("");
+    setIssueDate(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+    setIssueType("company_issued"); setIssueMode("inventory");
+    setIssueError(""); setIssueResult(null);
+  }
+
+  async function submitIssue() {
+    if (!issueEmployee) { setIssueError("Select a team member"); return; }
+    const qty = parseInt(issueQty);
+    if (!qty || qty <= 0) { setIssueError("Quantity must be > 0"); return; }
+    if (issueMode === "inventory" && !issueItem) { setIssueError("Select a uniform item"); return; }
+    if (issueMode === "manual" && !issueManualItem.trim()) { setIssueError("Enter an item name"); return; }
+
+    setIssueSaving(true); setIssueError("");
+    try {
+      const body: Record<string, any> = {
+        employee_id:  issueEmployee,
+        quantity:     qty,
+        issue_date:   issueDate,
+        issued_type:  issueType,
+        unit_cost:    issueUnitCost ? Number(issueUnitCost) : undefined,
+      };
+      if (issueMode === "inventory") {
+        body.item_option_id   = issueItem;
+        body.size_variant_id  = issueSize  || null;
+        body.color_variant_id = issueColor || null;
+        body.item_label       = items.find(i => i.id === issueItem)?.label ?? "";
+        body.size_label       = variants[issueItem]?.sizes.find(s => s.id === issueSize)?.label ?? null;
+        body.color_label      = variants[issueItem]?.colors.find(c => c.id === issueColor)?.label ?? null;
+      } else {
+        body.manual_item_label = issueManualItem.trim();
+        body.size_label        = issueManualSize.trim() || null;
+        body.color_label       = issueManualColor.trim() || null;
+      }
+      const res  = await fetch("/api/atlas-time/uniform-inventory/issue", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to issue");
+      setIssueResult({ deduction_paycheck_date: json.deduction_paycheck_date, reimbursement_paycheck_date: json.reimbursement_paycheck_date, unit_cost: json.unit_cost });
+      await loadAll();
+    } catch (e: any) {
+      setIssueError(e.message ?? "Failed to issue");
+    } finally {
+      setIssueSaving(false);
+    }
+  }
 
   // ── Form helpers ─────────────────────────────────────────────────────────────
 
@@ -382,6 +475,13 @@ export default function UniformsPage() {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
               Monthly Count
+            </button>
+            <button
+              onClick={() => { resetIssue(); setShowIssue(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+              Issue Uniform
             </button>
             <button
               onClick={() => { resetForm(); setShowForm(true); }}
@@ -555,6 +655,161 @@ export default function UniformsPage() {
           </div>
         )}
 
+        {/* Issue Uniform form */}
+        {showIssue && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-gray-800">Issue Uniform</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Decrements inventory. Team member purchases auto-schedule deduction + 90-day reimbursement.</p>
+              </div>
+              <button onClick={() => { setShowIssue(false); setIssueResult(null); }} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {issueResult ? (
+              /* ── Success state ── */
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-[#1a5c2a] bg-[#f0f7f0] rounded-xl px-4 py-3">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  <span className="text-sm font-semibold">Issued successfully{issueResult.unit_cost != null ? ` — ${fmt$(issueResult.unit_cost)} per unit` : ""}</span>
+                </div>
+                {issueType === "team_member_purchase" && issueResult.deduction_paycheck_date && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="border border-gray-100 rounded-xl px-4 py-3">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Deduction Paycheck</p>
+                      <p className="text-base font-bold text-red-600 mt-0.5">{fmtDate(issueResult.deduction_paycheck_date)}</p>
+                    </div>
+                    <div className="border border-gray-100 rounded-xl px-4 py-3">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Reimbursement Paycheck</p>
+                      <p className="text-base font-bold text-[#1a5c2a] mt-0.5">{issueResult.reimbursement_paycheck_date ? fmtDate(issueResult.reimbursement_paycheck_date) : "—"}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { resetIssue(); }} className="px-4 py-2 rounded-xl bg-[#123b1f] hover:bg-[#1a5c2e] text-white text-sm font-semibold transition-colors">Issue Another</button>
+                  <button onClick={() => { setShowIssue(false); setIssueResult(null); }} className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-semibold transition-colors">Done</button>
+                </div>
+              </div>
+            ) : (
+              /* ── Form fields ── */
+              <div className="space-y-4">
+                {/* Mode toggle */}
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                  {(["inventory", "manual"] as const).map(m => (
+                    <button key={m} onClick={() => { setIssueMode(m); setIssueUnitCost(""); }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${issueMode === m ? "bg-white text-gray-800 shadow-sm" : "text-gray-500"}`}>
+                      {m === "inventory" ? "From Inventory" : "Manual Entry"}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {/* Team member */}
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Team Member *</label>
+                    <select value={issueEmployee} onChange={e => setIssueEmployee(e.target.value)} className={inputCls}>
+                      <option value="">— Select —</option>
+                      {employees.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}
+                    </select>
+                  </div>
+
+                  {issueMode === "inventory" ? (
+                    <>
+                      {/* Item */}
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Item *</label>
+                        <select value={issueItem} onChange={e => { setIssueItem(e.target.value); setIssueSize(""); setIssueColor(""); setIssueUnitCost(""); }} className={inputCls}>
+                          <option value="">— Select item —</option>
+                          {items.filter(i => i.label !== "Background Check").map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
+                        </select>
+                      </div>
+                      {/* Size */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size</label>
+                        <select value={issueSize} onChange={e => { setIssueSize(e.target.value); }} className={inputCls} disabled={!issueItem || !(variants[issueItem]?.sizes.length)}>
+                          <option value="">{issueItem && variants[issueItem]?.sizes.length ? "— Any —" : "N/A"}</option>
+                          {(variants[issueItem]?.sizes ?? []).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        </select>
+                      </div>
+                      {/* Color */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
+                        <select value={issueColor} onChange={e => setIssueColor(e.target.value)} className={inputCls} disabled={!issueItem || !(variants[issueItem]?.colors.length)}>
+                          <option value="">{issueItem && variants[issueItem]?.colors.length ? "— Any —" : "N/A"}</option>
+                          {(variants[issueItem]?.colors ?? []).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Manual item name */}
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Item Name *</label>
+                        <input type="text" value={issueManualItem} onChange={e => setIssueManualItem(e.target.value)} className={inputCls} placeholder="e.g. Rain Jacket" />
+                      </div>
+                      {/* Manual size */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size</label>
+                        <input type="text" value={issueManualSize} onChange={e => setIssueManualSize(e.target.value)} className={inputCls} placeholder="e.g. XL" />
+                      </div>
+                      {/* Manual color */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
+                        <input type="text" value={issueManualColor} onChange={e => setIssueManualColor(e.target.value)} className={inputCls} placeholder="e.g. Green" />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Qty */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Qty *</label>
+                    <input type="number" min="1" value={issueQty} onChange={e => setIssueQty(e.target.value)} className={inputCls} />
+                  </div>
+                  {/* Unit cost */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Unit Cost {issueMode === "inventory" ? "(auto-filled)" : ""}</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input type="number" step="0.01" min="0" value={issueUnitCost} onChange={e => setIssueUnitCost(e.target.value)} className={inputCls + " pl-7"} placeholder="0.00" />
+                    </div>
+                  </div>
+                  {/* Issue date */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Issue Date *</label>
+                    <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className={inputCls} />
+                  </div>
+                  {/* Issued type */}
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Issued As *</label>
+                    <div className="flex gap-2">
+                      {(["company_issued", "team_member_purchase"] as const).map(t => (
+                        <button key={t} onClick={() => setIssueType(t)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${issueType === t ? "bg-[#123b1f] text-white border-[#123b1f]" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                          {t === "company_issued" ? "Company Issued" : "Team Member Purchase"}
+                        </button>
+                      ))}
+                    </div>
+                    {issueType === "team_member_purchase" && (
+                      <p className="text-[11px] text-amber-600 mt-1">Deduction on next paycheck · Reimbursement 90 days from issue date</p>
+                    )}
+                  </div>
+                </div>
+
+                {issueError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{issueError}</p>}
+                <div className="flex gap-2">
+                  <button onClick={submitIssue} disabled={issueSaving}
+                    className="px-4 py-2 rounded-xl bg-[#123b1f] hover:bg-[#1a5c2e] text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                    {issueSaving ? "Issuing…" : "Issue Uniform"}
+                  </button>
+                  <button onClick={() => setShowIssue(false)} className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-semibold transition-colors">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Stats */}
         {!loading && (
           <div className="grid grid-cols-3 gap-3">
@@ -575,6 +830,7 @@ export default function UniformsPage() {
         <div className="flex gap-1 bg-white rounded-xl border border-gray-100 shadow-sm p-1 w-fit">
           {([
             { key: "inventory",   label: "On Hand" },
+            { key: "orders",      label: "Orders" },
             { key: "consumption", label: "Consumption" },
             { key: "ledger",      label: "Ledger" },
           ] as const).map(v => (
@@ -640,6 +896,54 @@ export default function UniformsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          );
+        })()}
+
+        {/* ── ORDERS view ── */}
+        {!loading && view === "orders" && (() => {
+          const orders = ledger.filter(r => r.transaction_type === "issuance");
+          return (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {orders.length === 0 && (
+                <div className="px-6 py-12 text-center text-sm text-gray-400">No issuances yet. Use "Issue Uniform" to record orders.</div>
+              )}
+              {orders.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Team Member</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Size</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {orders.map(row => (
+                        <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3 text-center text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(row.transaction_date)}</td>
+                          <td className="px-4 py-3 text-center font-medium text-gray-800">
+                            {row.employee ? `${row.employee.last_name}, ${row.employee.first_name}` : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-700">{row.at_field_options?.label ?? <span className="text-gray-400 italic text-xs">Manual</span>}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{row.size?.label ?? <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{row.color?.label ?? <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-center font-semibold tabular-nums text-gray-800">{Math.abs(row.quantity)}</td>
+                          <td className="px-4 py-3 text-center tabular-nums text-gray-600">{fmt$(row.unit_cost)}</td>
+                          <td className="px-4 py-3 text-center tabular-nums text-gray-800 font-semibold">{row.total_cost != null ? fmt$(Math.abs(row.total_cost)) : "—"}</td>
+                          <td className="px-4 py-3 text-center text-xs text-gray-400">{row.notes ?? <span className="text-gray-200">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           );
         })()}

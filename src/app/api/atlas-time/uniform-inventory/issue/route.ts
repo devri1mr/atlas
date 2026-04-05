@@ -33,72 +33,75 @@ export async function POST(req: NextRequest) {
     const companyId = await getCompanyId(sb);
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-    const body        = await req.json().catch(() => ({}));
-    const employee_id     = String(body.employee_id      ?? "").trim();
-    const item_option_id  = String(body.item_option_id   ?? "").trim();
-    const quantity        = Math.abs(Number(body.quantity ?? 1));
-    const issue_date      = String(body.issue_date        ?? estToday());
-    const issued_type     = String(body.issued_type       ?? "company_issued");
-    const item_label      = String(body.item_label        ?? "");
-    const size_label      = body.size_label  ? String(body.size_label)  : null;
-    const color_label     = body.color_label ? String(body.color_label) : null;
-    const size_variant_id = body.size_variant_id  || null;
-    const color_variant_id= body.color_variant_id || null;
+    const body             = await req.json().catch(() => ({}));
+    const employee_id      = String(body.employee_id       ?? "").trim();
+    const item_option_id   = body.item_option_id ? String(body.item_option_id).trim() : null;
+    const manual_item_label= body.manual_item_label ? String(body.manual_item_label).trim() : null;
+    const quantity         = Math.abs(Number(body.quantity ?? 1));
+    const issue_date       = String(body.issue_date ?? estToday());
+    const issued_type      = String(body.issued_type ?? "company_issued");
+    const item_label       = item_option_id ? String(body.item_label ?? "") : (manual_item_label ?? "");
+    const size_label       = body.size_label   ? String(body.size_label)   : null;
+    const color_label      = body.color_label  ? String(body.color_label)  : null;
+    const size_variant_id  = body.size_variant_id  || null;
+    const color_variant_id = body.color_variant_id || null;
+    const override_cost    = body.unit_cost != null ? Number(body.unit_cost) : null;
+    const isManual         = !item_option_id && !!manual_item_label;
 
-    if (!employee_id)    return NextResponse.json({ error: "employee_id required" }, { status: 400 });
-    if (!item_option_id) return NextResponse.json({ error: "item_option_id required" }, { status: 400 });
+    if (!employee_id) return NextResponse.json({ error: "employee_id required" }, { status: 400 });
+    if (!item_option_id && !manual_item_label) return NextResponse.json({ error: "item_option_id or manual_item_label required" }, { status: 400 });
 
-    // ── 1. Look up avg_unit_cost from inventory summary ───────────────────────
-    let invQuery = sb
-      .from("at_uniform_inventory")
-      .select("transaction_type, quantity, unit_cost")
-      .eq("company_id", companyId)
-      .eq("item_option_id", item_option_id)
-      .eq("is_void", false);
+    // ── 1. Look up avg_unit_cost from inventory (inventory mode only) ─────────
+    let unitCost: number | null = override_cost;
+    let inventory_id: string | null = null;
 
-    // Supabase .eq(col, null) matches nothing — use .is() for null checks
-    if (size_variant_id)  invQuery = invQuery.eq("size_variant_id",  size_variant_id);
-    else                  invQuery = invQuery.is("size_variant_id",  null);
-    if (color_variant_id) invQuery = invQuery.eq("color_variant_id", color_variant_id);
-    else                  invQuery = invQuery.is("color_variant_id", null);
+    if (!isManual && item_option_id) {
+      if (unitCost == null) {
+        let invQuery = sb
+          .from("at_uniform_inventory")
+          .select("transaction_type, quantity, unit_cost")
+          .eq("company_id", companyId)
+          .eq("item_option_id", item_option_id)
+          .eq("is_void", false);
+        if (size_variant_id)  invQuery = invQuery.eq("size_variant_id",  size_variant_id);
+        else                  invQuery = invQuery.is("size_variant_id",  null);
+        if (color_variant_id) invQuery = invQuery.eq("color_variant_id", color_variant_id);
+        else                  invQuery = invQuery.is("color_variant_id", null);
 
-    const { data: invRows } = await invQuery;
-
-    // Compute weighted avg cost from receipts
-    let totalReceiptQty  = 0;
-    let totalReceiptCost = 0;
-    for (const r of invRows ?? []) {
-      if (r.transaction_type === "receipt" && r.unit_cost != null) {
-        totalReceiptQty  += Math.abs(r.quantity);
-        totalReceiptCost += Math.abs(r.quantity) * Number(r.unit_cost);
+        const { data: invRows } = await invQuery;
+        let totalReceiptQty = 0, totalReceiptCost = 0;
+        for (const r of invRows ?? []) {
+          if (r.transaction_type === "receipt" && r.unit_cost != null) {
+            totalReceiptQty  += Math.abs(r.quantity);
+            totalReceiptCost += Math.abs(r.quantity) * Number(r.unit_cost);
+          }
+        }
+        unitCost = totalReceiptQty > 0 ? Math.round((totalReceiptCost / totalReceiptQty) * 100) / 100 : null;
       }
+
+      // ── 2. Create inventory issuance entry ──────────────────────────────────
+      const { data: invEntry, error: invErr } = await sb
+        .from("at_uniform_inventory")
+        .insert({
+          company_id:       companyId,
+          transaction_type: "issuance",
+          item_option_id,
+          size_variant_id,
+          color_variant_id,
+          quantity:         -quantity,
+          unit_cost:        unitCost,
+          total_cost:       unitCost != null ? +(unitCost * quantity).toFixed(2) : null,
+          transaction_date: issue_date,
+          employee_id,
+        })
+        .select("id")
+        .single();
+
+      if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
+      inventory_id = invEntry.id;
     }
-    const unitCost = totalReceiptQty > 0
-      ? Math.round((totalReceiptCost / totalReceiptQty) * 100) / 100
-      : null;
 
-    // ── 2. Create inventory issuance ─────────────────────────────────────────
-    const { data: invEntry, error: invErr } = await sb
-      .from("at_uniform_inventory")
-      .insert({
-        company_id:       companyId,
-        transaction_type: "issuance",
-        item_option_id,
-        size_variant_id,
-        color_variant_id,
-        quantity:         -quantity,  // negative = stock out
-        unit_cost:        unitCost,
-        total_cost:       unitCost != null ? +(unitCost * quantity).toFixed(2) : null,
-        transaction_date: issue_date,
-        employee_id,
-      })
-      .select("id")
-      .single();
-
-    if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
-    const inventory_id = invEntry.id;
-
-    // ── 3. For team_member_purchase: create deduction + reimbursement ─────────
+    // ── 3. For team_member_purchase: create deduction + scheduled reimbursement ─
     let deduction_id:           string | null = null;
     let reimbursement_id:       string | null = null;
     let deduction_paycheck:     string | null = null;
