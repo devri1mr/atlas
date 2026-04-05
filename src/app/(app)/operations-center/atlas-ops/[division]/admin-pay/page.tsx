@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -279,7 +280,12 @@ function SettingsPanel({ config, year, onSaved }: { config: Config | null; year:
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function FertAdminPayPage() {
+  const { division } = useParams<{ division: string }>();
   const { loading: userLoading, can } = useUser();
+
+  if (division !== "fertilization") {
+    return <div className="px-8 py-16 text-center text-sm text-gray-400">Admin Pay is not configured for this division.</div>;
+  }
   const [year, setYear]       = useState(new Date().getFullYear());
   const [config, setConfig]   = useState<Config | null>(null);
   const [days, setDays]       = useState<DayRecord[]>([]);
