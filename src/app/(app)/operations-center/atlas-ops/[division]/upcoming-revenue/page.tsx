@@ -12,6 +12,7 @@ type DayRow = {
 };
 
 type MonthSummary = { actual: number; planned: number };
+type LockedDate   = { date: string; actual_revenue: number };
 
 // ── Date helpers (local time — avoids UTC-shift bug) ──────────────────────────
 
@@ -50,8 +51,8 @@ function dateLabel(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const fmt      = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const money    = (n: number) => n === 0 ? "—" : fmt.format(n);
+const fmt       = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const money     = (n: number) => n === 0 ? "—" : fmt.format(n);
 const moneyFull = (n: number) => fmt.format(n);
 
 function dayTotal(row: DayRow): number {
@@ -61,12 +62,13 @@ function dayTotal(row: DayRow): number {
 
 // ── Editable cell ─────────────────────────────────────────────────────────────
 
-function EditCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+function EditCell({ value, onSave, disabled }: { value: number; onSave: (v: number) => void; disabled?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   function startEdit() {
+    if (disabled) return;
     setDraft(value === 0 ? "" : String(value));
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
@@ -94,10 +96,13 @@ function EditCell({ value, onSave }: { value: number; onSave: (v: number) => voi
     <button
       onClick={startEdit}
       onFocus={startEdit}
+      disabled={disabled}
       className={`w-full text-center text-sm rounded py-2.5 transition-colors ${
-        value > 0
-          ? "font-bold text-gray-800 hover:bg-emerald-50 cursor-text"
-          : "text-gray-300 hover:bg-gray-50 hover:text-gray-500 cursor-text"
+        disabled
+          ? "text-gray-300 cursor-default"
+          : value > 0
+            ? "font-bold text-gray-800 hover:bg-emerald-50 cursor-text"
+            : "text-gray-300 hover:bg-gray-50 hover:text-gray-500 cursor-text"
       }`}
     >
       {value > 0 ? money(value) : "—"}
@@ -106,6 +111,8 @@ function EditCell({ value, onSave }: { value: number; onSave: (v: number) => voi
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
+
+type SyncState = "idle" | "syncing" | "ok" | "error";
 
 export default function DivisionUpcomingRevenuePage() {
   const { division } = useParams<{ division: string }>();
@@ -117,8 +124,6 @@ export default function DivisionUpcomingRevenuePage() {
 
   const apiBase = `/api/operations-center/atlas-ops/${division}/upcoming-revenue`;
 
-  type SyncState = "idle" | "syncing" | "ok" | "error";
-
   const [weekOffset, setWeekOffset]     = useState(0);
   const [data, setData]                 = useState<Map<string, DayRow>>(new Map());
   const [lockedDates, setLockedDates]   = useState<Map<string, number>>(new Map());
@@ -126,6 +131,7 @@ export default function DivisionUpcomingRevenuePage() {
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
   const [syncState, setSyncState]       = useState<SyncState>("idle");
   const [syncError, setSyncError]       = useState("");
+  const [saveError, setSaveError]       = useState<string | null>(null);
 
   const today   = localToday();
   const curMon  = isoWeekMon(new Date());
@@ -140,9 +146,11 @@ export default function DivisionUpcomingRevenuePage() {
   })();
 
   const load = useCallback(async () => {
+    const start = dates[0];
+    const end   = dates[6];
     const [res, lockedRes] = await Promise.all([
-      fetch(`${apiBase}?start=${dates[0]}&end=${dates[6]}`),
-      fetch(`${apiBase}?locked_start=${dates[0]}&locked_end=${dates[6]}`),
+      fetch(`${apiBase}?start=${start}&end=${end}`),
+      fetch(`${apiBase}?locked_start=${start}&locked_end=${end}`),
     ]);
     if (res.ok) {
       const rows: DayRow[] = await res.json();
@@ -154,7 +162,7 @@ export default function DivisionUpcomingRevenuePage() {
       });
     }
     if (lockedRes.ok) {
-      const locked: { date: string; actual_revenue: number }[] = await lockedRes.json();
+      const locked: LockedDate[] = await lockedRes.json();
       setLockedDates(prev => {
         const next = new Map(prev);
         for (const d of dates) next.delete(d);
@@ -193,7 +201,13 @@ export default function DivisionUpcomingRevenuePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(rowToSave),
       });
-      if (!res.ok) { load(); return; }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setSaveError(errBody.error ?? `Save failed (${res.status})`);
+        setTimeout(() => setSaveError(null), 6000);
+        load();
+        return;
+      }
       const mc = new Map<string, number>();
       for (const d of dates) { const ym = d.slice(0, 7); mc.set(ym, (mc.get(ym) ?? 0) + 1); }
       const ym = [...mc.entries()].sort((a, b) => b[1] - a[1])[0][0];
@@ -230,17 +244,32 @@ export default function DivisionUpcomingRevenuePage() {
   })();
   const viewedMonthLabel = new Date(dominantMonth + "-01T12:00:00").toLocaleDateString("en-US", { month: "long" });
 
-  const weekRev          = dates.reduce((s, d) => {
+  // Past days with planned revenue that aren't official — need attention
+  const unresolvedPastDates = dates.filter(d =>
+    d < today && !lockedDates.has(d) && dayTotal(data.get(d) ?? {} as DayRow) > 0
+  );
+
+  // Week total: locked actuals + future/today planned (skip past non-official)
+  const weekRev = dates.reduce((s, d) => {
     if (lockedDates.has(d)) return s + (lockedDates.get(d) ?? 0);
+    if (d < today) return s;
     return s + dayTotal(data.get(d) ?? {} as DayRow);
   }, 0);
-  const projection       = monthSummary ? monthSummary.actual + monthSummary.planned : null;
+
+  const projection = monthSummary ? monthSummary.actual + monthSummary.planned : null;
 
   const BG_HEADER  = "linear-gradient(135deg, #0d2616 0%, #1a4a28 100%)";
   const BG_TODAY_H = "#0f4a25";
 
   return (
     <div className="min-h-screen" style={{ background: "#f0f4f0" }}>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div className="bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center">
+          Save failed: {saveError}
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <div className="px-6 py-5" style={{ background: BG_HEADER }}>
@@ -252,7 +281,7 @@ export default function DivisionUpcomingRevenuePage() {
               </svg>
               <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">Upcoming Revenue</span>
             </div>
-            <div className="text-2xl font-black text-white">{monthLabel}</div>
+            <div className="text-2xl font-bold text-white">{monthLabel}</div>
           </div>
           <div className="flex items-center gap-4">
             {weekRev > 0 && (
@@ -276,7 +305,7 @@ export default function DivisionUpcomingRevenuePage() {
               {syncState === "syncing" ? "Syncing…" : syncState === "ok" ? "Synced ✓" : syncState === "error" ? `Error: ${syncError}` : "Sync to Sheets"}
             </button>
             <div className="flex items-center gap-1 bg-white/10 rounded-xl px-2 py-1.5">
-              <button onClick={() => setWeekOffset(w => Math.max(0, w - 1))} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
+              <button onClick={() => setWeekOffset(w => w - 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">‹</button>
               <button onClick={() => setWeekOffset(0)} className={`text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${weekOffset === 0 ? "bg-emerald-500 text-white" : "text-white/60 hover:text-white hover:bg-white/10"}`}>This Week</button>
               <button onClick={() => setWeekOffset(w => w + 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">›</button>
             </div>
@@ -296,8 +325,10 @@ export default function DivisionUpcomingRevenuePage() {
                     <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">{divisionLabel}</span>
                   </th>
                   {dates.map(date => {
-                    const isToday = date === today;
-                    const isPast  = date < today;
+                    const isToday      = date === today;
+                    const isPast       = date < today;
+                    const isLocked     = lockedDates.has(date);
+                    const isUnresolved = isPast && !isLocked && dayTotal(data.get(date) ?? {} as DayRow) > 0;
                     return (
                       <th key={date} className="px-2 py-3 text-center border border-emerald-900/50"
                         style={{ minWidth: 110, background: isToday ? BG_TODAY_H : BG_HEADER }}>
@@ -309,6 +340,16 @@ export default function DivisionUpcomingRevenuePage() {
                             {dateLabel(date)}
                           </span>
                           {isToday && <span className="w-1 h-1 rounded-full bg-emerald-400 mt-0.5" />}
+                          {isLocked && (
+                            <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                              Official
+                            </span>
+                          )}
+                          {isUnresolved && (
+                            <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                              Unresolved
+                            </span>
+                          )}
                         </div>
                       </th>
                     );
@@ -328,23 +369,38 @@ export default function DivisionUpcomingRevenuePage() {
                     </div>
                   </td>
                   {dates.map(date => {
-                    const isLocked  = lockedDates.has(date);
-                    const lockedRev = lockedDates.get(date) ?? 0;
-                    const val       = dayTotal(data.get(date) ?? {} as DayRow);
-                    const isToday   = date === today;
+                    const isLocked     = lockedDates.has(date);
+                    const lockedRev    = lockedDates.get(date) ?? 0;
+                    const val          = dayTotal(data.get(date) ?? {} as DayRow);
+                    const isToday      = date === today;
+                    const isPast       = date < today;
+                    const isUnresolved = isPast && !isLocked && val > 0;
+
                     if (isLocked) {
                       return (
-                        <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: "#f0fdf4" }}>
-                          <div className="flex flex-col items-center gap-0.5 py-1.5">
-                            <span className="text-sm font-bold text-emerald-700">{money(lockedRev)}</span>
-                            <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide flex items-center gap-0.5">
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                              Official
-                            </span>
-                          </div>
+                        <td key={date} className="px-2 py-2.5 text-center border border-gray-200" style={{ background: "#f0fdf4" }}>
+                          <span className="text-sm font-bold text-emerald-700">{money(lockedRev)}</span>
+                          {saving.has(date) && <div className="text-[10px] text-emerald-400/60 mt-0.5">saving…</div>}
                         </td>
                       );
                     }
+
+                    if (isUnresolved) {
+                      return (
+                        <td key={date} className="px-2 py-2.5 text-center border border-gray-200" style={{ background: "#fffbeb" }}>
+                          <span className="text-sm font-bold text-amber-500">{money(val)}</span>
+                        </td>
+                      );
+                    }
+
+                    if (isPast && !isToday) {
+                      return (
+                        <td key={date} className="px-2 py-2.5 text-center border border-gray-200" style={{ background: "#f9fafb" }}>
+                          <span className="text-sm text-gray-300">—</span>
+                        </td>
+                      );
+                    }
+
                     return (
                       <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: isToday ? "#ecfdf5" : "#fff" }}>
                         <EditCell value={val} onSave={v => handleSave(date, v)} />
@@ -362,6 +418,23 @@ export default function DivisionUpcomingRevenuePage() {
             </table>
           </div>
         </div>
+
+        {/* Unresolved notice */}
+        {unresolvedPastDates.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+            <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div>
+              <p className="text-xs font-semibold text-amber-800">
+                {unresolvedPastDates.length} past day{unresolvedPastDates.length > 1 ? "s" : ""} with unresolved planned revenue
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Import the production report to lock in the official revenue, or clear the planned amount.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Month Projection ── */}
         {monthSummary !== null && (
@@ -385,7 +458,7 @@ export default function DivisionUpcomingRevenuePage() {
               <div className="text-2xl text-gray-200 font-light">=</div>
               <div className="ml-auto text-right">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Month Projection</div>
-                <div className="text-3xl font-black text-gray-900">{moneyFull(projection!)}</div>
+                <div className="text-3xl font-bold text-gray-900">{moneyFull(projection!)}</div>
                 <div className="text-xs text-gray-400 mt-0.5">Projected {viewedMonthLabel} total</div>
               </div>
             </div>
@@ -393,7 +466,7 @@ export default function DivisionUpcomingRevenuePage() {
         )}
 
         <p className="text-center text-xs text-gray-400">
-          Click any cell to enter planned revenue · Saves automatically
+          Click any cell to enter planned revenue · Saves automatically · Official days (completed imports) are locked
         </p>
       </div>
     </div>

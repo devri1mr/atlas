@@ -155,8 +155,17 @@ export async function GET(req: NextRequest) {
 
     const reportIds = (data ?? []).map((r: any) => r.id);
 
-    // Batch-fetch material costs and non-prod costs
-    const [{ data: materialRows }, { data: nonProdRows }] = await Promise.all([
+    // Collect unique years (as integers) to fetch admin pay config + overrides
+    const years = [...new Set((data ?? []).map((r: any) => parseInt(r.report_date?.slice(0, 4))))].filter((y): y is number => !isNaN(y));
+    const reportDates = (data ?? []).map((r: any) => r.report_date).filter(Boolean);
+
+    // Batch-fetch material costs, non-prod costs, admin pay config + overrides
+    const [
+      { data: materialRows },
+      { data: nonProdRows },
+      adminConfigResults,
+      adminOverrideResults,
+    ] = await Promise.all([
       reportIds.length > 0
         ? sb.from("inventory_transactions")
             .select("reference_id, total_cost")
@@ -169,7 +178,46 @@ export async function GET(req: NextRequest) {
             .select("report_id, payroll_cost")
             .in("report_id", reportIds)
         : Promise.resolve({ data: [] }),
+      years.length > 0
+        ? sb.from("fert_admin_pay_config").select("*").eq("company_id", company.id).in("year", years)
+        : Promise.resolve({ data: [] }),
+      reportDates.length > 0
+        ? sb.from("fert_admin_pay_overrides").select("date, payroll_cost").eq("company_id", company.id).in("date", reportDates)
+        : Promise.resolve({ data: [] }),
     ]);
+
+    // Build admin pay lookup: date → effective daily cost
+    function weekdaysInMonth(year: number, month: number): number {
+      const dim = new Date(year, month, 0).getDate();
+      let c = 0;
+      for (let d = 1; d <= dim; d++) { const dow = new Date(year, month - 1, d).getDay(); if (dow !== 0 && dow !== 6) c++; }
+      return c;
+    }
+    const MKEYS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const adminConfigMap = new Map<number, any>();
+    for (const c of adminConfigResults.data ?? []) adminConfigMap.set(c.year, c);
+    const adminOverrideMap = new Map<string, number | null>();
+    for (const o of adminOverrideResults.data ?? []) adminOverrideMap.set(o.date, o.payroll_cost != null ? Number(o.payroll_cost) : null);
+
+    function getAdminPayForDate(dateStr: string): number {
+      if (!dateStr) return 0;
+      const dow = new Date(dateStr + "T12:00:00").getDay();
+      if (dow === 0 || dow === 6) return 0; // weekend
+      if (adminOverrideMap.has(dateStr)) {
+        const ov = adminOverrideMap.get(dateStr);
+        return ov != null ? ov : 0;
+      }
+      const year = parseInt(dateStr.slice(0, 4));
+      const monthIdx = parseInt(dateStr.slice(5, 7)) - 1;
+      const cfg = adminConfigMap.get(year);
+      if (!cfg) return 0;
+      const mk = MKEYS[monthIdx] + "_daily";
+      if (cfg[mk] != null) return Number(cfg[mk]);
+      const annual = (Number(cfg.manager_1_annual ?? 0) + Number(cfg.manager_2_annual ?? 0));
+      if (annual <= 0) return 0;
+      const wd = weekdaysInMonth(year, monthIdx + 1);
+      return wd > 0 ? (annual / 12) / wd : 0;
+    }
 
     // Aggregate per report
     const matCostMap   = new Map<string, number>();
@@ -202,6 +250,7 @@ export async function GET(req: NextRequest) {
         total_earned_amount:   totalEarnedAmount,
         total_material_cost:   matCostMap.get(r.id)   ?? 0,
         total_non_prod_cost:   nonProdMap.get(r.id)   ?? 0,
+        total_admin_cost:      getAdminPayForDate(r.report_date),
       };
     });
 
