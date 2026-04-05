@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const limit = Number.isFinite(limitRaw)
       ? Math.min(Math.max(limitRaw, 1), 50)
       : 25;
+    const divisionId = searchParams.get("division_id") || null;
 
     let query = supabase
       .from("materials")
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
         is_active,
         search_text,
         created_at,
+        division_id,
         materials_catalog!catalog_material_id(default_unit_cost, vendor)
         `
       )
@@ -58,6 +60,9 @@ export async function GET(req: NextRequest) {
 
     if (q) {
       query = query.ilike("search_text", `%${q}%`);
+    }
+    if (divisionId) {
+      query = query.eq("division_id", divisionId);
     }
 
     const { data, error } = await query;

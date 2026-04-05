@@ -1,0 +1,760 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import UnitInput from "@/components/UnitInput";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+type Division = { id: string; name: string; active?: boolean | null };
+
+type InventoryMaterial = {
+  id: string;
+  name: string;
+  display_name?: string | null;
+  unit?: string | null;
+  inventory_unit?: string | null;
+  unit_cost?: number | null;
+  division_id?: string | null;
+  is_active?: boolean | null;
+  materials_catalog?: { default_unit_cost?: number | null; vendor?: string | null } | null;
+};
+
+type SummaryRow = {
+  material_id: string;
+  material_name: string;
+  location_id: string | null;
+  location_name: string | null;
+  qty_on_hand: number;
+  avg_unit_cost: number;
+  inventory_value: number;
+  negative_flag: boolean;
+  inventory_unit: string | null;
+};
+
+type LedgerRow = {
+  id: string;
+  material_id: string;
+  quantity: number;
+  unit_cost: number | null;
+  total_cost: number | null;
+  transaction_type: string;
+  transaction_date: string;
+  reference_number: string | null;
+  notes: string | null;
+  invoiced_final?: boolean | null;
+  vendor_name?: string | null;
+  materials?: { id?: string; name?: string; display_name?: string; inventory_unit?: string | null };
+  inventory_locations?: { id?: string; name?: string } | null;
+};
+
+type InventoryLocation = { id: string; name: string; is_active?: boolean | null };
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function money(n: number) {
+  return (Number(n) || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function fmtQty(n: number) {
+  return Number((Number(n) || 0).toFixed(2)).toString();
+}
+
+function fmtDate(v: string | null | undefined) {
+  if (!v) return "—";
+  const [y, m, d] = String(v).slice(0, 10).split("-");
+  return `${Number(m)}/${Number(d)}/${y}`;
+}
+
+function titleize(s: string) {
+  return String(s || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function slugToName(slug: string) {
+  return slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+const RECEIPT_SOURCE_OPTIONS = [
+  { value: "invoice",    label: "Invoice" },
+  { value: "ticket",     label: "Ticket" },
+  { value: "cc_receipt", label: "CC Receipt" },
+  { value: "carryover",  label: "Carryover" },
+];
+
+const RECEIPT_SOURCE_LABEL: Record<string, string> = {
+  invoice:    "Invoice",
+  ticket:     "Ticket",
+  cc_receipt: "CC Receipt",
+  carryover:  "Carryover",
+  receipt:    "Receipt",
+};
+
+const RECEIPT_TYPES = new Set(["receipt", "invoice", "ticket", "cc_receipt", "carryover"]);
+
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+export default function DivisionInventoryPage() {
+  const { division: divisionSlug } = useParams<{ division: string }>();
+  const divisionName = slugToName(divisionSlug);
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const [divisionId, setDivisionId] = useState<string>("");
+  const [materials, setMaterials] = useState<InventoryMaterial[]>([]);
+  const [locations, setLocations] = useState<InventoryLocation[]>([]);
+  const [summary, setSummary] = useState<SummaryRow[]>([]);
+  const [ledger, setLedger] = useState<LedgerRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // ── Form state ────────────────────────────────────────────────────────────
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [matSearch, setMatSearch] = useState("");
+  const [matResults, setMatResults] = useState<InventoryMaterial[]>([]);
+  const [showDrop, setShowDrop] = useState(false);
+  const [selectedMatId, setSelectedMatId] = useState("");
+  const [unit, setUnit] = useState("bag");
+  const [unitLocked, setUnitLocked] = useState(false);
+  const [qty, setQty] = useState("");
+  const [totalCost, setTotalCost] = useState("");
+  const [date, setDate] = useState(today);
+  const [refNum, setRefNum] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [locationId, setLocationId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [invoicedFinal, setInvoicedFinal] = useState(false);
+  const [receiptSource, setReceiptSource] = useState("invoice");
+  const [partialEdit, setPartialEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [autoUnitCost, setAutoUnitCost] = useState<number | null>(null);
+
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [summarySearch, setSummarySearch] = useState("");
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [showZeroBalance, setShowZeroBalance] = useState(false);
+  const [noteModal, setNoteModal] = useState<string | null>(null);
+  const [voidConfirm, setVoidConfirm] = useState<string | null>(null);
+
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // ── Load ───────────────────────────────────────────────────────────────────
+  async function loadLookups() {
+    const [dRes, lRes] = await Promise.all([
+      fetch("/api/divisions", { cache: "no-store" }),
+      fetch("/api/inventory-locations", { cache: "no-store" }),
+    ]);
+    const dJson = await dRes.json();
+    const lJson = await lRes.json();
+
+    const divs: Division[] = (dJson?.divisions ?? dJson?.data ?? dJson ?? []);
+    const match = divs.find(d => d.name.toLowerCase() === divisionName.toLowerCase());
+    if (match) setDivisionId(match.id);
+
+    const lRows: InventoryLocation[] = lJson?.data ?? [];
+    setLocations(lRows.filter((l: InventoryLocation) => l.is_active !== false));
+    if (lRows.length > 0) setLocationId(lRows[0].id);
+  }
+
+  async function loadMaterials(divId: string) {
+    const res = await fetch(`/api/materials-search?limit=50&division_id=${divId}`, { cache: "no-store" });
+    const json = await res.json();
+    const rows: InventoryMaterial[] = json?.data ?? [];
+    setMaterials(rows.filter(m => m.is_active !== false));
+  }
+
+  async function loadData(divId: string) {
+    setLoading(true);
+    setError("");
+    try {
+      const [sRes, lRes] = await Promise.all([
+        fetch(`/api/inventory/summary?division_id=${divId}`, { cache: "no-store" }),
+        fetch(`/api/inventory/ledger?division_id=${divId}`, { cache: "no-store" }),
+      ]);
+      const sJson = await sRes.json();
+      const lJson = await lRes.json();
+      setSummary(Array.isArray(sJson?.data) ? sJson.data : []);
+      setLedger(Array.isArray(lJson?.data) ? lJson.data : []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load inventory.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadLookups(); }, []);
+
+  useEffect(() => {
+    if (!divisionId) return;
+    loadMaterials(divisionId);
+    loadData(divisionId);
+  }, [divisionId]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (dropRef.current && e.target instanceof Node && !dropRef.current.contains(e.target)) setShowDrop(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // ── Material search ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!matSearch.trim()) { setMatResults(materials.slice(0, 20)); return; }
+    const q = matSearch.toLowerCase();
+    setMatResults(
+      materials.filter(m => `${m.name} ${m.display_name ?? ""}`.toLowerCase().includes(q)).slice(0, 20)
+    );
+  }, [matSearch, materials]);
+
+  function selectMaterial(m: InventoryMaterial) {
+    const name = (m.display_name || m.name || "").trim();
+    setSelectedMatId(m.id);
+    setMatSearch(name);
+    setShowDrop(false);
+    const u = (m.inventory_unit || m.unit || "").trim();
+    if (u) { setUnit(u); setUnitLocked(true); } else { setUnitLocked(false); }
+    const catalogCost = m.materials_catalog?.default_unit_cost ?? m.unit_cost ?? null;
+    setAutoUnitCost(catalogCost && catalogCost > 0 ? catalogCost : null);
+    if (catalogCost && catalogCost > 0 && qty && Number(qty) > 0) {
+      setTotalCost((Number(qty) * catalogCost).toFixed(2));
+    }
+  }
+
+  function clearForm() {
+    setEditingId(null);
+    setSelectedMatId("");
+    setMatSearch("");
+    setUnit("bag");
+    setUnitLocked(false);
+    setQty("");
+    setTotalCost("");
+    setDate(today());
+    setRefNum("");
+    setVendor("");
+    setNotes("");
+    setInvoicedFinal(false);
+    setReceiptSource("invoice");
+    setPartialEdit(false);
+    setAutoUnitCost(null);
+  }
+
+  function startEdit(row: LedgerRow) {
+    setEditingId(row.id);
+    setSelectedMatId(row.material_id || "");
+    const name = row.materials?.display_name || row.materials?.name || "";
+    setMatSearch(name);
+    setUnit(row.materials?.inventory_unit || "bag");
+    setUnitLocked(false);
+    setQty(String(row.quantity || ""));
+    setTotalCost(String(row.total_cost ?? ""));
+    setDate(String(row.transaction_date || "").slice(0, 10));
+    setRefNum(row.reference_number || "");
+    setVendor(row.vendor_name || "");
+    setNotes(row.notes || "");
+    setInvoicedFinal(Boolean(row.invoiced_final));
+    setReceiptSource(RECEIPT_TYPES.has(row.transaction_type) ? row.transaction_type : "invoice");
+    setPartialEdit(Boolean(row.invoiced_final));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+  async function handleSubmit() {
+    if (!partialEdit && !matSearch.trim()) { setError("Material is required."); return; }
+    if (!partialEdit && Number(qty) <= 0) { setError("Quantity must be greater than 0."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      let res: Response;
+      if (editingId) {
+        const patchBody = partialEdit
+          ? {
+              transaction_type: receiptSource,
+              vendor_name: vendor.trim() || null,
+              reference_number: refNum.trim() || null,
+              notes: notes.trim() || null,
+            }
+          : (() => {
+              const q = Number(qty);
+              const tc = Number(totalCost);
+              return {
+                quantity: q, total_cost: tc,
+                unit_cost: q > 0 ? Number((tc / q).toFixed(4)) : 0,
+                transaction_date: date,
+                reference_number: refNum.trim() || null,
+                vendor_name: vendor.trim() || null,
+                notes: notes.trim() || null,
+                invoiced_final: invoicedFinal,
+                transaction_type: receiptSource,
+              };
+            })();
+        res = await fetch(`/api/inventory/receipt/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patchBody),
+        });
+      } else {
+        res = await fetch("/api/inventory/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            material_id: selectedMatId || null,
+            material_name: matSearch.trim(),
+            inventory_unit: unit,
+            quantity: Number(qty),
+            total_cost: Number(totalCost),
+            transaction_date: date,
+            reference_number: refNum.trim() || null,
+            vendor_name: vendor.trim() || null,
+            notes: notes.trim() || null,
+            invoiced_final: invoicedFinal,
+            receipt_source: receiptSource,
+            division_id: divisionId || null,
+            location_id: locationId || null,
+          }),
+        });
+      }
+      if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.error || "Failed to save."); }
+      clearForm();
+      await loadData(divisionId);
+    } catch (e: any) {
+      setError(e?.message || "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleVoid(id: string) {
+    try {
+      const res = await fetch(`/api/inventory/receipt/${id}`, { method: "DELETE" });
+      if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.error || "Failed to void."); }
+      if (editingId === id) clearForm();
+      setVoidConfirm(null);
+      await loadData(divisionId);
+    } catch (e: any) {
+      setError(e?.message || "Failed to void transaction.");
+    }
+  }
+
+  // ── Computed ───────────────────────────────────────────────────────────────
+  const filteredSummary = useMemo(() => {
+    const q = summarySearch.toLowerCase();
+    return summary
+      .filter(r => (showZeroBalance || r.qty_on_hand > 0) && (!q || `${r.material_name} ${r.location_name ?? ""}`.toLowerCase().includes(q)))
+      .sort((a, b) => (a.material_name || "").localeCompare(b.material_name || ""));
+  }, [summary, summarySearch, showZeroBalance]);
+
+  const filteredLedger = useMemo(() => {
+    const q = ledgerSearch.toLowerCase();
+    return ledger.filter(r => {
+      const t = `${r.materials?.display_name ?? r.materials?.name ?? ""} ${r.transaction_type} ${r.reference_number ?? ""} ${r.vendor_name ?? ""} ${r.notes ?? ""}`.toLowerCase();
+      return !q || t.includes(q);
+    });
+  }, [ledger, ledgerSearch]);
+
+  const totalValue  = filteredSummary.reduce((s, r) => s + (r.inventory_value || 0), 0);
+  const negCount    = filteredSummary.filter(r => r.negative_flag).length;
+  const openReceipts = filteredLedger.filter(r => RECEIPT_TYPES.has(r.transaction_type) && !r.invoiced_final).length;
+  const unitCostCalc = Number(qty) > 0 ? Number(totalCost) / Number(qty) : 0;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#f6f8f6]">
+      <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Total Value",    value: money(totalValue),       color: "text-[#123b1f]" },
+            { label: "Items Tracked",  value: filteredSummary.length,  color: "text-gray-900" },
+            { label: "Open Receipts",  value: openReceipts,            color: openReceipts > 0 ? "text-amber-600" : "text-gray-900" },
+            { label: "Negative Items", value: negCount,                color: negCount > 0 ? "text-red-600" : "text-gray-900" },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-[#d7e6db] shadow-sm px-5 py-4">
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</div>
+              <div className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError("")} className="underline ml-4">dismiss</button>
+          </div>
+        )}
+
+        {/* Main grid: form left, summary right */}
+        <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6 items-start">
+
+          {/* ── Add Receipt Form ──────────────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
+            <div className={`px-5 py-4 border-b ${editingId ? "bg-amber-50" : "bg-gray-50"}`}>
+              <h2 className="font-bold text-gray-900 text-base">
+                {partialEdit ? "✎ Edit Details" : editingId ? "✎ Edit Receipt" : "Add Receipt"}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {partialEdit
+                  ? "Vendor, type, reference and notes only — qty/cost locked on finalized receipts."
+                  : editingId
+                  ? "Update the selected receipt below."
+                  : `Add incoming stock to ${divisionName} inventory.`}
+              </p>
+            </div>
+
+            <div className="px-5 py-5 space-y-4">
+              {/* Material search */}
+              <div ref={dropRef} className="relative">
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Material *</label>
+                <input
+                  disabled={partialEdit}
+                  className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
+                  placeholder="Search materials…"
+                  value={matSearch}
+                  onChange={e => { setMatSearch(e.target.value); setSelectedMatId(""); setShowDrop(true); }}
+                  onFocus={() => { if (!partialEdit) setShowDrop(true); }}
+                />
+                {showDrop && matResults.length > 0 && (
+                  <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+                    {matResults.map(m => (
+                      <button key={m.id} onClick={() => selectMaterial(m)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-green-50 text-sm border-b last:border-0">
+                        <div className="font-medium text-gray-900">{m.display_name || m.name}</div>
+                        <div className="text-xs text-gray-400">Unit: {m.inventory_unit || m.unit || "—"}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Qty + Unit + Cost */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Qty *</label>
+                  <input type="number" min="0" step="any" disabled={partialEdit}
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
+                    placeholder="0" value={qty} onChange={e => {
+                      const v = e.target.value;
+                      setQty(v);
+                      if (autoUnitCost && autoUnitCost > 0 && Number(v) > 0) {
+                        setTotalCost((Number(v) * autoUnitCost).toFixed(2));
+                      }
+                    }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Unit</label>
+                  <UnitInput
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${unitLocked || partialEdit ? "bg-gray-100 text-gray-500" : ""}`}
+                    value={unit} disabled={unitLocked || partialEdit} onChange={setUnit} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Total Cost</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" min="0" step="0.01" disabled={partialEdit}
+                      className={`w-full border border-gray-200 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
+                      placeholder="0.00" value={totalCost} onChange={e => setTotalCost(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Unit cost display */}
+              {unitCostCalc > 0 && (
+                <div className="text-xs text-gray-400 -mt-1">
+                  Unit cost: <span className="font-semibold text-gray-600">{money(unitCostCalc)}/{unit}</span>
+                </div>
+              )}
+
+              {/* Date + Reference */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
+                  <input type="date" disabled={partialEdit}
+                    className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${partialEdit ? "bg-gray-100 text-gray-400" : ""}`}
+                    value={date} onChange={e => setDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Reference #</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Invoice / PO" value={refNum} onChange={e => setRefNum(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Source type */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Source Type</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={receiptSource} onChange={e => setReceiptSource(e.target.value)}>
+                  {RECEIPT_SOURCE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Location */}
+              {locations.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Location</label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    value={locationId} onChange={e => setLocationId(e.target.value)}>
+                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Vendor + Final */}
+              <div className="grid grid-cols-2 gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Vendor</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Optional" value={vendor} onChange={e => setVendor(e.target.value)} />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer pb-2">
+                  <button type="button" onClick={() => setInvoicedFinal(v => !v)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${invoicedFinal ? "bg-green-500" : "bg-gray-300"}`}>
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${invoicedFinal ? "translate-x-4" : "translate-x-1"}`} />
+                  </button>
+                  Final invoice
+                </label>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
+                <input
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Optional" value={notes} onChange={e => setNotes(e.target.value)} />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleSubmit} disabled={saving || (!partialEdit && (!matSearch.trim() || Number(qty) <= 0))}
+                  className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold text-sm py-2.5 rounded-lg shadow-sm transition-colors disabled:opacity-40">
+                  {saving ? "Saving…" : partialEdit ? "Save Details" : editingId ? "Save Changes" : "Add Receipt"}
+                </button>
+                {editingId && (
+                  <button onClick={clearForm} className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Inventory Summary ──────────────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="font-bold text-gray-900 text-base">Inventory Summary</h2>
+                <p className="text-xs text-gray-500 mt-0.5">On-hand position for {divisionName}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
+                  <button type="button" onClick={() => setShowZeroBalance(v => !v)}
+                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${showZeroBalance ? "bg-green-500" : "bg-gray-300"}`}>
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${showZeroBalance ? "translate-x-4" : "translate-x-0.5"}`} />
+                  </button>
+                  Show zero balance
+                </label>
+                <input
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Search…" value={summarySearch} onChange={e => setSummarySearch(e.target.value)} />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="px-5 py-10 text-sm text-gray-400 text-center">Loading…</div>
+            ) : filteredSummary.length === 0 ? (
+              <div className="px-5 py-10 text-sm text-gray-400 text-center">
+                No inventory on hand yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50/60 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <th className="text-center px-4 py-3">Material</th>
+                      <th className="text-center px-4 py-3">Location</th>
+                      <th className="text-center px-4 py-3">Qty On Hand</th>
+                      <th className="text-center px-4 py-3">Avg Cost</th>
+                      <th className="text-center px-4 py-3">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSummary.map(row => (
+                      <tr key={`${row.material_id}_${row.location_id ?? "none"}`}
+                        className={`border-b last:border-0 ${row.negative_flag ? "bg-red-50" : ""}`}>
+                        <td className="text-center px-4 py-3 font-medium text-gray-900">{row.material_name}</td>
+                        <td className="text-center px-4 py-3 text-gray-500 text-xs">{row.location_name || "—"}</td>
+                        <td className="text-center px-4 py-3">
+                          <span className={row.negative_flag ? "text-red-600 font-semibold" : ""}>
+                            {fmtQty(row.qty_on_hand)} {row.inventory_unit || ""}
+                          </span>
+                          {row.negative_flag && <span className="ml-1 text-[10px] text-red-500 font-bold">LOW</span>}
+                        </td>
+                        <td className="text-center px-4 py-3 text-gray-600">{money(row.avg_unit_cost)}</td>
+                        <td className="text-center px-4 py-3 font-semibold text-gray-900">{money(row.inventory_value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t bg-gray-50">
+                      <td colSpan={4} className="text-center px-4 py-3 font-semibold text-gray-700 text-sm">Total</td>
+                      <td className="text-center px-4 py-3 font-bold text-[#123b1f]">{money(totalValue)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Ledger ──────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-[#d7e6db] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-gray-900 text-base">Transaction Ledger</h2>
+              <p className="text-xs text-gray-500 mt-0.5">All receipts and usage for {divisionName}</p>
+            </div>
+            <input
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Search…" value={ledgerSearch} onChange={e => setLedgerSearch(e.target.value)} />
+          </div>
+
+          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-gray-50 border-b">
+                <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="text-center px-4 py-3">Date</th>
+                  <th className="text-center px-4 py-3">Material</th>
+                  <th className="text-center px-4 py-3">Type</th>
+                  <th className="text-center px-4 py-3">Qty</th>
+                  <th className="text-center px-4 py-3 hidden sm:table-cell">Unit Cost</th>
+                  <th className="text-center px-4 py-3">Total</th>
+                  <th className="text-center px-4 py-3 hidden md:table-cell">Vendor</th>
+                  <th className="text-center px-4 py-3 hidden md:table-cell">Reference</th>
+                  <th className="text-center px-4 py-3 hidden lg:table-cell">Final</th>
+                  <th className="text-center px-4 py-3 hidden lg:table-cell">Notes</th>
+                  <th className="text-center px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLedger.length === 0 ? (
+                  <tr><td colSpan={11} className="px-4 py-10 text-sm text-gray-400 text-center">No transactions found.</td></tr>
+                ) : filteredLedger.map(row => {
+                  const matName = row.materials?.display_name || row.materials?.name || "—";
+                  const rowUnit = row.materials?.inventory_unit || "";
+                  const typeBadgeColor: Record<string, string> = {
+                    invoice:    "bg-purple-100 text-purple-700",
+                    ticket:     "bg-amber-100 text-amber-700",
+                    cc_receipt: "bg-blue-100 text-blue-700",
+                    carryover:  "bg-teal-100 text-teal-700",
+                    receipt:    "bg-gray-100 text-gray-600",
+                    usage:      "bg-green-100 text-green-700",
+                    adjustment: "bg-orange-100 text-orange-700",
+                  };
+                  const badgeClass = typeBadgeColor[row.transaction_type] ?? "bg-gray-100 text-gray-600";
+                  return (
+                    <tr key={row.id} className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${editingId === row.id ? "bg-amber-50" : ""}`}>
+                      <td className="text-center px-4 py-3 whitespace-nowrap">
+                        <input
+                          type="date"
+                          className="border-0 bg-transparent text-gray-500 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:bg-white focus:border focus:border-gray-200 rounded px-1 -mx-1 cursor-pointer"
+                          value={String(row.transaction_date || "").slice(0, 10)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setLedger(prev => prev.map(r => r.id === row.id ? { ...r, transaction_date: val } : r));
+                          }}
+                          onBlur={async (e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            await fetch(`/api/inventory/receipt/${row.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ transaction_date: val }),
+                            });
+                          }}
+                        />
+                      </td>
+                      <td className="text-center px-4 py-3 font-medium text-gray-900">{matName}</td>
+                      <td className="text-center px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${badgeClass}`}>
+                          {RECEIPT_SOURCE_LABEL[row.transaction_type] ?? titleize(row.transaction_type)}
+                        </span>
+                      </td>
+                      <td className="text-center px-4 py-3 font-semibold">
+                        <span className={row.quantity < 0 ? "text-red-600" : "text-gray-900"}>
+                          {row.quantity < 0 ? "-" : "+"}{fmtQty(Math.abs(row.quantity))} {rowUnit}
+                        </span>
+                      </td>
+                      <td className="text-center px-4 py-3 text-gray-500 hidden sm:table-cell">
+                        {row.unit_cost != null ? money(row.unit_cost) : "—"}
+                      </td>
+                      <td className="text-center px-4 py-3 font-semibold text-gray-900">
+                        {row.total_cost != null ? money(row.total_cost) : "—"}
+                      </td>
+                      <td className="text-center px-4 py-3 text-gray-500 hidden md:table-cell">{row.vendor_name || "—"}</td>
+                      <td className="text-center px-4 py-3 text-gray-500 hidden md:table-cell">{row.reference_number || "—"}</td>
+                      <td className="text-center px-4 py-3 hidden lg:table-cell">
+                        {row.invoiced_final ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="text-center px-4 py-3 hidden lg:table-cell">
+                        {row.notes ? (
+                          <button onClick={() => setNoteModal(row.notes!)}
+                            className="text-gray-400 hover:text-gray-600 text-xs underline">view</button>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="text-center px-4 py-3 whitespace-nowrap">
+                        {RECEIPT_TYPES.has(row.transaction_type) && (
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => startEdit(row)}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                            <button onClick={() => setVoidConfirm(row.id)}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium">Void</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Note modal ──────────────────────────────────────────────────────── */}
+      {noteModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNoteModal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 mb-2">Notes</h3>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{noteModal}</p>
+            <button onClick={() => setNoteModal(null)} className="mt-4 text-xs text-gray-400 hover:text-gray-600 underline">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Void confirm modal ───────────────────────────────────────────────── */}
+      {voidConfirm !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setVoidConfirm(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 mb-2">Void Transaction?</h3>
+            <p className="text-sm text-gray-600 mb-5">This will remove the transaction from inventory calculations. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => handleVoid(voidConfirm)}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold text-sm py-2 rounded-lg">
+                Void
+              </button>
+              <button onClick={() => setVoidConfirm(null)}
+                className="flex-1 border border-gray-200 text-gray-600 text-sm py-2 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

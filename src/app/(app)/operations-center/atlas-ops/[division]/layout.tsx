@@ -12,6 +12,7 @@ export default function DivisionLayout({ children }: { children: React.ReactNode
     { label: "Dashboard",        href: base },
     { label: "Upcoming Revenue", href: `${base}/upcoming-revenue` },
     { label: "COGS",             href: `${base}/cogs` },
+    { label: "Inventory",        href: `${base}/inventory` },
   ];
 
   return (
