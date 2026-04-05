@@ -591,21 +591,21 @@ function MaterialsTab({
         <div className="py-6 text-center text-sm text-emerald-900/40">No materials logged for this day.</div>
       )}
 
-      {/* Add form — single row */}
+      {/* Add form — single scrollable row */}
       {adding ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 px-4 py-3 overflow-x-auto">
+          <div className="flex items-center gap-2 min-w-max">
             {/* Material search */}
-            <div className="relative w-52">
+            <div className="relative">
               <input
                 type="text"
                 placeholder="Search material…"
                 value={search}
                 onChange={e => { setSearch(e.target.value); setSelected(null); }}
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400"
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-emerald-400"
               />
               {(results.length > 0 || searching) && !selected && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto w-64">
                   {searching && <div className="px-3 py-2 text-xs text-gray-400">Searching…</div>}
                   {results.map(r => (
                     <button key={r.id} onClick={() => selectMaterial(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 border-b border-gray-50 last:border-0">
@@ -621,7 +621,7 @@ function MaterialsTab({
             <select
               value={assignedEmpId}
               onChange={e => setAssignedEmpId(e.target.value)}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-40 focus:outline-none focus:border-emerald-400 bg-white"
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-36 focus:outline-none focus:border-emerald-400 bg-white"
             >
               <option value="">— Unassigned —</option>
               {members.map(m => (
@@ -638,33 +638,28 @@ function MaterialsTab({
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-20 focus:outline-none focus:border-emerald-400"
             />
 
-            {/* Unit (read-only) */}
-            {selected && (
-              <div className="border border-gray-100 rounded-lg px-3 py-1.5 text-sm w-16 bg-gray-50 text-gray-500 text-center">
-                {selected.inventory_unit || selected.unit}
-              </div>
-            )}
+            {/* Unit label */}
+            <div className={`rounded-lg px-3 py-1.5 text-sm w-14 text-center border ${selected ? "border-gray-100 bg-gray-50 text-gray-500" : "border-transparent text-gray-300"}`}>
+              {selected ? (selected.inventory_unit || selected.unit) : "unit"}
+            </div>
 
             {/* Unit cost */}
-            {selected && (
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                <input
-                  type="number" step="0.01" min="0"
-                  placeholder="Cost"
-                  value={unitCost}
-                  onChange={e => setUnitCost(e.target.value)}
-                  className="border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm w-24 focus:outline-none focus:border-emerald-400"
-                />
-              </div>
-            )}
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+              <input
+                type="number" step="0.01" min="0"
+                placeholder="cost"
+                value={unitCost}
+                onChange={e => setUnitCost(e.target.value)}
+                disabled={!selected}
+                className="border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm w-24 focus:outline-none focus:border-emerald-400 disabled:bg-gray-50 disabled:text-gray-300"
+              />
+            </div>
 
             {/* Computed total */}
-            {selected && qty && unitCost && (
-              <div className="border border-gray-100 rounded-lg px-3 py-1.5 text-sm w-24 bg-gray-50 text-emerald-800 font-semibold text-center">
-                {money.format(Number(qty) * Number(unitCost))}
-              </div>
-            )}
+            <div className={`rounded-lg px-3 py-1.5 text-sm w-24 text-center font-semibold border ${selected && qty && unitCost ? "border-gray-100 bg-gray-50 text-emerald-800" : "border-transparent text-gray-300"}`}>
+              {selected && qty && unitCost ? money.format(Number(qty) * Number(unitCost)) : "total"}
+            </div>
 
             {/* Notes */}
             <input
@@ -672,7 +667,7 @@ function MaterialsTab({
               placeholder="Notes (optional)"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-24 focus:outline-none focus:border-emerald-400"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:border-emerald-400"
             />
 
             <button
@@ -684,9 +679,9 @@ function MaterialsTab({
             </button>
             <button
               onClick={resetForm}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 transition-colors"
             >
-              Cancel
+              ✕
             </button>
           </div>
         </div>
