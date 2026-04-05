@@ -351,8 +351,18 @@ export default function UniformsPage() {
   const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL'];
   const sizeRank = (s: string | null | undefined) => { const i = SIZE_ORDER.indexOf(s ?? ''); return i === -1 ? 99 : i; };
 
+  // Normalize rows like "Short Sleeve - Green" → group under "Short Sleeve" with color "Green"
+  function normalizeRow(r: SummaryRow): SummaryRow {
+    if (!r.color_label) {
+      const m = r.item_name.match(/^(.+?) - ([A-Za-z]+)$/);
+      if (m) return { ...r, item_name: m[1], color_label: m[2] };
+    }
+    return r;
+  }
+
   const totalValue = summary.filter(r => r.item_name !== 'Background Check').reduce((s, r) => s + (r.inventory_value ?? 0), 0);
   const totalUnits = summary.filter(r => r.item_name !== 'Background Check').reduce((s, r) => s + r.qty_on_hand, 0);
+  const itemsBelowZero = summary.filter(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0).length;
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -549,13 +559,13 @@ export default function UniformsPage() {
         {!loading && (
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Units on Hand", value: fmtN(totalUnits), alert: totalUnits < 0 },
-              { label: "Inventory Value", value: fmt$(totalValue), alert: false },
-              { label: "Items Below Zero", value: fmtN(summary.filter(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0).length), alert: summary.some(r => r.item_name !== 'Background Check' && r.qty_on_hand < 0) },
+              { label: "Units on Hand",   value: fmtN(totalUnits),      alert: totalUnits < 0,    positive: totalUnits > 0 },
+              { label: "Inventory Value", value: fmt$(totalValue),       alert: totalValue < 0,    positive: totalValue > 0 },
+              { label: "Items Below Zero", value: fmtN(itemsBelowZero), alert: itemsBelowZero > 0, positive: false },
             ].map(s => (
-              <div key={s.label} className={`bg-white rounded-2xl border shadow-sm px-5 py-4 ${s.alert ? 'border-red-100' : 'border-gray-100'}`}>
+              <div key={s.label} className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm px-5 py-4 ${s.alert ? 'border-l-red-400' : 'border-l-[#1a5c2a]'}`}>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{s.label}</p>
-                <p className={`text-2xl font-bold mt-1 tabular-nums ${s.alert ? 'text-red-600' : 'text-gray-800'}`}>{s.value}</p>
+                <p className={`text-2xl font-bold mt-1 tabular-nums ${s.alert ? 'text-red-600' : s.positive ? 'text-[#1a5c2a]' : 'text-gray-800'}`}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -587,7 +597,7 @@ export default function UniformsPage() {
 
         {/* ── ON HAND (inventory) view ── */}
         {!loading && view === "inventory" && (() => {
-          const filtered = summary.filter(r => r.item_name !== 'Background Check');
+          const filtered = summary.filter(r => r.item_name !== 'Background Check').map(normalizeRow);
           const groups = Object.entries(
             filtered.reduce((acc, r) => { (acc[r.item_name] ??= []).push(r); return acc; }, {} as Record<string, SummaryRow[]>)
           ).map(([name, rows]) => {
@@ -595,32 +605,32 @@ export default function UniformsPage() {
             const byColor: Record<string, SummaryRow[]> = {};
             for (const r of sorted) (byColor[r.color_label ?? ''] ??= []).push(r);
             return { name, byColor, totalUnits: rows.reduce((s, r) => s + r.qty_on_hand, 0), totalValue: rows.reduce((s, r) => s + (r.inventory_value ?? 0), 0), avgCost: rows[0]?.avg_unit_cost ?? null };
-          });
+          }).sort((a, b) => a.name.localeCompare(b.name));
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {groups.length === 0 && (
                 <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-sm text-gray-400">No inventory yet. Add a receipt to get started.</div>
               )}
               {groups.map(g => (
-                <div key={g.name} className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm ${g.totalUnits < 0 ? 'border-l-red-400' : 'border-l-[#1a5c2a]'}`}>
+                <div key={g.name} className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm overflow-hidden ${g.totalUnits < 0 ? 'border-l-red-400' : 'border-l-[#1a5c2a]'}`}>
                   {/* Card header */}
-                  <div className="flex items-start justify-between px-5 pt-4 pb-3">
+                  <div className={`flex items-start justify-between px-5 pt-4 pb-3 ${g.totalUnits >= 0 ? 'bg-gradient-to-r from-[#f0f7f0] to-white' : 'bg-gradient-to-r from-red-50/60 to-white'}`}>
                     <div>
                       <div className="text-base font-bold text-gray-800">{g.name}</div>
                       {g.avgCost != null && <div className="text-[11px] text-gray-400 mt-0.5">avg cost {fmt$(g.avgCost)}</div>}
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-gray-800'}`}>{fmtN(g.totalUnits)}</div>
+                      <div className={`text-2xl font-bold tabular-nums leading-none ${g.totalUnits < 0 ? 'text-red-600' : 'text-[#1a5c2a]'}`}>{fmtN(g.totalUnits)}</div>
                       <div className="text-[11px] text-gray-400 mt-0.5">{fmt$(g.totalValue)}</div>
                     </div>
                   </div>
                   {/* Size/color tiles */}
-                  <div className="px-5 pb-4 space-y-2.5 border-t border-gray-50 pt-3">
+                  <div className="px-5 pb-4 space-y-2.5 border-t border-gray-100 pt-3">
                     {Object.entries(g.byColor).map(([color, rows]) => (
                       <div key={color} className="flex items-center gap-2 flex-wrap">
                         {color && <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide w-10 shrink-0">{color}</span>}
                         {rows.map(r => (
-                          <div key={`${r.size_label}-${r.color_label}`} className={`text-center rounded-xl px-3 pt-1.5 pb-2 min-w-[52px] ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
+                          <div key={`${r.size_label}-${r.color_label}`} className={`text-center rounded-xl px-3 pt-1.5 pb-2 min-w-[52px] ${r.qty_on_hand < 0 ? 'bg-red-50' : r.qty_on_hand === 0 ? 'bg-gray-50' : 'bg-[#f0f7f0]'}`}>
                             {r.size_label && <div className="text-[10px] font-semibold text-gray-400 mb-0.5">{r.size_label}</div>}
                             <div className={`text-base font-bold tabular-nums leading-none ${r.qty_on_hand < 0 ? 'text-red-600' : r.qty_on_hand === 0 ? 'text-gray-300' : 'text-[#1a5c2a]'}`}>{fmtN(r.qty_on_hand)}</div>
                           </div>
@@ -648,8 +658,16 @@ export default function UniformsPage() {
               </div>
             )}
             {!consumptionLoading && consumption && (() => {
+              // Normalize "Item - Color" names same as On Hand view
+              const normalizedLines = consumption.lines.map(l => {
+                if (!l.color_label) {
+                  const m = l.item_name.match(/^(.+?) - ([A-Za-z]+)$/);
+                  if (m) return { ...l, item_name: m[1], color_label: m[2] };
+                }
+                return l;
+              });
               const grouped = Object.entries(
-                consumption.lines.reduce((acc, l) => {
+                normalizedLines.reduce((acc, l) => {
                   (acc[l.item_name] ??= []).push(l);
                   return acc;
                 }, {} as Record<string, ConsumptionLine[]>)
@@ -666,14 +684,14 @@ export default function UniformsPage() {
               return (
                 <>
                   {/* Period header */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center justify-between">
+                  <div className="rounded-2xl border border-[#1a5c2a]/20 shadow-sm px-5 py-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #0d2616 0%, #123b1f 60%, #1a5c2a 100%)" }}>
                     <div>
-                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Period</p>
-                      <p className="text-base font-bold text-gray-800 mt-0.5">{fmtDate(consumption.from_date)} — {fmtDate(consumption.to_date)}</p>
+                      <p className="text-xs text-white/50 font-medium uppercase tracking-wide">Period</p>
+                      <p className="text-base font-bold text-white mt-0.5">{fmtDate(consumption.from_date)} — {fmtDate(consumption.to_date)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total $ Used</p>
-                      <p className="text-2xl font-bold text-gray-800 tabular-nums mt-0.5">{fmt$(consumption.total_consumed_value)}</p>
+                      <p className="text-xs text-white/50 font-medium uppercase tracking-wide">Total $ Used</p>
+                      <p className="text-2xl font-bold text-white tabular-nums mt-0.5">{fmt$(consumption.total_consumed_value)}</p>
                     </div>
                   </div>
 
