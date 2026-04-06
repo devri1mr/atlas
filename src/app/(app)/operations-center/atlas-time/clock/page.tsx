@@ -723,7 +723,7 @@ function ClockPageInner() {
           cmp = `${emp_a?.last_name ?? ""}${emp_a?.first_name ?? ""}`.localeCompare(`${emp_b?.last_name ?? ""}${emp_b?.first_name ?? ""}`);
           break;
         case "punch_item":
-          cmp = (a.at_divisions?.name ?? "").localeCompare(b.at_divisions?.name ?? "");
+          cmp = (a.at_divisions?.name ?? a.divisions?.name ?? "").localeCompare(b.at_divisions?.name ?? b.divisions?.name ?? "");
           break;
         case "clock_in":
           cmp = a.clock_in_at.localeCompare(b.clock_in_at);
@@ -1326,7 +1326,7 @@ function ClockPageInner() {
                                     </div>
                                   )}
                                 </div>
-                            <div className="text-center">{p.at_divisions ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.at_divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
+                            <div className="text-center">{(p.at_divisions?.name || p.divisions?.name) ? <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">{p.at_divisions?.name || p.divisions?.name}</span> : <span className="text-gray-300 text-xs">—</span>}</div>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{fmtTime(p.clock_in_at)}</span>
                             <span className="text-xs text-center tabular-nums">{p.clock_out_at ? fmtTime(p.clock_out_at) : <span className="text-amber-500 font-semibold">Open</span>}</span>
                             <span className="text-xs text-gray-600 text-center tabular-nums">{group.length === 1 ? (p.regular_hours != null ? p.regular_hours.toFixed(2) : (hrs ? Number(hrs).toFixed(2) : <span className="text-gray-300">—</span>)) : <span className="text-gray-300">—</span>}</span>
@@ -1538,7 +1538,7 @@ function ClockPageInner() {
                       </div>
                       {cols.division && (
                         <div className="hidden sm:block w-32 shrink-0">
-                          {p.at_divisions ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.at_divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                          {(p.at_divisions?.name || p.divisions?.name) ? <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.at_divisions?.name || p.divisions?.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                         </div>
                       )}
                       {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-500 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
@@ -1658,7 +1658,7 @@ function ClockPageInner() {
                     </div>
                     {cols.division && (
                       <div className="hidden sm:block w-32 shrink-0">
-                        {p.at_divisions ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.at_divisions.name}</span> : <span className="text-gray-300 text-xs">—</span>}
+                        {(p.at_divisions?.name || p.divisions?.name) ? <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{p.at_divisions?.name || p.divisions?.name}</span> : <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     )}
                     {cols.department && <div className="hidden md:block w-28 shrink-0 text-xs text-gray-400 truncate">{emp.at_departments?.name ?? <span className="text-gray-300">—</span>}</div>}
