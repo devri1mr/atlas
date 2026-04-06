@@ -387,8 +387,12 @@ export default function DivisionUpcomingRevenuePage() {
 
                     if (isUnresolved) {
                       return (
-                        <td key={date} className="px-2 py-2.5 text-center border border-gray-200" style={{ background: "#fffbeb" }}>
-                          <span className="text-sm font-bold text-amber-500">{money(val)}</span>
+                        <td key={date} className="px-2 py-1 border border-gray-200" style={{ background: "#fffbeb" }}>
+                          <EditCell
+                            value={val}
+                            onSave={v => handleSave(date, v)}
+                          />
+                          {saving.has(date) && <div className="text-center text-[10px] text-amber-400/60">saving…</div>}
                         </td>
                       );
                     }
